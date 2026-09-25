@@ -891,16 +891,16 @@ public class DHOpsTest
 
 
     // -----------------------------------------------------------------
-    // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only. The FFI
+    // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only. The FFM
     // bridge has no JVM array-access path so the tests are guarded by
-    // Loader.isFFI().
+    // Loader.isFFM().
     // -----------------------------------------------------------------
 
     @Test
     public void dh_groupSupported_accessName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/nonfips/jni/dh_ni_jni.c:41
@@ -918,7 +918,7 @@ public class DHOpsTest
     public void dh_generateKeyPairByGroup_accessName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/nonfips/jni/dh_ni_jni.c:76
@@ -938,7 +938,7 @@ public class DHOpsTest
     public void dh_makeParams_accessP_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         try
@@ -960,7 +960,7 @@ public class DHOpsTest
     public void dh_makeParams_accessG_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         try
@@ -982,7 +982,7 @@ public class DHOpsTest
     public void dh_makePrivate_accessP_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
@@ -1005,7 +1005,7 @@ public class DHOpsTest
     public void dh_makePrivate_accessG_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
@@ -1028,7 +1028,7 @@ public class DHOpsTest
     public void dh_makePrivate_accessX_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
@@ -1051,7 +1051,7 @@ public class DHOpsTest
     public void dh_makePublic_accessP_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
@@ -1074,7 +1074,7 @@ public class DHOpsTest
     public void dh_makePublic_accessG_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
@@ -1097,7 +1097,7 @@ public class DHOpsTest
     public void dh_makePublic_accessY_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
@@ -1120,7 +1120,7 @@ public class DHOpsTest
     public void dh_getComponent_accessOutput_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/nonfips/jni/dh_ni_jni.c:388
@@ -1138,7 +1138,7 @@ public class DHOpsTest
     public void dh_kexDerive_accessOutput_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = dh.allocateKex();
         try
         {

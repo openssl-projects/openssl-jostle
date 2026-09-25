@@ -50,8 +50,8 @@ import java.security.SecureRandom;
  * <p>Requires a JOSTLE_OPS_TEST build of the FIPS library: gated on
  * {@code TEST_FIPS_LIB} (whole class skips when unset) and per-test on
  * {@link OperationsTestNI#opsTestAvailable()} so they no-op on a release
- * native build. The FAILED_ACCESS tests are JNI-only (the FFI bridge takes
- * raw pointers), guarded by {@code Loader.isFFI()}.
+ * native build. The FAILED_ACCESS tests are JNI-only (the FFM bridge takes
+ * raw pointers), guarded by {@code Loader.isFFM()}.
  *
  * <h2>Target map: offset → {@code interface/fips/util/dsa.c} fault-injection line</h2>
  *
@@ -984,16 +984,16 @@ public class FIPSDSAOpsTest
 
 
     // -----------------------------------------------------------------
-    // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only. The FFI
+    // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only. The FFM
     // bridge has no JVM array-access path so the tests are guarded by
-    // Loader.isFFI().
+    // Loader.isFFM().
     // -----------------------------------------------------------------
 
     @Test
     public void dsa_makeParams_accessP_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1016,7 +1016,7 @@ public class FIPSDSAOpsTest
     public void dsa_makeParams_accessQ_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1039,7 +1039,7 @@ public class FIPSDSAOpsTest
     public void dsa_makeParams_accessG_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1062,7 +1062,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePrivate_accessP_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1086,7 +1086,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePrivate_accessQ_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1110,7 +1110,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePrivate_accessG_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1134,7 +1134,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePrivate_accessX_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1158,7 +1158,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePublic_accessP_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1182,7 +1182,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePublic_accessQ_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1206,7 +1206,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePublic_accessG_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1230,7 +1230,7 @@ public class FIPSDSAOpsTest
     public void dsa_makePublic_accessY_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         byte[] p = component(DSAServiceNI.COMP_P);
         byte[] q = component(DSAServiceNI.COMP_Q);
         byte[] g = component(DSAServiceNI.COMP_G);
@@ -1254,7 +1254,7 @@ public class FIPSDSAOpsTest
     public void dsa_getComponent_accessOutput_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/fips/jni/dsa_ni_jni.c:351
@@ -1272,7 +1272,7 @@ public class FIPSDSAOpsTest
     public void dsa_initSign_accessDigestName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = dsa.allocateSigner();
         try
         {
@@ -1292,7 +1292,7 @@ public class FIPSDSAOpsTest
     public void dsa_initVerify_accessDigestName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = dsa.allocateSigner();
         try
         {
@@ -1313,7 +1313,7 @@ public class FIPSDSAOpsTest
     {
         assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = dsa.allocateSigner();
         try
         {
@@ -1335,7 +1335,7 @@ public class FIPSDSAOpsTest
     {
         assumeDsaSigns();
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = dsa.allocateSigner();
         try
         {
@@ -1357,7 +1357,7 @@ public class FIPSDSAOpsTest
     public void dsa_verify_accessSig_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = dsa.allocateSigner();
         try
         {

@@ -55,7 +55,7 @@ public class ScryptOpsTest
     @Test
     public void scrypt_access_password() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -75,7 +75,7 @@ public class ScryptOpsTest
     @Test
     public void scrypt_access_salt() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -95,7 +95,7 @@ public class ScryptOpsTest
     @Test
     public void scrypt_access_output() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {

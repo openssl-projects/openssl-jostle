@@ -47,7 +47,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * {@link OperationsTestNI#opsTestAvailable()} (skips against a shipped,
  * non-instrumented FIPS library). Flags are set on the FIPS library's own
  * OperationsTestNI, whose flag state is independent of the base library's. The
- * FAILED_ACCESS tests are JNI-only (the FFI bridge takes raw pointers).
+ * FAILED_ACCESS tests are JNI-only (the FFM bridge takes raw pointers).
  *
  * <h2>Target map: offset → {@code interface/fips/util/ec.c} fault-injection line</h2>
  *
@@ -1331,8 +1331,8 @@ public class FIPSECOpsTest
     // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only
     //
     // These tests fault-inject GetStringUTFChars failure on curve / digest
-    // name strings at the JNI bridge layer. FFI doesn't take a JVM access
-    // path so the tests are guarded by Loader.isFFI().
+    // name strings at the JNI bridge layer. FFM doesn't take a JVM access
+    // path so the tests are guarded by Loader.isFFM().
     // -----------------------------------------------------------------
 
     /**
@@ -1343,7 +1343,7 @@ public class FIPSECOpsTest
     public void ec_curveSupported_accessCurveName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/fips/jni/ec_ni_jni.c:42
@@ -1365,7 +1365,7 @@ public class FIPSECOpsTest
     public void ec_generateKeyPair_accessCurveName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/fips/jni/ec_ni_jni.c:77
@@ -1392,7 +1392,7 @@ public class FIPSECOpsTest
     public void ec_makePrivateFromComponents_accessCurveName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         // Any non-zero 32-byte scalar — OPS short-circuits before validation.
         byte[] scalar = new byte[32];
         scalar[31] = 0x01;
@@ -1419,7 +1419,7 @@ public class FIPSECOpsTest
     public void ec_initSign_accessDigestName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long sigRef = ec.allocateSigner();
         long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
         try
@@ -1445,7 +1445,7 @@ public class FIPSECOpsTest
     public void ec_initVerify_accessDigestName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long sigRef = ec.allocateSigner();
         long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
         try

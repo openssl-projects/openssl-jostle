@@ -592,7 +592,7 @@ tasks.register('unitTest21', Test) {
     }
 }
 
-tasks.register('unitTest25FFI', Test) {
+tasks.register('unitTest25FFM', Test) {
     onlyIf { System.getenv("BC_JDK25") != null }
 
     dependsOn(jar)
@@ -613,7 +613,7 @@ tasks.register('unitTest25FFI', Test) {
         languageVersion = JavaLanguageVersion.of(25)
     }
 
-    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffm', '-Dtest.java.interface_type=ffm']
     filter {
         excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
@@ -793,7 +793,7 @@ tasks.register('integrationTest21', Test) {
     }
 }
 
-tasks.register('integrationTest25FFI', Test) {
+tasks.register('integrationTest25FFM', Test) {
     onlyIf { System.getenv("BC_JDK25") != null }
 
     javaLauncher = javaToolchains.launcherFor {
@@ -814,7 +814,7 @@ tasks.register('integrationTest25FFI', Test) {
     maxHeapSize = "1536m"
 
 
-    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffm', '-Dtest.java.interface_type=ffm']
     filter {
         includeTestsMatching "*LimitTest*"
         includeTestsMatching "*IntegrationTest*"
@@ -866,7 +866,7 @@ tasks.register('integrationTest25JNI', Test) {
 //   ./gradlew :jostle:fipsTest25JNI
 //
 
-tasks.register('fipsUnitTest25FFI', Test) {
+tasks.register('fipsUnitTest25FFM', Test) {
     onlyIf { System.getenv("BC_JDK25") != null && System.getenv("TEST_FIPS_LIB") != null }
 
     dependsOn(jar)
@@ -884,7 +884,7 @@ tasks.register('fipsUnitTest25FFI', Test) {
         languageVersion = JavaLanguageVersion.of(25)
     }
 
-    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffm', '-Dtest.java.interface_type=ffm']
     filter {
         includeTestsMatching "org.openssl.jostle.test.fips.*"
         excludeTestsMatching "*LimitTest*"
@@ -920,7 +920,7 @@ tasks.register('fipsUnitTest25JNI', Test) {
     }
 }
 
-tasks.register('fipsIntegrationTest25FFI', Test) {
+tasks.register('fipsIntegrationTest25FFM', Test) {
     onlyIf { System.getenv("BC_JDK25") != null && System.getenv("TEST_FIPS_LIB") != null }
 
     javaLauncher = javaToolchains.launcherFor {
@@ -938,7 +938,7 @@ tasks.register('fipsIntegrationTest25FFI', Test) {
     maxParallelForks = 1
     maxHeapSize = "1536m"
 
-    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffi', '-Dtest.java.interface_type=ffi']
+    jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffm', '-Dtest.java.interface_type=ffm']
     filter {
         includeTestsMatching "org.openssl.jostle.test.fips.*LimitTest*"
         includeTestsMatching "org.openssl.jostle.test.fips.*IntegrationTest*"
@@ -975,8 +975,8 @@ tasks.register('fipsIntegrationTest25JNI', Test) {
 //
 // Convenience aggregates: all FIPS coverage for one interface, or both.
 //
-tasks.register('fipsTest25FFI') {
-    dependsOn('fipsUnitTest25FFI', 'fipsIntegrationTest25FFI')
+tasks.register('fipsTest25FFM') {
+    dependsOn('fipsUnitTest25FFM', 'fipsIntegrationTest25FFM')
 }
 
 tasks.register('fipsTest25JNI') {
@@ -984,7 +984,7 @@ tasks.register('fipsTest25JNI') {
 }
 
 tasks.register('fipsTest25') {
-    dependsOn('fipsTest25FFI', 'fipsTest25JNI')
+    dependsOn('fipsTest25FFM', 'fipsTest25JNI')
 }
 
 
@@ -1158,16 +1158,16 @@ registerModuleLeg('moduleTest11Automatic', 11, 'automatic', 'jni', false)
 registerModuleLeg('moduleTest11Unnamed', 11, 'unnamed', 'jni', false)
 registerModuleLeg('moduleTest11Control', 11, 'control', 'jni', false)
 
-// JDK 25: FFI, the java25 layer, across the same four cells.
-registerModuleLeg('moduleTest25Named', 25, 'named', 'ffi', false)
-registerModuleLeg('moduleTest25Automatic', 25, 'automatic', 'ffi', false)
-registerModuleLeg('moduleTest25Unnamed', 25, 'unnamed', 'ffi', false)
-registerModuleLeg('moduleTest25Control', 25, 'control', 'ffi', false)
+// JDK 25: FFM, the java25 layer, across the same four cells.
+registerModuleLeg('moduleTest25Named', 25, 'named', 'ffm', false)
+registerModuleLeg('moduleTest25Automatic', 25, 'automatic', 'ffm', false)
+registerModuleLeg('moduleTest25Unnamed', 25, 'unnamed', 'ffm', false)
+registerModuleLeg('moduleTest25Control', 25, 'control', 'ffm', false)
 
 // The native dimension, on the named cell only: it is about the natives, not
 // about where bcprov sits, so it does not multiply across the cells.
 registerModuleLeg('moduleTest25NamedJNI', 25, 'named', 'jni', false)
-registerModuleLeg('moduleTest25NamedNativeAccess', 25, 'named', 'ffi', true)
+registerModuleLeg('moduleTest25NamedNativeAccess', 25, 'named', 'ffm', true)
 
 tasks.register('moduleTest') {
     group = 'verification'
@@ -1209,8 +1209,8 @@ if (System.getenv("BC_JDK25") != null) {
     System.out.println("${project.name}: Adding test25 as dependency for test task because BC_JDK25 is defined")
     test.dependsOn("unitTest25JNI")
     test.dependsOn("integrationTest25JNI")
-    test.dependsOn("unitTest25FFI")
-    test.dependsOn("integrationTest25FFI")
+    test.dependsOn("unitTest25FFM")
+    test.dependsOn("integrationTest25FFM")
 }
 
 

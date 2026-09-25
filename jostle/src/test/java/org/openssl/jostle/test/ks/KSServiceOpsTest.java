@@ -50,9 +50,9 @@ import java.util.Date;
  *
  * <p>All tests are guarded by {@link OperationsTestNI#opsTestAvailable()} (so
  * they no-op on a release native build) and by
- * {@code Assumptions.assumeFalse(Loader.isFFI())}: every instrumented site is a
+ * {@code Assumptions.assumeFalse(Loader.isFFM())}: every instrumented site is a
  * JNI {@code GetStringUTFChars}/{@code GetByteArrayElements}/{@code NewByteArray}
- * fault or the JNI {@code int32} overflow guard, none of which exist on the FFI
+ * fault or the JNI {@code int32} overflow guard, none of which exist on the FFM
  * bridge.
  */
 public class KSServiceOpsTest
@@ -102,7 +102,7 @@ public class KSServiceOpsTest
         {
             operationsTestNI.resetFlags();
         }
-        if (!Loader.isFFI())
+        if (!Loader.isFFM())
         {
             validRef = ni.allocateKeyStore("PKCS12");
         }
@@ -130,7 +130,7 @@ public class KSServiceOpsTest
     public void allocateKeyStore_failedAccessName()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:41
@@ -156,7 +156,7 @@ public class KSServiceOpsTest
     public void load_failedAccessInput()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:80
@@ -178,7 +178,7 @@ public class KSServiceOpsTest
     public void load_failedAccessPassword()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:85
@@ -205,7 +205,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         byte[] encoded = buildValidKeystore();
         try
         {
@@ -229,7 +229,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         byte[] encoded = buildValidKeystore();
         try
         {
@@ -256,7 +256,7 @@ public class KSServiceOpsTest
     public void store_failedAccessPassword()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:125
@@ -288,7 +288,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         ni.setKey(validRef, "k", keyPkcs8, PASSWORD);
         try
         {
@@ -312,7 +312,7 @@ public class KSServiceOpsTest
     public void store_opensslErrorAtAddSafes()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/util/ks.c:831
@@ -335,7 +335,7 @@ public class KSServiceOpsTest
     public void store_opensslErrorAtSerialize()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/util/ks.c:856
@@ -371,7 +371,7 @@ public class KSServiceOpsTest
     public void getKey_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:202
@@ -394,7 +394,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         ni.setKey(validRef, "k", keyPkcs8, PASSWORD);
         try
         {
@@ -418,7 +418,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         ni.setKey(validRef, "k", keyPkcs8, PASSWORD);
         try
         {
@@ -446,7 +446,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:264
@@ -469,7 +469,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:273
@@ -492,7 +492,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:278
@@ -518,7 +518,7 @@ public class KSServiceOpsTest
     public void getCertificateChain_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:324
@@ -541,7 +541,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         ni.setCertificateEntry(validRef, "c", certDer);
         try
         {
@@ -568,7 +568,7 @@ public class KSServiceOpsTest
     public void setCertificateChain_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:377
@@ -590,7 +590,7 @@ public class KSServiceOpsTest
     public void setCertificateChain_failedAccessInput()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:382
@@ -616,7 +616,7 @@ public class KSServiceOpsTest
     public void setCertificateEntry_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:417
@@ -638,7 +638,7 @@ public class KSServiceOpsTest
     public void setCertificateEntry_failedAccessInput()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:422
@@ -664,7 +664,7 @@ public class KSServiceOpsTest
     public void deleteEntry_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:454
@@ -691,7 +691,7 @@ public class KSServiceOpsTest
         throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         ni.setKey(validRef, "k", keyPkcs8, PASSWORD);
         try
         {
@@ -718,7 +718,7 @@ public class KSServiceOpsTest
     public void containsAlias_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:532
@@ -744,7 +744,7 @@ public class KSServiceOpsTest
     public void isKeyEntry_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:576
@@ -770,7 +770,7 @@ public class KSServiceOpsTest
     public void isCertificateEntry_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:607
@@ -796,7 +796,7 @@ public class KSServiceOpsTest
     public void getCreationDate_failedAccessAlias()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/ks_jni.c:648

@@ -56,7 +56,7 @@ public class Loader
      * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
      * used in README.md; see {@link #LOAD_NATIVE_LIBS_PADDED_FORMAT}.
      * <p>
-     * Remember to also include either the relevant FFI or JNI library
+     * Remember to also include either the relevant FFM or JNI library
      */
     public static final String LOAD_NATIVE_LIBS_FORMAT = "org.openssl.jostle.loader.load_lib_%d";
 
@@ -71,12 +71,12 @@ public class Loader
      * Use this property to directly load a library by its name.
      * * Use an integer suffix of "_N" To load multiple libraries, for example:
      * * "-Dorg.openssl.jostle.loader.load_name_0=openssl"
-     * * "-Dorg.openssl.jostle.loader.load_name_1=bc_openssl_ffi"
+     * * "-Dorg.openssl.jostle.loader.load_name_1=bc_openssl_ffm"
      * <p>
      * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
      * used in README.md; see {@link #LOAD_LIBS_BY_NAME_PADDED_FORMAT}.
      * <p>
-     * Remember to also include either the relevant FFI or JNI library
+     * Remember to also include either the relevant FFM or JNI library
      */
     public static final String LOAD_LIBS_BY_NAME_FORMAT = "org.openssl.jostle.loader.load_name_%d";
 
@@ -89,7 +89,7 @@ public class Loader
 
     /**
      * Use this property to control the extraction and loading of the interface libs.
-     * Values are: "auto","jni", "ffi" and "none";
+     * Values are: "auto","jni", "ffm" and "none";
      */
     public static final String LOADER_INTERFACE = "org.openssl.jostle.loader.interface";
 
@@ -111,7 +111,7 @@ public class Loader
     private static String installDir;
 
     // State captured by loadImpl for the lazy, provider-driven FIPS interface
-    // load (loadFipsInterface). The FIPS entries (F_JNI:/F_FFI:) are parsed
+    // load (loadFipsInterface). The FIPS entries (F_JNI:/F_FFM:) are parsed
     // with everything else but never loaded by load() itself.
     private static File installRootDirUsed = null;
     private static String libRootUsed = null;
@@ -326,9 +326,9 @@ public class Loader
                     }
                     else
                     {
-                        if (depfEntry.startsWith("FFI:"))
+                        if (depfEntry.startsWith("FFM:"))
                         {
-                            extractions.add(new Extractions(depfEntry.substring(4).trim(), Extractions.Type.FFI));
+                            extractions.add(new Extractions(depfEntry.substring(4).trim(), Extractions.Type.FFM));
                         }
                         else
                         {
@@ -338,9 +338,9 @@ public class Loader
                             }
                             else
                             {
-                                if (depfEntry.startsWith("F_FFI:"))
+                                if (depfEntry.startsWith("F_FFM:"))
                                 {
-                                    extractions.add(new Extractions(depfEntry.substring(6).trim(), Extractions.Type.FIPS_FFI));
+                                    extractions.add(new Extractions(depfEntry.substring(6).trim(), Extractions.Type.FIPS_FFM));
                                 }
                                 else
                                 {
@@ -402,9 +402,9 @@ public class Loader
                 }
                 else
                 {
-                    if ("ffi".equals(interfaceResolutionStrategy))
+                    if ("ffm".equals(interfaceResolutionStrategy))
                     {
-                        interfaceType = Extractions.Type.FFI;
+                        interfaceType = Extractions.Type.FFM;
                         L.fine("JNI resolution strategy is JNI");
                     }
                     else
@@ -417,9 +417,9 @@ public class Loader
                                 //
                                 // This will only be available for Java 22 and above runtimes.
                                 //
-                                Class.forName("org.openssl.jostle.FFI");
-                                interfaceType = Extractions.Type.FFI;
-                                L.fine("FFI is detected");
+                                Class.forName("org.openssl.jostle.FFM");
+                                interfaceType = Extractions.Type.FFM;
+                                L.fine("FFM is detected");
                             }
                             catch (Throwable t)
                             {
@@ -531,11 +531,11 @@ public class Loader
      * reached from the FIPS provider) triggers it, so non-FIPS deployments
      * never touch the FIPS library. Idempotent; one attempt per JVM.
      *
-     * <p>The flavor follows the base interface resolution (JNI or FFI). The
-     * FFI flavor is extracted but deliberately NOT System.load'ed: the FIPS
+     * <p>The flavor follows the base interface resolution (JNI or FFM). The
+     * FFM flavor is extracted but deliberately NOT System.load'ed: the FIPS
      * library shares export names with the base interface library, so its
      * symbols must never enter the process-global loader lookup - the FIPS
-     * FFI implementation dlopens it via a library-scoped SymbolLookup on
+     * FFM implementation dlopens it via a library-scoped SymbolLookup on
      * {@link #getFipsInterfaceLibPath()} instead.
      *
      * <p>The OpenSSL FIPS module itself (fips.dylib / fips.so / fips.dll) is
@@ -581,8 +581,8 @@ public class Loader
             throw new IOException("interface resolution strategy is 'none'; no FIPS interface flavor to load");
         }
 
-        Extractions.Type wanted = interfaceType == Extractions.Type.FFI
-                ? Extractions.Type.FIPS_FFI : Extractions.Type.FIPS_JNI;
+        Extractions.Type wanted = interfaceType == Extractions.Type.FFM
+                ? Extractions.Type.FIPS_FFM : Extractions.Type.FIPS_JNI;
 
         Extractions target = null;
         for (Extractions extraction : parsedExtractions)
@@ -674,9 +674,9 @@ public class Loader
         return loadedLibs;
     }
 
-    public static boolean isFFI()
+    public static boolean isFFM()
     {
-        return Extractions.Type.FFI == interfaceType;
+        return Extractions.Type.FFM == interfaceType;
     }
 
     public static String getInstallDir()
@@ -706,7 +706,7 @@ public class Loader
 
     /**
      * Absolute path of the extracted FIPS interface library, or null if
-     * {@link #loadFipsInterface()} has not succeeded. The FIPS FFI
+     * {@link #loadFipsInterface()} has not succeeded. The FIPS FFM
      * implementation opens this with a library-scoped SymbolLookup.
      */
     public static String getFipsInterfaceLibPath()
@@ -724,9 +724,9 @@ public class Loader
              */
             JNI,
             /**
-             * FFI interface library
+             * FFM interface library
              */
-            FFI,
+            FFM,
             /**
              * OpenSSL library or related
              */
@@ -736,9 +736,9 @@ public class Loader
              */
             FIPS_JNI,
             /**
-             * FIPS FFI interface library - extracted lazily by loadFipsInterface (not System.load'ed)
+             * FIPS FFM interface library - extracted lazily by loadFipsInterface (not System.load'ed)
              */
-            FIPS_FFI
+            FIPS_FFM
         }
 
         final String name;

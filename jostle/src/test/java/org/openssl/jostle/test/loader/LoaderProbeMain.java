@@ -45,7 +45,7 @@ public final class LoaderProbeMain
         emit("message", String.valueOf(Loader.getMessage()));
         emit("interfaceStrategy", String.valueOf(Loader.getInterfaceResolutionStrategy()));
         emit("interfaceType", String.valueOf(Loader.getInterfaceTypeName()));
-        emit("isFFI", String.valueOf(Loader.isFFI()));
+        emit("isFFM", String.valueOf(Loader.isFFM()));
         emit("installDir", String.valueOf(Loader.getInstallDir()));
         emit("fixedInstallDir", String.valueOf(Loader.isFixedInstallDir()));
 

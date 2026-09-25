@@ -35,8 +35,8 @@ import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 /**
- * Java 25 override of the FIPS NI selector: picks the FFI implementations
- * when the loader resolved the FFI interface, matching the base NISelector's
+ * Java 25 override of the FIPS NI selector: picks the FFM implementations
+ * when the loader resolved the FFM interface, matching the base NISelector's
  * selection. Public surface must stay identical to the Java 8 baseline
  * (multi-release ABI rule).
  */
@@ -76,31 +76,31 @@ public class FIPSNISelector
     static
     {
         Loader.loadFipsInterface();
-        if (Loader.isFFI())
+        if (Loader.isFFM())
         {
-            OpenSSLFIPSNI = new OpenSSLFIPSFFI();
-            MDServiceNI = new MDServiceFIPSFFI();
-            BlockCipherNI = new BlockCipherFIPSFFI();
-            CCMCipherNI = new CCMCipherFIPSFFI();
-            MacServiceNI = new MacServiceFIPSFFI();
-            RandServiceNI = new RandServiceFIPSFFI();
-            SpecNI = new SpecFIPSFFI();
-            Asn1NI = new Asn1FIPSFFI();
-            X509NI = new X509ServiceFIPSFFI();
-            RSAServiceNI = new RSAServiceFIPSFFI();
-            RSAOAEPCipherNI = new RSAOAEPCipherFIPSFFI();
-            RSAPKCS1CipherNI = new RSAPKCS1CipherFIPSFFI();
-            ECServiceNI = new ECServiceFIPSFFI();
-            DSAServiceNI = new DSAServiceFIPSFFI();
-            DHServiceNI = new DHServiceFIPSFFI();
-            XECServiceNI = new XECServiceFIPSFFI();
-            EDServiceNI = new EDServiceFIPSFFI();
-            MLDSAServiceNI = new MLDSAServiceFIPSFFI();
-            MLKEMServiceNI = new MLKEMServiceFIPSFFI();
-            MLXKEMServiceNI = new MLXKEMServiceFIPSFFI();
-            SLHDSAServiceNI = new SLHDSAServiceFIPSFFI();
-            KdfNI = new KdfFIPSFFI();
-            OperationsTestNI = new OperationsTestFIPSFFI();
+            OpenSSLFIPSNI = new OpenSSLFIPSFFM();
+            MDServiceNI = new MDServiceFIPSFFM();
+            BlockCipherNI = new BlockCipherFIPSFFM();
+            CCMCipherNI = new CCMCipherFIPSFFM();
+            MacServiceNI = new MacServiceFIPSFFM();
+            RandServiceNI = new RandServiceFIPSFFM();
+            SpecNI = new SpecFIPSFFM();
+            Asn1NI = new Asn1FIPSFFM();
+            X509NI = new X509ServiceFIPSFFM();
+            RSAServiceNI = new RSAServiceFIPSFFM();
+            RSAOAEPCipherNI = new RSAOAEPCipherFIPSFFM();
+            RSAPKCS1CipherNI = new RSAPKCS1CipherFIPSFFM();
+            ECServiceNI = new ECServiceFIPSFFM();
+            DSAServiceNI = new DSAServiceFIPSFFM();
+            DHServiceNI = new DHServiceFIPSFFM();
+            XECServiceNI = new XECServiceFIPSFFM();
+            EDServiceNI = new EDServiceFIPSFFM();
+            MLDSAServiceNI = new MLDSAServiceFIPSFFM();
+            MLKEMServiceNI = new MLKEMServiceFIPSFFM();
+            MLXKEMServiceNI = new MLXKEMServiceFIPSFFM();
+            SLHDSAServiceNI = new SLHDSAServiceFIPSFFM();
+            KdfNI = new KdfFIPSFFM();
+            OperationsTestNI = new OperationsTestFIPSFFM();
         }
         else
         {

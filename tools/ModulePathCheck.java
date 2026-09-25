@@ -108,10 +108,10 @@ public class ModulePathCheck
                 fipsServices == 0, "count=" + fipsServices);
 
         // The bridge name is set only once native init succeeds, so a concrete
-        // JNI or FFI proves the library loaded from inside the named module.
+        // JNI or FFM proves the library loaded from inside the named module.
         String bridge = org.openssl.jostle.Loader.getInterfaceTypeName();
-        check("native bridge resolved to JNI or FFI",
-                "JNI".equals(bridge) || "FFI".equals(bridge), "bridge=" + bridge);
+        check("native bridge resolved to JNI or FFM",
+                "JNI".equals(bridge) || "FFM".equals(bridge), "bridge=" + bridge);
 
         // 5. One operation end to end, so a registered-but-broken service
         //    cannot pass. Digest of a known input, length and content checked.

@@ -1,0 +1,306 @@
+package org.openssl.jostle.jcajce.provider.mac;
+
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import java.lang.foreign.*;
+import java.lang.invoke.MethodHandle;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries (see MDServiceFFM).
+public class MacServiceFFM implements MacServiceNI
+{
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
+    private static final Logger L = Logger.getLogger("MAC_NI_FFM");
+    private static final Linker LINKER = Linker.nativeLinker();
+
+    private final MethodHandle MH_new;
+    private final MethodHandle MH_copy;
+    private final MethodHandle MH_init;
+    private final MethodHandle MH_updateByte;
+    private final MethodHandle MH_update;
+    private final MethodHandle MH_final;
+    private final MethodHandle MH_len;
+    private final MethodHandle MH_lenMeta;
+    private final MethodHandle MH_reset;
+    private final MethodHandle MH_free;
+
+
+    public MacServiceFFM()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public MacServiceFFM(SymbolLookup lookup)
+    {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffm.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public MacServiceFFM(SymbolLookup lookup, String symPrefix)
+    {
+        MH_new = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_allocate").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS
+                ));
+
+        MH_copy = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_copy").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS, // returned ctx
+                        ValueLayout.ADDRESS, // *ctx to copy
+                        ValueLayout.ADDRESS  // *err
+                ));
+
+        MH_init = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_init").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS, // *ctx
+                        ValueLayout.ADDRESS, // *key
+                        ValueLayout.JAVA_LONG, // key len
+                        ValueLayout.ADDRESS, // *iv (GMAC only; NULL otherwise)
+                        ValueLayout.JAVA_LONG, // iv len
+                        ValueLayout.ADDRESS, // *custom (KMAC only; NULL otherwise)
+                        ValueLayout.JAVA_LONG, // custom len
+                        ValueLayout.JAVA_INT // requested out len, 0 = unspecified
+                ), Linker.Option.critical(true));
+
+        MH_updateByte = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_updateByte").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS, // *ctx
+                        ValueLayout.JAVA_BYTE
+                ));
+
+        MH_update = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_update").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_INT
+                ), Linker.Option.critical(true));
+
+        MH_final = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_final").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT
+                ), Linker.Option.critical(true));
+
+        MH_len = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_len").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
+
+        MH_lenMeta = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_lenMeta").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS
+                ));
+
+        MH_reset = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_reset").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS)
+        );
+
+        MH_free = LINKER.downcallHandle(
+                lookup.find(symPrefix + "JoMAC_free").orElseThrow(),
+                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+
+    }
+
+    @Override
+    public long ni_allocateMac(String macName, String functionName, int[] err)
+    {
+        try (Arena arena = Arena.ofConfined())
+        {
+            MemorySegment typeSeg = macName == null ? MemorySegment.NULL : arena.allocateFrom(macName);
+            MemorySegment functionSeg = functionName == null ? MemorySegment.NULL : arena.allocateFrom(functionName);
+            MemorySegment errSeg = arena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment outPtr = (MemorySegment) MH_new.invokeExact(typeSeg, functionSeg, errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+            return outPtr.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_new", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public long ni_copyMac(long ref, int[] err)
+    {
+        // NOT critical: mac_copy allocates and calls into OpenSSL, and the err
+        // out-parameter is read back after the call, so the confined-arena copy
+        // is the correct marshalling (mirrors ni_allocateMac).
+        try (Arena arena = Arena.ofConfined())
+        {
+            MemorySegment errSeg = arena.allocate(ValueLayout.JAVA_INT);
+            MemorySegment outPtr = (MemorySegment) MH_copy.invokeExact(
+                    MemorySegment.ofAddress(ref), errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+            return outPtr.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_copy", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_init(long ref, byte[] keyBytes, byte[] ivBytes, byte[] customBytes, int outLen)
+    {
+        try
+        {
+            MemorySegment key = keyBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(keyBytes);
+            // MemorySegment.NULL has byteSize 0, so a null IV or customisation
+            // string reaches the bridge as the NULL/0 pair it checks for.
+            MemorySegment iv = ivBytes == null ? MemorySegment.NULL : MemorySegment.ofArray(ivBytes);
+            MemorySegment custom = customBytes == null
+                    ? MemorySegment.NULL : MemorySegment.ofArray(customBytes);
+            return (int) MH_init.invokeExact(MemorySegment.ofAddress(ref), key, key.byteSize(),
+                    iv, iv.byteSize(), custom, custom.byteSize(), outLen);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_init", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_updateByte(long ref, byte b)
+    {
+        try
+        {
+            return (int) MH_updateByte.invokeExact(MemorySegment.ofAddress(ref), b);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_updateByte", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_updateBytes(long ref, byte[] in, int inOff, int inLen)
+    {
+        try
+        {
+            MemorySegment input = in == null ? MemorySegment.NULL : MemorySegment.ofArray(in);
+            return (int) MH_update.invokeExact(MemorySegment.ofAddress(ref), input, input.byteSize(), inOff, inLen);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_update", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_doFinal(long ref, byte[] out, int outOff)
+    {
+        try
+        {
+            MemorySegment output = out == null ? MemorySegment.NULL : MemorySegment.ofArray(out);
+            return (int) MH_final.invokeExact(MemorySegment.ofAddress(ref), output, output.byteSize(), outOff);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_final", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_getMacLength(long ref)
+    {
+        try
+        {
+            return (int) MH_len.invokeExact(MemorySegment.ofAddress(ref));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_len", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_macLengthMeta(long ref)
+    {
+        try
+        {
+            return (int) MH_lenMeta.invokeExact(MemorySegment.ofAddress(ref));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_lenMeta", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_reset(long ref)
+    {
+        try
+        {
+            return (int) MH_reset.invokeExact(MemorySegment.ofAddress(ref));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_reset", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public void ni_dispose(long ref)
+    {
+        try
+        {
+            MH_free.invokeExact(MemorySegment.ofAddress(ref));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MAC_free", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+}

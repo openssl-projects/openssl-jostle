@@ -56,7 +56,7 @@ public class SpecOpsTest
     @Test
     public void encap_inputArrayAccess() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI()); // JNI
+        Assumptions.assumeFalse(Loader.isFFM()); // JNI
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
 
@@ -79,7 +79,7 @@ public class SpecOpsTest
     @Test
     public void encap_outputArrayAccess() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI()); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM()); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
@@ -102,7 +102,7 @@ public class SpecOpsTest
     @Test
     public void encap_opsString() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI()); // JNI issue only
+        Assumptions.assumeFalse(Loader.isFFM()); // JNI issue only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
@@ -242,7 +242,7 @@ public class SpecOpsTest
     @Test
     public void decap_inputArrayAccess() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
@@ -265,7 +265,7 @@ public class SpecOpsTest
     @Test
     public void decap_outputArrayAccess() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
@@ -288,7 +288,7 @@ public class SpecOpsTest
     @Test
     public void decap_opsString() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI()); // JNI issue only
+        Assumptions.assumeFalse(Loader.isFFM()); // JNI issue only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);

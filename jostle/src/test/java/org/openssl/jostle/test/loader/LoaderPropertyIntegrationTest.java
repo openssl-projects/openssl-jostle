@@ -64,7 +64,7 @@ public class LoaderPropertyIntegrationTest
     // contained the fragment being searched for.
     //
     private static final String JNI_LIB = "interface_jni";
-    private static final String FFI_LIB = "interface_ffi";
+    private static final String FFM_LIB = "interface_ffm";
     private static final String ANY_INTERFACE_LIB = "interface_";
     private static final String OPENSSL_LIB = "crypto";
 
@@ -142,25 +142,25 @@ public class LoaderPropertyIntegrationTest
 
         probe.assertLoadSucceeded();
         Assertions.assertEquals("JNI", probe.get("interfaceType"));
-        Assertions.assertEquals("false", probe.get("isFFI"));
+        Assertions.assertEquals("false", probe.get("isFFM"));
         Assertions.assertTrue(probe.anyLibContains(JNI_LIB),
                 "JNI interface library not extracted: " + probe.libs());
-        Assertions.assertFalse(probe.anyLibContains(FFI_LIB),
-                "FFI interface library extracted under strategy 'jni': " + probe.libs());
+        Assertions.assertFalse(probe.anyLibContains(FFM_LIB),
+                "FFM interface library extracted under strategy 'jni': " + probe.libs());
     }
 
     @Test
-    public void interface_ffi_selectsFfiAndExtractsOnlyTheFfiLibrary() throws Exception
+    public void interface_ffm_selectsFfmAndExtractsOnlyTheFfmLibrary() throws Exception
     {
-        Probe probe = runProbe(props(P_INTERFACE, "ffi"));
+        Probe probe = runProbe(props(P_INTERFACE, "ffm"));
 
         probe.assertLoadSucceeded();
-        Assertions.assertEquals("FFI", probe.get("interfaceType"));
-        Assertions.assertEquals("true", probe.get("isFFI"));
-        Assertions.assertTrue(probe.anyLibContains(FFI_LIB),
-                "FFI interface library not extracted: " + probe.libs());
+        Assertions.assertEquals("FFM", probe.get("interfaceType"));
+        Assertions.assertEquals("true", probe.get("isFFM"));
+        Assertions.assertTrue(probe.anyLibContains(FFM_LIB),
+                "FFM interface library not extracted: " + probe.libs());
         Assertions.assertFalse(probe.anyLibContains(JNI_LIB),
-                "JNI interface library extracted under strategy 'ffi': " + probe.libs());
+                "JNI interface library extracted under strategy 'ffm': " + probe.libs());
     }
 
     /**
@@ -175,7 +175,7 @@ public class LoaderPropertyIntegrationTest
 
         probe.assertLoadSucceeded();
         Assertions.assertEquals("none", probe.get("interfaceType"));
-        Assertions.assertEquals("false", probe.get("isFFI"));
+        Assertions.assertEquals("false", probe.get("isFFM"));
         Assertions.assertTrue(probe.anyLibContains(OPENSSL_LIB),
                 "OpenSSL should still be extracted under strategy 'none': " + probe.libs());
         Assertions.assertFalse(probe.anyLibContains(ANY_INTERFACE_LIB),

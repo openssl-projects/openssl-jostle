@@ -65,7 +65,7 @@ public class FIPSMacOpsTest
     public void alloc_name_access() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = 0;
         try
         {
@@ -92,7 +92,7 @@ public class FIPSMacOpsTest
     public void alloc_name_function() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = 0;
         try
         {
@@ -168,7 +168,7 @@ public class FIPSMacOpsTest
     public void init_keyAccessFailure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
@@ -234,7 +234,7 @@ public class FIPSMacOpsTest
     public void update_inputAccessFailure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
@@ -279,7 +279,7 @@ public class FIPSMacOpsTest
     public void final_outputAccessFailure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = macServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
@@ -529,7 +529,7 @@ public class FIPSMacOpsTest
     public void kmac_init_customAccessFailure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
 
         long ref = macServiceNI.allocateMac("KMAC-128", "KMAC-128");
         try

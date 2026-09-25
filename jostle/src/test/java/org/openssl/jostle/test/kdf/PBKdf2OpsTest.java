@@ -55,7 +55,7 @@ public class PBKdf2OpsTest
     @Test
     public void pbekdf2_access_password() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -75,7 +75,7 @@ public class PBKdf2OpsTest
     @Test
     public void pbekdf2_access_salt() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -95,7 +95,7 @@ public class PBKdf2OpsTest
     @Test
     public void pbekdf2_access_output() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -115,7 +115,7 @@ public class PBKdf2OpsTest
     @Test
     public void pbekdf2_access_digest_name() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {

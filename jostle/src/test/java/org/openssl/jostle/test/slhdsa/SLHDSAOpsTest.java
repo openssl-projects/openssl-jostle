@@ -90,7 +90,7 @@ public class SLHDSAOpsTest
     public void SLHDSAServiceJNI_generateKeyPair_seedLenNegative() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/slhdsa_ni_jni.c:89
@@ -110,7 +110,7 @@ public class SLHDSAOpsTest
     public void SLHDSAServiceJNI_getPrivateKey_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -228,7 +228,7 @@ public class SLHDSAOpsTest
     public void SLHDSAServiceJNI_getPublicKey_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -311,7 +311,7 @@ public class SLHDSAOpsTest
     @Test()
     public void SLHDSAServiceJNI_decode_1publicKey_accessByteArray() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = 0;
@@ -387,7 +387,7 @@ public class SLHDSAOpsTest
     public void SLHDSAServiceJNI_decode_1privateKey_accessByteArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = 0;
@@ -464,7 +464,7 @@ public class SLHDSAOpsTest
     public void SLHDSAServiceJNI__initSign_accessContextArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long slhdsaRef = 0;
         long keyRef = 0;
@@ -551,7 +551,7 @@ public class SLHDSAOpsTest
     public void SLHDSAServiceJNI__initVerify_accessContextArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long slhdsaRef = 0;
         long keyRef = 0;
@@ -637,7 +637,7 @@ public class SLHDSAOpsTest
     public void SLHDSAServiceJNI_slhdsa_update_accessInputArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long slhdsaRef = 0;
@@ -705,7 +705,7 @@ public class SLHDSAOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long slhdsaRef = 0;
         long keyRef = 0;
@@ -846,7 +846,7 @@ public class SLHDSAOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long slhdsaRef = 0;
         long keyRef = 0;

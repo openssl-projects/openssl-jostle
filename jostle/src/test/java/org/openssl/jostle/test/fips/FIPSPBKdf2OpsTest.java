@@ -39,7 +39,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * <p>Requires a JOSTLE_OPS_TEST build of the FIPS library: gated on
  * {@code TEST_FIPS_LIB} (whole class skips when unset) and, per test, on
  * {@code opsTestAvailable()} (skips against a shipped, non-instrumented FIPS
- * library). The FAILED_ACCESS tests are JNI-only (the FFI bridge takes raw
+ * library). The FAILED_ACCESS tests are JNI-only (the FFM bridge takes raw
  * pointers). Flags are set on the FIPS library's own OperationsTestNI, whose
  * flag state is independent of the base library's.
  */
@@ -68,7 +68,7 @@ public class FIPSPBKdf2OpsTest
     @Test
     public void pbekdf2_access_password() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -88,7 +88,7 @@ public class FIPSPBKdf2OpsTest
     @Test
     public void pbekdf2_access_salt() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -108,7 +108,7 @@ public class FIPSPBKdf2OpsTest
     @Test
     public void pbekdf2_access_output() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -128,7 +128,7 @@ public class FIPSPBKdf2OpsTest
     @Test
     public void pbekdf2_access_digest_name() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only"); // JNI only
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only"); // JNI only
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {

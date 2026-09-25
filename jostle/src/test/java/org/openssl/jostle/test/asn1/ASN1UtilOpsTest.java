@@ -187,7 +187,7 @@ public class ASN1UtilOpsTest
     public void opsTestGetData_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long asn1Ref = 0;
 
         try
@@ -213,7 +213,7 @@ public class ASN1UtilOpsTest
     public void opsTestEncodePrivateKey_accessOptionsString() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
@@ -400,7 +400,7 @@ public class ASN1UtilOpsTest
     public void opsTestFromPrivateKeyInfo_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long keyRef = 0;
         try
         {
@@ -425,7 +425,7 @@ public class ASN1UtilOpsTest
     public void opsTestFromPublicKeyInfo_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long keyRef = 0;
         try
         {

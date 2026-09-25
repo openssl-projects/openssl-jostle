@@ -30,9 +30,9 @@ integrationTest17     verify                             BC_JDK17
 unitTest21            verify                             BC_JDK21
 integrationTest21     verify                             BC_JDK21
 unitTest25JNI         invoke,verify,targeted,fipssweep   BC_JDK25
-unitTest25FFI         invoke,verify,targeted,fipssweep   BC_JDK25
+unitTest25FFM         invoke,verify,targeted,fipssweep   BC_JDK25
 integrationTest25JNI  invoke,verify,ops,targeted,fipssweep  BC_JDK25
-integrationTest25FFI  invoke,verify,ops,targeted,fipssweep  BC_JDK25
+integrationTest25FFM  invoke,verify,ops,targeted,fipssweep  BC_JDK25
 
 # MT-96 module-path legs. Independent of TEST_FIPS_LIB: measured 2026-09-11
 # with the variable SET and explicitly UNSET, byte-identical output, because

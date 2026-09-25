@@ -42,8 +42,8 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * library). Flags are set on the FIPS library's own OperationsTestNI, whose
  * flag state is independent of the base library's.
  *
- * <p>FAILED_ACCESS tests are JNI-only and guard via {@link Loader#isFFI()}
- * because the FFI bridge does not use {@code GetByteArrayElements}.
+ * <p>FAILED_ACCESS tests are JNI-only and guard via {@link Loader#isFFM()}
+ * because the FFM bridge does not use {@code GetByteArrayElements}.
  */
 public class FIPSRSAOAEPCipherOpsTest
 {
@@ -86,7 +86,7 @@ public class FIPSRSAOAEPCipherOpsTest
     public void RSAOAEPCipher_init_accessOaepMdName_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -118,7 +118,7 @@ public class FIPSRSAOAEPCipherOpsTest
     public void RSAOAEPCipher_init_accessMgf1MdName_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -506,7 +506,7 @@ public class FIPSRSAOAEPCipherOpsTest
     public void RSAOAEPCipher_doFinal_failedAccessInput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -539,7 +539,7 @@ public class FIPSRSAOAEPCipherOpsTest
     public void RSAOAEPCipher_doFinal_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;

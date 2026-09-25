@@ -67,10 +67,10 @@ get_filename_component(JAVA_PRJ_HOME "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 # deliberately does NOT compile the base jni/ glue (identical Java_* symbols
 # in two loaded libraries would resolve by load order).
 #
-# FFI glue is FIPS-specific too, since 2026-08-23: every entry point the Java
+# FFM glue is FIPS-specific too, since 2026-08-23: every entry point the Java
 # layer resolves is exported under a JoFIPS_ prefix (see the
-# FIPS_FFI_GLUE_SOURCES comment). A library-scoped lookup was the ONLY thing
-# keeping FFI callers off the base library, and getting it wrong ran
+# FIPS_FFM_GLUE_SOURCES comment). A library-scoped lookup was the ONLY thing
+# keeping FFM callers off the base library, and getting it wrong ran
 # non-FIPS crypto silently; distinct names make each single mistake - wrong
 # lookup, or wrong prefix - resolve correctly or fail loudly.
 #
@@ -189,48 +189,48 @@ set(FIPS_JNI_GLUE_SOURCES
 )
 
 #
-# The <x>_fips_ffi.c entries are rename wrappers: each #defines the base
+# The <x>_fips_ffm.c entries are rename wrappers: each #defines the base
 # bridge's export names to JoFIPS_-prefixed ones and #includes its
 # byte-identical twin, exactly as fips/jni/<x>_fips_jni.c does for JNI. The
 # twins are therefore compiled THROUGH the wrappers and must not be listed
 # here as well. Distinct exports mean a FIPS class handed the wrong
 # SymbolLookup fails to link rather than silently running base-library crypto.
 #
-set(FIPS_FFI_GLUE_SOURCES
-        fips/ffi/md_fips_ffi.c
-        fips/ffi/x509_ni_fips_ffi.c
-        fips/ffi/rand_fips_ffi.c
-        fips/ffi/mac_fips_ffi.c
-        fips/ffi/ffi.h
-        fips/ffi/ffi_fips_ffi.c
-        fips/ffi/types.h
-        fips/ffi/native_info_ffi.h
-        fips/ffi/native_info_fips_ffi.c
-        # No openssl_ffi.c twin here: the FIPS library owns its getErrors in
-        # openssl_fips_ffi.c. Re-including the twin would also export a
+set(FIPS_FFM_GLUE_SOURCES
+        fips/ffm/md_fips_ffm.c
+        fips/ffm/x509_ni_fips_ffm.c
+        fips/ffm/rand_fips_ffm.c
+        fips/ffm/mac_fips_ffm.c
+        fips/ffm/ffm.h
+        fips/ffm/ffm_fips_ffm.c
+        fips/ffm/types.h
+        fips/ffm/native_info_ffm.h
+        fips/ffm/native_info_fips_ffm.c
+        # No openssl_ffm.c twin here: the FIPS library owns its getErrors in
+        # openssl_fips_ffm.c. Re-including the twin would also export a
         # setModule that installs a NON-FIPS lib ctx as this library's global.
-        fips/ffi/openssl_fips_ffi.h
-        fips/ffi/openssl_fips_ffi.c
-        fips/ffi/ops_fips_ffi.c
-        fips/ffi/block_cipher_ni_fips_ffi.c
-        fips/ffi/ccm_ni_fips_ffi.c
-        fips/ffi/spec_ni_fips_ffi.c
-        fips/ffi/asn1_ni_fips_ffi.c
-        fips/ffi/kdf_fips_ffi.c
-        fips/ffi/rand_upcall_ffi.h
-        fips/ffi/rand_upcall_ffi.c
-        fips/ffi/rsa_ni_fips_ffi.c
-        fips/ffi/rsa_oaep_ni_fips_ffi.c
-        fips/ffi/rsa_pkcs1_ni_fips_ffi.c
-        fips/ffi/ec_ni_fips_ffi.c
-        fips/ffi/dsa_ni_fips_ffi.c
-        fips/ffi/dh_ni_fips_ffi.c
-        fips/ffi/xec_ni_fips_ffi.c
-        fips/ffi/ed_ni_fips_ffi.c
-        fips/ffi/mldsa_ni_fips_ffi.c
-        fips/ffi/mlkem_ni_fips_ffi.c
-        fips/ffi/mlxkem_ni_fips_ffi.c
-        fips/ffi/slh_dsa_ni_fips_ffi.c
+        fips/ffm/openssl_fips_ffm.h
+        fips/ffm/openssl_fips_ffm.c
+        fips/ffm/ops_fips_ffm.c
+        fips/ffm/block_cipher_ni_fips_ffm.c
+        fips/ffm/ccm_ni_fips_ffm.c
+        fips/ffm/spec_ni_fips_ffm.c
+        fips/ffm/asn1_ni_fips_ffm.c
+        fips/ffm/kdf_fips_ffm.c
+        fips/ffm/rand_upcall_ffm.h
+        fips/ffm/rand_upcall_ffm.c
+        fips/ffm/rsa_ni_fips_ffm.c
+        fips/ffm/rsa_oaep_ni_fips_ffm.c
+        fips/ffm/rsa_pkcs1_ni_fips_ffm.c
+        fips/ffm/ec_ni_fips_ffm.c
+        fips/ffm/dsa_ni_fips_ffm.c
+        fips/ffm/dh_ni_fips_ffm.c
+        fips/ffm/xec_ni_fips_ffm.c
+        fips/ffm/ed_ni_fips_ffm.c
+        fips/ffm/mldsa_ni_fips_ffm.c
+        fips/ffm/mlkem_ni_fips_ffm.c
+        fips/ffm/mlxkem_ni_fips_ffm.c
+        fips/ffm/slh_dsa_ni_fips_ffm.c
 )
 
 
@@ -366,29 +366,29 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
 
 
     #
-    # -- FFI Library
+    # -- FFM Library
     #
-    add_library(interface_ffi SHARED
-            nonfips/ffi/md_ffi.c
-            nonfips/ffi/rand_ffi.c
-            nonfips/ffi/mac_ffi.c
-            nonfips/ffi/ffi.h
-            nonfips/ffi/ffi.c
-            nonfips/ffi/ops_ffi.c
-            nonfips/ffi/types.h
-            nonfips/ffi/native_info_ffi.h
-            nonfips/ffi/native_info_ffi.c
-            nonfips/ffi/openssl_ffi.h
-            nonfips/ffi/openssl_ffi.c
-            nonfips/ffi/block_cipher_ni_ffi.c
-            nonfips/ffi/ccm_ni_ffi.c
-            nonfips/ffi/spec_ni_ffi.c
-            nonfips/ffi/mldsa_ni_ffi.c
-            nonfips/ffi/mlkem_ni_ffi.c
-            nonfips/ffi/mlxkem_ni_ffi.c
-            nonfips/ffi/slh_dsa_ni_ffi.c
-            nonfips/ffi/asn1_ni_ffi.c
-            nonfips/ffi/ks_ffi.c
+    add_library(interface_ffm SHARED
+            nonfips/ffm/md_ffm.c
+            nonfips/ffm/rand_ffm.c
+            nonfips/ffm/mac_ffm.c
+            nonfips/ffm/ffm.h
+            nonfips/ffm/ffm.c
+            nonfips/ffm/ops_ffm.c
+            nonfips/ffm/types.h
+            nonfips/ffm/native_info_ffm.h
+            nonfips/ffm/native_info_ffm.c
+            nonfips/ffm/openssl_ffm.h
+            nonfips/ffm/openssl_ffm.c
+            nonfips/ffm/block_cipher_ni_ffm.c
+            nonfips/ffm/ccm_ni_ffm.c
+            nonfips/ffm/spec_ni_ffm.c
+            nonfips/ffm/mldsa_ni_ffm.c
+            nonfips/ffm/mlkem_ni_ffm.c
+            nonfips/ffm/mlxkem_ni_ffm.c
+            nonfips/ffm/slh_dsa_ni_ffm.c
+            nonfips/ffm/asn1_ni_ffm.c
+            nonfips/ffm/ks_ffm.c
             nonfips/util/jo_assert.h
             nonfips/util/mldsa.h
             nonfips/util/mldsa.c
@@ -419,8 +419,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/ks.c
             nonfips/util/ops.h
             nonfips/util/ops.c
-            nonfips/ffi/kdf_ffi.c
-            nonfips/ffi/kdf_memhard_ffi.c
+            nonfips/ffm/kdf_ffm.c
+            nonfips/ffm/kdf_memhard_ffm.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
             nonfips/util/kdf_memhard.h
@@ -434,18 +434,18 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/ffi/rand_upcall_ffi.h
-            nonfips/ffi/rand_upcall_ffi.c
-            nonfips/ffi/ed_ni_ffi.c
-            nonfips/ffi/rsa_ni_ffi.c
-            nonfips/ffi/rsa_oaep_ni_ffi.c
-            nonfips/ffi/rsa_pkcs1_ni_ffi.c
-            nonfips/ffi/ec_ni_ffi.c
-            nonfips/ffi/dsa_ni_ffi.c
-            nonfips/ffi/dh_ni_ffi.c
-            nonfips/ffi/certpath_ni_ffi.c
-            nonfips/ffi/x509_ni_ffi.c
-        nonfips/ffi/xec_ni_ffi.c
+            nonfips/ffm/rand_upcall_ffm.h
+            nonfips/ffm/rand_upcall_ffm.c
+            nonfips/ffm/ed_ni_ffm.c
+            nonfips/ffm/rsa_ni_ffm.c
+            nonfips/ffm/rsa_oaep_ni_ffm.c
+            nonfips/ffm/rsa_pkcs1_ni_ffm.c
+            nonfips/ffm/ec_ni_ffm.c
+            nonfips/ffm/dsa_ni_ffm.c
+            nonfips/ffm/dh_ni_ffm.c
+            nonfips/ffm/certpath_ni_ffm.c
+            nonfips/ffm/x509_ni_ffm.c
+        nonfips/ffm/xec_ni_ffm.c
             nonfips/util/edec.h
             nonfips/util/edec.c
             nonfips/util/rsa.h
@@ -463,21 +463,21 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/util/xec.h
             nonfips/util/xec.c
     )
-    target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
-    target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
-    target_compile_options(interface_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
+    target_include_directories(interface_ffm PUBLIC "${OPENSSL_PREFIX}/include")
+    target_link_libraries(interface_ffm PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
+    target_compile_options(interface_ffm PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
         message("OPS Test Enabled")
-        target_compile_definitions(interface_ffi PUBLIC JOSTLE_OPS)
+        target_compile_definitions(interface_ffm PUBLIC JOSTLE_OPS)
     endif ()
     if (DEFINED ENV{JOSTLE_COVERAGE})
-        message("Coverage instrumentation enabled (FFI)")
-        target_compile_options(interface_ffi PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
-        target_link_options(interface_ffi PRIVATE -fprofile-instr-generate)
+        message("Coverage instrumentation enabled (FFM)")
+        target_compile_options(interface_ffm PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
+        target_link_options(interface_ffm PRIVATE -fprofile-instr-generate)
     endif ()
 
     #
-    # --- FIPS JNI + FFI Libraries (no OPS / coverage instrumentation; see
+    # --- FIPS JNI + FFM Libraries (no OPS / coverage instrumentation; see
     #     the FIPS source-list comment above). macOS two-level namespace
     #     binds each library's internal calls to its own copies, so no
     #     -Bsymbolic is needed here (unlike Linux).
@@ -494,16 +494,16 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
         target_link_options(interface_fips_jni PRIVATE -fprofile-instr-generate)
     endif ()
 
-    add_library(interface_fips_ffi SHARED ${FIPS_FFI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
-    target_include_directories(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/include")
-    target_link_libraries(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
-    target_compile_options(interface_fips_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
+    add_library(interface_fips_ffm SHARED ${FIPS_FFM_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
+    target_include_directories(interface_fips_ffm PUBLIC "${OPENSSL_PREFIX}/include")
+    target_link_libraries(interface_fips_ffm PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
+    target_compile_options(interface_fips_ffm PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
-        target_compile_definitions(interface_fips_ffi PUBLIC JOSTLE_OPS)
+        target_compile_definitions(interface_fips_ffm PUBLIC JOSTLE_OPS)
     endif ()
     if (DEFINED ENV{JOSTLE_COVERAGE})
-        target_compile_options(interface_fips_ffi PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
-        target_link_options(interface_fips_ffi PRIVATE -fprofile-instr-generate)
+        target_compile_options(interface_fips_ffm PRIVATE -fprofile-instr-generate -fcoverage-mapping -g)
+        target_link_options(interface_fips_ffm PRIVATE -fprofile-instr-generate)
     endif ()
 
     #
@@ -512,9 +512,9 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
 
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/loading/native" DESTINATION "${JAVA_PRJ_HOME}/jostle/src/main/resources")
     install(TARGETS interface_jni DESTINATION ${INSTALL_PATH})
-    install(TARGETS interface_ffi DESTINATION ${INSTALL_PATH})
+    install(TARGETS interface_ffm DESTINATION ${INSTALL_PATH})
     install(TARGETS interface_fips_jni DESTINATION ${INSTALL_PATH})
-    install(TARGETS interface_fips_ffi DESTINATION ${INSTALL_PATH})
+    install(TARGETS interface_fips_ffm DESTINATION ${INSTALL_PATH})
     install(FILES "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}" DESTINATION ${INSTALL_PATH})
 
 
@@ -649,29 +649,29 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
 
 
     #
-    # -- FFI Library
+    # -- FFM Library
     #
-    add_library(interface_ffi SHARED
-            nonfips/ffi/md_ffi.c
-            nonfips/ffi/rand_ffi.c
-            nonfips/ffi/mac_ffi.c
-            nonfips/ffi/ffi.h
-            nonfips/ffi/ffi.c
-            nonfips/ffi/ops_ffi.c
-            nonfips/ffi/types.h
-            nonfips/ffi/native_info_ffi.h
-            nonfips/ffi/native_info_ffi.c
-            nonfips/ffi/openssl_ffi.h
-            nonfips/ffi/openssl_ffi.c
-            nonfips/ffi/block_cipher_ni_ffi.c
-            nonfips/ffi/ccm_ni_ffi.c
-            nonfips/ffi/spec_ni_ffi.c
-            nonfips/ffi/mldsa_ni_ffi.c
-            nonfips/ffi/slh_dsa_ni_ffi.c
-            nonfips/ffi/mlkem_ni_ffi.c
-            nonfips/ffi/mlxkem_ni_ffi.c
-            nonfips/ffi/asn1_ni_ffi.c
-            nonfips/ffi/ks_ffi.c
+    add_library(interface_ffm SHARED
+            nonfips/ffm/md_ffm.c
+            nonfips/ffm/rand_ffm.c
+            nonfips/ffm/mac_ffm.c
+            nonfips/ffm/ffm.h
+            nonfips/ffm/ffm.c
+            nonfips/ffm/ops_ffm.c
+            nonfips/ffm/types.h
+            nonfips/ffm/native_info_ffm.h
+            nonfips/ffm/native_info_ffm.c
+            nonfips/ffm/openssl_ffm.h
+            nonfips/ffm/openssl_ffm.c
+            nonfips/ffm/block_cipher_ni_ffm.c
+            nonfips/ffm/ccm_ni_ffm.c
+            nonfips/ffm/spec_ni_ffm.c
+            nonfips/ffm/mldsa_ni_ffm.c
+            nonfips/ffm/slh_dsa_ni_ffm.c
+            nonfips/ffm/mlkem_ni_ffm.c
+            nonfips/ffm/mlxkem_ni_ffm.c
+            nonfips/ffm/asn1_ni_ffm.c
+            nonfips/ffm/ks_ffm.c
             nonfips/util/jo_assert.h
             nonfips/util/mldsa.h
             nonfips/util/mldsa.c
@@ -702,8 +702,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/ks.c
             nonfips/util/ops.h
             nonfips/util/ops.c
-            nonfips/ffi/kdf_ffi.c
-            nonfips/ffi/kdf_memhard_ffi.c
+            nonfips/ffm/kdf_ffm.c
+            nonfips/ffm/kdf_memhard_ffm.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
             nonfips/util/kdf_memhard.h
@@ -717,8 +717,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/ffi/rand_upcall_ffi.h
-            nonfips/ffi/rand_upcall_ffi.c
+            nonfips/ffm/rand_upcall_ffm.h
+            nonfips/ffm/rand_upcall_ffm.c
             nonfips/util/edec.h
             nonfips/util/edec.c
             nonfips/util/rsa.h
@@ -735,28 +735,28 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/dh.c
             nonfips/util/xec.h
             nonfips/util/xec.c
-            nonfips/ffi/ed_ni_ffi.c
-            nonfips/ffi/rsa_ni_ffi.c
-            nonfips/ffi/rsa_oaep_ni_ffi.c
-            nonfips/ffi/rsa_pkcs1_ni_ffi.c
-            nonfips/ffi/ec_ni_ffi.c
-            nonfips/ffi/dsa_ni_ffi.c
-            nonfips/ffi/dh_ni_ffi.c
-            nonfips/ffi/certpath_ni_ffi.c
-            nonfips/ffi/x509_ni_ffi.c
-        nonfips/ffi/xec_ni_ffi.c
+            nonfips/ffm/ed_ni_ffm.c
+            nonfips/ffm/rsa_ni_ffm.c
+            nonfips/ffm/rsa_oaep_ni_ffm.c
+            nonfips/ffm/rsa_pkcs1_ni_ffm.c
+            nonfips/ffm/ec_ni_ffm.c
+            nonfips/ffm/dsa_ni_ffm.c
+            nonfips/ffm/dh_ni_ffm.c
+            nonfips/ffm/certpath_ni_ffm.c
+            nonfips/ffm/x509_ni_ffm.c
+        nonfips/ffm/xec_ni_ffm.c
     )
 
-    target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
-    target_link_libraries(interface_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
-    target_compile_options(interface_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
+    target_include_directories(interface_ffm PUBLIC "${OPENSSL_PREFIX}/include")
+    target_link_libraries(interface_ffm PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
+    target_compile_options(interface_ffm PRIVATE -Wall -Wextra -Wpedantic -O3)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
         message("OPS Test Enabled")
-        target_compile_definitions(interface_ffi PUBLIC JOSTLE_OPS)
+        target_compile_definitions(interface_ffm PUBLIC JOSTLE_OPS)
     endif ()
 
     #
-    # --- FIPS JNI + FFI Libraries (no OPS / coverage instrumentation; see
+    # --- FIPS JNI + FFM Libraries (no OPS / coverage instrumentation; see
     #     the FIPS source-list comment above). -Bsymbolic is REQUIRED here:
     #     the two trees still share ~180 internal util symbol names, and ELF
     #     load-order interposition would otherwise bind the FIPS library's
@@ -778,13 +778,13 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
         target_compile_definitions(interface_fips_jni PUBLIC JOSTLE_OPS)
     endif ()
 
-    add_library(interface_fips_ffi SHARED ${FIPS_FFI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
-    target_include_directories(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/include")
-    target_link_libraries(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
-    target_compile_options(interface_fips_ffi PRIVATE -Wall -Wextra -Wpedantic -O3)
-    target_link_options(interface_fips_ffi PRIVATE -Wl,-Bsymbolic)
+    add_library(interface_fips_ffm SHARED ${FIPS_FFM_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
+    target_include_directories(interface_fips_ffm PUBLIC "${OPENSSL_PREFIX}/include")
+    target_link_libraries(interface_fips_ffm PUBLIC "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}")
+    target_compile_options(interface_fips_ffm PRIVATE -Wall -Wextra -Wpedantic -O3)
+    target_link_options(interface_fips_ffm PRIVATE -Wl,-Bsymbolic)
     if (DEFINED ENV{JOSTLE_OPS_TEST})
-        target_compile_definitions(interface_fips_ffi PUBLIC JOSTLE_OPS)
+        target_compile_definitions(interface_fips_ffm PUBLIC JOSTLE_OPS)
     endif ()
 
     #
@@ -793,9 +793,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
 
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/loading/native" DESTINATION "${JAVA_PRJ_HOME}/jostle/src/main/resources")
     install(TARGETS interface_jni DESTINATION ${INSTALL_PATH})
-    install(TARGETS interface_ffi DESTINATION ${INSTALL_PATH})
+    install(TARGETS interface_ffm DESTINATION ${INSTALL_PATH})
     install(TARGETS interface_fips_jni DESTINATION ${INSTALL_PATH})
-    install(TARGETS interface_fips_ffi DESTINATION ${INSTALL_PATH})
+    install(TARGETS interface_fips_ffm DESTINATION ${INSTALL_PATH})
     install(FILES "${OPENSSL_PREFIX}/${OPEN_SSL_LIB}" DESTINATION ${INSTALL_PATH})
 
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
@@ -914,27 +914,27 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
         target_compile_definitions(interface_jni PUBLIC JOSTLE_OPS)
     endif ()
 
-    add_library(interface_ffi SHARED
-            nonfips/ffi/ffi.h
-            nonfips/ffi/ffi.c
-            nonfips/ffi/ops_ffi.c
-            nonfips/ffi/types.h
-            nonfips/ffi/native_info_ffi.h
-            nonfips/ffi/native_info_ffi.c
-            nonfips/ffi/openssl_ffi.h
-            nonfips/ffi/openssl_ffi.c
-            nonfips/ffi/block_cipher_ni_ffi.c
-            nonfips/ffi/ccm_ni_ffi.c
-            nonfips/ffi/spec_ni_ffi.c
-            nonfips/ffi/mldsa_ni_ffi.c
-            nonfips/ffi/mlkem_ni_ffi.c
-            nonfips/ffi/mlxkem_ni_ffi.c
-            nonfips/ffi/slh_dsa_ni_ffi.c
-            nonfips/ffi/asn1_ni_ffi.c
-            nonfips/ffi/md_ffi.c
-            nonfips/ffi/rand_ffi.c
-            nonfips/ffi/mac_ffi.c
-            nonfips/ffi/ks_ffi.c
+    add_library(interface_ffm SHARED
+            nonfips/ffm/ffm.h
+            nonfips/ffm/ffm.c
+            nonfips/ffm/ops_ffm.c
+            nonfips/ffm/types.h
+            nonfips/ffm/native_info_ffm.h
+            nonfips/ffm/native_info_ffm.c
+            nonfips/ffm/openssl_ffm.h
+            nonfips/ffm/openssl_ffm.c
+            nonfips/ffm/block_cipher_ni_ffm.c
+            nonfips/ffm/ccm_ni_ffm.c
+            nonfips/ffm/spec_ni_ffm.c
+            nonfips/ffm/mldsa_ni_ffm.c
+            nonfips/ffm/mlkem_ni_ffm.c
+            nonfips/ffm/mlxkem_ni_ffm.c
+            nonfips/ffm/slh_dsa_ni_ffm.c
+            nonfips/ffm/asn1_ni_ffm.c
+            nonfips/ffm/md_ffm.c
+            nonfips/ffm/rand_ffm.c
+            nonfips/ffm/mac_ffm.c
+            nonfips/ffm/ks_ffm.c
             nonfips/util/jo_assert.h
             nonfips/util/mldsa.h
             nonfips/util/mldsa.c
@@ -965,8 +965,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/ks.c
             nonfips/util/ops.h
             nonfips/util/ops.c
-            nonfips/ffi/kdf_ffi.c
-            nonfips/ffi/kdf_memhard_ffi.c
+            nonfips/ffm/kdf_ffm.c
+            nonfips/ffm/kdf_memhard_ffm.c
             nonfips/util/kdf.h
             nonfips/util/kdf.c
             nonfips/util/kdf_memhard.h
@@ -980,8 +980,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/rand/rand_upcall.h
             nonfips/util/rand/jostle_lib_ctx.h
             nonfips/util/rand/jostle_lib_ctx.c
-            nonfips/ffi/rand_upcall_ffi.h
-            nonfips/ffi/rand_upcall_ffi.c
+            nonfips/ffm/rand_upcall_ffm.h
+            nonfips/ffm/rand_upcall_ffm.c
             nonfips/util/edec.h
             nonfips/util/edec.c
             nonfips/util/rsa.h
@@ -998,32 +998,32 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/util/dh.c
             nonfips/util/xec.h
             nonfips/util/xec.c
-            nonfips/ffi/ed_ni_ffi.c
-            nonfips/ffi/rsa_ni_ffi.c
-            nonfips/ffi/rsa_oaep_ni_ffi.c
-            nonfips/ffi/rsa_pkcs1_ni_ffi.c
-            nonfips/ffi/ec_ni_ffi.c
-            nonfips/ffi/dsa_ni_ffi.c
-            nonfips/ffi/dh_ni_ffi.c
-            nonfips/ffi/certpath_ni_ffi.c
-            nonfips/ffi/x509_ni_ffi.c
-        nonfips/ffi/xec_ni_ffi.c
+            nonfips/ffm/ed_ni_ffm.c
+            nonfips/ffm/rsa_ni_ffm.c
+            nonfips/ffm/rsa_oaep_ni_ffm.c
+            nonfips/ffm/rsa_pkcs1_ni_ffm.c
+            nonfips/ffm/ec_ni_ffm.c
+            nonfips/ffm/dsa_ni_ffm.c
+            nonfips/ffm/dh_ni_ffm.c
+            nonfips/ffm/certpath_ni_ffm.c
+            nonfips/ffm/x509_ni_ffm.c
+        nonfips/ffm/xec_ni_ffm.c
 
     )
 
-    set_target_properties(interface_ffi PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    set_target_properties(interface_ffm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-    target_include_directories(interface_ffi PUBLIC "${OPENSSL_PREFIX}/include")
-    target_link_libraries(interface_ffi PUBLIC "${OPEN_SSL_LIB}")
-    target_compile_options(interface_ffi PRIVATE /W4 /O2)
+    target_include_directories(interface_ffm PUBLIC "${OPENSSL_PREFIX}/include")
+    target_link_libraries(interface_ffm PUBLIC "${OPEN_SSL_LIB}")
+    target_compile_options(interface_ffm PRIVATE /W4 /O2)
     # HybridCRT: dynamic UCRT override, pairs with /MT from CMAKE_MSVC_RUNTIME_LIBRARY.
-    target_link_options(interface_ffi PRIVATE "/NODEFAULTLIB:libucrt.lib" "/DEFAULTLIB:ucrt.lib")
+    target_link_options(interface_ffm PRIVATE "/NODEFAULTLIB:libucrt.lib" "/DEFAULTLIB:ucrt.lib")
     if (DEFINED ENV{JOSTLE_OPS_TEST})
-        target_compile_definitions(interface_ffi PUBLIC JOSTLE_OPS)
+        target_compile_definitions(interface_ffm PUBLIC JOSTLE_OPS)
     endif ()
 
     #
-    # --- FIPS JNI + FFI Libraries (no OPS instrumentation; see the FIPS
+    # --- FIPS JNI + FFM Libraries (no OPS instrumentation; see the FIPS
     #     source-list comment above). PE imports bind per-DLL, so Windows
     #     has no cross-library interposition concern.
     #
@@ -1038,23 +1038,23 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
         target_compile_definitions(interface_fips_jni PUBLIC JOSTLE_OPS)
     endif ()
 
-    add_library(interface_fips_ffi SHARED ${FIPS_FFI_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
-    set_target_properties(interface_fips_ffi PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
-    target_include_directories(interface_fips_ffi PUBLIC "${OPENSSL_PREFIX}/include")
-    target_link_libraries(interface_fips_ffi PUBLIC "${OPEN_SSL_LIB}")
-    target_compile_options(interface_fips_ffi PRIVATE /W4 /O2)
+    add_library(interface_fips_ffm SHARED ${FIPS_FFM_GLUE_SOURCES} ${FIPS_UTIL_SOURCES})
+    set_target_properties(interface_fips_ffm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    target_include_directories(interface_fips_ffm PUBLIC "${OPENSSL_PREFIX}/include")
+    target_link_libraries(interface_fips_ffm PUBLIC "${OPEN_SSL_LIB}")
+    target_compile_options(interface_fips_ffm PRIVATE /W4 /O2)
     # HybridCRT: dynamic UCRT override, pairs with /MT from CMAKE_MSVC_RUNTIME_LIBRARY.
     # Must match the non-FIPS libs and OpenSSL so all shipped DLLs share ucrtbase's heap.
-    target_link_options(interface_fips_ffi PRIVATE "/NODEFAULTLIB:libucrt.lib" "/DEFAULTLIB:ucrt.lib")
+    target_link_options(interface_fips_ffm PRIVATE "/NODEFAULTLIB:libucrt.lib" "/DEFAULTLIB:ucrt.lib")
     if (DEFINED ENV{JOSTLE_OPS_TEST})
-        target_compile_definitions(interface_fips_ffi PUBLIC JOSTLE_OPS)
+        target_compile_definitions(interface_fips_ffm PUBLIC JOSTLE_OPS)
     endif ()
 
     install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/loading/native" DESTINATION "${JAVA_PRJ_HOME}/jostle/src/main/resources")
     install(TARGETS interface_jni RUNTIME DESTINATION ${INSTALL_PATH})
-    install(TARGETS interface_ffi RUNTIME DESTINATION ${INSTALL_PATH})
+    install(TARGETS interface_ffm RUNTIME DESTINATION ${INSTALL_PATH})
     install(TARGETS interface_fips_jni RUNTIME DESTINATION ${INSTALL_PATH})
-    install(TARGETS interface_fips_ffi RUNTIME DESTINATION ${INSTALL_PATH})
+    install(TARGETS interface_fips_ffm RUNTIME DESTINATION ${INSTALL_PATH})
     install(FILES "${OPEN_SSL_DLL}" DESTINATION ${INSTALL_PATH})
 
 endif ()

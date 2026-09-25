@@ -30,30 +30,30 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Source-level guard: every {@code *FIPSFFI} class resolves its symbols through
+ * Source-level guard: every {@code *FIPSFFM} class resolves its symbols through
  * {@link org.openssl.jostle.jcajce.provider.fips.FIPSLibraryLookup}, never the
  * process-global {@code SymbolLookup.loaderLookup()}.
  *
  * <h2>Why this is structural and not behavioural</h2>
  *
  * The two interface libraries used to export the SAME {@code Jo*} symbol names.
- * A {@code *FIPSFFI} class that used the process-global loader lookup then bound
+ * A {@code *FIPSFFM} class that used the process-global loader lookup then bound
  * to whichever library the dynamic loader reached first — in practice the base
  * one — and drove mainline libcrypto's default provider while every caller
  * believed it was inside the FIPS module.
  *
  * <p>Nothing observable caught that for a family mainline implements
- * identically. It was tried: rebinding {@code MLDSAServiceFIPSFFI} to
+ * identically. It was tried: rebinding {@code MLDSAServiceFIPSFFM} to
  * {@code loaderLookup()} left the whole PQC suite AND
  * {@code FIPSModuleIsActuallyUsedTest} green, because that probe runs through
- * {@code OpenSSLFIPSFFI}, a different and still correctly-bound class. Behaviour
+ * {@code OpenSSLFIPSFFM}, a different and still correctly-bound class. Behaviour
  * cannot distinguish two providers that compute the same answers, so the
  * invariant is enforced where it is expressible.
  *
  * <p><b>Since 2026-08-23 the names are disjoint</b> — the FIPS library's entry
  * points are renamed {@code JoFIPS_*} by the
- * {@code interface/fips/ffi/<x>_fips_ffi.c} wrappers, and the lookup and the
- * prefix reach the base FFI classes as two INDEPENDENT constructor parameters.
+ * {@code interface/fips/ffm/<x>_fips_ffm.c} wrappers, and the lookup and the
+ * prefix reach the base FFM classes as two INDEPENDENT constructor parameters.
  * That turns the silent failure into a loud one: with the prefix right and the
  * lookup wrong, {@code loaderLookup()} cannot see the FIPS library at all (it is
  * deliberately never {@code System.load}ed) so nothing resolves; with the lookup
@@ -80,7 +80,7 @@ import java.util.List;
  */
 public class FIPSLibraryLookupParityTest
 {
-    private static final String FFI_DIR =
+    private static final String FFM_DIR =
             "src/main/java25/org/openssl/jostle/jcajce/provider/fips";
 
     /**
@@ -92,10 +92,10 @@ public class FIPSLibraryLookupParityTest
     /**
      * One entry point per bridge family, spelled as the BASE library exports it.
      * Spread across families so a wrapper file omitted from
-     * {@code FIPS_FFI_GLUE_SOURCES} is caught rather than only the one family a
+     * {@code FIPS_FFM_GLUE_SOURCES} is caught rather than only the one family a
      * single probe happened to name.
      * <p>
-     * {@code JoOpenSSL_*} is deliberately absent: {@code ffi/openssl_ffi.c} is
+     * {@code JoOpenSSL_*} is deliberately absent: {@code ffm/openssl_ffm.c} is
      * not a twin any more, so the FIPS library has no prefixed counterpart to
      * find. {@link #fipsLibraryDoesNotCarryTheBaseInitGlue()} pins that instead.
      */
@@ -108,11 +108,11 @@ public class FIPSLibraryLookupParityTest
             "JoCCM_init", "JoKDF_HKDF", "JoXEC_generateKeyPair",
             "JoEDDSA_generateKeyPair",
             "JoBlockCipher_init",
-            "JoNative_isAvailable", "JoFFI_freeUnsecureNullSafe",
+            "JoNative_isAvailable", "JoFFM_freeUnsecureNullSafe",
     };
 
     /**
-     * Every FFI symbol the Java layer resolves starts with {@code Jo}.
+     * Every FFM symbol the Java layer resolves starts with {@code Jo}.
      * <p>
      * Two reasons, one old and one new. The old one is libcrypto: an export
      * named {@code RSA_sign} or {@code get_ossl_errors} can be shadowed by — or
@@ -128,9 +128,9 @@ public class FIPSLibraryLookupParityTest
      * still be reached by an unprefixed alias.
      */
     @Test
-    public void everyResolvedFfiSymbolIsJoPrefixed() throws IOException
+    public void everyResolvedFfmSymbolIsJoPrefixed() throws IOException
     {
-        Path root = resolveFfiDir().getParent().getParent().getParent()
+        Path root = resolveFfmDir().getParent().getParent().getParent()
                 .getParent().getParent().getParent();
 
         // lookup.find("X") and bind(lookup, "X", ...), with or without the
@@ -160,12 +160,12 @@ public class FIPSLibraryLookupParityTest
         }
 
         Assertions.assertTrue(checked > 100,
-                "found only " + checked + " FFI symbol resolutions under " + root
+                "found only " + checked + " FFM symbol resolutions under " + root
                         + " — the scan pattern no longer matches how symbols are bound,"
                         + " so this test would pass vacuously");
 
         Assertions.assertTrue(offenders.isEmpty(),
-                "FFI symbols resolved without a Jo prefix:\n  "
+                "FFM symbols resolved without a Jo prefix:\n  "
                         + String.join("\n  ", offenders)
                         + "\nRename the C export (both trees, byte-identical twins) and"
                         + " regenerate the FIPS wrapper's #define block.");
@@ -190,11 +190,11 @@ public class FIPSLibraryLookupParityTest
     {
         // Nothing else in this class touches the provider, so the Loader has
         // not run. load() resolves and System.load's the base interface library
-        // (which is what isFFI() reports on); loadFipsInterface() extracts the
+        // (which is what isFFM() reports on); loadFipsInterface() extracts the
         // FIPS one. Neither needs a FIPS module - only the packaged libraries -
         // so this test stays outside the TEST_FIPS_LIB gate.
         Loader.load();
-        Assumptions.assumeTrue(Loader.isFFI(), "FFI interface not in use");
+        Assumptions.assumeTrue(Loader.isFFM(), "FFM interface not in use");
         Loader.loadFipsInterface();
         String fipsPath = Loader.getFipsInterfaceLibPath();
         Assumptions.assumeTrue(fipsPath != null,
@@ -219,7 +219,7 @@ public class FIPSLibraryLookupParityTest
             if (fips.find(prefixed).isEmpty())
             {
                 problems.add("FIPS library does not export \"" + prefixed
-                        + "\" — its wrapper is missing from FIPS_FFI_GLUE_SOURCES,"
+                        + "\" — its wrapper is missing from FIPS_FFM_GLUE_SOURCES,"
                         + " or the #define block omits the symbol");
             }
             if (base.find(prefixed).isPresent())
@@ -266,7 +266,7 @@ public class FIPSLibraryLookupParityTest
     public void libCtxAccessorsAreNamedApartAcrossTheTwoLibraries()
     {
         Loader.load();
-        Assumptions.assumeTrue(Loader.isFFI(), "FFI interface not in use");
+        Assumptions.assumeTrue(Loader.isFFM(), "FFM interface not in use");
         Loader.loadFipsInterface();
         String fipsPath = Loader.getFipsInterfaceLibPath();
         Assumptions.assumeTrue(fipsPath != null,
@@ -321,8 +321,8 @@ public class FIPSLibraryLookupParityTest
      * The FIPS library owns its error reader and does NOT carry the base tree's
      * init glue.
      * <p>
-     * Until 2026-08-23 {@code interface/fips/ffi/} held a byte-identical twin of
-     * {@code openssl_ffi.c}, re-included so the FIPS library could reach
+     * Until 2026-08-23 {@code interface/fips/ffm/} held a byte-identical twin of
+     * {@code openssl_ffm.c}, re-included so the FIPS library could reach
      * {@code JoOpenSSL_getErrors}. That also exported {@code JoOpenSSL_setModule},
      * which builds a lib ctx with {@code jostle_ctx_init_new} — no fipsinstall
      * config, no {@code fips=yes} default properties — and installs it as this
@@ -331,14 +331,14 @@ public class FIPSLibraryLookupParityTest
      * <p>
      * The JNI side never had it: {@code fips/jni/} holds only
      * {@code openssl_fips_jni.c} with its own {@code getOSSLErrors}. This test
-     * pins the FFI side to the same shape, so restoring the twin as a shortcut
+     * pins the FFM side to the same shape, so restoring the twin as a shortcut
      * fails here rather than quietly re-adding the entry point.
      */
     @Test
     public void fipsLibraryDoesNotCarryTheBaseInitGlue()
     {
         Loader.load();
-        Assumptions.assumeTrue(Loader.isFFI(), "FFI interface not in use");
+        Assumptions.assumeTrue(Loader.isFFM(), "FFM interface not in use");
         Loader.loadFipsInterface();
         String fipsPath = Loader.getFipsInterfaceLibPath();
         Assumptions.assumeTrue(fipsPath != null,
@@ -353,11 +353,11 @@ public class FIPSLibraryLookupParityTest
         if (fips.find("JoFIPS_get_openssl_errors").isEmpty())
         {
             problems.add("FIPS library does not export \"JoFIPS_get_openssl_errors\""
-                    + " — OpenSSLFIPSFFI.getOSSLErrors would throw at first use");
+                    + " — OpenSSLFIPSFFM.getOSSLErrors would throw at first use");
         }
 
         // Neither spelling of the base init glue may be present.
-        // Every export of openssl_ffi.c, both spellings. Keep in step with
+        // Every export of openssl_ffm.c, both spellings. Keep in step with
         // that file: a new base entry point the FIPS library must not carry.
         for (String gone : new String[]{
                 "JoOpenSSL_setModule", "JoFIPS_JoOpenSSL_setModule",
@@ -366,8 +366,8 @@ public class FIPSLibraryLookupParityTest
         {
             if (fips.find(gone).isPresent())
             {
-                problems.add("FIPS library exports \"" + gone + "\" — the openssl_ffi.c twin"
-                        + " is back in FIPS_FFI_GLUE_SOURCES, which also re-exports a"
+                problems.add("FIPS library exports \"" + gone + "\" — the openssl_ffm.c twin"
+                        + " is back in FIPS_FFM_GLUE_SOURCES, which also re-exports a"
                         + " setModule that installs a NON-FIPS lib ctx as the FIPS global");
             }
         }
@@ -385,18 +385,18 @@ public class FIPSLibraryLookupParityTest
         }
 
         Assertions.assertTrue(problems.isEmpty(),
-                "FIPS FFI library init-glue surface is wrong:\n  "
+                "FIPS FFM library init-glue surface is wrong:\n  "
                         + String.join("\n  ", problems));
     }
 
     @Test
-    public void everyFipsFfiClassUsesTheLibraryScopedLookup() throws IOException
+    public void everyFipsFfmClassUsesTheLibraryScopedLookup() throws IOException
     {
-        Path dir = resolveFfiDir();
+        Path dir = resolveFfmDir();
         List<String> offenders = new ArrayList<>();
         int checked = 0;
 
-        try (DirectoryStream<Path> files = Files.newDirectoryStream(dir, "*FIPSFFI.java"))
+        try (DirectoryStream<Path> files = Files.newDirectoryStream(dir, "*FIPSFFM.java"))
         {
             for (Path f : files)
             {
@@ -421,11 +421,11 @@ public class FIPSLibraryLookupParityTest
         }
 
         Assertions.assertTrue(checked > 5,
-                "found only " + checked + " *FIPSFFI classes under " + dir
+                "found only " + checked + " *FIPSFFM classes under " + dir
                         + " — the directory or glob is wrong and this test is vacuous");
 
         Assertions.assertTrue(offenders.isEmpty(),
-                "FIPS FFI classes not bound to the FIPS interface library:\n  "
+                "FIPS FFM classes not bound to the FIPS interface library:\n  "
                         + String.join("\n  ", offenders)
                         + "\nBoth libraries export the same Jo* symbols, so these would drive "
                         + "the BASE library while every functional test still passed.");
@@ -436,7 +436,7 @@ public class FIPSLibraryLookupParityTest
      * forbidden call cannot be tripped by prose describing it.
      * <p>
      * Deliberately naive - it does not understand string literals, which is
-     * fine here: no {@code *FIPSFFI} class contains a string holding "//" or
+     * fine here: no {@code *FIPSFFM} class contains a string holding "//" or
      * "/*", and a false positive would fail loudly rather than pass silently.
      */
     private static String stripComments(String src)
@@ -465,20 +465,20 @@ public class FIPSLibraryLookupParityTest
     }
 
     /**
-     * The FFI source directory, whether the test runs from the repo root or
+     * The FFM source directory, whether the test runs from the repo root or
      * from the {@code jostle} subproject.
      */
-    private static Path resolveFfiDir()
+    private static Path resolveFfmDir()
     {
         for (Path base : new Path[]{Paths.get(""), Paths.get("jostle"), Paths.get("..")})
         {
-            Path p = base.resolve(FFI_DIR);
+            Path p = base.resolve(FFM_DIR);
             if (Files.isDirectory(p))
             {
                 return p;
             }
         }
-        throw new IllegalStateException("cannot locate " + FFI_DIR
+        throw new IllegalStateException("cannot locate " + FFM_DIR
                 + " from working directory " + Paths.get("").toAbsolutePath());
     }
 }

@@ -46,7 +46,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * <p>Requires a JOSTLE_OPS_TEST build of the FIPS library: gated on
  * {@code TEST_FIPS_LIB} (whole class skips when unset) and, per test, on
  * {@code opsTestAvailable()} (skips against a shipped, non-instrumented FIPS
- * library). The FAILED_ACCESS tests are JNI-only (the FFI bridge takes raw
+ * library). The FAILED_ACCESS tests are JNI-only (the FFM bridge takes raw
  * pointers). Flags are set on the FIPS library's own OperationsTestNI, whose flag
  * state is independent of the base library's.
  */
@@ -263,7 +263,7 @@ public class FIPSBridgeRandOpsTest
 
     //
     // JNI byte-array access-failure paths (load_bytearray_ctx). JNI-only — the
-    // FFI bridge receives raw pointers and has no OPS_FAILED_ACCESS instrumentation.
+    // FFM bridge receives raw pointers and has no OPS_FAILED_ACCESS instrumentation.
     // interface/fips/jni/rand_jni.c is byte-identical to the nonfips copy, so the
     // line numbers match the base test.
     //
@@ -272,7 +272,7 @@ public class FIPSBridgeRandOpsTest
     public void createContextPersonalizationAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         int[] err = new int[1];
         // Exercises interface/fips/jni/rand_jni.c:66
@@ -287,7 +287,7 @@ public class FIPSBridgeRandOpsTest
     public void contextRandomBytesOutputAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
@@ -309,7 +309,7 @@ public class FIPSBridgeRandOpsTest
     public void contextRandomBytesAdditionalInputAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
@@ -331,7 +331,7 @@ public class FIPSBridgeRandOpsTest
     public void contextReseedAdditionalInputAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try

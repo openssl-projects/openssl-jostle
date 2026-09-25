@@ -39,7 +39,7 @@ import java.security.Security;
  * <p>All tests are guarded by {@link OperationsTestNI#opsTestAvailable()}
  * so they no-op on a release native build. JNI-specific
  * {@code OPS_FAILED_ACCESS_*} tests are additionally guarded by
- * {@code Assumptions.assumeFalse(Loader.isFFI())} because the FFI bridge
+ * {@code Assumptions.assumeFalse(Loader.isFFM())} because the FFM bridge
  * does not use {@code GetByteArrayElements} and so cannot fault those
  * access points.
  */
@@ -78,7 +78,7 @@ public class RSAOpsTest
     public void RSA_generateKeyPair_failedAccessPubExp() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         try
         {
@@ -132,7 +132,7 @@ public class RSAOpsTest
     public void RSA_decodePublicComponents_failedAccess() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -176,7 +176,7 @@ public class RSAOpsTest
     private void runDecodePrivateComponentsAccessFailure(OperationsTestNI.OpsTestFlag flag) throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -226,7 +226,7 @@ public class RSAOpsTest
     private void runDecodePrivateComponentsCrtAccessFailure(OperationsTestNI.OpsTestFlag flag) throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         byte[] one = {0x01};
         long keyRef = 0;
@@ -256,7 +256,7 @@ public class RSAOpsTest
     public void RSA_getComponent_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -299,7 +299,7 @@ public class RSAOpsTest
     public void RSA_initSign_accessDigestName_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -338,7 +338,7 @@ public class RSAOpsTest
     public void RSA_initSign_accessMgf1Name_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -855,7 +855,7 @@ public class RSAOpsTest
     public void RSA_update_failedAccessInput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -892,7 +892,7 @@ public class RSAOpsTest
     public void RSA_sign_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -1064,7 +1064,7 @@ public class RSAOpsTest
     public void RSA_verify_failedAccessSig() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;

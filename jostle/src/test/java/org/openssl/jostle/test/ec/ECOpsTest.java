@@ -1549,8 +1549,8 @@ public class ECOpsTest
     // JNI access faults (OPS_FAILED_ACCESS_*) — JNI-only
     //
     // These tests fault-inject GetStringUTFChars failure on curve / digest
-    // name strings at the JNI bridge layer. FFI doesn't take a JVM access
-    // path so the tests are guarded by Loader.isFFI().
+    // name strings at the JNI bridge layer. FFM doesn't take a JVM access
+    // path so the tests are guarded by Loader.isFFM().
     // -----------------------------------------------------------------
 
     /**
@@ -1561,7 +1561,7 @@ public class ECOpsTest
     public void ec_curveSupported_accessCurveName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/nonfips/jni/ec_ni_jni.c:42
@@ -1583,7 +1583,7 @@ public class ECOpsTest
     public void ec_generateKeyPair_accessCurveName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/nonfips/jni/ec_ni_jni.c:77
@@ -1610,7 +1610,7 @@ public class ECOpsTest
     public void ec_makePrivateFromComponents_accessCurveName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         // Any non-zero 32-byte scalar — OPS short-circuits before validation.
         byte[] scalar = new byte[32];
         scalar[31] = 0x01;
@@ -1637,7 +1637,7 @@ public class ECOpsTest
     public void ec_initSign_accessDigestName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long sigRef = ec.allocateSigner();
         long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
         try
@@ -1663,7 +1663,7 @@ public class ECOpsTest
     public void ec_initVerify_accessDigestName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long sigRef = ec.allocateSigner();
         long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
         try

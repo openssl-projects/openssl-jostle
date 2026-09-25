@@ -33,7 +33,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  *
  * <p>Requires a JOSTLE_OPS_TEST build of the FIPS library: gated on
  * {@code TEST_FIPS_LIB} and per-test on {@code opsTestAvailable()}. The
- * FAILED_ACCESS tests are JNI-only (the FFI bridge takes raw pointers).
+ * FAILED_ACCESS tests are JNI-only (the FFM bridge takes raw pointers).
  */
 public class FIPSCCMOpsTest
 {
@@ -438,7 +438,7 @@ public class FIPSCCMOpsTest
     public void ccm_init_accessKey_failure()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -459,7 +459,7 @@ public class FIPSCCMOpsTest
     public void ccm_init_accessIv_failure()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -480,7 +480,7 @@ public class FIPSCCMOpsTest
     public void ccm_doFinal_accessAad_failure()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -502,7 +502,7 @@ public class FIPSCCMOpsTest
     public void ccm_doFinal_accessInput_failure()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -524,7 +524,7 @@ public class FIPSCCMOpsTest
     public void ccm_doFinal_accessOutput_failure()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {

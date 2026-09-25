@@ -1,7 +1,7 @@
 OSSL:libcrypto.3.dylib
 
 JNI:libinterface_jni.dylib
-FFI:libinterface_ffi.dylib
+FFM:libinterface_ffm.dylib
 
 F_JNI:libinterface_fips_jni.dylib
-F_FFI:libinterface_fips_ffi.dylib
+F_FFM:libinterface_fips_ffm.dylib

@@ -180,7 +180,7 @@ def wrap_sites(java_src):
 # bill of health. "18 NI classes, no findings" must never read as "the provider
 # is clean".
 OUT_OF_SCOPE = [
-    ("FFI downcall wrap sites", "src/main/java25/**/*FFI.java",
+    ("FFM downcall wrap sites", "src/main/java25/**/*FFM.java",
      "catch (Throwable) around MethodHandle.invokeExact. A DIFFERENT fault "
      "class: FFM native code cannot throw a checked Java exception at all, so "
      "the erasure fault cannot exist there. The real smell is that catch "

@@ -1,0 +1,285 @@
+/*
+ *
+ *   Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
+ *
+ *   Licensed under the Apache License 2.0 (the "License"). You may not use
+ *   this file except in compliance with the License.  You can obtain a copy
+ *   in the file LICENSE in the source distribution or at
+ *   https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+ *
+ */
+
+package org.openssl.jostle.jcajce.provider.md;
+
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import java.lang.foreign.*;
+import java.lang.invoke.MethodHandle;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * FFM implementation of MDServiceNI. Symbol resolution is parameterised by a
+ * SymbolLookup so the same marshalling serves both interface libraries: the
+ * no-arg constructor uses the process-global loader lookup (the base
+ * interface library, loaded via System.load), while the FIPS subclass passes
+ * a library-scoped lookup pinned to the FIPS interface library - both export
+ * the same C symbol names, so the lookup is what disambiguates them.
+ */
+public class MDServiceFFM implements MDServiceNI
+{
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
+
+    private static final Logger L = Logger.getLogger("MD_NI_FFM");
+    private static final Linker linker = Linker.nativeLinker();
+
+    private final MethodHandle allocateDigestFuncHandle;
+    private final MethodHandle copyDigestFuncHandle;
+    private final MethodHandle updateByteFuncHandle;
+    private final MethodHandle updateBytesFuncHandle;
+    private final MethodHandle disposeFuncHandle;
+    private final MethodHandle digestLenFuncHandle;
+    private final MethodHandle digestBytesFuncHandle;
+    private final MethodHandle resetFuncHandle;
+
+
+    public MDServiceFFM()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public MDServiceFFM(SymbolLookup lookup)
+    {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffm.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public MDServiceFFM(SymbolLookup lookup, String symPrefix)
+    {
+        allocateDigestFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_Allocate").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS, // *md_dtx
+                        ValueLayout.ADDRESS, // const char *name
+                        ValueLayout.JAVA_INT,// xof_len
+                        ValueLayout.ADDRESS, // int *err
+                        ValueLayout.JAVA_INT // err_len
+                ), Linker.Option.critical(true)
+        );
+
+        copyDigestFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_Copy").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.ADDRESS, // *md_ctx (the clone)
+                        ValueLayout.ADDRESS, // md_ctx *src
+                        ValueLayout.ADDRESS, // int *err
+                        ValueLayout.JAVA_INT // err_len
+                ), Linker.Option.critical(true)
+        );
+
+        updateByteFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_UpdateByte").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS, // *md_dtx
+                        ValueLayout.JAVA_BYTE // data
+                ), Linker.Option.critical(true)
+        );
+
+
+        updateBytesFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_UpdateBytes").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS, // md_ctx *
+                        ValueLayout.ADDRESS, // uint8_t *input
+                        ValueLayout.JAVA_LONG, //size_t input_size
+                        ValueLayout.JAVA_INT,// in_off
+                        ValueLayout.JAVA_INT // in_len
+                ), Linker.Option.critical(true)
+        );
+
+        disposeFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_Dispose").orElseThrow(),
+                FunctionDescriptor.ofVoid(
+                        ValueLayout.ADDRESS // md_ctx *
+                ), Linker.Option.critical(true)
+        );
+
+        digestLenFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_GetDigestLen").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS // md_ctx *
+                )
+        );
+
+        digestBytesFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_Digest").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS, // md_ctx *
+                        ValueLayout.ADDRESS, // uint8_t *output
+                        ValueLayout.JAVA_LONG, // size_t output_size
+                        ValueLayout.JAVA_INT, // out_off
+                        ValueLayout.JAVA_INT // out_len
+                ), Linker.Option.critical(true));
+
+        resetFuncHandle = linker.downcallHandle(lookup.find(symPrefix + "JoMD_Reset").orElseThrow(),
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // return value
+                        ValueLayout.ADDRESS // md_ctx *
+                )
+        );
+    }
+
+    @Override
+    public long ni_allocateDigest(String name, int xofLen, int[] err)
+    {
+        try (var a = Arena.ofConfined())
+        {
+            var nameSeg = name == null ? MemorySegment.NULL : a.allocateFrom(name);
+            // err is jostle's own: its null-ness and length travel down and C
+            // asserts them, so nothing is checked here.
+            var errSeg = err == null ? MemorySegment.NULL : MemorySegment.ofArray(err);
+            var ctxSeg = (MemorySegment) allocateDigestFuncHandle.invokeExact(nameSeg, xofLen, errSeg,
+                    err == null ? 0 : err.length);
+            return ctxSeg.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_Allocate", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public long ni_copyDigest(long ref, int[] err)
+    {
+        try
+        {
+            var errSeg = err == null ? MemorySegment.NULL : MemorySegment.ofArray(err);
+            var ctxSeg = (MemorySegment) copyDigestFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(ref),
+                    errSeg, err == null ? 0 : err.length);
+            return ctxSeg.address();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_Copy", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_updateByte(long ref, byte b)
+    {
+        try
+        {
+            return (int) updateByteFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(ref),
+                    b);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_UpdateByte", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_updateBytes(long ref, byte[] input, int offset, int len)
+    {
+        try
+        {
+            var inSeg = input == null ?
+                    MemorySegment.NULL :
+                    MemorySegment.ofArray(input);
+            return (int) updateBytesFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(ref),
+                    inSeg,
+                    inSeg.byteSize(),
+                    offset,
+                    len);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_UpdateBytes", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public void ni_dispose(long reference)
+    {
+        try
+        {
+            disposeFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_Dispose", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_getDigestOutputLen(long reference)
+    {
+        try
+        {
+            return (int) digestLenFuncHandle.invokeExact(MemorySegment.ofAddress(reference));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_GetDigestLen", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_digest(long ref, byte[] out, int offset, int length)
+    {
+        try
+        {
+            var outSeg = out == null ?
+                    MemorySegment.NULL :
+                    MemorySegment.ofArray(out);
+
+            return (int) digestBytesFuncHandle.invokeExact(
+                    MemorySegment.ofAddress(ref),
+                    outSeg,
+                    outSeg.byteSize(),
+                    offset, length
+            );
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_Digest", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_reset(long ref)
+    {
+        try
+        {
+            return (int) resetFuncHandle.invokeExact(MemorySegment.ofAddress(ref));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM MD_Reset", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+}

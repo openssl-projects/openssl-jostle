@@ -1,0 +1,365 @@
+//  Copyright 2025 OpenSSL Jostle Authors. All Rights Reserved.
+//
+//  Licensed under the Apache License 2.0 (the "License"). You may not use
+//  this file except in compliance with the License.  You can obtain a copy
+//  in the file LICENSE in the source distribution or at
+//  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+
+
+#include <stdint.h>
+#include <stdio.h>
+#include <openssl/crypto.h>
+
+#include "../util/key_spec.h"
+#include "../util/edec.h"
+#include "../util/bc_err_codes.h"
+#include "types.h"
+#include "../util/jo_assert.h"
+
+key_spec *JoEDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
+    jo_assert(ret_val != NULL);
+    *ret_val = JO_FAIL;
+
+    if (rnd_src == NULL) {
+        *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
+
+    key_spec *spec = create_spec();
+
+    *ret_val = edec_generate_key(spec, type, rnd_src);
+
+    if (*ret_val != JO_SUCCESS) {
+        free_key_spec(spec);
+        spec = NULL;
+    }
+
+    return spec;
+}
+
+
+int32_t JoEDDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+    int32_t ret_val = JO_FAIL;
+
+    if (kp == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    ret_val = edec_get_public_encoded(kp, output, output_len);
+
+exit:
+    return ret_val;
+}
+
+int32_t JoEDDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
+    int32_t ret_val = JO_FAIL;
+
+    if (kp == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    ret_val = edec_get_private_encoded(kp, output, output_len);
+
+exit:
+    return ret_val;
+}
+
+
+int32_t JoEDDSA_decodePublicKey(key_spec *key_spec,
+                              int32_t key_type,
+                              uint8_t *input,
+                              size_t input_size,
+                              int32_t in_off,
+                              int32_t in_len) {
+    int32_t ret_val = JO_FAIL;
+
+    if (key_spec == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    if (input == NULL) {
+        ret_val = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+
+    if (in_off < 0) {
+        ret_val = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_in_range(input_size, in_off, in_len)) {
+        ret_val = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    //  key_spec->type = key_type;
+
+    uint8_t *start = input + in_off;
+    ret_val = edec_decode_public_key(key_spec, key_type, start, in_len);
+
+
+exit:
+    return ret_val;
+}
+
+
+int32_t JoEDDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size, int32_t in_off,
+                               int32_t in_len) {
+    int32_t ret_val = JO_FAIL;
+
+    if (key_spec == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    if (input == NULL) {
+        ret_val = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+
+    if (in_off < 0) {
+        ret_val = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_in_range(input_size, in_off, in_len)) {
+        ret_val = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+
+    uint8_t *start = input + in_off;
+    ret_val = edec_decode_private_key(key_spec, key_type, start, in_len);
+
+
+exit:
+    return ret_val;
+}
+
+
+void JoEDDSA_disposeSigner(edec_ctx *ctx) {
+    if (ctx == NULL) {
+        return;
+    }
+    edec_ctx_destroy(ctx);
+}
+
+
+edec_ctx *JoEDDSA_allocateSigner(int *err) {
+    return edec_ctx_create(err);
+}
+
+
+int32_t JoEDDSA_initVerifier(edec_ctx *ctx,
+                           key_spec *kp,
+                           const char *name,
+                           int name_len,
+                           const uint8_t *context,
+                           const size_t context_size,
+                           int32_t context_len) {
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    int32_t ret_val = JO_FAIL;
+
+    if (name == NULL) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    if (name_len <= 0) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    if (kp == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    if (context != NULL) {
+        if ((size_t) context_len > context_size) {
+            ret_val = JO_CONTEXT_LEN_PAST_END;
+            goto exit;
+        }
+    }
+
+    ret_val = edec_ctx_init_verify(ctx, kp, name, name_len, context, context_len);
+
+
+exit:
+    return ret_val;
+}
+
+int32_t JoEDDSA_initSign(edec_ctx *ctx,
+                       key_spec *kp,
+                       const char *name,
+                       int name_len,
+                       const uint8_t *context,
+                       const size_t context_size,
+                       int32_t context_len,
+                       void *rnd_src
+) {
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+    int32_t ret_val = JO_FAIL;
+
+    if (name == NULL) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    if (name_len <= 0) {
+        ret_val = JO_NAME_IS_NULL;
+        goto exit;
+    }
+
+    if (kp == NULL) {
+        ret_val = JO_KEY_SPEC_IS_NULL;
+        goto exit;
+    }
+
+    // A negative context_len must be rejected too: casting it to size_t
+    // yields a huge value that exceeds context_size, so the single check
+    // covers both the past-end and negative cases (matching JoEDDSA_initVerifier
+    // and the JNI bridge). An inner `context_len >= 0` guard would let a
+    // negative length slip through into a bogus OSSL_PARAM octet-string size.
+    if (context != NULL) {
+        if ((size_t) context_len > context_size) {
+            ret_val = JO_CONTEXT_LEN_PAST_END;
+            goto exit;
+        }
+    }
+
+    ret_val = edec_ctx_init_sign(ctx, kp, name, name_len, context, context_len, rnd_src);
+
+exit:
+    return ret_val;
+}
+
+int32_t JoEDDSA_update(edec_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
+                     const int32_t in_len) {
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    int32_t ret_code = JO_FAIL;
+
+    if (input == NULL) {
+        ret_code = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+
+    // Offset BEFORE length, matching ed_jni.c and the asn1/dsa/ec reference
+    // bridges. Both orders reject, but only an identical order gives the two
+    // bridges an identical code for an identical input - the rule the FFM/JNI
+    // parity limit tests pin. This was LEN-first until 2026-08-23, so a caller
+    // passing both negative saw JO_INPUT_LEN_IS_NEGATIVE from FFM and
+    // JO_INPUT_OFFSET_IS_NEGATIVE from JNI.
+    if (in_off < 0) {
+        ret_code = JO_INPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (in_len < 0) {
+        ret_code = JO_INPUT_LEN_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_in_range(input_size, in_off, in_len)) {
+        ret_code = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    const uint8_t *in = input + in_off;
+    ret_code = edec_ctx_update(ctx, in, in_len);
+
+exit:
+    return ret_code;
+}
+
+
+int32_t JoEDDSA_sign(
+    edec_ctx *ctx,
+    uint8_t *output,
+    const size_t output_size,
+    const int32_t out_off,
+    void *rnd_src) {
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    int32_t ret_val = JO_FAIL;
+    size_t out_len = 0;
+
+
+    if (out_off < 0) {
+        ret_val = JO_OUTPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+
+    out_len = output_size - (size_t) out_off;
+
+    if (!check_in_range(output_size, out_off, out_len)) {
+        ret_val = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    uint8_t *output_data = output + (size_t) out_off;
+
+    ret_val = edec_ctx_sign(ctx, output_data, out_len, rnd_src);
+
+exit:
+    return ret_val;
+}
+
+int32_t JoEDDSA_verify(
+    edec_ctx *ctx,
+    const uint8_t *sig,
+    const size_t sig_size,
+    const int32_t sig_len) {
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    int32_t ret_val = JO_FAIL;
+
+
+    if (sig == NULL) {
+        ret_val = JO_SIG_IS_NULL;
+        goto exit;
+    }
+
+    if (sig_len < 0) {
+        ret_val = JO_SIG_LENGTH_IS_NEGATIVE;
+        goto exit;
+    }
+
+    if (!check_in_range(sig_size, 0, sig_len)) {
+        ret_val = JO_SIG_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    ret_val = edec_ctx_verify(ctx, sig, sig_len);
+
+exit:
+    return ret_val;
+}

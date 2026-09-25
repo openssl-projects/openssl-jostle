@@ -43,8 +43,8 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * {@code TEST_FIPS_LIB} (whole class skips when unset) and, per test, on
  * {@link OperationsTestNI#opsTestAvailable()} (skips against a shipped,
  * non-instrumented FIPS library). JNI-specific {@code OPS_FAILED_ACCESS_*}
- * tests are additionally guarded by {@code Assumptions.assumeFalse(Loader.isFFI())}
- * because the FFI bridge does not use {@code GetByteArrayElements} and so cannot
+ * tests are additionally guarded by {@code Assumptions.assumeFalse(Loader.isFFM())}
+ * because the FFM bridge does not use {@code GetByteArrayElements} and so cannot
  * fault those access points.
  */
 public class FIPSRSAOpsTest
@@ -81,7 +81,7 @@ public class FIPSRSAOpsTest
     public void RSA_generateKeyPair_failedAccessPubExp() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         try
         {
@@ -135,7 +135,7 @@ public class FIPSRSAOpsTest
     public void RSA_decodePublicComponents_failedAccess() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -179,7 +179,7 @@ public class FIPSRSAOpsTest
     private void runDecodePrivateComponentsAccessFailure(OperationsTestNI.OpsTestFlag flag) throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -229,7 +229,7 @@ public class FIPSRSAOpsTest
     private void runDecodePrivateComponentsCrtAccessFailure(OperationsTestNI.OpsTestFlag flag) throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         byte[] one = {0x01};
         long keyRef = 0;
@@ -259,7 +259,7 @@ public class FIPSRSAOpsTest
     public void RSA_getComponent_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -302,7 +302,7 @@ public class FIPSRSAOpsTest
     public void RSA_initSign_accessDigestName_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -341,7 +341,7 @@ public class FIPSRSAOpsTest
     public void RSA_initSign_accessMgf1Name_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -858,7 +858,7 @@ public class FIPSRSAOpsTest
     public void RSA_update_failedAccessInput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -895,7 +895,7 @@ public class FIPSRSAOpsTest
     public void RSA_sign_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;
@@ -1067,7 +1067,7 @@ public class FIPSRSAOpsTest
     public void RSA_verify_failedAccessSig() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long rsaRef = 0;
         long keyRef = 0;

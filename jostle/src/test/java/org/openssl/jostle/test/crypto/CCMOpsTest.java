@@ -40,8 +40,8 @@ import java.security.Security;
  *
  * <p>The {@code OPS_OPENSSL_ERROR_*}/{@code OPS_FAILED_CREATE_1} sites
  * live in the shared util layer, so these tests run identically on JNI
- * and FFI. The {@code FAILED_ACCESS} tests at the bottom are JNI-only and
- * guard via {@link Loader#isFFI()} because the FFI bridge takes raw
+ * and FFM. The {@code FAILED_ACCESS} tests at the bottom are JNI-only and
+ * guard via {@link Loader#isFFM()} because the FFM bridge takes raw
  * pointers rather than {@code load_bytearray_ctx}, so it has no
  * buffer-access fault-injection point.
  */
@@ -93,7 +93,7 @@ public class CCMOpsTest
     /**
      * ccm_ctx_create's EVP_CIPHER_CTX_new() failure path. The flag is armed
      * BEFORE ni_makeInstance because create is the only call that allocates
-     * the EVP_CIPHER_CTX. Shared util site, so this runs on JNI and FFI.
+     * the EVP_CIPHER_CTX. Shared util site, so this runs on JNI and FFM.
      */
     @Test
     public void ccm_makeInstance_ctxNew_failure() throws Exception
@@ -461,7 +461,7 @@ public class CCMOpsTest
     }
 
     // -----------------------------------------------------------------
-    // JNI access faults (load_bytearray_ctx). JNI-only — the FFI bridge
+    // JNI access faults (load_bytearray_ctx). JNI-only — the FFM bridge
     // receives raw pointers and has no such fault-injection point.
     // These sites have no OPS_OFFSET macro, so they return the base
     // JO_FAILED_ACCESS_* code rather than an offset-disambiguated one.
@@ -471,7 +471,7 @@ public class CCMOpsTest
     public void ccm_init_accessKey_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -492,7 +492,7 @@ public class CCMOpsTest
     public void ccm_init_accessIv_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -513,7 +513,7 @@ public class CCMOpsTest
     public void ccm_doFinal_accessAad_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -536,7 +536,7 @@ public class CCMOpsTest
     public void ccm_doFinal_accessInput_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {
@@ -559,7 +559,7 @@ public class CCMOpsTest
     public void ccm_doFinal_accessOutput_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long ref = 0;
         try
         {

@@ -25,12 +25,12 @@ import java.util.Locale;
  *
  * <ol>
  *     <li>The library actually loaded for the FIPS provider is the
- *     fips-suffixed one (interface_fips_jni / interface_fips_ffi), not the base
+ *     fips-suffixed one (interface_fips_jni / interface_fips_ffm), not the base
  *     non-FIPS interface library - i.e. {@link Loader#getFipsInterfaceLibPath()}
  *     names a lib whose name contains "fips".</li>
  *     <li>The resolved {@link FIPSNISelector} implementations match the active
- *     bridge flavour: under FFI ({@link Loader#isFFI()}) every impl class's
- *     simple name ends with "FFI", otherwise "JNI". The FIPS JNI and FIPS FFI
+ *     bridge flavour: under FFM ({@link Loader#isFFM()}) every impl class's
+ *     simple name ends with "FFM", otherwise "JNI". The FIPS JNI and FIPS FFM
  *     bridges are separate compile units, so this guards against the selector
  *     handing back a mismatched flavour.</li>
  * </ol>
@@ -55,7 +55,7 @@ public class FIPSInterfaceSelectionTest
 
     /**
      * The FIPS interface library that loaded is the fips-suffixed one, and the
-     * resolved NI impls match the active JNI/FFI bridge flavour.
+     * resolved NI impls match the active JNI/FFM bridge flavour.
      */
     @Test
     public void fipsNiSelectorHonoursInterfaceOverrideAndLoadsFipsSuffixedLib()
@@ -73,7 +73,7 @@ public class FIPSInterfaceSelectionTest
         Assertions.assertTrue(libPath.toLowerCase(Locale.ROOT).contains("fips"),
                 "FIPS interface lib must be the fips-suffixed library, was: " + libPath);
 
-        String expectedSuffix = Loader.isFFI() ? "FFI" : "JNI";
+        String expectedSuffix = Loader.isFFM() ? "FFM" : "JNI";
 
         assertImplFlavour(FIPSNISelector.OpenSSLFIPSNI, expectedSuffix);
         assertImplFlavour(mdImpl, expectedSuffix);

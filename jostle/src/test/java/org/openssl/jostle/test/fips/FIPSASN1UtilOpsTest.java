@@ -277,7 +277,7 @@ public class FIPSASN1UtilOpsTest
     public void opsTestGetData_accessByteArray()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long asn1Ref = 0;
         try
         {
@@ -302,7 +302,7 @@ public class FIPSASN1UtilOpsTest
     public void opsTestEncodePrivateKey_accessOptionsString()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long asn1Ref = 0;
         long keyRef = 0;
         try
@@ -330,7 +330,7 @@ public class FIPSASN1UtilOpsTest
     public void opsTestFromPrivateKeyInfo_accessByteArray()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long keyRef = 0;
         try
         {
@@ -357,7 +357,7 @@ public class FIPSASN1UtilOpsTest
     public void opsTestFromPublicKeyInfo_accessByteArray()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long keyRef = 0;
         try
         {

@@ -156,8 +156,8 @@ public class XECOpsTest
     // JNI access fault (OPS_FAILED_ACCESS_*) — JNI-only
     //
     // Fault-injects GetStringUTFChars failure on the key-type name at the
-    // JNI bridge. FFI takes a raw pointer (no JVM access path), so this is
-    // guarded by Loader.isFFI().
+    // JNI bridge. FFM takes a raw pointer (no JVM access path), so this is
+    // guarded by Loader.isFFM().
     // -----------------------------------------------------------------
 
     /**
@@ -168,7 +168,7 @@ public class XECOpsTest
     public void xec_generateKeyPair_accessName_failure()
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/nonfips/jni/xec_ni_jni.c:42

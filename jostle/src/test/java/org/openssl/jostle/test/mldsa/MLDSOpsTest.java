@@ -86,7 +86,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI_generateKeyPair_seedLenNegative() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         try
         {
@@ -107,7 +107,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI_getPublicKey_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
 
@@ -140,7 +140,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI_getPrivateKey_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -369,7 +369,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI_getSeed_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long keyRef = 0;
 
         try
@@ -463,7 +463,7 @@ public class MLDSOpsTest
     @Test()
     public void MLDSAServiceJNI_decode_1publicKey_accessByteArray() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
 
@@ -545,7 +545,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI_decode_1privateKey_accessByteArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = 0;
@@ -626,7 +626,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI__initSign_accessContextArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
@@ -880,7 +880,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI__initVerify_accessContextArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long mldsaRef = 0;
         long keyRef = 0;
@@ -976,7 +976,7 @@ public class MLDSOpsTest
     public void MLDSAServiceJNI_mldsa_update_accessInputArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long mldsaRef = 0;
@@ -1089,7 +1089,7 @@ public class MLDSOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long mldsaRef = 0;
         long keyRef = 0;
@@ -1290,7 +1290,7 @@ public class MLDSOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long mldsaRef = 0;
         long keyRef = 0;

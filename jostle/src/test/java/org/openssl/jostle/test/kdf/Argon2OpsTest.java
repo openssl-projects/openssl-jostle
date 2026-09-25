@@ -143,7 +143,7 @@ public class Argon2OpsTest
     @Test
     public void argon2_access_password() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -166,7 +166,7 @@ public class Argon2OpsTest
     @Test
     public void argon2_access_salt() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -189,7 +189,7 @@ public class Argon2OpsTest
     @Test
     public void argon2_access_output() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {

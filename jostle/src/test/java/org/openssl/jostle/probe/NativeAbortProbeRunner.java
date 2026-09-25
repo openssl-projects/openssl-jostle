@@ -66,9 +66,9 @@ public final class NativeAbortProbeRunner
     private static final String KS_TYPE = "PKCS12";
 
     private static final String NONFIPS_JNI = "interface/nonfips/jni/";
-    private static final String NONFIPS_FFI = "interface/nonfips/ffi/";
+    private static final String NONFIPS_FFM = "interface/nonfips/ffm/";
     private static final String FIPS_JNI = "interface/fips/jni/";
-    private static final String FIPS_FFI = "interface/fips/ffi/";
+    private static final String FIPS_FFM = "interface/fips/ffm/";
 
     private NativeAbortProbeRunner()
     {
@@ -97,16 +97,16 @@ public final class NativeAbortProbeRunner
 
     private static void abortRow(List<Row> rows, String id,
                                  String jniAssert, String jniFile,
-                                 String ffiAssert, String ffiFile)
+                                 String ffmAssert, String ffmFile)
     {
         rows.add(new Row(id, "jni", 134, jniAssert, jniFile));
-        rows.add(new Row(id, "ffi", 134, ffiAssert, ffiFile));
+        rows.add(new Row(id, "ffm", 134, ffmAssert, ffmFile));
     }
 
     private static void controlRow(List<Row> rows, String id)
     {
         rows.add(new Row(id, "jni", 0, OK, null));
-        rows.add(new Row(id, "ffi", 0, OK, null));
+        rows.add(new Row(id, "ffm", 0, OK, null));
     }
 
     private static List<Row> rows(boolean fips)
@@ -114,43 +114,43 @@ public final class NativeAbortProbeRunner
         List<Row> rows = new ArrayList<Row>();
 
         String jniDir = fips ? FIPS_JNI : NONFIPS_JNI;
-        String ffiDir = fips ? FIPS_FFI : NONFIPS_FFI;
+        String ffmDir = fips ? FIPS_FFM : NONFIPS_FFM;
         String p = fips ? "fips-" : "";
 
         String lenJni = "GetArrayLength(env, _err) >= 1";
         String consumedJni = "_consumed != NULL";
-        String consumedFfi = "out_consumed != NULL && consumed_len >= 1";
+        String consumedFfm = "out_consumed != NULL && consumed_len >= 1";
 
         abortRow(rows, p + "x509-null-err",
                 "_err != NULL", jniDir + "x509_ni_jni.c",
-                "err_len >= 1", ffiDir + "x509_ni_ffi.c");
+                "err_len >= 1", ffmDir + "x509_ni_ffm.c");
         abortRow(rows, p + "x509-empty-err",
                 lenJni, jniDir + "x509_ni_jni.c",
-                "err_len >= 1", ffiDir + "x509_ni_ffi.c");
+                "err_len >= 1", ffmDir + "x509_ni_ffm.c");
         abortRow(rows, p + "x509-null-consumed",
                 consumedJni, jniDir + "x509_ni_jni.c",
-                consumedFfi, ffiDir + "x509_ni_ffi.c");
+                consumedFfm, ffmDir + "x509_ni_ffm.c");
         // A one-byte input fails the decode first, so only a decodable
         // certificate proves the assert sits ABOVE the decode.
         abortRow(rows, p + "x509-null-consumed-validcert",
                 consumedJni, jniDir + "x509_ni_jni.c",
-                consumedFfi, ffiDir + "x509_ni_ffi.c");
+                consumedFfm, ffmDir + "x509_ni_ffm.c");
         controlRow(rows, p + "x509-control");
 
         abortRow(rows, p + "md-null-err",
                 "_err != NULL", jniDir + "md_jni.c",
-                "err != NULL", ffiDir + "md_ffi.c");
+                "err != NULL", ffmDir + "md_ffm.c");
         abortRow(rows, p + "md-empty-err",
                 lenJni, jniDir + "md_jni.c",
-                "err_len >= 1", ffiDir + "md_ffi.c");
+                "err_len >= 1", ffmDir + "md_ffm.c");
         controlRow(rows, p + "md-control");
 
         abortRow(rows, p + "rand-null-err",
                 "_err != NULL", jniDir + "rand_jni.c",
-                "err != NULL", ffiDir + "rand_ffi.c");
+                "err != NULL", ffmDir + "rand_ffm.c");
         abortRow(rows, p + "rand-empty-err",
                 lenJni, jniDir + "rand_jni.c",
-                "err_len >= 1", ffiDir + "rand_ffi.c");
+                "err_len >= 1", ffmDir + "rand_ffm.c");
         controlRow(rows, p + "rand-control");
 
         // The keystore and certification-path families have no FIPS twin under
@@ -160,10 +160,10 @@ public final class NativeAbortProbeRunner
         {
             abortRow(rows, "ks-null-err",
                     "_err != NULL", jniDir + "ks_jni.c",
-                    "err != NULL", ffiDir + "ks_ffi.c");
+                    "err != NULL", ffmDir + "ks_ffm.c");
             abortRow(rows, "ks-empty-err",
                     lenJni, jniDir + "ks_jni.c",
-                    "err_len >= 1", ffiDir + "ks_ffi.c");
+                    "err_len >= 1", ffmDir + "ks_ffm.c");
             controlRow(rows, "ks-control");
         }
         return rows;

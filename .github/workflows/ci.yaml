@@ -288,7 +288,7 @@ jobs:
           - { name: "jdk17",     jdk: "17", bcjdk: "17", tasks: "unitTest17 integrationTest17" }
           - { name: "jdk21",     jdk: "21", bcjdk: "21", tasks: "unitTest21 integrationTest21" }
           - { name: "jdk25-jni", jdk: "25", bcjdk: "25", tasks: "unitTest25JNI integrationTest25JNI" }
-          - { name: "jdk25-ffi", jdk: "25", bcjdk: "25", tasks: "unitTest25FFI integrationTest25FFI" }
+          - { name: "jdk25-ffm", jdk: "25", bcjdk: "25", tasks: "unitTest25FFM integrationTest25FFM" }
     runs-on: ${{ matrix.runner }}
     steps:
       - name: "Checkout jostle"
@@ -346,7 +346,7 @@ jobs:
 
   # jostle/src/main/java9/module-info.java has no other witness: nothing else
   # puts jostle on the module path, and the class path ignores the descriptor.
-  # Cells by bridge - 11 and 17 resolve JNI, 25 resolves FFI - and 11 is also
+  # Cells by bridge - 11 and 17 resolve JNI, 25 resolves FFM - and 11 is also
   # the lowest level the module system exists at. A separate job, not a
   # test-posix config entry, which would multiply across all four runners; the
   # module graph is platform-independent, so one runner is the right cost.
@@ -441,7 +441,7 @@ jobs:
           - "macos-15-intel"
         config:
           - { name: "fips-jni", tasks: "fipsTest25JNI" }
-          - { name: "fips-ffi", tasks: "fipsTest25FFI" }
+          - { name: "fips-ffm", tasks: "fipsTest25FFM" }
         # One build, several module CONFIGURATIONS that disagree about what
         # they permit - so each is exercised. See the module-build step in
         # build-posix for why a green run against one proves nothing about
@@ -463,7 +463,7 @@ jobs:
             config: { name: "fips-jni", tasks: "fipsTest25JNI" }
             module: "3.5.8-default"
           - runner: "ubuntu-latest"
-            config: { name: "fips-ffi", tasks: "fipsTest25FFI" }
+            config: { name: "fips-ffm", tasks: "fipsTest25FFM" }
             module: "3.5.8-default"
     runs-on: ${{ matrix.runner }}
     steps:
@@ -543,7 +543,7 @@ jobs:
   #
   # Deliberately narrow, because this covers a difference in the BUILD, not in
   # the platform or the module: one runner, one module configuration, JNI and
-  # FFI. The *OpsTest classes skip here by design (no instrumentation) - that
+  # FFM. The *OpsTest classes skip here by design (no instrumentation) - that
   # is expected, not a gap, and it is why the OPS jobs above still carry the
   # fault-injection coverage. Widening this to every runner would re-run the
   # same comparison many times over.
@@ -554,7 +554,7 @@ jobs:
       matrix:
         config:
           - { name: "shipped-jni", tasks: "unitTest25JNI integrationTest25JNI" }
-          - { name: "shipped-ffi", tasks: "unitTest25FFI integrationTest25FFI" }
+          - { name: "shipped-ffm", tasks: "unitTest25FFM integrationTest25FFM" }
     runs-on: "ubuntu-latest"
     steps:
       - name: "Checkout jostle"
@@ -608,13 +608,13 @@ jobs:
           # make grep exit non-zero, which reads as "not instrumented" - the
           # answer we want, for the wrong reason. Absent means unknown, and
           # unknown must fail.
-          lib=$(ls jostle/src/main/resources/native/linux/*/libinterface_ffi.so 2>/dev/null | head -1)
+          lib=$(ls jostle/src/main/resources/native/linux/*/libinterface_ffm.so 2>/dev/null | head -1)
           if [ -z "$lib" ]; then
             echo "no linux interface library in the downloaded artifact" >&2
             find jostle/src/main/resources/native -type f >&2 || true
             exit 1
           fi
-          # JoOps_setFlag exists only under JOSTLE_OPS (ffi/ops_ffi.c is inside
+          # JoOps_setFlag exists only under JOSTLE_OPS (ffm/ops_ffm.c is inside
           # #ifdef JOSTLE_OPS). Symbol names appear literally in ELF, so a byte
           # search needs no toolchain. Same probe as the verify-test-matrix
           # skill's verify-results.py.
@@ -870,7 +870,7 @@ jobs:
           - { name: "jdk17",     jdk: "17", bcjdk: "17", tasks: "unitTest17 integrationTest17" }
           - { name: "jdk21",     jdk: "21", bcjdk: "21", tasks: "unitTest21 integrationTest21" }
           - { name: "jdk25-jni", jdk: "25", bcjdk: "25", tasks: "unitTest25JNI integrationTest25JNI" }
-          - { name: "jdk25-ffi", jdk: "25", bcjdk: "25", tasks: "unitTest25FFI integrationTest25FFI" }
+          - { name: "jdk25-ffm", jdk: "25", bcjdk: "25", tasks: "unitTest25FFM integrationTest25FFM" }
     runs-on: "windows-2025"
     steps:
       - name: "Checkout jostle"
@@ -933,7 +933,7 @@ jobs:
       matrix:
         config:
           - { name: "fips-jni", tasks: "fipsTest25JNI" }
-          - { name: "fips-ffi", tasks: "fipsTest25FFI" }
+          - { name: "fips-ffm", tasks: "fipsTest25FFM" }
         # Both supported modules, as on POSIX. The two disagree about what
         # they implement, so a green run against one proves nothing about the
         # other - see the module-build step in build-posix.

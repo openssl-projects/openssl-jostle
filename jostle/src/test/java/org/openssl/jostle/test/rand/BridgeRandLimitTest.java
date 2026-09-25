@@ -62,7 +62,7 @@ public class BridgeRandLimitTest
     public void testFailLongSizeWithBrokenRndSource() throws Exception
     {
         // Up-call returns rc > out_len: caught by the defensive overlong
-        // guard in both bridges. JNI rejects before memcpy; FFI rejects
+        // guard in both bridges. JNI rejects before memcpy; FFM rejects
         // after the buffer was already overwritten.
         try
         {
@@ -79,9 +79,9 @@ public class BridgeRandLimitTest
     @Test
     public void testJavaUpCallThrows() throws Exception
     {
-        // RandSource that throws — JNI-only: FFI's upcallStub kills the JVM
+        // RandSource that throws — JNI-only: FFM's upcallStub kills the JVM
         // on a leaked exception, so this path doesn't apply there.
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         try
         {
             mldsaServiceNI.generateKeyPair(17, new ThrowingRandSource());

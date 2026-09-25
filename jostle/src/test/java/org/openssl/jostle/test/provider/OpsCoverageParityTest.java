@@ -92,13 +92,13 @@ public class OpsCoverageParityTest
     private static Set<String> baseline()
     {
         Set<String> s = new LinkedHashSet<String>();
-        add(s, "interface/fips/ffi/asn1_ni_ffi.c", "OPS_INT32_OVERFLOW_1");
-        add(s, "interface/fips/ffi/mac_ffi.c", "OPS_INT32_OVERFLOW_2");
-        add(s, "interface/fips/ffi/md_ffi.c", "OPS_INT32_OVERFLOW_1");
-        add(s, "interface/fips/ffi/rand_upcall_ffi.c", "OPS_INT32_OVERFLOW_1");
-        add(s, "interface/fips/ffi/rand_upcall_ffi.c", "OPS_INT32_OVERFLOW_2");
-        add(s, "interface/fips/ffi/rand_upcall_ffi.c", "OPS_RAND_UP_CALL_NULL");
-        add(s, "interface/fips/ffi/rand_upcall_ffi.c", "OPS_SHORT_SIZE_1");
+        add(s, "interface/fips/ffm/asn1_ni_ffm.c", "OPS_INT32_OVERFLOW_1");
+        add(s, "interface/fips/ffm/mac_ffm.c", "OPS_INT32_OVERFLOW_2");
+        add(s, "interface/fips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
+        add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_INT32_OVERFLOW_1");
+        add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_INT32_OVERFLOW_2");
+        add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_RAND_UP_CALL_NULL");
+        add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_SHORT_SIZE_1");
         add(s, "interface/fips/jni/block_cipher_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/fips/jni/block_cipher_ni_jni.c", "OPS_FAILED_ACCESS_2");
         add(s, "interface/fips/jni/dh_ni_jni.c", "OPS_FAILED_ACCESS_4");
@@ -201,9 +201,9 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_2");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_3");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_4");
-        add(s, "interface/nonfips/ffi/asn1_ni_ffi.c", "OPS_INT32_OVERFLOW_1");
-        add(s, "interface/nonfips/ffi/mac_ffi.c", "OPS_INT32_OVERFLOW_2");
-        add(s, "interface/nonfips/ffi/md_ffi.c", "OPS_INT32_OVERFLOW_1");
+        add(s, "interface/nonfips/ffm/asn1_ni_ffm.c", "OPS_INT32_OVERFLOW_1");
+        add(s, "interface/nonfips/ffm/mac_ffm.c", "OPS_INT32_OVERFLOW_2");
+        add(s, "interface/nonfips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/nonfips/jni/block_cipher_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/nonfips/jni/block_cipher_ni_jni.c", "OPS_FAILED_ACCESS_2");
         add(s, "interface/nonfips/jni/dh_ni_jni.c", "OPS_FAILED_ACCESS_4");

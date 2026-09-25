@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Use FFI to test counter.
+ * Use FFM to test counter.
  */
 public class CTRu128tTest
 {
@@ -112,7 +112,7 @@ public class CTRu128tTest
     @Test
     public void testInitWithIV() throws Throwable
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         var ctr = newInstance();
 
         try
@@ -154,7 +154,7 @@ public class CTRu128tTest
     @Test
     public void testUnderflow() throws Throwable
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         var ctr = newInstance();
         try
         {
@@ -171,7 +171,7 @@ public class CTRu128tTest
     @Test
     public void testOverflow_16() throws Throwable
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         var ctr = newInstance();
         try
         {
@@ -200,7 +200,7 @@ public class CTRu128tTest
     @Test
     public void testOverflow_8() throws Throwable
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         var ctr = newInstance();
         try
         {
@@ -235,7 +235,7 @@ public class CTRu128tTest
     @Test
     public void testOverflow_8_high_non_zero() throws Throwable
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         var ctr = newInstance();
         try
         {
@@ -273,7 +273,7 @@ public class CTRu128tTest
     @Test
     public void testOverflow_9_15() throws Throwable
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         var ctr = newInstance();
         try
         {

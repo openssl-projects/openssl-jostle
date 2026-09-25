@@ -1,0 +1,402 @@
+/*
+ *
+ *   Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
+ *
+ *   Licensed under the Apache License 2.0 (the "License"). You may not use
+ *   this file except in compliance with the License.  You can obtain a copy
+ *   in the file LICENSE in the source distribution or at
+ *   https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+ *
+ */
+
+package org.openssl.jostle.jcajce.provider.blockcipher;
+
+import java.lang.foreign.*;
+import java.lang.invoke.MethodHandle;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ * FFM Version
+ */
+// Symbol resolution is parameterised by a SymbolLookup so the same
+// marshalling serves both interface libraries: the no-arg constructor uses
+// the process-global loader lookup (base library), the FIPS subclass passes
+// a library-scoped lookup pinned to the FIPS interface library.
+public class BlockCipherFFM implements BlockCipherNI
+{
+    private static final Logger L = Logger.getLogger("BlockCipherNI_FFM");
+    private static final Linker linker = Linker.nativeLinker();
+
+    private final MethodHandle makeInstanceFuncHandle;
+
+    private final MethodHandle initFuncHandle;
+
+    private final MethodHandle getBlockSizeFuncHandle;
+
+    private final MethodHandle updateAADFuncHandle;
+
+    private final MethodHandle updateFuncHandle;
+
+    private final MethodHandle finalFuncHandle;
+
+    private final MethodHandle finalSizeFuncHandle;
+
+    private final MethodHandle updateSizeFuncHandle;
+
+    private final MethodHandle disposeFuncHandle;
+
+    private final MethodHandle cipherFetchableFuncHandle;
+
+    public BlockCipherFFM()
+    {
+        this(SymbolLookup.loaderLookup());
+    }
+
+    public BlockCipherFFM(SymbolLookup lookup)
+    {
+        this(lookup, "");
+    }
+
+    /**
+     * @param lookup    the library to resolve against.
+     * @param symPrefix prepended to every symbol name. Empty for the base
+     *                  library; {@code "JoFIPS_"} for the FIPS one, whose
+     *                  exports are renamed by the {@code <x>_fips_ffm.c}
+     *                  wrappers. Deliberately SEPARATE from {@code lookup}:
+     *                  two independent values mean either mistake alone
+     *                  still resolves correctly or fails loudly, where a
+     *                  single bundled value made a wrong lookup silently
+     *                  run base-library crypto.
+     */
+    public BlockCipherFFM(SymbolLookup lookup, String symPrefix)
+    {
+        MemorySegment makeInstanceFunc = lookup.find(symPrefix + "JoBlockCipher_make_instance").orElseThrow();
+        makeInstanceFuncHandle = linker.downcallHandle(makeInstanceFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_LONG, // Return ptr
+                        ValueLayout.JAVA_INT, // cipher id
+                        ValueLayout.JAVA_INT, // mode id
+                        ValueLayout.JAVA_INT, // padding
+                        ValueLayout.ADDRESS
+                ));
+
+        MemorySegment initFunc = lookup.find(symPrefix + "JoBlockCipher_init").orElseThrow();
+        initFuncHandle = linker.downcallHandle(initFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_LONG, // Ref
+                        ValueLayout.JAVA_INT, // Opp Mode
+                        ValueLayout.ADDRESS, // ptr to key
+                        ValueLayout.JAVA_LONG, // key size
+                        ValueLayout.ADDRESS, // ptr to IV
+                        ValueLayout.JAVA_LONG, // iv size
+                        ValueLayout.JAVA_INT
+                ), Linker.Option.critical(true));
+
+
+        MemorySegment getBlockSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getBlockSize").orElseThrow();
+        getBlockSizeFuncHandle = linker.downcallHandle(getBlockSizeFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_LONG
+                ));
+
+
+        MemorySegment updateFunc = lookup.find(symPrefix + "JoBlockCipher_update").orElseThrow();
+        updateFuncHandle = linker.downcallHandle(updateFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_LONG, // Reference
+                        ValueLayout.ADDRESS, // output array
+                        ValueLayout.JAVA_LONG, // output_size
+                        ValueLayout.JAVA_INT, // out_off
+                        ValueLayout.ADDRESS, // input array
+                        ValueLayout.JAVA_LONG, // input_size
+                        ValueLayout.JAVA_INT, // in_off
+                        ValueLayout.JAVA_INT // in_len
+                ), Linker.Option.critical(true));
+
+        MemorySegment updateAADFunc = lookup.find(symPrefix + "JoBlockCipher_updateAAD").orElseThrow();
+        updateAADFuncHandle = linker.downcallHandle(updateAADFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_LONG, // Reference
+                        ValueLayout.ADDRESS, // input array
+                        ValueLayout.JAVA_LONG, // input_size
+                        ValueLayout.JAVA_INT, // in_off
+                        ValueLayout.JAVA_INT // in_len
+                ), Linker.Option.critical(true));
+
+        MemorySegment finalFunc = lookup.find(symPrefix + "JoBlockCipher_doFinal").orElseThrow();
+        finalFuncHandle = linker.downcallHandle(finalFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_LONG, // Reference
+                        ValueLayout.ADDRESS, // output array
+                        ValueLayout.JAVA_LONG, // output_size
+                        ValueLayout.JAVA_INT // out_off
+                ), Linker.Option.critical(true));
+
+        MemorySegment finalSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getFinalSize").orElseThrow();
+        finalSizeFuncHandle = linker.downcallHandle(finalSizeFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT
+                ));
+
+
+        MemorySegment updateSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getUpdateSize").orElseThrow();
+        updateSizeFuncHandle = linker.downcallHandle(updateSizeFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.JAVA_INT
+                ));
+
+
+        MemorySegment disposeFunc = lookup.find(symPrefix + "JoBlockCipher_dispose").orElseThrow();
+        disposeFuncHandle = linker.downcallHandle(disposeFunc,
+                FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
+        MemorySegment cipherFetchableFunc = lookup.find(symPrefix + "JoBlockCipher_cipherFetchable").orElseThrow();
+        cipherFetchableFuncHandle = linker.downcallHandle(cipherFetchableFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_INT, // cipher_id
+                        ValueLayout.JAVA_INT // mode_id
+                ));
+
+    }
+
+
+    @Override
+    public long ni_makeInstance(int cipher, int mode, int padding, int[] err)
+    {
+        long ref = 0;
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            ref = (long) makeInstanceFuncHandle.invokeExact(cipher, mode, padding, errSeg);
+            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+        }
+        catch (Throwable e)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI.makeInstance %s, %s".formatted(
+                            OSSLCipher.values()[cipher].toString(),
+                            OSSLMode.values()[mode].toString()),
+                    e);
+            throw new RuntimeException(e.getMessage(), e);
+        }
+        return ref;
+    }
+
+    @Override
+    public int ni_init(long ref, int oppmode, byte[] keyBytes, byte[] iv, int tag_len)
+    {
+        int code = 0;
+        try
+        {
+            var keySegment = keyBytes != null ? MemorySegment.ofArray(keyBytes) : MemorySegment.NULL;
+            var ivSegment = iv != null ? MemorySegment.ofArray(iv) : MemorySegment.NULL;
+
+            code = (int) initFuncHandle.invokeExact(
+                    ref,
+                    oppmode,
+                    keySegment,
+                    keySegment.byteSize(),
+                    ivSegment,
+                    ivSegment.byteSize(),
+                    tag_len);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_init",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+    @Override
+    public int ni_getBlockSize(long ref)
+    {
+        int code = 0;
+        try
+        {
+            code = (int) getBlockSizeFuncHandle.invokeExact(ref);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_getBlockSize",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+    @Override
+    public int ni_update(long ref, byte[] output, int outputOffset, byte[] input, int inputOffset, int inputLen)
+    {
+        int code = 0;
+        try
+        {
+            var outputSegment = output == null ? MemorySegment.NULL : MemorySegment.ofArray(output);
+            var inputSegment = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
+
+            code = (int) updateFuncHandle.invokeExact(
+                    ref,
+                    outputSegment,
+                    outputSegment.byteSize(),
+                    outputOffset,
+                    inputSegment,
+                    inputSegment.byteSize(),
+                    inputOffset,
+                    inputLen);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_update",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+    @Override
+    public int ni_updateAAD(long ref, byte[] input, int inputOffset, int inputLen)
+    {
+        int code = 0;
+        try
+        {
+
+            var inputSegment = input == null ? MemorySegment.NULL : MemorySegment.ofArray(input);
+
+            code = (int) updateAADFuncHandle.invokeExact(
+                    ref,
+                    inputSegment,
+                    inputSegment.byteSize(),
+                    inputOffset,
+                    inputLen);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_updateAAD",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+    @Override
+    public int ni_doFinal(long ref, byte[] output, int outputOffset)
+    {
+        int code = 0;
+        try
+        {
+            var outputSegment = output == null ? MemorySegment.NULL : MemorySegment.ofArray(output);
+
+            code = (int) finalFuncHandle.invokeExact(
+                    ref,
+                    outputSegment,
+                    outputSegment.byteSize(),
+                    outputOffset);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_final",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+
+    @Override
+    public int ni_getFinalSize(long ref, int length)
+    {
+        int code = 0;
+        try
+        {
+            code = (int) finalSizeFuncHandle.invokeExact(ref, length);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_getFinalSize",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+    @Override
+    public int ni_getUpdateSize(long ref, int length)
+    {
+        int code = 0;
+        try
+        {
+            code = (int) updateSizeFuncHandle.invokeExact(ref, length);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_getUpdateSize",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+    @Override
+    public void ni_dispose(long ref)
+    {
+        try
+        {
+            disposeFuncHandle.invokeExact(ref);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_dispose",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_cipherFetchable(int cipher, int mode)
+    {
+        int code = 0;
+        try
+        {
+            code = (int) cipherFetchableFuncHandle.invokeExact(cipher, mode);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM BlockCipherNI_cipherFetchable",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+        return code;
+    }
+
+}

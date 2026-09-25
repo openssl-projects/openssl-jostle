@@ -72,7 +72,7 @@ public class BlockCipherInternalSizingTest
     {
         Security.addProvider(new JostleProvider());
         String bridge = Loader.getInterfaceTypeName();
-        Assertions.assertTrue("JNI".equals(bridge) || "FFI".equals(bridge),
+        Assertions.assertTrue("JNI".equals(bridge) || "FFM".equals(bridge),
                 "native interface did not resolve (got \"" + bridge + "\"); every cell below"
                         + " would fail with UnsatisfiedLinkError and mean nothing");
 

@@ -37,7 +37,7 @@ import java.security.Security;
  * matching error code or exception. Mirrors {@link RSAOpsTest}'s shape.
  *
  * <p>FAILED_ACCESS tests are JNI-only and guard via
- * {@link Loader#isFFI()} because the FFI bridge does not use
+ * {@link Loader#isFFM()} because the FFM bridge does not use
  * {@code GetByteArrayElements}.
  */
 public class RSAOAEPCipherOpsTest
@@ -82,7 +82,7 @@ public class RSAOAEPCipherOpsTest
     public void RSAOAEPCipher_init_accessOaepMdName_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -114,7 +114,7 @@ public class RSAOAEPCipherOpsTest
     public void RSAOAEPCipher_init_accessMgf1MdName_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -502,7 +502,7 @@ public class RSAOAEPCipherOpsTest
     public void RSAOAEPCipher_doFinal_failedAccessInput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -535,7 +535,7 @@ public class RSAOAEPCipherOpsTest
     public void RSAOAEPCipher_doFinal_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;

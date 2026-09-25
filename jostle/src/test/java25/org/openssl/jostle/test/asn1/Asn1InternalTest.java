@@ -45,13 +45,13 @@ public class Asn1InternalTest
     public void decodePublicKey_src_len_overflow() throws Throwable
     {
         Assumptions.assumeTrue(CryptoServicesRegistrar.isNativeAvailable());
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         SymbolLookup lookup = SymbolLookup.loaderLookup();
         Linker linker = Linker.nativeLinker();
 
         //
-        // Requires FFI to directly manipulate internal function
+        // Requires FFM to directly manipulate internal function
         //
         MemorySegment spec = null;
         try (Arena arena = Arena.ofConfined())
@@ -84,11 +84,11 @@ public class Asn1InternalTest
     {
 
         //
-        // Requires FFI to directly manipulate internal function
+        // Requires FFM to directly manipulate internal function
         //
 
         Assumptions.assumeTrue(CryptoServicesRegistrar.isNativeAvailable());
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         SymbolLookup lookup = SymbolLookup.loaderLookup();
         Linker linker = Linker.nativeLinker();
@@ -127,10 +127,10 @@ public class Asn1InternalTest
         // The bridges always pass non-NULL src after their own validation,
         // so the util-side `if (src == NULL)` defensive check (line 364-365
         // of asn1_util.c) is only reachable via direct util call. This test
-        // exercises that path through FFI.
+        // exercises that path through FFM.
 
         Assumptions.assumeTrue(CryptoServicesRegistrar.isNativeAvailable());
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         SymbolLookup lookup = SymbolLookup.loaderLookup();
         Linker linker = Linker.nativeLinker();
@@ -158,7 +158,7 @@ public class Asn1InternalTest
         // Same as above for decode_private_key (line 315-316 of asn1_util.c).
 
         Assumptions.assumeTrue(CryptoServicesRegistrar.isNativeAvailable());
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         SymbolLookup lookup = SymbolLookup.loaderLookup();
         Linker linker = Linker.nativeLinker();

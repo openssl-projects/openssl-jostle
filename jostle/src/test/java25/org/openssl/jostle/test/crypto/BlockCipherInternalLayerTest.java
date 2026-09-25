@@ -29,8 +29,8 @@ import java.security.InvalidKeyException;
 import java.security.Security;
 
 /**
- * Test using FFI the internal layer that actually drives OpenSSL.
- * This layer is called by both JNI and FFI, while you can call these directly via FFI
+ * Test using FFM the internal layer that actually drives OpenSSL.
+ * This layer is called by both JNI and FFM, while you can call these directly via FFM
  * we make no guarantees about stability.
  */
 public class BlockCipherInternalLayerTest
@@ -48,12 +48,12 @@ public class BlockCipherInternalLayerTest
     public void testBlock_cipher_ctx_init__nullKey() throws Exception
     {
 
-        // The bulk of block_cipher_ctx_init can be tested via the front door, JNI/FFI.
-        // The test for a null key is caught in both FFI and JNI layers before hitting this function.
+        // The bulk of block_cipher_ctx_init can be tested via the front door, JNI/FFM.
+        // The test for a null key is caught in both FFM and JNI layers before hitting this function.
 
         // There is a NULL check for the key in this method we need to trigger.
 
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();
@@ -96,7 +96,7 @@ public class BlockCipherInternalLayerTest
     public void testBlock_cipher_ctx_update_nullInput() throws Exception
     {
 
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();
@@ -138,7 +138,7 @@ public class BlockCipherInternalLayerTest
     public void testBlock_cipher_ctx_update_nullOutput() throws Exception
     {
 
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();
@@ -178,7 +178,7 @@ public class BlockCipherInternalLayerTest
     @Test
     public void testBlock_cipher_ctx_update__inputPastInt32PosMax() throws Exception
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();
@@ -224,7 +224,7 @@ public class BlockCipherInternalLayerTest
     @Test
     public void testBlock_cipher_ctx_update__outputPastInt32PosMax() throws Exception
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();
@@ -268,7 +268,7 @@ public class BlockCipherInternalLayerTest
     @Test
     public void testBlockCipherFinal_outputPastInt32PosMax() throws Exception
     {
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();
@@ -311,7 +311,7 @@ public class BlockCipherInternalLayerTest
     public void testBlock_cipher_ctx_update_outLenShort() throws Exception
     {
 
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();
@@ -353,12 +353,12 @@ public class BlockCipherInternalLayerTest
     {
 
         //
-        // With this test we use FFI to manipulate a struct so that we can induce an
+        // With this test we use FFM to manipulate a struct so that we can induce an
         // error where we had initialized it with an invalid operation mode (ENCRYPT, DECRYPT, etc)
         // And check the result.
         //
 
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
 
         final SymbolLookup lookup = SymbolLookup.loaderLookup();
         final Linker linker = Linker.nativeLinker();

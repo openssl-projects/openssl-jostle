@@ -50,8 +50,8 @@ public class FIPSProviderNameParityTest
 {
     /** Not {@code DefaultServiceNI}. Consulted before any shape detection. */
     private static final Set<String> NOT_SERVICE_NIS = new HashSet<String>(Arrays.asList(
-            "OpenSSLFIPSJNI", "OpenSSLFIPSFFI",
-            "OperationsTestFIPSJNI", "OperationsTestFIPSFFI"));
+            "OpenSSLFIPSJNI", "OpenSSLFIPSFFM",
+            "OperationsTestFIPSJNI", "OperationsTestFIPSFFM"));
 
     private static final Pattern OVERRIDE = Pattern.compile(
             "public\\s+String\\s+providerName\\s*\\(\\s*\\)\\s*\\{\\s*"
@@ -112,7 +112,7 @@ public class FIPSProviderNameParityTest
         Assumptions.assumeFalse(classes.isEmpty(), "no FIPS NI source directory reachable");
 
         Set<String> jni = new TreeSet<String>();
-        Set<String> ffi = new TreeSet<String>();
+        Set<String> ffm = new TreeSet<String>();
         for (String name : classes.keySet())
         {
             if (name.endsWith("FIPSJNI"))
@@ -121,13 +121,13 @@ public class FIPSProviderNameParityTest
             }
             else
             {
-                ffi.add(name.substring(0, name.length() - "FIPSFFI".length()));
+                ffm.add(name.substring(0, name.length() - "FIPSFFM".length()));
             }
         }
 
         Assertions.assertTrue(jni.size() >= 14, "only " + jni.size() + " FIPS JNI NI classes found");
-        Assertions.assertEquals(jni, ffi,
-                "the FIPS JNI and FFI bridges must carry the same NI families; a family present "
+        Assertions.assertEquals(jni, ffm,
+                "the FIPS JNI and FFM bridges must carry the same NI families; a family present "
                         + "in one only is either an unfinished port or a stale file");
     }
 
@@ -150,8 +150,8 @@ public class FIPSProviderNameParityTest
             Assertions.assertNotNull(source,
                     excluded + " is excluded but no such FIPS NI source exists — stale entry");
 
-            // Walk the chain: an FFI class names its base FFI class, not the NI.
-            // One link would leave every *FIPSFFI entry checked only via its twin.
+            // Walk the chain: an FFM class names its base FFM class, not the NI.
+            // One link would leave every *FIPSFFM entry checked only via its twin.
             List<String> chain = new ArrayList<String>();
             String current = excluded;
             Path currentSource = source;
@@ -195,7 +195,7 @@ public class FIPSProviderNameParityTest
                         + String.join("\n  ", unjustified));
     }
 
-    /** Simple name -> source path, for every {@code *FIPSJNI} / {@code *FIPSFFI}. */
+    /** Simple name -> source path, for every {@code *FIPSJNI} / {@code *FIPSFFM}. */
     private static TreeMap<String, Path> fipsNiSources()
     {
         TreeMap<String, Path> out = new TreeMap<String, Path>();
@@ -204,7 +204,7 @@ public class FIPSProviderNameParityTest
             for (Path p : javaSourcesUnder(dir))
             {
                 String name = p.getFileName().toString();
-                if (name.endsWith("FIPSJNI.java") || name.endsWith("FIPSFFI.java"))
+                if (name.endsWith("FIPSJNI.java") || name.endsWith("FIPSFFM.java"))
                 {
                     out.put(name.substring(0, name.length() - ".java".length()), p);
                 }

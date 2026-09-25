@@ -1,0 +1,64 @@
+//  Copyright 2026 OpenSSL Jostle Authors. All Rights Reserved.
+//
+//  Licensed under the Apache License 2.0 (the "License"). You may not use
+//  this file except in compliance with the License.  You can obtain a copy
+//  in the file LICENSE in the source distribution or at
+//  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
+
+
+
+#ifndef OPENSSL_FIPS_FFM_H
+#define OPENSSL_FIPS_FFM_H
+
+#include <stdint.h>
+#include "types.h"
+
+
+/*
+ * Initialise this library's own global lib ctx with the OpenSSL FIPS module
+ * + base provider (jostle_ctx_init_fips) and pin it to fips=yes default
+ * properties. One-shot per library instance. Distinctly (JoFIPS_) named so
+ * an nm audit trivially separates it from the base library's
+ * set_openssl_module; FIPS FFM callers resolve this library's exports via a
+ * library-scoped lookup, never the process-global loader lookup.
+ */
+int32_t JoFIPS_set_openssl_module(const char *module_dir, const char *prov_name,
+                                  const char *config_path);
+
+
+/*
+ * Capability probes on the loaded FIPS module (util/capability.c for the
+ * shared fetch probe, util/capability_fips.c for the two FIPS-only ones).
+ * Jo*-prefixed like every other export of this library so no name can shadow
+ * a libcrypto symbol at load time.
+ *
+ * JoFIPS_can_fetch returns 1/0, or JO_NAME_IS_NULL / JO_UNEXPECTED_STATE for
+ * an unusable argument. JoFIPS_module_version writes "<name> <version>" into
+ * the caller's buffer and returns the byte count, or a negative JO_* code.
+ */
+int32_t JoFIPS_can_fetch(int32_t op_type, const char *name);
+
+int32_t JoFIPS_module_version(char *out, int32_t out_len);
+
+/*
+ * Names the OSSL_PROVIDER that implements an algorithm in this library's lib
+ * ctx ("fips" / "default") - the only direct evidence an operation runs inside
+ * the module. See util/capability_fips.h.
+ */
+int32_t JoFIPS_implementing_provider(int32_t op_type, const char *name,
+                                     char *out, int32_t out_len);
+
+
+/*
+ * Drain this library's OpenSSL error queue into a caller-owned, NUL-terminated
+ * heap string; *len receives the allocation size including the terminator.
+ * Freed from Java with JoFFM_freeUnsecureNullSafe.
+ *
+ * The FIPS library owns this rather than re-including the base tree's
+ * openssl_ffm.c: that twin also exports a setModule which would install a
+ * non-FIPS lib ctx as this library's global. See the note on the definition.
+ */
+char *JoFIPS_get_openssl_errors(uint64_t *len);
+
+
+#endif //OPENSSL_FIPS_FFM_H

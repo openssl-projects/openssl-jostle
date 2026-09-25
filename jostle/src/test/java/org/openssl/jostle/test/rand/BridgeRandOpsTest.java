@@ -68,7 +68,7 @@ public class BridgeRandOpsTest
     {
         // Basically a sanity test.
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
 
         DefaultRandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -84,7 +84,7 @@ public class BridgeRandOpsTest
     @Test
     public void testThreadAttach() throws Exception
     {
-        Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
+        Assumptions.assumeTrue(!Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
@@ -103,7 +103,7 @@ public class BridgeRandOpsTest
     @Test
     public void testFailCreate() throws Exception
     {
-        Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
+        Assumptions.assumeTrue(!Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
@@ -126,7 +126,7 @@ public class BridgeRandOpsTest
         try
         {
             // Exercises interface/nonfips/jni/rand_upcall_jni.c:68
-            // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:35
+            // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:35
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -145,7 +145,7 @@ public class BridgeRandOpsTest
         try
         {
             // Exercises interface/nonfips/jni/rand_upcall_jni.c:73
-            // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:40
+            // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:40
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -164,7 +164,7 @@ public class BridgeRandOpsTest
         try
         {
             // Exercises interface/nonfips/jni/rand_upcall_jni.c:133
-            // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:50
+            // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -179,7 +179,7 @@ public class BridgeRandOpsTest
     @Test
     public void testAccessByteArray() throws Exception
     {
-        Assumptions.assumeTrue(!Loader.isFFI(), "JNI only");
+        Assumptions.assumeTrue(!Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
@@ -202,7 +202,7 @@ public class BridgeRandOpsTest
         try
         {
             // Exercises interface/nonfips/jni/rand_upcall_jni.c:62
-            // Exercises interface/nonfips/ffi/rand_upcall_ffi.c:29
+            // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:29
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -406,14 +406,14 @@ public class BridgeRandOpsTest
 
     //
     // JNI byte-array access-failure paths (load_bytearray_ctx). JNI-only — the
-    // FFI bridge receives raw pointers and has no OPS_FAILED_ACCESS instrumentation.
+    // FFM bridge receives raw pointers and has no OPS_FAILED_ACCESS instrumentation.
     //
 
     @Test
     public void createContextPersonalizationAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         int[] err = new int[1];
         // Exercises interface/nonfips/jni/rand_jni.c:66
@@ -428,7 +428,7 @@ public class BridgeRandOpsTest
     public void contextRandomBytesOutputAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
@@ -450,7 +450,7 @@ public class BridgeRandOpsTest
     public void contextRandomBytesAdditionalInputAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
@@ -472,7 +472,7 @@ public class BridgeRandOpsTest
     public void contextReseedAdditionalInputAccessFails()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try

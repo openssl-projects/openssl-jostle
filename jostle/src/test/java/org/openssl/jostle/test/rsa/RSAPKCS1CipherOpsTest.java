@@ -525,7 +525,7 @@ public class RSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_doFinal_failedAccessInput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -557,7 +557,7 @@ public class RSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_doFinal_failedAccessOutput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;

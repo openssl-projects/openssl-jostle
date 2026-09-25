@@ -46,7 +46,7 @@ else
 fi
 
 # Task names may be given as arguments; otherwise tasks.list decides.
-# The OPS pass passes only integrationTest25JNI/FFI, where every *OpsTest
+# The OPS pass passes only integrationTest25JNI/FFM, where every *OpsTest
 # lives - repeating the 27-minute base `test` task would add nothing.
 # JOSTLE_REQUIRE_OPS=1 additionally demands the OpsTest classes actually ran.
 #
@@ -81,14 +81,14 @@ done
 # because the abort probe below needs it too, and a run with no snapshot
 # directory must still be told which build it has.
 BUILD_STATE=plain
-for _lib in jostle/src/main/resources/native/*/*/*interface_ffi*; do
+for _lib in jostle/src/main/resources/native/*/*/*interface_ffm*; do
   case "$_lib" in *.txt) continue;; esac
   [ -f "$_lib" ] || continue
   if grep -qa JoOps_setFlag "$_lib"; then BUILD_STATE=ops; fi
 done
 
 if [ -n "${JOSTLE_RESULT_SNAPSHOT_DIR:-}" ]; then
-  # The two-pass gate runs the SAME task names twice - integrationTest25JNI/FFI
+  # The two-pass gate runs the SAME task names twice - integrationTest25JNI/FFM
   # on the shipped library, then again on the instrumented one - so a flat
   # destination has pass 2 overwrite pass 1, and those are different evidence
   # (OpsTests skip on the shipped build, run on the instrumented one). Split by

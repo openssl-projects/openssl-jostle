@@ -87,7 +87,7 @@ public class FIPSMDOpsTest
     public void allocateDigest_mdFailAccessName()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
             // Exercises interface/fips/jni/md_jni.c:47
@@ -184,7 +184,7 @@ public class FIPSMDOpsTest
     public void updateBytes_array_access()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = mdNI.allocateDigest("SHA256", 0);
         try
         {
@@ -211,7 +211,7 @@ public class FIPSMDOpsTest
     public void digest_array_access()
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         long ref = mdNI.allocateDigest("SHA256", 0);
         try
         {
@@ -312,7 +312,7 @@ public class FIPSMDOpsTest
     //
     // The finalize INT32-overflow guard (md.c:185) is driven above. The two
     // length paths carry their own OPS_INT32_OVERFLOW_1 guards in the bridge
-    // (md_jni.c / md_ffi.c) that no other test reaches — getDigestOutputLen
+    // (md_jni.c / md_ffm.c) that no other test reaches — getDigestOutputLen
     // and the null-output length query never call finalize. Drive each so the
     // instrumented site can't silently regress.
     //

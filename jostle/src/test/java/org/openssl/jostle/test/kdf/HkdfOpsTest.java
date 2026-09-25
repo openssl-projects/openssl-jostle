@@ -57,7 +57,7 @@ public class HkdfOpsTest
     @Test
     public void hkdf_access_ikm() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -77,7 +77,7 @@ public class HkdfOpsTest
     @Test
     public void hkdf_access_salt() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -97,7 +97,7 @@ public class HkdfOpsTest
     @Test
     public void hkdf_access_info() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -117,7 +117,7 @@ public class HkdfOpsTest
     @Test
     public void hkdf_access_output() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
@@ -137,7 +137,7 @@ public class HkdfOpsTest
     @Test
     public void hkdf_access_digest_name() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {

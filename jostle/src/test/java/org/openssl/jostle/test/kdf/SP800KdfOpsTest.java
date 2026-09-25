@@ -78,7 +78,7 @@ public class SP800KdfOpsTest
 
     private void assumeJniOps()
     {
-        Assumptions.assumeFalse(Loader.isFFI(), "JNI Only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
     }
 

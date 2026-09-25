@@ -60,31 +60,31 @@ public class NativeFactCacheBindingTest
 
     private static final String P = "org.openssl.jostle.jcajce.";
 
-    /** Base-library concrete classes: {JNI, FFI}. */
+    /** Base-library concrete classes: {JNI, FFM}. */
     static final Map<String, String[]> BASE = new LinkedHashMap<String, String[]>();
 
-    /** FIPS-library concrete classes: {JNI, FFI}. */
+    /** FIPS-library concrete classes: {JNI, FFM}. */
     protected static final Map<String, String[]> FIPS = new LinkedHashMap<String, String[]>();
 
     static
     {
-        BASE.put("MD", new String[]{P + "provider.md.MDServiceJNI", P + "provider.md.MDServiceFFI"});
-        BASE.put("MAC", new String[]{P + "provider.mac.MacServiceJNI", P + "provider.mac.MacServiceFFI"});
-        BASE.put("ED", new String[]{P + "provider.ed.EDServiceJNI", P + "provider.ed.EdDSAServiceFFI"});
-        BASE.put("MLDSA", new String[]{P + "provider.mldsa.MLDSAServiceJNI", P + "provider.mldsa.MLDSAServiceFFI"});
+        BASE.put("MD", new String[]{P + "provider.md.MDServiceJNI", P + "provider.md.MDServiceFFM"});
+        BASE.put("MAC", new String[]{P + "provider.mac.MacServiceJNI", P + "provider.mac.MacServiceFFM"});
+        BASE.put("ED", new String[]{P + "provider.ed.EDServiceJNI", P + "provider.ed.EdDSAServiceFFM"});
+        BASE.put("MLDSA", new String[]{P + "provider.mldsa.MLDSAServiceJNI", P + "provider.mldsa.MLDSAServiceFFM"});
         BASE.put("SLHDSA", new String[]{P + "provider.slhdsa.SLHDSAServiceJNI",
-                P + "provider.slhdsa.SLHDSAServiceFFI"});
-        BASE.put("SPEC", new String[]{P + "spec.SpecJNI", P + "spec.SpecFFI"});
-        BASE.put("RAND", new String[]{P + "provider.rand.RandServiceJNI", P + "provider.rand.RandServiceFFI"});
+                P + "provider.slhdsa.SLHDSAServiceFFM"});
+        BASE.put("SPEC", new String[]{P + "spec.SpecJNI", P + "spec.SpecFFM"});
+        BASE.put("RAND", new String[]{P + "provider.rand.RandServiceJNI", P + "provider.rand.RandServiceFFM"});
 
         String f = P + "provider.fips.";
-        FIPS.put("MD", new String[]{f + "MDServiceFIPSJNI", f + "MDServiceFIPSFFI"});
-        FIPS.put("MAC", new String[]{f + "MacServiceFIPSJNI", f + "MacServiceFIPSFFI"});
-        FIPS.put("ED", new String[]{f + "EDServiceFIPSJNI", f + "EDServiceFIPSFFI"});
-        FIPS.put("MLDSA", new String[]{f + "MLDSAServiceFIPSJNI", f + "MLDSAServiceFIPSFFI"});
-        FIPS.put("SLHDSA", new String[]{f + "SLHDSAServiceFIPSJNI", f + "SLHDSAServiceFIPSFFI"});
-        FIPS.put("SPEC", new String[]{f + "SpecFIPSJNI", f + "SpecFIPSFFI"});
-        FIPS.put("RAND", new String[]{f + "RandServiceFIPSJNI", f + "RandServiceFIPSFFI"});
+        FIPS.put("MD", new String[]{f + "MDServiceFIPSJNI", f + "MDServiceFIPSFFM"});
+        FIPS.put("MAC", new String[]{f + "MacServiceFIPSJNI", f + "MacServiceFIPSFFM"});
+        FIPS.put("ED", new String[]{f + "EDServiceFIPSJNI", f + "EDServiceFIPSFFM"});
+        FIPS.put("MLDSA", new String[]{f + "MLDSAServiceFIPSJNI", f + "MLDSAServiceFIPSFFM"});
+        FIPS.put("SLHDSA", new String[]{f + "SLHDSAServiceFIPSJNI", f + "SLHDSAServiceFIPSFFM"});
+        FIPS.put("SPEC", new String[]{f + "SpecFIPSJNI", f + "SpecFIPSFFM"});
+        FIPS.put("RAND", new String[]{f + "RandServiceFIPSJNI", f + "RandServiceFIPSFFM"});
     }
 
     /** The key algorithm each signature or KEM row needs; the rest need none. */
@@ -130,7 +130,7 @@ public class NativeFactCacheBindingTest
     /** A fresh instance of the bridge this leg runs. */
     static Object fresh(Map<String, String[]> classes, String iface) throws Exception
     {
-        String name = classes.get(iface)[Loader.isFFI() ? 1 : 0];
+        String name = classes.get(iface)[Loader.isFFM() ? 1 : 0];
         Constructor<?> c = Class.forName(name).getDeclaredConstructor();
         c.setAccessible(true);
         return c.newInstance();
@@ -280,7 +280,7 @@ public class NativeFactCacheBindingTest
             }
         }
 
-        System.out.println("[fact-cache] " + pairing() + " bridge=" + (Loader.isFFI() ? "FFI" : "JNI")
+        System.out.println("[fact-cache] " + pairing() + " bridge=" + (Loader.isFFM() ? "FFM" : "JNI")
                 + "\n  " + String.join("\n  ", table));
         Assertions.assertEquals(INTERFACES.length, table.size(), "one row per interface");
         Assertions.assertTrue(measured > 0, "no interface was measured");

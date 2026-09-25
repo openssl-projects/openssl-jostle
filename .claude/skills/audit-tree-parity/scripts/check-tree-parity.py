@@ -87,7 +87,7 @@ NONFIPS_ONLY_PREFIXES = (
     # twins like every other shared family, and ProvFIPS{MLDSA,MLKEM,SLHDSA}
     # gate registration on the loaded module actually serving them.
     #
-    # The Ed family (util/edec, jni/ed_, ffi/ed_) came off this list on the
+    # The Ed family (util/edec, jni/ed_, ffm/ed_) came off this list on the
     # same date and for the same reason, in the opposite direction to xec:
     # 3.1.2 refuses ED25519/ED448 outright while 3.5.7 serves both (probe:
     # fips-c-review/probes/ed_gate_probe.c), so they are ordinary twins now and
@@ -95,7 +95,7 @@ NONFIPS_ONLY_PREFIXES = (
     # excludes ED25519CTX, the one member 3.5.7 does not register.
     "util/ks",
     "jni/ks_",
-    "ffi/ks_",
+    "ffm/ks_",
     # Certification path validation. Nonfips-only DELIBERATELY and
     # TEMPORARILY: JSLFIPS registers no CertPathValidator or CertPathBuilder
     # (only ProvX509 does), so a fips twin would be unreachable code. MT-86
@@ -103,26 +103,26 @@ NONFIPS_ONLY_PREFIXES = (
     # ENTRIES THEN, or the twin lands unchecked.
     "util/certpath",
     "jni/certpath_",
-    "ffi/certpath_",
+    "ffm/certpath_",
     # base-provider init/diagnostic glue with fips-tree counterparts under
-    # different names (openssl_fips_{jni,ffi}.c) or no FIPS equivalent at all.
+    # different names (openssl_fips_{jni,ffm}.c) or no FIPS equivalent at all.
     #
-    # ffi/openssl_ffi was a twin until 2026-08-23: the FIPS library re-included
+    # ffm/openssl_ffm was a twin until 2026-08-23: the FIPS library re-included
     # it for JoOpenSSL_getErrors and thereby also exported JoOpenSSL_setModule,
     # which installs a lib ctx built by jostle_ctx_init_new - no fipsinstall
     # config, no fips=yes properties - as the FIPS global. Nothing bound it, but
     # its only possible effect was to make FIPS fetches resolve to mainline.
-    # openssl_fips_ffi.c now owns JoFIPS_get_openssl_errors, matching what
+    # openssl_fips_ffm.c now owns JoFIPS_get_openssl_errors, matching what
     # jni/open_ssl_jni had always done. Do not restore the twin.
-    "jni/open_ssl_jni", "jni/native_info", "ffi/openssl_ffi",
+    "jni/open_ssl_jni", "jni/native_info", "ffm/openssl_ffm",
     # memory-hard password KDFs (scrypt, Argon2). Neither is served by the
     # OpenSSL FIPS provider (both build only into libdefault.a; neither appears
     # in fipsprov.c) and neither is registered by ProvFIPSKDF, so their bridges
     # are kept out of the FIPS interface library entirely — that library then
     # exports no symbols for algorithms outside the validated boundary. kdf.c /
-    # kdf_jni.c / kdf_ffi.c keep the approved KDFs (PBKDF2, HKDF) and remain
+    # kdf_jni.c / kdf_ffm.c keep the approved KDFs (PBKDF2, HKDF) and remain
     # byte-identical twins.
-    "util/kdf_memhard", "jni/kdf_memhard", "ffi/kdf_memhard",
+    "util/kdf_memhard", "jni/kdf_memhard", "ffm/kdf_memhard",
 )
 FIPS_ONLY_PREFIXES = (
     "util/rand/jostle_fips_ctx",      # FIPS lib ctx configuration
@@ -138,7 +138,7 @@ FIPS_ONLY_PREFIXES = (
 def fips_only(rel):
     return (rel.startswith(FIPS_ONLY_PREFIXES)
             or (rel.startswith("jni/") and rel.endswith("_fips_jni.c"))
-            or (rel.startswith("ffi/") and "_fips_" in rel))
+            or (rel.startswith("ffm/") and "_fips_" in rel))
 
 
 def tree_files(root):

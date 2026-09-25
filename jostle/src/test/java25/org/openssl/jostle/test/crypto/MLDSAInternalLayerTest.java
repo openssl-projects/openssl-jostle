@@ -80,11 +80,11 @@ public class MLDSAInternalLayerTest
     @Test
     public void MLDSAServiceJNI_mldsa_update_intOverflow_extMu() throws Throwable
     {
-        // Direct-FFI probe of an internal util symbol via loaderLookup: only
-        // the FFI interface (and POSIX .so) exports it — the JNI DLL on Windows
+        // Direct-FFM probe of an internal util symbol via loaderLookup: only
+        // the FFM interface (and POSIX .so) exports it — the JNI DLL on Windows
         // exports only its Java_* entry points. The C path is covered by the
-        // FFI run, so gate to FFI like the sibling *InternalLayerTest classes.
-        Assumptions.assumeTrue(Loader.isFFI());
+        // FFM run, so gate to FFM like the sibling *InternalLayerTest classes.
+        Assumptions.assumeTrue(Loader.isFFM());
 
         long mldsaRef = 0;
         long keyRef = 0;
@@ -227,12 +227,12 @@ public class MLDSAInternalLayerTest
     @Test
     public void extract_tr_invalidKeyType() throws Throwable
     {
-        // Direct-FFI probe of an internal util symbol — FFI-only (see the
+        // Direct-FFM probe of an internal util symbol — FFM-only (see the
         // update test above); the JNI DLL on Windows doesn't export it.
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         // The default branch in extract_tr's switch is unreachable through the
         // normal callers (init_sign / init_verify pre-validate the typeId via
-        // EVP_PKEY_is_a). Reach it directly via FFI to confirm the diagnostic
+        // EVP_PKEY_is_a). Reach it directly via FFM to confirm the diagnostic
         // wiring (ret_code = JO_INCORRECT_KEY_TYPE, return = 0).
         long keyRef = 0;
         try
@@ -274,12 +274,12 @@ public class MLDSAInternalLayerTest
     @Test
     public void decode_publicKey_reusedSpec() throws Throwable
     {
-        // Direct-FFI probe of an internal util symbol — FFI-only (see the
+        // Direct-FFM probe of an internal util symbol — FFM-only (see the
         // update test above); the JNI DLL on Windows doesn't export it.
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         // Calling decode_public_key twice on the same spec exercises the
         // pre-existing-key free guard. The wrappers always pass fresh specs,
-        // so the only way to reach this path is a direct FFI call.
+        // so the only way to reach this path is a direct FFM call.
         SecureRandom sr = seededRandom("decode_publicKey_reusedSpec");
         long sourceRef1 = 0;
         long sourceRef2 = 0;
@@ -399,9 +399,9 @@ public class MLDSAInternalLayerTest
     @Test
     public void decode_privateKey_reusedSpec() throws Throwable
     {
-        // Direct-FFI probe of an internal util symbol — FFI-only (see the
+        // Direct-FFM probe of an internal util symbol — FFM-only (see the
         // update test above); the JNI DLL on Windows doesn't export it.
-        Assumptions.assumeTrue(Loader.isFFI());
+        Assumptions.assumeTrue(Loader.isFFM());
         // Mirror of the public-key test — exercises the pre-existing-key
         // free in mldsa_decode_private_key.
         SecureRandom sr = seededRandom("decode_privateKey_reusedSpec");

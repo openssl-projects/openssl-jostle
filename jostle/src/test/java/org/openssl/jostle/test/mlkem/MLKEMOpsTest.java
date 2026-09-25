@@ -109,7 +109,7 @@ public class MLKEMOpsTest
     public void MLKEMServiceJNI_generateKeyPair_seedLenNegative() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         try
         {
             // Exercises interface/nonfips/jni/mlkem_ni_jni.c:79
@@ -128,7 +128,7 @@ public class MLKEMOpsTest
     public void MLKEMServiceJNI_getPublicKey_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -159,7 +159,7 @@ public class MLKEMOpsTest
     public void MLKEMServiceJNI_getPrivateKey_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long keyRef = 0;
         try
@@ -381,7 +381,7 @@ public class MLKEMOpsTest
     public void MLKEMServiceJNI_getSeed_accessByteArray() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         long keyRef = 0;
         try
         {
@@ -469,7 +469,7 @@ public class MLKEMOpsTest
     @Test()
     public void MLKEMServiceJNI_decode_1publicKey_accessByteArray() throws Exception
     {
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = 0;
@@ -549,7 +549,7 @@ public class MLKEMOpsTest
     public void MLKEMServiceJNI_decode_1privateKey_accessByteArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long keyRef = 0;

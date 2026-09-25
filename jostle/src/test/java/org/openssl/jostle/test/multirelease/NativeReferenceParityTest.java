@@ -36,7 +36,7 @@ import java.util.stream.Stream;
  * ({@code src/main/java}) keeps the handle reachable across the call via the
  * monitor. JDK 9+ replaces that with {@code Reference.reachabilityFence(this)}
  * inside {@code try/finally} in a {@code src/main/javaN/} override (see
- * java-spi.md, "Native references must outlive every JNI/FFI call"). The
+ * java-spi.md, "Native references must outlive every JNI/FFM call"). The
  * baseline-only form is still <em>correct</em> -- the monitor keeps {@code this}
  * reachable on JDK 9+ too -- but it silently drifts from every peer SPI, and on
  * JDK 9+ the multi-release jar then serves the monitor-based class instead of
@@ -112,7 +112,7 @@ public class NativeReferenceParityTest
         Assertions.assertTrue(violations.isEmpty(),
                 "Baseline classes that hold a native reference under synchronized(this) but lack a "
                         + "javaN/ Reference.reachabilityFence(this) override (see java-spi.md, "
-                        + "\"Native references must outlive every JNI/FFI call\"): " + violations);
+                        + "\"Native references must outlive every JNI/FFM call\"): " + violations);
     }
 
     /**
@@ -244,7 +244,7 @@ public class NativeReferenceParityTest
                 "src/main/java not reachable (packaged test jar) — source lint skipped");
 
         // Scan the Java 8 baseline AND the java25 override tree: a class present
-        // only under src/main/java25 (e.g. an FFI-only handle-holder) applies to
+        // only under src/main/java25 (e.g. an FFM-only handle-holder) applies to
         // these per-method guards too — there is no java26 to override into — and
         // a baseline-only walk would miss it.
         List<Path> sources = new ArrayList<Path>();
@@ -297,7 +297,7 @@ public class NativeReferenceParityTest
                 "Non-private methods passing their own native handle (<field>.getReference()) to a native call "
                         + "WITHOUT keeping `this` reachable (synchronized(this) / reachabilityFence(this) / trailing "
                         + "reInit()) — a use-after-free the file-level guard misses (see java-spi.md, \"Native "
-                        + "references must outlive every JNI/FFI call\"): " + violations);
+                        + "references must outlive every JNI/FFM call\"): " + violations);
     }
 
     // A PKEYKeySpec held in an instance FIELD (not a local/parameter). The `;`
@@ -345,7 +345,7 @@ public class NativeReferenceParityTest
                 "src/main/java not reachable (packaged test jar) — source lint skipped");
 
         // Scan the Java 8 baseline AND the java25 override tree: a class present
-        // only under src/main/java25 (e.g. an FFI-only handle-holder) applies to
+        // only under src/main/java25 (e.g. an FFM-only handle-holder) applies to
         // these per-method guards too — there is no java26 to override into — and
         // a baseline-only walk would miss it.
         List<Path> sources = new ArrayList<Path>();
@@ -444,7 +444,7 @@ public class NativeReferenceParityTest
                         + "<field>.getReference() or via ASN1Encoder) WITHOUT keeping `this` reachable "
                         + "(synchronized(this) / reachabilityFence(this)) — the ML-KEM/ML-DSA/SLH-DSA key + "
                         + "KTS use-after-free class (see java-spi.md, \"Native references must outlive every "
-                        + "JNI/FFI call\"): " + violations);
+                        + "JNI/FFM call\"): " + violations);
     }
 
     private static final class Method
@@ -633,7 +633,7 @@ public class NativeReferenceParityTest
      * fence-override check (which is about a baseline class needing a {@code javaN/}
      * override, so it stays baseline-only), the per-method guards apply to
      * java25-only classes too — there is no java26 to override into — so a
-     * handle-holding FFI-only class can't slip past.
+     * handle-holding FFM-only class can't slip past.
      */
     private static List<Path> perMethodRoots()
     {

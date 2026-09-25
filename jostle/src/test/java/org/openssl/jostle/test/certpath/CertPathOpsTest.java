@@ -267,11 +267,11 @@ public class CertPathOpsTest
     @Test
     public void bridgeInputAccessFailure() throws Exception
     {
-        // JNI ONLY. These are bridge access faults, and the FFI bridge
+        // JNI ONLY. These are bridge access faults, and the FFM bridge
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
-        // the cell passes on the JNI leg and fails on the FFI one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFI(), "JNI only");
+        // the cell passes on the JNI leg and fails on the FFM one.
+        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
@@ -289,11 +289,11 @@ public class CertPathOpsTest
     @Test
     public void bridgeOutputAccessFailure() throws Exception
     {
-        // JNI ONLY. These are bridge access faults, and the FFI bridge
+        // JNI ONLY. These are bridge access faults, and the FFM bridge
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
-        // the cell passes on the JNI leg and fails on the FFI one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFI(), "JNI only");
+        // the cell passes on the JNI leg and fails on the FFM one.
+        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
@@ -329,11 +329,11 @@ public class CertPathOpsTest
     @Test
     public void bridgeSizesAccessFailure() throws Exception
     {
-        // JNI ONLY. These are bridge access faults, and the FFI bridge
+        // JNI ONLY. These are bridge access faults, and the FFM bridge
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
-        // the cell passes on the JNI leg and fails on the FFI one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFI(), "JNI only");
+        // the cell passes on the JNI leg and fails on the FFM one.
+        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         Assertions.assertEquals(0, new Path().verify(), "control");
         try

@@ -47,7 +47,7 @@ TASKS_FILE = os.path.join(SCRIPT_DIR, "tasks.list")
 RESULTS_ROOT = "jostle/build/test-results"
 NATIVE_ROOT = "jostle/src/main/resources/native"
 
-# An entry point that exists ONLY under JOSTLE_OPS (ffi/ops_ffi.c is wrapped in
+# An entry point that exists ONLY under JOSTLE_OPS (ffm/ops_ffm.c is wrapped in
 # #ifdef JOSTLE_OPS). Searched as a raw byte string rather than via nm: symbol
 # names appear literally in Mach-O, ELF and PE alike, so one code path covers
 # every platform we build for and the check needs no toolchain.
@@ -133,7 +133,7 @@ def ops_build_installed():
     instrumented is None when no library is present at all - a source-only
     checkout, where the question is unanswerable rather than answered 'no'.
     """
-    libs = sorted(glob.glob(os.path.join(NATIVE_ROOT, "*", "*", "*interface_ffi*")))
+    libs = sorted(glob.glob(os.path.join(NATIVE_ROOT, "*", "*", "*interface_ffm*")))
     libs = [p for p in libs if not p.endswith(".txt")]
     if not libs:
         return None, f"no interface library under {NATIVE_ROOT}"
@@ -211,8 +211,8 @@ def main():
 
         # Some OPS fault families exist only on the JNI bridge - the
         # GetStringUTFChars / GetByteArrayElements / int32-overflow guards have
-        # no FFI counterpart - so a class like KSServiceOpsTest skips wholesale
-        # under an FFI task BY DESIGN, on an instrumented build. Enforcing
+        # no FFM counterpart - so a class like KSServiceOpsTest skips wholesale
+        # under an FFM task BY DESIGN, on an instrumented build. Enforcing
         # "instrumented, therefore it must run" only on JNI tasks keeps that
         # legitimate case from reading as a defect; every OpsTest can run there.
         ops_enforceable = "JNI" in task

@@ -50,7 +50,7 @@ import org.openssl.jostle.util.ops.OperationsTestNI;
  * <p>Requires a JOSTLE_OPS_TEST build of the FIPS library: gated on
  * {@code TEST_FIPS_LIB} (whole class skips when unset) and, per test, on
  * {@code opsTestAvailable()} (skips against a shipped, non-instrumented FIPS
- * library). The FAILED_ACCESS tests are JNI-only (the FFI bridge takes raw
+ * library). The FAILED_ACCESS tests are JNI-only (the FFM bridge takes raw
  * pointers).
  */
 public class FIPSRSAPKCS1CipherOpsTest
@@ -326,7 +326,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_doFinal_failedAccessInput() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;
@@ -359,7 +359,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         assumeEncryptAvailable();
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long ref = 0;
         long keyRef = 0;

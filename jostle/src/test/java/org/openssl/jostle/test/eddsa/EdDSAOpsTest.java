@@ -168,7 +168,7 @@ public class EdDSAOpsTest
     public void EDDSAServiceJNI__initSign_accessContextArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long eddsaRef = 0;
         long keyRef = 0;
@@ -205,10 +205,10 @@ public class EdDSAOpsTest
     {
         // JNI-only: OPS_FAILED_ACCESS_2 short-circuits the GetStringUTFChars
         // name access in ni_initSign so the JO_UNABLE_TO_ACCESS_NAME path is
-        // exercised without an impossible-to-provoke real failure. The FFI
+        // exercised without an impossible-to-provoke real failure. The FFM
         // bridge has no GetStringUTFChars equivalent.
         // JO_UNABLE_TO_ACCESS_NAME -> IllegalStateException("unable to access name").
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long eddsaRef = 0;
@@ -302,7 +302,7 @@ public class EdDSAOpsTest
     public void EDDSAServiceJNI__initVerify_accessContextArray() throws Exception
     {
 
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long eddsaRef = 0;
         long keyRef = 0;
@@ -400,7 +400,7 @@ public class EdDSAOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long eddsaRef = 0;
         long keyRef = 0;
@@ -557,7 +557,7 @@ public class EdDSAOpsTest
     {
 
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        Assumptions.assumeFalse(Loader.isFFI());
+        Assumptions.assumeFalse(Loader.isFFM());
 
         long eddsaRef = 0;
         long keyRef = 0;

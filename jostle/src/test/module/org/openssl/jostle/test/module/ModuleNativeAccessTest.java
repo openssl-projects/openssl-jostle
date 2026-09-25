@@ -34,7 +34,7 @@ public class ModuleNativeAccessTest
     /** "enabled" when the leg passed --enable-native-access, "default" when it did not. */
     private static final String NATIVE_ACCESS = System.getProperty("jostle.test.module.nativeaccess");
 
-    /** "jni" or "ffi" — the bridge the leg forced, so a silent fall-back is visible. */
+    /** "jni" or "ffm" — the bridge the leg forced, so a silent fall-back is visible. */
     private static final String INTERFACE = System.getProperty("jostle.test.module.interface");
 
     @BeforeAll
@@ -64,7 +64,7 @@ public class ModuleNativeAccessTest
                 "the leg forced " + INTERFACE + " but the loader resolved "
                         + Loader.getInterfaceTypeName() + "; a silent fall-back to the other"
                         + " bridge would make this cell measure the wrong one");
-        Assertions.assertEquals(INTERFACE.equals("ffi"), Loader.isFFI());
+        Assertions.assertEquals(INTERFACE.equals("ffm"), Loader.isFFM());
     }
 
     /**
