@@ -11,7 +11,6 @@
 package org.openssl.jostle;
 
 
-import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.AccessWrapper;
 import org.openssl.jostle.util.Properties;
 import org.openssl.jostle.util.Strings;
@@ -483,7 +482,8 @@ public class Loader
     {
         if (fixedInstallDir)
         {
-            String version = JostleProvider.INFO.substring(JostleProvider.INFO.lastIndexOf('v') + 1);
+            // Version's string always carries a leading "v", which the directory name omits.
+            String version = Version.getVersionString().substring(1);
 
             return LoaderUtils.createVersionedTempDir(installDir, version);
         }

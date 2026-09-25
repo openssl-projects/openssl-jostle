@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.Version;
 import org.openssl.jostle.util.AccessSupplier;
 import org.openssl.jostle.util.AccessWrapper;
 import org.openssl.jostle.util.Properties;
@@ -29,8 +30,9 @@ public class JostleProvider
         extends Provider
 {
     public static final String PROVIDER_NAME = "JSL";
-    public static final String INFO = "Jostle Provider for OpenSSL v1.0.0-SNAPSHOT";
-    private static final double VERSION = 0.1;
+    private static final double VERSION = Version.getVersionDouble();
+    public static final String INFO = "Jostle Provider for OpenSSL " + Version.getVersionString();
+
 
     /**
      * Set the OpenSSL provider name to load.

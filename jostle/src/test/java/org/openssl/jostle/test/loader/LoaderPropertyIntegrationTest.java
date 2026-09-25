@@ -99,6 +99,12 @@ public class LoaderPropertyIntegrationTest
             Assertions.assertTrue(namesOf(extracted).toString().contains(OPENSSL_LIB),
                     "expected the OpenSSL library under the fixed install dir, found: "
                             + namesOf(extracted));
+
+            // The fixed dir holds one subdirectory named for the build version, without the leading "v".
+            String version = System.getProperty("jostle.test.project.version");
+            Assertions.assertNotNull(version, "jostle.test.project.version is not set by the build");
+            Assertions.assertTrue(new File(installDir, version).isDirectory(),
+                    "expected a versioned directory " + version + " under " + installDir);
         }
         finally
         {

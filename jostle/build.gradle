@@ -42,6 +42,23 @@ sourceSets {
     }
 }
 
+//
+// org/openssl/jostle/version.properties carries the project version into the jar; Version reads it. It is
+// generated under build/, never written into src/main/resources, and regenerated whenever the version changes.
+//
+def versionResourceDir = layout.buildDirectory.dir('generated/version-resource')
+def generateVersionResource = tasks.register('generateVersionResource') {
+    def projectVersion = project.version.toString()
+    inputs.property('version', projectVersion)
+    outputs.dir(versionResourceDir)
+    doLast {
+        def f = versionResourceDir.get().file('org/openssl/jostle/version.properties').asFile
+        f.parentFile.mkdirs()
+        f.setText("version=${projectVersion}\n", 'ISO-8859-1')
+    }
+}
+sourceSets.main.resources.srcDir(generateVersionResource)
+
 
 dependencies {
     java9Implementation files([sourceSets.main.output.classesDirs]) {
@@ -1226,6 +1243,8 @@ tasks.withType(Test) {
     // input makes toggling it invalidate the task naturally, so --rerun is no
     // longer needed for correctness when the FIPS module comes and goes.
     inputs.property("TEST_FIPS_LIB", providers.environmentVariable("TEST_FIPS_LIB")).optional(true)
+    // The version the build wrote into the jar, so a test can compare the two.
+    systemProperty 'jostle.test.project.version', project.version.toString()
 }
 
 

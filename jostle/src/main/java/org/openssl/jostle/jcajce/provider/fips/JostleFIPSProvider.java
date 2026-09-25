@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.Version;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.AccessSupplier;
 import org.openssl.jostle.util.AccessWrapper;
@@ -65,8 +66,9 @@ public final class JostleFIPSProvider
     extends JostleProvider
 {
     public static final String PROVIDER_NAME = "JSLFIPS";
-    public static final String INFO = "Jostle FIPS Provider for OpenSSL v1.0.0-SNAPSHOT";
-    private static final double VERSION = 0.1;
+    private static final double VERSION = Version.getVersionDouble();
+    public static final String INFO = "Jostle FIPS Provider for OpenSSL " + Version.getVersionString();
+
 
     /**
      * Property consulted by the no-arg constructor for the configuration
