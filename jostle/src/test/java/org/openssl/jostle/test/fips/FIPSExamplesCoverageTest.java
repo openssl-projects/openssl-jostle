@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.test.examples.ExamplesCoverage;
 
-import java.util.Arrays;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -36,10 +35,7 @@ public class FIPSExamplesCoverageTest
      * JSLFIPS service types whose examples have not landed yet; same rules as the JSL list in
      * {@code ExamplesCoverageTest}.
      */
-    private static final Set<String> FIPS_PENDING = new TreeSet<String>(Arrays.asList(
-            "AlgorithmParameterGenerator", "AlgorithmParameters", "CertificateFactory", "Cipher",
-            "KeyAgreement", "KeyFactory", "KeyGenerator", "KeyPairGenerator", "KeyStore", "Mac",
-            "MessageDigest", "SecretKeyFactory", "SecureRandom", "Signature"));
+    private static final Set<String> FIPS_PENDING = new TreeSet<String>();
 
     @BeforeAll
     static void before()
