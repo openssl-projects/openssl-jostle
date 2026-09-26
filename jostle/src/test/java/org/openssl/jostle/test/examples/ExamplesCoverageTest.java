@@ -37,9 +37,8 @@ public class ExamplesCoverageTest
      * reason.
      */
     private static final Set<String> JSL_PENDING = new TreeSet<String>(Arrays.asList(
-            "AlgorithmParameterGenerator", "AlgorithmParameters", "CertPathBuilder", "CertPathValidator",
-            "CertificateFactory", "Cipher", "KeyAgreement", "KeyFactory", "KeyGenerator", "KeyPairGenerator",
-            "KeyStore", "Signature"));
+            "CertPathBuilder", "CertPathValidator", "CertificateFactory", "KeyAgreement", "KeyFactory",
+            "KeyGenerator", "KeyPairGenerator", "KeyStore", "Signature"));
 
     @Test
     public void everyJslServiceHasAnExample()
@@ -54,8 +53,8 @@ public class ExamplesCoverageTest
 
     /**
      * The matcher credits what it should and nothing else: a literal, a looped list, an alias and a
-     * transformation each credit their primary, while a name in a list with no looping getInstance credits
-     * nothing.
+     * transformation each credit their primary, a name in a list with no looping getInstance credits nothing,
+     * and a looped type is credited only from the array its own variable walks, in the nearest loop.
      */
     @Test
     public void theMatcherCreditsOnlyWhatAnExampleCalls()
@@ -81,6 +80,26 @@ public class ExamplesCoverageTest
                 "String[] names = {\"HMACSHA1\"};",
                 "Mac.getInstance(\"HMACSHA256\", \"JSL\");"), p);
         Assertions.assertEquals(new TreeSet<String>(Collections.singletonList("HMACSHA256")), none.get("Mac"));
+
+        // Each looped type is credited only from the array its own variable indexes.
+        Map<String, Set<String>> bound = ExamplesCoverage.credit(Arrays.asList(
+                "String[] names = {\"MLKEM\", \"ML-KEM-512\"};",
+                "String[] keyPairs = {\"ML-KEM-768\", \"ML-KEM-512\"};",
+                "for (int i = 0; i < names.length; i++) {",
+                "    KeyPairGenerator.getInstance(keyPairs[i], \"JSL\");",
+                "    KeyGenerator.getInstance(names[i], \"JSL\");",
+                "}",
+                "for (String alg : new String[]{\"SHA3-256\"}) { MessageDigest.getInstance(alg, \"JSL\"); }",
+                "String[] ciphers = {\"ARIA\", \"SM4\"};",
+                "for (String n : ciphers) { Cipher.getInstance(n + \"/CBC/PKCS5Padding\", \"JSL\"); }",
+                "String[] more = {\"SHA3-512\"};",
+                "for (String n : more) { MessageDigest.getInstance(n, \"JSL\"); }"), p);
+        Assertions.assertEquals(new TreeSet<String>(Arrays.asList("ML-KEM-512", "ML-KEM-768")),
+                bound.get("KeyPairGenerator"));
+        Assertions.assertEquals(new TreeSet<String>(Arrays.asList("ML-KEM-512", "MLKEM")), bound.get("KeyGenerator"));
+        Assertions.assertEquals(new TreeSet<String>(Arrays.asList("SHA3-256", "SHA3-512")),
+                bound.get("MessageDigest"));
+        Assertions.assertEquals(new TreeSet<String>(Arrays.asList("ARIA", "SM4")), bound.get("Cipher"));
     }
 
     /**

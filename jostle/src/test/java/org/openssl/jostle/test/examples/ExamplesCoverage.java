@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Assertions;
 
 import java.security.Provider;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,9 +30,10 @@ import java.util.regex.Pattern;
  * part.
  * <p>
  * Exercised means an example method calls {@code <Type>.getInstance} with the name as a literal, or calls it
- * with a variable while the same method lists the name in a {@code String[]} initialiser or array literal
- * (the looping form used for long families). An alias credits its primary, and a Cipher transformation
- * credits the primary of that exact name or else its algorithm part, as JCA's lookup does.
+ * with a variable that takes its values from a {@code String[]} literal listing the name: the array it
+ * indexes, or the array a for-each loop over it walks (the looping form used for long families). An alias
+ * credits its primary, and a Cipher transformation credits the primary of that exact name or else its
+ * algorithm part, as JCA's lookup does.
  * <p>
  * A type still in the caller's pending list is not checked for coverage, and fails as soon as its own
  * examples class credits any of its names, so an entry cannot outlive its reason. Only that class counts
@@ -45,10 +45,8 @@ public final class ExamplesCoverage
     private static final Pattern OID = Pattern.compile("\\d+(\\.\\d+)+");
     private static final Pattern DIRECT = Pattern.compile("\\b([A-Z]\\w*)\\.getInstance\\(\\s*\"([^\"]+)\"");
     private static final Pattern BY_VARIABLE = Pattern.compile(
-            "\\b([A-Z]\\w*)\\.getInstance\\(\\s*[a-z]\\w*(?:\\[\\w+])?\\s*[,)]");
-    private static final Pattern NAME_LIST = Pattern.compile(
-            "(?:String\\[]\\s*\\w+\\s*=\\s*(?:new\\s+String\\[]\\s*)?|new\\s+String\\[]\\s*)\\{([^}]*)}",
-            Pattern.DOTALL);
+            "\\b([A-Z]\\w*)\\.getInstance\\(\\s*([a-z]\\w*)(?:\\[\\w+])?\\s*[,)+]");
+    private static final String ARRAY_LITERAL = "(?:new\\s+String\\[]\\s*)?\\{([^}]*)}";
     private static final Pattern LITERAL = Pattern.compile("\"([^\"]+)\"");
 
     private ExamplesCoverage()
@@ -153,25 +151,55 @@ public final class ExamplesCoverage
             creditName(out, provider, direct.group(1), direct.group(2));
         }
 
-        Set<String> loopedTypes = new HashSet<String>();
         Matcher byVariable = BY_VARIABLE.matcher(text);
         while (byVariable.find())
         {
-            loopedTypes.add(byVariable.group(1));
-        }
-        Matcher list = NAME_LIST.matcher(text);
-        while (list.find())
-        {
-            Matcher literal = LITERAL.matcher(list.group(1));
+            String names = namesFor(text.substring(0, byVariable.start()), byVariable.group(2));
+            if (names == null)
+            {
+                continue;
+            }
+            Matcher literal = LITERAL.matcher(names);
             while (literal.find())
             {
-                for (String type : loopedTypes)
-                {
-                    creditName(out, provider, type, literal.group(1));
-                }
+                creditName(out, provider, byVariable.group(1), literal.group(1));
             }
         }
         return out;
+    }
+
+    /**
+     * The contents of the array literal a variable takes its names from, looking only at the text before
+     * the call: the nearest {@code for (String v : ...)} loop, or else the {@code String[] v = {...}} it
+     * indexes as {@code v[i]}. Null if neither.
+     */
+    private static String namesFor(String before, String variable)
+    {
+        Matcher loop = Pattern.compile("for\\s*\\(\\s*String\\s+" + variable + "\\s*:\\s*(?:(\\w+)\\s*\\)|"
+                + ARRAY_LITERAL + ")", Pattern.DOTALL).matcher(before);
+        String array = null;
+        String literal = null;
+        while (loop.find())
+        {
+            array = loop.group(1);
+            literal = loop.group(2);
+        }
+        if (array != null)
+        {
+            return namesFor(before, array);
+        }
+        if (literal != null)
+        {
+            return literal;
+        }
+        Matcher declared = Pattern.compile("String\\[]\\s*" + variable + "\\s*=\\s*" + ARRAY_LITERAL,
+                Pattern.DOTALL).matcher(before);
+        String found = null;
+        while (declared.find())
+        {
+            found = declared.group(1);
+        }
+        return found;
     }
 
     private static void creditName(Map<String, Set<String>> out, Provider provider, String type, String name)

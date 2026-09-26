@@ -51,6 +51,18 @@ public final class ExamplesGuide
 
     private static final String CLASS_SUFFIX = "ExamplesTest";
 
+    /**
+     * The order sections appear in, within each part: hashing and keyed hashing, key derivation and
+     * randomness, symmetric encryption and its keys and parameters, then asymmetric keys, signatures and
+     * agreement, and last key storage and certificates. A class whose section is not listed is an error.
+     */
+    private static final String[] SECTION_ORDER = {
+            "MessageDigest", "Mac", "SecretKeyFactory", "SecureRandom",
+            "Cipher", "KeyGenerator", "AlgorithmParameters", "AlgorithmParameterGenerator",
+            "KeyPairGenerator", "KeyFactory", "Signature", "KeyAgreement",
+            "KeyStore", "CertificateFactory", "CertPathBuilder", "CertPathValidator",
+    };
+
     private ExamplesGuide()
     {
     }
@@ -125,7 +137,7 @@ public final class ExamplesGuide
     }
 
     /**
-     * Every example class, base class first within each part, the rest by name.
+     * Every example class, base class first within each part, the rest in {@link #SECTION_ORDER}.
      */
     public static List<ExampleClass> parseAll(File root)
             throws IOException
@@ -145,17 +157,36 @@ public final class ExamplesGuide
             {
                 throw new IOException("cannot list " + dir);
             }
-            Arrays.sort(names);
+            ExampleClass[] ordered = new ExampleClass[SECTION_ORDER.length];
             for (String name : names)
             {
                 if (name.endsWith(CLASS_SUFFIX + ".java"))
                 {
-                    all.add(parse(part[0], new File(dir, name), false));
+                    ExampleClass c = parse(part[0], new File(dir, name), false);
+                    int at = Arrays.asList(SECTION_ORDER).indexOf(c.section());
+                    if (at < 0)
+                    {
+                        throw new IllegalStateException(part[0] + "/" + name + ": section " + c.section()
+                                + " is not in ExamplesGuide.SECTION_ORDER");
+                    }
+                    if (ordered[at] != null)
+                    {
+                        throw new IllegalStateException(part[0] + "/" + name + ": a second class for section "
+                                + c.section());
+                    }
+                    ordered[at] = c;
                 }
                 else if (!name.equals(base.getName()))
                 {
                     throw new IllegalStateException(dir + "/" + name + ": only " + base.getName()
                             + " and *" + CLASS_SUFFIX + ".java belong in an examples package");
+                }
+            }
+            for (ExampleClass c : ordered)
+            {
+                if (c != null)
+                {
+                    all.add(c);
                 }
             }
         }
