@@ -394,6 +394,7 @@ sourceSets {
 // they run on every classpath unit leg through the test source set, and on the module legs through
 // testModule, where exports are enforced.
 sourceSets.test.java.srcDir('src/test/examples')
+sourceSets.test.resources.srcDir('src/test/examples-resources')
 
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
@@ -1035,6 +1036,9 @@ sourceSets {
             // does not export (jcajce.provider.kts, .kdf, .mlkem, .wrap).
             srcDirs = ["src/test/module", "src/test/examples"]
             compileClasspath += files(jar.archiveFile)
+        }
+        resources {
+            srcDirs = ["src/test/examples-resources"]
         }
     }
 }

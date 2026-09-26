@@ -36,8 +36,7 @@ public class ExamplesCoverageTest
      * a pending type whose own examples class credits any of its names fails, so an entry cannot outlive its
      * reason.
      */
-    private static final Set<String> JSL_PENDING = new TreeSet<String>(Arrays.asList(
-            "CertPathBuilder", "CertPathValidator", "CertificateFactory", "KeyStore"));
+    private static final Set<String> JSL_PENDING = new TreeSet<String>();
 
     @Test
     public void everyJslServiceHasAnExample()

@@ -1651,3 +1651,387 @@ for (String name : agreements)
             b.generateSecret("2.16.840.1.101.3.4.1.45").getEncoded(), name);
 }
 ```
+
+## KeyStore
+
+Key stores: PKCS#12 and its variants, and BCFKS, BouncyCastle's FIPS key store format, which JSL reads and
+writes itself. Each example stores entries, writes the store, and loads it into a fresh instance.
+
+Imports used in this section:
+
+```java
+import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Base64;
+import java.util.Scanner;
+```
+
+### privateKeyEntry
+
+A private key with its certificate chain, the commonest key store entry, in PKCS#12 and BCFKS. The key is
+read from a PKCS#8 PEM file through JSL's `KeyFactory`, and the certificate through its
+`CertificateFactory`.
+
+```java
+char[] password = "change it".toCharArray();
+String pem = new Scanner(getClass().getResourceAsStream("/jostle/examples/keystore/example-key.pem"),
+        "US-ASCII").useDelimiter("\\A").next();
+byte[] pkcs8 = Base64.getMimeDecoder().decode(pem.replaceAll("-----[A-Z ]+-----", ""));
+PrivateKey key = KeyFactory.getInstance("RSA", "JSL").generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+Certificate cert = CertificateFactory.getInstance("X.509", "JSL").generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/keystore/example-cert.pem"));
+for (String type : new String[]{"PKCS12", "BCFKS"})
+{
+    KeyStore ks = KeyStore.getInstance(type, "JSL");
+    ks.load(null, null);
+    ks.setKeyEntry("me", key, password, new Certificate[]{cert});
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    ks.store(out, password);
+
+    KeyStore loaded = KeyStore.getInstance(type, "JSL");
+    loaded.load(new ByteArrayInputStream(out.toByteArray()), password);
+    Assertions.assertArrayEquals(key.getEncoded(), loaded.getKey("me", password).getEncoded(), type);
+    Assertions.assertEquals(cert, loaded.getCertificateChain("me")[0], type);
+}
+```
+
+### pkcs12TrustStore
+
+A PKCS#12 trust store: trusted-certificate entries, written with an integrity password and read back.
+
+```java
+char[] password = "change it".toCharArray();
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+Certificate root = cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCertificate.crt"));
+Certificate ca = cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt"));
+
+KeyStore ks = KeyStore.getInstance("PKCS12", "JSL");
+ks.load(null, null);
+ks.setCertificateEntry("root", root);
+ks.setCertificateEntry("good ca", ca);
+ByteArrayOutputStream out = new ByteArrayOutputStream();
+ks.store(out, password);
+
+KeyStore loaded = KeyStore.getInstance("PKCS12", "JSL");
+loaded.load(new ByteArrayInputStream(out.toByteArray()), password);
+Assertions.assertEquals(root, loaded.getCertificate("root"));
+Assertions.assertTrue(loaded.isCertificateEntry("good ca"));
+```
+
+### pkcs12Variants
+
+The PKCS#12 variants fix the protection used when writing: legacy Triple-DES, AES-256 with an AES-128 MAC
+key derivation, or a PBMAC1 integrity MAC. A plain `PKCS12` store reads any of them.
+
+```java
+String[] names = {"PKCS12-3DES-3DES", "PKCS12-AES256-AES128", "PKCS12-PBMAC1"};
+char[] password = "change it".toCharArray();
+Certificate root = CertificateFactory.getInstance("X.509", "JSL").generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCertificate.crt"));
+for (String name : names)
+{
+    KeyStore ks = KeyStore.getInstance(name, "JSL");
+    ks.load(null, null);
+    ks.setCertificateEntry("root", root);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    ks.store(out, password);
+
+    KeyStore loaded = KeyStore.getInstance("PKCS12", "JSL");
+    loaded.load(new ByteArrayInputStream(out.toByteArray()), password);
+    Assertions.assertEquals(root, loaded.getCertificate("root"), name);
+}
+```
+
+### bcfksWithStoreParameters
+
+BCFKS written with explicit store protection through `BCFKSLoadStoreParameter`: the store encryption,
+the integrity MAC and the password-based KDF settings. Loading takes the same class.
+
+```java
+char[] password = "change it".toCharArray();
+KeyStore ks = KeyStore.getInstance("BCFKS", "JSL");
+ks.load(null, null);
+ks.setEntry("k", new KeyStore.SecretKeyEntry(new SecretKeySpec(new byte[32], "AES")),
+        new KeyStore.PasswordProtection(password));
+ByteArrayOutputStream out = new ByteArrayOutputStream();
+ks.store(new BCFKSLoadStoreParameter.Builder(out, password)
+        .withStoreEncryptionAlgorithm(BCFKSLoadStoreParameter.EncryptionAlgorithm.AES256_KWP)
+        .withStoreMacAlgorithm(BCFKSLoadStoreParameter.MacAlgorithm.HmacSHA3_512)
+        .withStorePBKDFConfig(new BCFKSLoadStoreParameter.PBKDF2Config.Builder()
+                .withIterationCount(100000).build())
+        .build());
+
+KeyStore loaded = KeyStore.getInstance("BCFKS", "JSL");
+loaded.load(new BCFKSLoadStoreParameter.Builder(new ByteArrayInputStream(out.toByteArray()), password)
+        .build());
+Assertions.assertEquals(32, loaded.getKey("k", password).getEncoded().length);
+```
+
+### bcfksPasswordDerivedKeyEntry
+
+Store a key derived from a password (here PBKDF2) as a BCFKS secret-key entry, and read it back.
+
+```java
+char[] storePassword = "change it".toCharArray();
+SecretKey derived = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", "JSL").generateSecret(
+        new PBEKeySpec("user password".toCharArray(), "salt value".getBytes(StandardCharsets.US_ASCII),
+                10000, 256));
+SecretKeySpec key = new SecretKeySpec(derived.getEncoded(), "AES");
+
+KeyStore ks = KeyStore.getInstance("BCFKS", "JSL");
+ks.load(null, null);
+ks.setEntry("derived", new KeyStore.SecretKeyEntry(key), new KeyStore.PasswordProtection(storePassword));
+ByteArrayOutputStream out = new ByteArrayOutputStream();
+ks.store(out, storePassword);
+
+KeyStore loaded = KeyStore.getInstance("BCFKS", "JSL");
+loaded.load(new ByteArrayInputStream(out.toByteArray()), storePassword);
+Assertions.assertArrayEquals(key.getEncoded(), loaded.getKey("derived", storePassword).getEncoded());
+```
+
+## CertificateFactory
+
+X.509 certificates, CRLs and certificate paths, parsed by JSL. The inputs are NIST PKITS test certificates
+shipped with the examples under `jostle/examples/pkits`.
+
+Imports used in this section:
+
+```java
+import java.security.ProviderException;
+import java.security.cert.CertPath;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
+import java.io.ByteArrayInputStream;
+import java.util.Arrays;
+import java.util.Collection;
+```
+
+### parseAndVerifyADerCertificate
+
+Parse a DER certificate and check its signature with the issuer's public key.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+X509Certificate root = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCertificate.crt"));
+X509Certificate ca = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt"));
+Assertions.assertEquals(root.getSubjectX500Principal(), ca.getIssuerX500Principal());
+ca.verify(root.getPublicKey());
+Assertions.assertTrue(ca.getBasicConstraints() >= 0, "a CA certificate");
+```
+
+### readAPemBundle
+
+Read several PEM certificates from one stream.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+Collection<? extends Certificate> certs = cf.generateCertificates(
+        getClass().getResourceAsStream("/jostle/examples/pkits/GoodCAChain.pem"));
+Assertions.assertEquals(2, certs.size());
+```
+
+### checkACrl
+
+Parse a CRL, verify it against its issuer, and ask whether a certificate is on it.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+X509Certificate ca = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt"));
+X509CRL crl = (X509CRL) cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACRL.crl"));
+crl.verify(ca.getPublicKey());
+Certificate revoked = cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/InvalidRevokedEETest3EE.crt"));
+Certificate good = cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/ValidCertificatePathTest1EE.crt"));
+Assertions.assertTrue(crl.isRevoked(revoked));
+Assertions.assertFalse(crl.isRevoked(good));
+```
+
+### encodeACertPath
+
+A certificate path, end entity first, encoded as PkiPath and parsed back.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+Certificate ee = cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/ValidCertificatePathTest1EE.crt"));
+Certificate ca = cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt"));
+CertPath path = cf.generateCertPath(Arrays.asList(ee, ca));
+byte[] encoded = path.getEncoded("PkiPath");
+CertPath back = cf.generateCertPath(new ByteArrayInputStream(encoded), "PkiPath");
+Assertions.assertEquals(path.getCertificates(), back.getCertificates());
+```
+
+### berInputIsReencodedAsDer
+
+`getEncoded()` returns DER, not the bytes read. Here the input is a valid BER encoding of the same
+certificate (its outer length in a longer form than DER allows); hash `getEncoded()`, not the input, when
+fingerprinting. BouncyCastle does the same; the JDK keeps the input bytes.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+byte[] der = cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt")).getEncoded();
+Assertions.assertEquals((byte) 0x82, der[1], "a two-byte DER length");
+byte[] ber = new byte[der.length + 1];
+ber[0] = 0x30;
+ber[1] = (byte) 0x83;
+System.arraycopy(der, 2, ber, 3, der.length - 2);
+X509Certificate fromBer = (X509Certificate) cf.generateCertificate(new ByteArrayInputStream(ber));
+Assertions.assertArrayEquals(der, fromBer.getEncoded());
+```
+
+### dsaCertificateInheritingParameters
+
+A DSA certificate may leave its key's parameters out and inherit them from the issuer (RFC 3279). It
+parses, but its key cannot be built from the certificate alone: `getPublicKey()` throws
+`ProviderException`.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+X509Certificate cert = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/ValidDSAParameterInheritanceTest5EE.crt"));
+Assertions.assertNotNull(cert.getSubjectX500Principal());
+Assertions.assertThrows(ProviderException.class, cert::getPublicKey);
+```
+
+## CertPathBuilder
+
+PKIX path building: from a target certificate and a pool of candidate certificates and CRLs, find a path to
+a trust anchor. The path is validated as it is built, revocation included.
+
+Imports used in this section:
+
+```java
+import java.security.cert.CertPathBuilder;
+import java.security.cert.CertStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CollectionCertStoreParameters;
+import java.security.cert.PKIXBuilderParameters;
+import java.security.cert.PKIXCertPathBuilderResult;
+import java.security.cert.TrustAnchor;
+import java.security.cert.X509CertSelector;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+```
+
+### buildAPathToATarget
+
+Select the end entity by certificate and let the builder find its CA in the `CertStore`.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+X509Certificate root = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCertificate.crt"));
+X509Certificate target = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/ValidCertificatePathTest1EE.crt"));
+CertStore pool = CertStore.getInstance("Collection", new CollectionCertStoreParameters(Arrays.asList(
+        cf.generateCertificate(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt")),
+        target,
+        cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCRL.crl")),
+        cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACRL.crl")))));
+
+X509CertSelector selector = new X509CertSelector();
+selector.setCertificate(target);
+PKIXBuilderParameters params = new PKIXBuilderParameters(
+        Collections.singleton(new TrustAnchor(root, null)), selector);
+params.addCertStore(pool);
+params.setDate(new Date(1590969600000L)); // 2020-06-01
+PKIXCertPathBuilderResult result =
+        (PKIXCertPathBuilderResult) CertPathBuilder.getInstance("PKIX", "JSL").build(params);
+Assertions.assertEquals(2, result.getCertPath().getCertificates().size());
+Assertions.assertEquals(root, result.getTrustAnchor().getTrustedCert());
+```
+
+## CertPathValidator
+
+PKIX path validation. Revocation is checked by default, against CRLs from the caller's `CertStore`s, so a
+certificate with no usable CRL fails rather than passing. Policy processing and `PKIXCertPathChecker` are not
+supported and are refused rather than ignored. The PKITS certificates are valid 2010 to 2030, so the examples
+validate at a fixed date.
+
+Imports used in this section:
+
+```java
+import java.security.cert.CertPath;
+import java.security.cert.CertPathValidator;
+import java.security.cert.CertPathValidatorException;
+import java.security.cert.CertStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CollectionCertStoreParameters;
+import java.security.cert.PKIXParameters;
+import java.security.cert.TrustAnchor;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+```
+
+### validateAPath
+
+Validate end entity, then CA, against the root as trust anchor, with both CRLs supplied.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+X509Certificate root = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCertificate.crt"));
+CertPath path = cf.generateCertPath(Arrays.asList(
+        cf.generateCertificate(getClass().getResourceAsStream(
+                "/jostle/examples/pkits/ValidCertificatePathTest1EE.crt")),
+        cf.generateCertificate(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt"))));
+CertStore crls = CertStore.getInstance("Collection", new CollectionCertStoreParameters(Arrays.asList(
+        cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCRL.crl")),
+        cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACRL.crl")))));
+
+PKIXParameters params = new PKIXParameters(Collections.singleton(new TrustAnchor(root, null)));
+params.addCertStore(crls);
+params.setDate(new Date(1590969600000L)); // 2020-06-01
+CertPathValidator.getInstance("PKIX", "JSL").validate(path, params);
+```
+
+### aRevokedCertificateFails
+
+A revoked end entity fails, with reason `REVOKED` naming the certificate's position in the path.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+X509Certificate root = (X509Certificate) cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCertificate.crt"));
+CertPath path = cf.generateCertPath(Arrays.asList(
+        cf.generateCertificate(getClass().getResourceAsStream(
+                "/jostle/examples/pkits/InvalidRevokedEETest3EE.crt")),
+        cf.generateCertificate(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt"))));
+CertStore crls = CertStore.getInstance("Collection", new CollectionCertStoreParameters(Arrays.asList(
+        cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCRL.crl")),
+        cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACRL.crl")))));
+
+PKIXParameters params = new PKIXParameters(Collections.singleton(new TrustAnchor(root, null)));
+params.addCertStore(crls);
+params.setDate(new Date(1590969600000L)); // 2020-06-01
+CertPathValidatorException e = Assertions.assertThrows(CertPathValidatorException.class,
+        () -> CertPathValidator.getInstance("PKIX", "JSL").validate(path, params));
+Assertions.assertEquals(CertPathValidatorException.BasicReason.REVOKED, e.getReason());
+Assertions.assertEquals(0, e.getIndex());
+```
