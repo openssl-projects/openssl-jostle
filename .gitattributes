@@ -13,3 +13,10 @@
 # The DRBG vector resource is generated with LF and its sha256 is recorded in a
 # manifest the tests check, so the checkout must not rewrite its line endings.
 jostle/src/test/resources/drbg/* text eol=lf
+
+# The worked-example resources are read by the examples, so the checkout must not rewrite them: the PEM and
+# Markdown files keep LF, and the DER certificates and CRLs are binary.
+jostle/src/test/examples-resources/**/*.pem text eol=lf
+jostle/src/test/examples-resources/**/*.md text eol=lf
+jostle/src/test/examples-resources/**/*.crt binary
+jostle/src/test/examples-resources/**/*.crl binary

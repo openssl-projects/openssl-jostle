@@ -25,15 +25,15 @@ import java.util.Arrays;
 
 /**
  * Key derivation functions in the FIPS module, served as `SecretKeyFactory`: PBKDF2, HKDF, the SP 800-108 and
- * SP 800-56C KDFs and the SSH KDF. The 3.5.8 module serves no scrypt or Argon2, and refuses key inputs shorter than
- * 112 bits.
+ * SP 800-56C KDFs and the SSH KDF. The 3.5.8 module serves no scrypt or Argon2. Whether it refuses key inputs
+ * shorter than 112 bits depends on fipsinstall configuration.
  */
 public class FipsSecretKeyFactoryExamplesTest
         extends FipsExamples
 {
     /**
-     * PBKDF2 with HMAC-SHA256. The module requires a salt of at least 16 bytes and at least 1000 iterations,
-     * and refuses less with `InvalidKeySpecException`; the key length in `PBEKeySpec` is in bits.
+     * PBKDF2 with HMAC-SHA256. JSLFIPS refuses a salt shorter than 16 bytes or fewer than 1000 iterations
+     * with `InvalidKeySpecException`; the key length in `PBEKeySpec` is in bits.
      */
     @Test
     public void pbkdf2WithHmacSha256()

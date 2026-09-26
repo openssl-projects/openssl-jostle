@@ -19,7 +19,7 @@ import java.security.Security;
 
 /**
  * JSLFIPS backs its services with an externally supplied OpenSSL FIPS module, loaded and self-tested by
- * OpenSSL itself; until it is configured it registers nothing. These examples describe the 3.5.x module. The
+ * OpenSSL itself; until it is configured it registers nothing. These examples describe the 3.5.8 module. The
  * configuration names the module file, here from an environment variable (`env:`; `file:`, `prop:` and
  * `str:` also work, and `fips_config` can name the fipsinstall configuration if it is not next to the module).
  * Initialisation is once per JVM, so reuse a registered JSLFIPS. JSL is registered too, for the examples that

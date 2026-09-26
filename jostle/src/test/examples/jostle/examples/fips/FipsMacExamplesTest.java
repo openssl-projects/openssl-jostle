@@ -23,9 +23,10 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 
 /**
- * Message authentication codes in the FIPS module. HMAC keys must be at least 112 bits (14 bytes); Poly1305 and
- * the MD5, RIPEMD and SM3 HMACs are not registered. A receiver verifies a tag by computing it again and comparing
- * with `MessageDigest.isEqual`, which takes the same time whatever the bytes are.
+ * Message authentication codes in the FIPS module. Whether HMAC keys must be at least 112 bits (14 bytes)
+ * depends on fipsinstall configuration. Poly1305 and the MD5, RIPEMD and SM3 HMACs are not registered. A
+ * receiver verifies a tag by computing it again and comparing with `MessageDigest.isEqual`, which takes the
+ * same time whatever the bytes are.
  */
 public class FipsMacExamplesTest
         extends FipsExamples

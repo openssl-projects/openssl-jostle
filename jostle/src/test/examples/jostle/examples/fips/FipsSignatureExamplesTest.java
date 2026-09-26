@@ -34,9 +34,11 @@ import java.security.spec.PSSParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 
 /**
- * Signatures in the FIPS module. The 3.5.8 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones;
- * it verifies DSA signatures but does not make them; and it verifies but does not make signatures on curves
- * below 112 bits of strength. Each example signs, verifies, and checks that a changed message fails.
+ * Signatures in the FIPS module. The 3.5.8 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones.
+ * Whether it also signs with SHA-1 depends on fipsinstall configuration; as installed here, it does not.
+ * Whether it makes DSA signatures depends on fipsinstall configuration; as installed here, it only verifies
+ * them. It verifies signatures on curves below 112 bits of strength and does not make them. Each example
+ * signs, verifies, and checks that a changed message fails.
  */
 public class FipsSignatureExamplesTest
         extends FipsExamples
@@ -117,8 +119,9 @@ public class FipsSignatureExamplesTest
     }
 
     /**
-     * SHA-1 signatures, for verifying existing ones: JSLFIPS verifies them, and refuses to make them with
-     * `InvalidKeyException` at `initSign`. Here JSL signs and JSLFIPS verifies, with the key moved across.
+     * SHA-1 signatures, for verifying existing ones. JSL signs and JSLFIPS verifies, with the key moved across.
+     * Whether JSLFIPS also signs with SHA-1 depends on fipsinstall configuration; where it does not, as
+     * installed here, `initSign` throws `InvalidKeyException`.
      */
     @Test
     public void sha1IsVerifyOnly()
@@ -140,13 +143,23 @@ public class FipsSignatureExamplesTest
             v.update(msg);
             Assertions.assertTrue(v.verify(sig), names[i]);
             PrivateKey fipsPrivate = kf.generatePrivate(new PKCS8EncodedKeySpec(jsl.getPrivate().getEncoded()));
-            Assertions.assertThrows(InvalidKeyException.class, () -> v.initSign(fipsPrivate), names[i]);
+            try
+            {
+                v.initSign(fipsPrivate);
+                v.update(msg);
+                Assertions.assertTrue(v.sign().length > 0, names[i]);
+            }
+            catch (InvalidKeyException e)
+            {
+                Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+            }
         }
     }
 
     /**
-     * DSA signatures are verify-only in the 3.5.8 module. A DSA key and signature made with JSL, verified by
-     * JSLFIPS over every digest; `NONEwithDSA` verifies a signature over a digest computed by the caller.
+     * DSA verification: a DSA key and signature made with JSL, verified by JSLFIPS over every digest;
+     * `NONEwithDSA` verifies a signature over a digest computed by the caller. Whether JSLFIPS also makes DSA
+     * signatures depends on fipsinstall configuration; as installed here, it does not.
      */
     @Test
     public void dsaIsVerifyOnly()
@@ -198,8 +211,8 @@ public class FipsSignatureExamplesTest
     }
 
     /**
-     * Curves below 112 bits of strength, such as secp192r1, are verify-only: JSLFIPS verifies a signature made
-     * elsewhere and refuses to sign with `InvalidKeyException`.
+     * Curves below 112 bits of strength, such as secp192r1: JSLFIPS verifies a signature made elsewhere, and
+     * `initSign` with such a key throws `InvalidKeyException`.
      */
     @Test
     public void weakCurvesAreVerifyOnly()

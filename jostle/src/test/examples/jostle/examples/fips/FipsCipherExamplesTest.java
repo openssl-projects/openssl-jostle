@@ -38,7 +38,7 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 
 /**
- * Ciphers in the FIPS module: AES in its modes and key wraps, Triple-DES for decryption only, RSA-OAEP and key
+ * Ciphers in the FIPS module: AES in its modes and key wraps, Triple-DES for existing data, RSA-OAEP and key
  * transport. The 3.5.8 module serves no ARIA, Camellia, SM4 or ChaCha20, and JSLFIPS registers no RFC 3211 wrap
  * and no PKCS#1 v1.5 encryption. Generate a fresh key and a fresh IV or nonce for every message; the fixed IVs
  * below only keep the examples short.
@@ -125,8 +125,9 @@ public class FipsCipherExamplesTest
     }
 
     /**
-     * Triple-DES: the 3.5.8 module decrypts it, for existing data, and refuses to encrypt with
-     * `InvalidKeyException` naming the restriction. Here JSL encrypts and JSLFIPS decrypts.
+     * Triple-DES, for decrypting existing data: JSL encrypts and JSLFIPS decrypts. Whether the module also
+     * encrypts depends on fipsinstall configuration; where it does not, as installed here, `init` for
+     * encryption throws `InvalidKeyException` naming the restriction.
      */
     @Test
     public void tripleDesDecryptOnly()
@@ -143,7 +144,15 @@ public class FipsCipherExamplesTest
         dec.init(Cipher.DECRYPT_MODE, key, iv);
         Assertions.assertArrayEquals("old data".getBytes(StandardCharsets.US_ASCII), dec.doFinal(ct));
         Cipher enc = Cipher.getInstance("DESede/CBC/PKCS5Padding", "JSLFIPS");
-        Assertions.assertThrows(InvalidKeyException.class, () -> enc.init(Cipher.ENCRYPT_MODE, key, iv));
+        try
+        {
+            enc.init(Cipher.ENCRYPT_MODE, key, iv);
+            Assertions.assertArrayEquals(ct, enc.doFinal("old data".getBytes(StandardCharsets.US_ASCII)));
+        }
+        catch (InvalidKeyException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("Triple-DES encryption is not supported"), e.getMessage());
+        }
     }
 
     /**

@@ -1,8 +1,74 @@
 # OpenSSL Jostle: worked examples
 
-OpenSSL Jostle is a JCA/JCE provider that delegates to OpenSSL. Every example in this guide is a JUnit test
-that runs against the built jar, so the code shown is code that works. See `SERVICES.md` for every
-registered name.
+OpenSSL Jostle is a JCA/JCE provider that delegates its cryptography to OpenSSL through a native library. The
+jar is built on Java 25 and runs on Java 8 to 25. Every example in this guide is a JUnit test that runs against
+the built jar, from a package outside it, so the code shown is code that works and uses only the exported API.
+
+## The two providers
+
+1. `JSL` (`org.openssl.jostle.jcajce.provider.JostleProvider`) runs on the OpenSSL bundled in the jar.
+2. `JSLFIPS` (`org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider`) runs on an OpenSSL FIPS provider
+   module you supply. It registers nothing until it is configured.
+
+Both can be registered in one JVM; each runs on its own native library and OpenSSL library context, and JCA
+registration order decides which one an unqualified `getInstance` picks. A key object belongs to the provider
+instance that made it; to move a key between the two, encode it with `getEncoded()` and decode it through the
+other provider's `KeyFactory`.
+
+```java
+Security.addProvider(new JostleProvider());
+Security.addProvider(new JostleFIPSProvider("fips_module=/opt/openssl-fips/lib/ossl-modules/fips.so"));
+```
+
+## Configuring JSLFIPS
+
+The configuration string is a comma-separated `key=value` list:
+
+1. `fips_module` (required): the path to the FIPS module file.
+2. `fips_config` (optional): the fipsinstall-generated configuration; by default `fipsmodule.cnf` next to the
+   module.
+
+A value may be quoted with `"`, `'` or a backtick, and may use a scheme: `env:NAME` (an environment
+variable), `prop:NAME` (a `java.security` property, or else a system property), `file:URI` (a file URI,
+resolved to its path) or `str:TEXT` (the text as written). A value without a scheme is used as written.
+The string can also be passed to `configure(String)`, set as a static registration argument in
+`java.security`, or given to the no-argument constructor through the `org.openssl.jostle.fips.config`
+property. Initialisation is once per JVM: constructing a second provider with the same configuration does
+nothing, and a different configuration throws `IllegalStateException`.
+
+The JSLFIPS examples describe the 3.5.8 module. What a module serves depends on its version, and some of its
+strictness depends on how it was installed (`openssl fipsinstall`); the examples say which is which.
+
+## Running
+
+Jostle loads a native library, so from JDK 24 the JVM warns unless native access is enabled for it:
+
+```
+# jar on --module-path (the module is org.openssl.jostle.prov; JDK 11 or later)
+--enable-native-access=org.openssl.jostle.prov
+
+# jar on -classpath
+--enable-native-access=ALL-UNNAMED
+```
+
+JDK 11 rejects the flag; JDK 17 to 23 accept it and need nothing. The loader reads these system properties:
+
+1. `org.openssl.jostle.loader.install_dir`: where the native libraries are extracted, by default the temporary
+   directory. Set it where that directory does not allow loading native code (mounted `noexec`, for example).
+2. `org.openssl.jostle.loader.interface`: `auto` (the default), `ffm`, `jni` or `none`. Under `auto` the
+   loader uses FFM on Java 25 and JNI on every other JDK.
+3. `org.openssl.jostle.loader.extract_openssl`: `false` stops the loader extracting the bundled OpenSSL, for
+   when it is loaded from elsewhere.
+
+`org.openssl.jostle.util.DumpInfo` prints the provider, platform, JVM, the interface chosen and the libraries
+loaded; see `README.md`. `SERVICES.md` lists every registered name.
+
+## Using this guide with an AI coding assistant
+
+Reference this file from your assistant's instruction file (`CLAUDE.md`, `AGENTS.md`,
+`.github/copilot-instructions.md` or similar) and ask it to follow the examples. Everything below the marker
+is generated from the example classes under `jostle/src/test/examples`, and a test fails the build when the
+two differ.
 
 <!-- Generated from jostle/src/test/examples; edit those and run ./gradlew :jostle:generateExamplesGuide -->
 
@@ -2039,7 +2105,7 @@ Assertions.assertEquals(0, e.getIndex());
 # Worked examples: JSLFIPS
 
 JSLFIPS backs its services with an externally supplied OpenSSL FIPS module, loaded and self-tested by
-OpenSSL itself; until it is configured it registers nothing. These examples describe the 3.5.x module. The
+OpenSSL itself; until it is configured it registers nothing. These examples describe the 3.5.8 module. The
 configuration names the module file, here from an environment variable (`env:`; `file:`, `prop:` and
 `str:` also work, and `fips_config` can name the fipsinstall configuration if it is not next to the module).
 Initialisation is once per JVM, so reuse a registered JSLFIPS. JSL is registered too, for the examples that
@@ -2133,9 +2199,10 @@ for (String name : names)
 
 ## Mac
 
-Message authentication codes in the FIPS module. HMAC keys must be at least 112 bits (14 bytes); Poly1305 and
-the MD5, RIPEMD and SM3 HMACs are not registered. A receiver verifies a tag by computing it again and comparing
-with `MessageDigest.isEqual`, which takes the same time whatever the bytes are.
+Message authentication codes in the FIPS module. Whether HMAC keys must be at least 112 bits (14 bytes)
+depends on fipsinstall configuration. Poly1305 and the MD5, RIPEMD and SM3 HMACs are not registered. A
+receiver verifies a tag by computing it again and comparing with `MessageDigest.isEqual`, which takes the
+same time whatever the bytes are.
 
 Imports used in this section:
 
@@ -2241,8 +2308,8 @@ for (String name : new String[]{"KMAC128", "KMAC256"})
 ## SecretKeyFactory
 
 Key derivation functions in the FIPS module, served as `SecretKeyFactory`: PBKDF2, HKDF, the SP 800-108 and
-SP 800-56C KDFs and the SSH KDF. The 3.5.8 module serves no scrypt or Argon2, and refuses key inputs shorter than
-112 bits.
+SP 800-56C KDFs and the SSH KDF. The 3.5.8 module serves no scrypt or Argon2. Whether it refuses key inputs
+shorter than 112 bits depends on fipsinstall configuration.
 
 Imports used in this section:
 
@@ -2260,8 +2327,8 @@ import java.util.Arrays;
 
 ### pbkdf2WithHmacSha256
 
-PBKDF2 with HMAC-SHA256. The module requires a salt of at least 16 bytes and at least 1000 iterations,
-and refuses less with `InvalidKeySpecException`; the key length in `PBEKeySpec` is in bits.
+PBKDF2 with HMAC-SHA256. JSLFIPS refuses a salt shorter than 16 bytes or fewer than 1000 iterations
+with `InvalidKeySpecException`; the key length in `PBEKeySpec` is in bits.
 
 ```java
 SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256", "JSLFIPS");
@@ -2434,7 +2501,7 @@ for (String name : names)
 
 ## Cipher
 
-Ciphers in the FIPS module: AES in its modes and key wraps, Triple-DES for decryption only, RSA-OAEP and key
+Ciphers in the FIPS module: AES in its modes and key wraps, Triple-DES for existing data, RSA-OAEP and key
 transport. The 3.5.8 module serves no ARIA, Camellia, SM4 or ChaCha20, and JSLFIPS registers no RFC 3211 wrap
 and no PKCS#1 v1.5 encryption. Generate a fresh key and a fresh IV or nonce for every message; the fixed IVs
 below only keep the examples short.
@@ -2539,8 +2606,9 @@ for (int i = 0; i < names.length; i++)
 
 ### tripleDesDecryptOnly
 
-Triple-DES: the 3.5.8 module decrypts it, for existing data, and refuses to encrypt with
-`InvalidKeyException` naming the restriction. Here JSL encrypts and JSLFIPS decrypts.
+Triple-DES, for decrypting existing data: JSL encrypts and JSLFIPS decrypts. Whether the module also
+encrypts depends on fipsinstall configuration; where it does not, as installed here, `init` for
+encryption throws `InvalidKeyException` naming the restriction.
 
 ```java
 Assumptions.assumeTrue(Security.getProvider("JSLFIPS").getService("Cipher", "DESEDE") != null);
@@ -2554,7 +2622,15 @@ Cipher dec = Cipher.getInstance("DESede/CBC/PKCS5Padding", "JSLFIPS");
 dec.init(Cipher.DECRYPT_MODE, key, iv);
 Assertions.assertArrayEquals("old data".getBytes(StandardCharsets.US_ASCII), dec.doFinal(ct));
 Cipher enc = Cipher.getInstance("DESede/CBC/PKCS5Padding", "JSLFIPS");
-Assertions.assertThrows(InvalidKeyException.class, () -> enc.init(Cipher.ENCRYPT_MODE, key, iv));
+try
+{
+    enc.init(Cipher.ENCRYPT_MODE, key, iv);
+    Assertions.assertArrayEquals(ct, enc.doFinal("old data".getBytes(StandardCharsets.US_ASCII)));
+}
+catch (InvalidKeyException e)
+{
+    Assertions.assertTrue(e.getMessage().startsWith("Triple-DES encryption is not supported"), e.getMessage());
+}
 ```
 
 ### aesKeyWraps
@@ -2823,7 +2899,7 @@ Assertions.assertEquals(dsaSpec.getQ(), dsaBack.getParameterSpec(DSAParameterSpe
 Parameter generators in the FIPS module. The module does not generate fresh Diffie-Hellman parameters; it
 would substitute a named group, so JSLFIPS refuses rather than return something other than what was asked
 for. Use a named group through `KeyPairGenerator` instead. DSA parameter generation follows DSA key
-generation: the 3.5.8 module refuses it.
+generation, which depends on fipsinstall configuration; as installed here, the module refuses it.
 
 Imports used in this section:
 
@@ -2854,7 +2930,7 @@ Assertions.assertEquals(2048,
 ### dsaParameters
 
 DSA parameters at 2048 or 3072 bits, the sizes the module generates. Where the module refuses DSA
-generation, as the 3.5.8 module does, `generateParameters` throws `ProviderException` saying so.
+generation, as the module installed here does, `generateParameters` throws `ProviderException` saying so.
 
 ```java
 AlgorithmParameterGenerator gen = AlgorithmParameterGenerator.getInstance("DSA", "JSLFIPS");
@@ -2873,8 +2949,9 @@ catch (ProviderException e)
 ## KeyPairGenerator
 
 Key-pair generators in the FIPS module. RSA keys are at least 2048 bits. The 3.5.8 module generates EC,
-finite-field DH on named groups, Ed25519 and Ed448, ML-DSA, ML-KEM, SLH-DSA and three hybrid groups; it refuses
-DSA key generation and serves no X25519 or X448.
+finite-field DH on named groups, Ed25519 and Ed448, ML-DSA, ML-KEM, SLH-DSA and three hybrid groups, and serves
+no X25519 or X448. Whether it generates DSA keys depends on fipsinstall configuration; as installed here, it
+does not.
 
 Imports used in this section:
 
@@ -2925,7 +3002,7 @@ for (int i = 0; i < names.length; i++)
 
 ### dsaKeyPairs
 
-DSA: where the module refuses DSA key generation, as the 3.5.8 module does, `generateKeyPair` throws
+DSA: where the module refuses DSA key generation, as the module installed here does, `generateKeyPair` throws
 `ProviderException` saying so. DSA keys made elsewhere can still be imported and used to verify.
 
 ```java
@@ -3047,8 +3124,8 @@ Assertions.assertTrue(s.sign().length > 0);
 
 ### classicalEncodingsRoundTrip
 
-Decode the classical families' encodings. The DSA key comes from JSL, since the 3.5.8 module generates
-none; importing it is allowed.
+Decode the classical families' encodings. The DSA key comes from JSL, since the module as installed here
+generates none; importing it is allowed.
 
 ```java
 String[] factories = {"RSA", "EC", "DH", "DSA"};
@@ -3126,9 +3203,11 @@ for (String name : new String[]{"X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r
 
 ## Signature
 
-Signatures in the FIPS module. The 3.5.8 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones;
-it verifies DSA signatures but does not make them; and it verifies but does not make signatures on curves
-below 112 bits of strength. Each example signs, verifies, and checks that a changed message fails.
+Signatures in the FIPS module. The 3.5.8 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones.
+Whether it also signs with SHA-1 depends on fipsinstall configuration; as installed here, it does not.
+Whether it makes DSA signatures depends on fipsinstall configuration; as installed here, it only verifies
+them. It verifies signatures on curves below 112 bits of strength and does not make them. Each example
+signs, verifies, and checks that a changed message fails.
 
 Imports used in this section:
 
@@ -3223,8 +3302,9 @@ for (String name : names)
 
 ### sha1IsVerifyOnly
 
-SHA-1 signatures, for verifying existing ones: JSLFIPS verifies them, and refuses to make them with
-`InvalidKeyException` at `initSign`. Here JSL signs and JSLFIPS verifies, with the key moved across.
+SHA-1 signatures, for verifying existing ones. JSL signs and JSLFIPS verifies, with the key moved across.
+Whether JSLFIPS also signs with SHA-1 depends on fipsinstall configuration; where it does not, as
+installed here, `initSign` throws `InvalidKeyException`.
 
 ```java
 String[] names = {"SHA1withRSA", "SHA1withRSAandMGF1", "SHA1withECDSA"};
@@ -3243,14 +3323,24 @@ for (int i = 0; i < names.length; i++)
     v.update(msg);
     Assertions.assertTrue(v.verify(sig), names[i]);
     PrivateKey fipsPrivate = kf.generatePrivate(new PKCS8EncodedKeySpec(jsl.getPrivate().getEncoded()));
-    Assertions.assertThrows(InvalidKeyException.class, () -> v.initSign(fipsPrivate), names[i]);
+    try
+    {
+        v.initSign(fipsPrivate);
+        v.update(msg);
+        Assertions.assertTrue(v.sign().length > 0, names[i]);
+    }
+    catch (InvalidKeyException e)
+    {
+        Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+    }
 }
 ```
 
 ### dsaIsVerifyOnly
 
-DSA signatures are verify-only in the 3.5.8 module. A DSA key and signature made with JSL, verified by
-JSLFIPS over every digest; `NONEwithDSA` verifies a signature over a digest computed by the caller.
+DSA verification: a DSA key and signature made with JSL, verified by JSLFIPS over every digest;
+`NONEwithDSA` verifies a signature over a digest computed by the caller. Whether JSLFIPS also makes DSA
+signatures depends on fipsinstall configuration; as installed here, it does not.
 
 ```java
 String[] names = {"SHA1withDSA", "SHA224withDSA", "SHA256withDSA", "SHA384withDSA", "SHA512withDSA",
@@ -3298,8 +3388,8 @@ for (int i = 0; i < names.length; i++)
 
 ### weakCurvesAreVerifyOnly
 
-Curves below 112 bits of strength, such as secp192r1, are verify-only: JSLFIPS verifies a signature made
-elsewhere and refuses to sign with `InvalidKeyException`.
+Curves below 112 bits of strength, such as secp192r1: JSLFIPS verifies a signature made elsewhere, and
+`initSign` with such a key throws `InvalidKeyException`.
 
 ```java
 KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "JSL");

@@ -62,8 +62,8 @@ public class FipsKeyFactoryExamplesTest
     }
 
     /**
-     * Decode the classical families' encodings. The DSA key comes from JSL, since the 3.5.8 module generates
-     * none; importing it is allowed.
+     * Decode the classical families' encodings. The DSA key comes from JSL, since the module as installed here
+     * generates none; importing it is allowed.
      */
     @Test
     public void classicalEncodingsRoundTrip()

@@ -29,8 +29,9 @@ import java.util.Arrays;
 
 /**
  * Key-pair generators in the FIPS module. RSA keys are at least 2048 bits. The 3.5.8 module generates EC,
- * finite-field DH on named groups, Ed25519 and Ed448, ML-DSA, ML-KEM, SLH-DSA and three hybrid groups; it refuses
- * DSA key generation and serves no X25519 or X448.
+ * finite-field DH on named groups, Ed25519 and Ed448, ML-DSA, ML-KEM, SLH-DSA and three hybrid groups, and serves
+ * no X25519 or X448. Whether it generates DSA keys depends on fipsinstall configuration; as installed here, it
+ * does not.
  */
 public class FipsKeyPairGeneratorExamplesTest
         extends FipsExamples
@@ -71,7 +72,7 @@ public class FipsKeyPairGeneratorExamplesTest
     }
 
     /**
-     * DSA: where the module refuses DSA key generation, as the 3.5.8 module does, `generateKeyPair` throws
+     * DSA: where the module refuses DSA key generation, as the module installed here does, `generateKeyPair` throws
      * `ProviderException` saying so. DSA keys made elsewhere can still be imported and used to verify.
      */
     @Test

@@ -19,13 +19,15 @@ See [SERVICES.md](SERVICES.md)
 
 ## Using Jostle with an AI coding assistant
 
-If you use an AI coding assistant (Claude, GitHub Copilot, OpenAI / Codex, Cursor,
-…) to write code against Jostle, point it at
-[docs/jostle-ai-guide.md](docs/jostle-ai-guide.md). It is a portable, vendor-neutral
-Markdown brief — provider setup (including the FIPS provider), the defaults that
-differ from the JDK, exception contracts, interop traps, and verified snippets —
-written to be dropped into your repo and referenced from your assistant's
-instruction file.
+If you use an AI coding assistant to write code against Jostle, point it at
+[docs/jostle-ai-guide.md](docs/jostle-ai-guide.md): provider setup (including the
+FIPS provider) followed by worked examples of every service `JSL` and `JSLFIPS`
+register. The guide is generated from runnable examples under
+`jostle/src/test/examples`, each a JUnit test run against the built jar, and a
+test fails the build when the guide and the examples differ. To add or change an
+example, edit the example class and regenerate with
+`./gradlew :jostle:generateExamplesGuide`; the `regenerate-examples-guide` skill
+in `.claude/skills` describes the rules an example class must follow.
 
 ## Usage
 
@@ -390,7 +392,7 @@ java --module-path jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar \
 DumpInfo
 
 Provider:
-  Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
+  Info: Jostle Provider for OpenSSL v0.1-SNAPSHOT
   Name: JSL
   OS: Linux
   Version: 6.1.153-175.280.amzn2023.x86_64
@@ -424,7 +426,7 @@ Use: --fine to emit FINE level logs, --services to list provider services groupe
 DumpInfo
 
 Provider:
-  Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
+  Info: Jostle Provider for OpenSSL v0.1-SNAPSHOT
   Name: JSL
   OS: Linux
   Version: 6.1.153-175.280.amzn2023.x86_64
@@ -472,7 +474,7 @@ java -cp jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar org.openssl.jostle.ut
 DumpInfo
 
 Provider:
-  Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
+  Info: Jostle Provider for OpenSSL v0.1-SNAPSHOT
   Name: JSL
   OS: Linux
   Version: 6.1.153-175.280.amzn2023.x86_64
@@ -509,7 +511,7 @@ java --module-path jostle/build/libs/openssl-jostle-0.1-SNAPSHOT.jar \
 DumpInfo
 
 Provider:
-Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
+Info: Jostle Provider for OpenSSL v0.1-SNAPSHOT
 
 -- snipped
 
@@ -548,7 +550,7 @@ java -Dorg.openssl.jostle.loader.interface=JNI \
 DumpInfo
 
 Provider:
-Info: Jostle Provider for OpenSSL v1.0.0-SNAPSHOT
+Info: Jostle Provider for OpenSSL v0.1-SNAPSHOT
 
 -- snipped
 

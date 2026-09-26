@@ -25,7 +25,7 @@ import java.security.spec.DSAParameterSpec;
  * Parameter generators in the FIPS module. The module does not generate fresh Diffie-Hellman parameters; it
  * would substitute a named group, so JSLFIPS refuses rather than return something other than what was asked
  * for. Use a named group through `KeyPairGenerator` instead. DSA parameter generation follows DSA key
- * generation: the 3.5.8 module refuses it.
+ * generation, which depends on fipsinstall configuration; as installed here, the module refuses it.
  */
 public class FipsAlgorithmParameterGeneratorExamplesTest
         extends FipsExamples
@@ -49,7 +49,7 @@ public class FipsAlgorithmParameterGeneratorExamplesTest
 
     /**
      * DSA parameters at 2048 or 3072 bits, the sizes the module generates. Where the module refuses DSA
-     * generation, as the 3.5.8 module does, `generateParameters` throws `ProviderException` saying so.
+     * generation, as the module installed here does, `generateParameters` throws `ProviderException` saying so.
      */
     @Test
     public void dsaParameters()
