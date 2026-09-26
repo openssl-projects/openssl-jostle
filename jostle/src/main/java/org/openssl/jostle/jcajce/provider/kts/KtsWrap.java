@@ -82,6 +82,35 @@ public final class KtsWrap
     }
 
     /**
+     * Refuses at init a KEK size AES key wrap cannot take, so the refusal is typed and comes before any key
+     * operation rather than at wrap. The size is checked in bits: a size that rounds up to a valid byte length
+     * (127 bits to 16 bytes) is not the size the caller named.
+     */
+    public static void requireKekBits(Kind kind, int kekBits)
+        throws java.security.InvalidAlgorithmParameterException
+    {
+        if (kekBits != 128 && kekBits != 192 && kekBits != 256)
+        {
+            throw new java.security.InvalidAlgorithmParameterException("unsupported "
+                    + (kind == Kind.KWP ? "AES-KWP" : "AES-KW") + " KEK size: " + kekBits
+                    + " bits; AES key wrap takes 128, 192 or 256");
+        }
+    }
+
+    /**
+     * Refuses at init, with no KDF, a KEK larger than the shared secret it would be cut from.
+     */
+    public static void requireKekWithinSecret(int kekBits, int secretBytes)
+        throws java.security.InvalidAlgorithmParameterException
+    {
+        if ((kekBits + 7) / 8 > secretBytes)
+        {
+            throw new java.security.InvalidAlgorithmParameterException("KEK size " + kekBits
+                    + " bits is larger than the " + secretBytes * 8 + "-bit shared secret, and no KDF is set");
+        }
+    }
+
+    /**
      * @param kind   the wrap selected by the key-algorithm name.
      * @param kekLen the KEK length in bytes.
      * @return the OID of the AES key-wrap transformation to resolve.

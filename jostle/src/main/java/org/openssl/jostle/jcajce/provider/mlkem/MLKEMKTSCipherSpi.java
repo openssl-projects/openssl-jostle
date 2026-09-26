@@ -264,6 +264,13 @@ public class MLKEMKTSCipherSpi
             resolvedRandSource = DefaultRandSource.replaceWith(null, random);
         }
 
+        if (digestName == null)
+        {
+            // No KDF: the KEK is cut from the shared secret, whose length the key's own library reports.
+            KtsWrap.requireKekWithinSecret(kekBits,
+                    spec.getSpecNI().sharedSecretLength(spec.getReference(), spec.getType(), resolvedRandSource));
+        }
+
         // Assign state only after all validation has passed, so a rejected init
         // leaves the SPI "not initialised" rather than half-configured.
         this.opmode = opmode;
@@ -558,6 +565,7 @@ public class MLKEMKTSCipherSpi
         {
             throw new InvalidAlgorithmParameterException("invalid KEK size: " + kekBits);
         }
+        KtsWrap.requireKekBits(wrapKind, kekBits);
     }
 
     // Strength (bits) the parameter set requires of the encapsulation RNG, so

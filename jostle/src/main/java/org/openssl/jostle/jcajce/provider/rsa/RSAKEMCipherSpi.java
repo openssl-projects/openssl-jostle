@@ -272,6 +272,11 @@ public class RSAKEMCipherSpi
         int bytes = (modulus.bitLength() + 7) / 8;
 
         readKtsSpec(params);
+        if (digestName == null)
+        {
+            // No KDF: the KEK is cut from the modulus-length shared secret.
+            KtsWrap.requireKekWithinSecret(kekBits, bytes);
+        }
 
         // RSASVE draws the ephemeral value from RAND on the wrap side; the
         // unwrap side binds a source too, because the decap NI is type-agnostic
@@ -570,6 +575,7 @@ public class RSAKEMCipherSpi
         {
             throw new InvalidAlgorithmParameterException("invalid KEK size: " + kekBits);
         }
+        KtsWrap.requireKekBits(wrapKind, kekBits);
     }
 
     // --- unsupported CipherSpi surface --------------------------------------
