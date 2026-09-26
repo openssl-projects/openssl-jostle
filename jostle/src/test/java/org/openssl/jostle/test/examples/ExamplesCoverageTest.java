@@ -37,8 +37,7 @@ public class ExamplesCoverageTest
      * reason.
      */
     private static final Set<String> JSL_PENDING = new TreeSet<String>(Arrays.asList(
-            "CertPathBuilder", "CertPathValidator", "CertificateFactory", "KeyAgreement", "KeyFactory",
-            "KeyGenerator", "KeyPairGenerator", "KeyStore", "Signature"));
+            "CertPathBuilder", "CertPathValidator", "CertificateFactory", "KeyStore"));
 
     @Test
     public void everyJslServiceHasAnExample()

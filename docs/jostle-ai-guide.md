@@ -765,6 +765,108 @@ Key back = u.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
 Assertions.assertTrue(Arrays.equals(cek.getEncoded(), back.getEncoded()));
 ```
 
+## KeyGenerator
+
+Key generators: fresh symmetric keys, and the key-encapsulation mechanisms (ML-KEM and the hybrid TLS
+groups), which JSL serves as a `KeyGenerator` initialised with a Jostle KEM spec. The KEM key is derived from
+the shared secret through a KDF (X9.44 KDF3 with SHA-256 unless the spec names another), so any key size works
+and both sides derive the same key.
+
+Imports used in this section:
+
+```java
+import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
+import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
+import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+```
+
+### symmetricKeys
+
+Generate symmetric keys. With no `init` the size is the cipher's largest (256 bits for AES, ARIA and
+Camellia); `init(bits)` chooses another, and a name with a size in it (`AES128`) always gives that
+size.
+
+```java
+String[] names = {"AES", "AES128", "AES192", "AES256", "ARIA", "CAMELLIA", "SM4", "DESEDE", "CHACHA20"};
+int[] keyBytes = {32, 16, 24, 32, 32, 32, 16, 24, 32};
+for (int i = 0; i < names.length; i++)
+{
+    SecretKey key = KeyGenerator.getInstance(names[i], "JSL").generateKey();
+    Assertions.assertEquals(keyBytes[i], key.getEncoded().length, names[i]);
+}
+KeyGenerator aes = KeyGenerator.getInstance("AES", "JSL");
+aes.init(128);
+Assertions.assertEquals(16, aes.generateKey().getEncoded().length);
+```
+
+### mlKemEncapsulateAndExtract
+
+ML-KEM key encapsulation. The sender initialises the generator with the recipient's public key and gets
+an AES key plus the encapsulation to send; the recipient extracts the same key from the encapsulation with
+its private key. Pass no SecureRandom: JSL picks a DRBG strong enough for the parameter set.
+
+```java
+KeyPair recipient = KeyPairGenerator.getInstance("ML-KEM-768", "JSL").generateKeyPair();
+
+KeyGenerator sender = KeyGenerator.getInstance("ML-KEM-768", "JSL");
+sender.init(KEMGenerateSpec.builder().withPublicKey(recipient.getPublic())
+        .withAlgorithmName("AES").withKeySizeInBits(256).build());
+SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) sender.generateKey();
+
+KeyGenerator receiver = KeyGenerator.getInstance("ML-KEM-768", "JSL");
+receiver.init(KEMExtractSpec.builder().withPrivate(recipient.getPrivate())
+        .withAlgorithmName("AES").withKeySizeInBits(256)
+        .withEncapsulatedKey(sent.getEncapsulation()).build());
+SecretKey received = receiver.generateKey();
+Assertions.assertArrayEquals(sent.getEncoded(), received.getEncoded());
+Assertions.assertEquals(32, received.getEncoded().length);
+```
+
+### everyKem
+
+The same encapsulation for every ML-KEM parameter set and the hybrid TLS groups. The generic `MLKEM`
+generator takes a key of any parameter set. Hybrid keys have no encoding, so they never leave the JVM.
+
+```java
+String[] names = {"ML-KEM-512", "ML-KEM-1024", "MLKEM", "X25519MLKEM768", "X448MLKEM1024",
+        "SecP256r1MLKEM768", "SecP384r1MLKEM1024"};
+for (String name : names)
+{
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance(name.equals("MLKEM") ? "ML-KEM-768" : name, "JSL");
+    KeyPair kp = kpg.generateKeyPair();
+    KeyGenerator sender = KeyGenerator.getInstance(name, "JSL");
+    sender.init(KEMGenerateSpec.builder().withPublicKey(kp.getPublic())
+            .withAlgorithmName("AES").withKeySizeInBits(256).build());
+    SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) sender.generateKey();
+    KeyGenerator receiver = KeyGenerator.getInstance(name, "JSL");
+    receiver.init(KEMExtractSpec.builder().withPrivate(kp.getPrivate()).withAlgorithmName("AES")
+            .withKeySizeInBits(256).withEncapsulatedKey(sent.getEncapsulation()).build());
+    Assertions.assertArrayEquals(sent.getEncoded(), receiver.generateKey().getEncoded(), name);
+}
+```
+
+### rawSharedSecretWithNoKdf
+
+For a protocol that feeds the raw shared secret to its own key schedule, as TLS does with the hybrid
+groups, set no KDF and ask for exactly the secret's size: 64 bytes for X25519MLKEM768.
+
+```java
+KeyPair kp = KeyPairGenerator.getInstance("X25519MLKEM768", "JSL").generateKeyPair();
+KeyGenerator sender = KeyGenerator.getInstance("X25519MLKEM768", "JSL");
+sender.init(KEMGenerateSpec.builder().withPublicKey(kp.getPublic()).withAlgorithmName("TlsSecret")
+        .withKeySizeInBits(512).withNoKdf().build());
+SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) sender.generateKey();
+KeyGenerator receiver = KeyGenerator.getInstance("X25519MLKEM768", "JSL");
+receiver.init(KEMExtractSpec.builder().withPrivate(kp.getPrivate()).withAlgorithmName("TlsSecret")
+        .withKeySizeInBits(512).withNoKdf().withEncapsulatedKey(sent.getEncapsulation()).build());
+Assertions.assertArrayEquals(sent.getEncoded(), receiver.generateKey().getEncoded());
+Assertions.assertEquals(64, sent.getEncoded().length);
+```
+
 ## AlgorithmParameters
 
 Algorithm parameters: the ASN.1 encoding of a cipher's IV or nonce, a curve, or a signature's settings,
@@ -902,4 +1004,650 @@ Assertions.assertEquals(1024, spec.getP().bitLength());
 AlgorithmParameters decoded = AlgorithmParameters.getInstance("DH", "JSL");
 decoded.init(params.getEncoded());
 Assertions.assertEquals(spec.getP(), decoded.getParameterSpec(DHParameterSpec.class).getP());
+```
+
+## KeyPairGenerator
+
+Key-pair generators. Classical families take a size or a named curve; the post-quantum families have one
+generator per parameter set, plus a generic one (`MLDSA`, `MLKEM`, `SLHDSA`) initialised with the set.
+Pass no SecureRandom for the post-quantum families: JSL picks a DRBG strong enough for the set.
+
+Imports used in this section:
+
+```java
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.ECGenParameterSpec;
+```
+
+### rsaAndEc
+
+RSA at 3072 bits, and EC on a named curve.
+
+```java
+KeyPairGenerator rsa = KeyPairGenerator.getInstance("RSA", "JSL");
+rsa.initialize(3072);
+KeyPair rsaPair = rsa.generateKeyPair();
+Assertions.assertEquals(3072, ((RSAPublicKey) rsaPair.getPublic()).getModulus().bitLength());
+
+KeyPairGenerator ec = KeyPairGenerator.getInstance("EC", "JSL");
+ec.initialize(new ECGenParameterSpec("secp384r1"));
+KeyPair ecPair = ec.generateKeyPair();
+Assertions.assertEquals(384, ((ECPublicKey) ecPair.getPublic()).getParams().getOrder().bitLength());
+```
+
+### dsaAndDh
+
+Finite-field DSA and Diffie-Hellman keys at 2048 bits.
+
+```java
+for (String name : new String[]{"DSA", "DH"})
+{
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance(name, "JSL");
+    kpg.initialize(2048);
+    KeyPair kp = kpg.generateKeyPair();
+    Assertions.assertEquals(name, kp.getPublic().getAlgorithm());
+    Assertions.assertNotNull(kp.getPrivate().getEncoded());
+}
+```
+
+### edwardsAndMontgomeryCurves
+
+The Edwards and Montgomery curves need no parameters. The generic `ED` generator makes Ed25519 keys.
+
+```java
+String[] names = {"ED25519", "ED448", "X25519", "X448", "ED"};
+String[] algorithms = {"Ed25519", "Ed448", "X25519", "X448", "Ed25519"};
+for (int i = 0; i < names.length; i++)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(names[i], "JSL").generateKeyPair();
+    Assertions.assertEquals(algorithms[i], kp.getPublic().getAlgorithm(), names[i]);
+}
+```
+
+### mlDsaAndMlKem
+
+One generator per ML-DSA and ML-KEM parameter set, or the generic generator initialised with the set.
+
+```java
+String[] names = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"};
+for (String name : names)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(name, "JSL").generateKeyPair();
+    Assertions.assertEquals(name, kp.getPublic().getAlgorithm(), name);
+}
+KeyPairGenerator mldsa = KeyPairGenerator.getInstance("MLDSA", "JSL");
+mldsa.initialize(MLDSAParameterSpec.ml_dsa_65);
+Assertions.assertEquals("ML-DSA-65", mldsa.generateKeyPair().getPublic().getAlgorithm());
+KeyPairGenerator mlkem = KeyPairGenerator.getInstance("MLKEM", "JSL");
+mlkem.initialize(MLKEMParameterSpec.ml_kem_1024);
+Assertions.assertEquals("ML-KEM-1024", mlkem.generateKeyPair().getPublic().getAlgorithm());
+```
+
+### slhDsa
+
+One generator per SLH-DSA parameter set: SHA2 or SHAKE, security level 128, 192 or 256, and the S
+(smaller signatures) or F (faster signing) trade-off. The generic `SLHDSA` generator takes the set.
+
+```java
+String[] names = {"SLH-DSA-SHA2-128S", "SLH-DSA-SHA2-128F", "SLH-DSA-SHA2-192S", "SLH-DSA-SHA2-192F",
+        "SLH-DSA-SHA2-256S", "SLH-DSA-SHA2-256F", "SLH-DSA-SHAKE-128S", "SLH-DSA-SHAKE-128F",
+        "SLH-DSA-SHAKE-192S", "SLH-DSA-SHAKE-192F", "SLH-DSA-SHAKE-256S", "SLH-DSA-SHAKE-256F"};
+for (String name : names)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(name, "JSL").generateKeyPair();
+    Assertions.assertEquals(name, kp.getPublic().getAlgorithm(), name);
+}
+KeyPairGenerator slhdsa = KeyPairGenerator.getInstance("SLHDSA", "JSL");
+slhdsa.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128f);
+Assertions.assertEquals("SLH-DSA-SHA2-128F", slhdsa.generateKeyPair().getPublic().getAlgorithm());
+```
+
+### hybridKemGroups
+
+The hybrid TLS groups: an ML-KEM key and an elliptic-curve key in one pair, for key encapsulation.
+
+```java
+String[] names = {"X25519MLKEM768", "X448MLKEM1024", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"};
+for (String name : names)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(name, "JSL").generateKeyPair();
+    Assertions.assertTrue(name.equalsIgnoreCase(kp.getPublic().getAlgorithm()), name);
+}
+```
+
+## KeyFactory
+
+Key factories turn encodings and components back into keys: a public key from its X.509
+`SubjectPublicKeyInfo`, a private key from its PKCS#8 encoding. A key belongs to the provider that made it;
+to use one with another provider, encode it and decode it through that provider's factory.
+
+Imports used in this section:
+
+```java
+import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLXKEMPublicKeySpec;
+import java.math.BigInteger;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+```
+
+### classicalEncodingsRoundTrip
+
+Decode the classical families' encodings. `XDH` decodes X25519 and X448 keys, and `ED` both Edwards
+curves.
+
+```java
+String[] factories = {"RSA", "EC", "DSA", "DH", "ED25519", "ED448", "ED", "X25519", "X448", "XDH"};
+String[] generators = {"RSA", "EC", "DSA", "DH", "ED25519", "ED448", "ED448", "X25519", "X448", "X25519"};
+for (int i = 0; i < factories.length; i++)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(generators[i], "JSL").generateKeyPair();
+    KeyFactory kf = KeyFactory.getInstance(factories[i], "JSL");
+    PublicKey pub = kf.generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
+    PrivateKey priv = kf.generatePrivate(new PKCS8EncodedKeySpec(kp.getPrivate().getEncoded()));
+    Assertions.assertArrayEquals(kp.getPublic().getEncoded(), pub.getEncoded(), factories[i]);
+    Assertions.assertArrayEquals(kp.getPrivate().getEncoded(), priv.getEncoded(), factories[i]);
+}
+```
+
+### postQuantumEncodingsRoundTrip
+
+Decode the post-quantum families' encodings, one factory per parameter set, or the generic `MLDSA`,
+`MLKEM` and `SLHDSA` factories, which take a key of any set.
+
+```java
+String[] factories = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "MLDSA", "ML-KEM-512", "ML-KEM-768",
+        "ML-KEM-1024", "MLKEM", "SLH-DSA-SHA2-128S", "SLH-DSA-SHA2-128F", "SLH-DSA-SHA2-192S",
+        "SLH-DSA-SHA2-192F", "SLH-DSA-SHA2-256S", "SLH-DSA-SHA2-256F", "SLH-DSA-SHAKE-128S",
+        "SLH-DSA-SHAKE-128F", "SLH-DSA-SHAKE-192S", "SLH-DSA-SHAKE-192F", "SLH-DSA-SHAKE-256S",
+        "SLH-DSA-SHAKE-256F", "SLHDSA"};
+for (String name : factories)
+{
+    String generator = name.equals("MLDSA") ? "ML-DSA-65" : name.equals("MLKEM") ? "ML-KEM-768"
+            : name.equals("SLHDSA") ? "SLH-DSA-SHA2-128F" : name;
+    KeyPair kp = KeyPairGenerator.getInstance(generator, "JSL").generateKeyPair();
+    KeyFactory kf = KeyFactory.getInstance(name, "JSL");
+    PublicKey pub = kf.generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
+    PrivateKey priv = kf.generatePrivate(new PKCS8EncodedKeySpec(kp.getPrivate().getEncoded()));
+    Assertions.assertArrayEquals(kp.getPublic().getEncoded(), pub.getEncoded(), name);
+    Assertions.assertArrayEquals(kp.getPrivate().getEncoded(), priv.getEncoded(), name);
+}
+```
+
+### rsaFromComponents
+
+Build an RSA public key from its modulus and exponent, and read them back with `getKeySpec`.
+
+```java
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "JSL");
+kpg.initialize(2048);
+RSAPublicKey original = (RSAPublicKey) kpg.generateKeyPair().getPublic();
+BigInteger n = original.getModulus();
+BigInteger e = original.getPublicExponent();
+
+KeyFactory kf = KeyFactory.getInstance("RSA", "JSL");
+PublicKey rebuilt = kf.generatePublic(new RSAPublicKeySpec(n, e));
+RSAPublicKeySpec read = kf.getKeySpec(rebuilt, RSAPublicKeySpec.class);
+Assertions.assertEquals(n, read.getModulus());
+Assertions.assertArrayEquals(original.getEncoded(), rebuilt.getEncoded());
+```
+
+### hybridPublicKeyFromItsRawShare
+
+A hybrid KEM key has no X.509 encoding: its public half travels as the raw share a TLS key exchange
+carries, rebuilt with `MLXKEMPublicKeySpec`.
+
+```java
+String[] names = {"X25519MLKEM768", "X448MLKEM1024", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"};
+for (String name : names)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(name, "JSL").generateKeyPair();
+    byte[] share = ((MLXKEMPublicKey) kp.getPublic()).getPublicData();
+    KeyFactory kf = KeyFactory.getInstance(name, "JSL");
+    MLXKEMPublicKey back = (MLXKEMPublicKey) kf.generatePublic(
+            new MLXKEMPublicKeySpec(MLXKEMParameterSpec.fromName(name), share));
+    Assertions.assertArrayEquals(share, back.getPublicData(), name);
+}
+```
+
+## Signature
+
+Signatures. Each example signs, verifies, and checks that a changed message fails to verify.
+
+Imports used in this section:
+
+```java
+import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
+import java.security.Signature;
+import java.security.spec.ECGenParameterSpec;
+import java.security.spec.MGF1ParameterSpec;
+import java.security.spec.PSSParameterSpec;
+```
+
+### rsaPss
+
+RSASSA-PSS. JSL's default is SHA-256 with MGF1-SHA-256, not the JDK's SHA-1, so set a
+`PSSParameterSpec` on both sides when the other side is another provider.
+
+```java
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "JSL");
+kpg.initialize(3072);
+KeyPair kp = kpg.generateKeyPair();
+PSSParameterSpec pss = new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+
+Signature signer = Signature.getInstance("RSASSA-PSS", "JSL");
+signer.setParameter(pss);
+signer.initSign(kp.getPrivate());
+signer.update(msg);
+byte[] sig = signer.sign();
+
+Signature verifier = Signature.getInstance("RSASSA-PSS", "JSL");
+verifier.setParameter(pss);
+verifier.initVerify(kp.getPublic());
+verifier.update(msg);
+Assertions.assertTrue(verifier.verify(sig));
+```
+
+### everyRsaSignature
+
+Every RSA signature name: PKCS#1 v1.5 (`SHA256withRSA`), which is deterministic, and PSS with the
+digest's own MGF1 (`SHA256withRSAandMGF1`), which is randomised.
+
+```java
+String[] names = {"MD5withRSA", "SHA1withRSA", "SHA224withRSA", "SHA256withRSA", "SHA384withRSA",
+        "SHA512withRSA", "SHA512(224)withRSA", "SHA512(256)withRSA", "SHA3-224withRSA", "SHA3-256withRSA",
+        "SHA3-384withRSA", "SHA3-512withRSA", "SHA1withRSAandMGF1", "SHA224withRSAandMGF1",
+        "SHA256withRSAandMGF1", "SHA384withRSAandMGF1", "SHA512withRSAandMGF1", "SHA512(224)withRSAandMGF1",
+        "SHA512(256)withRSAandMGF1", "SHA3-224withRSAandMGF1", "SHA3-256withRSAandMGF1",
+        "SHA3-384withRSAandMGF1", "SHA3-512withRSAandMGF1"};
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "JSL");
+kpg.initialize(2048);
+KeyPair kp = kpg.generateKeyPair();
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+for (String name : names)
+{
+    Signature s = Signature.getInstance(name, "JSL");
+    s.initSign(kp.getPrivate());
+    s.update(msg);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertTrue(s.verify(sig), name);
+    s.initVerify(kp.getPublic());
+    s.update("attack at dusk".getBytes(StandardCharsets.US_ASCII));
+    Assertions.assertFalse(s.verify(sig), name);
+}
+```
+
+### everyEcdsaSignature
+
+ECDSA over every digest, on P-256.
+
+```java
+String[] names = {"SHA1withECDSA", "SHA224withECDSA", "SHA256withECDSA", "SHA384withECDSA",
+        "SHA512withECDSA", "SHA3-224withECDSA", "SHA3-256withECDSA", "SHA3-384withECDSA",
+        "SHA3-512withECDSA"};
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "JSL");
+kpg.initialize(new ECGenParameterSpec("secp256r1"));
+KeyPair kp = kpg.generateKeyPair();
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+for (String name : names)
+{
+    Signature s = Signature.getInstance(name, "JSL");
+    s.initSign(kp.getPrivate());
+    s.update(msg);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertTrue(s.verify(sig), name);
+    s.initVerify(kp.getPublic());
+    s.update("attack at dusk".getBytes(StandardCharsets.US_ASCII));
+    Assertions.assertFalse(s.verify(sig), name);
+}
+```
+
+### everyDsaSignature
+
+DSA over every digest, with a 2048-bit key.
+
+```java
+String[] names = {"SHA1withDSA", "SHA224withDSA", "SHA256withDSA", "SHA384withDSA", "SHA512withDSA",
+        "SHA3-224withDSA", "SHA3-256withDSA", "SHA3-384withDSA", "SHA3-512withDSA"};
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", "JSL");
+kpg.initialize(2048);
+KeyPair kp = kpg.generateKeyPair();
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+for (String name : names)
+{
+    Signature s = Signature.getInstance(name, "JSL");
+    s.initSign(kp.getPrivate());
+    s.update(msg);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertTrue(s.verify(sig), name);
+    s.initVerify(kp.getPublic());
+    s.update("attack at dusk".getBytes(StandardCharsets.US_ASCII));
+    Assertions.assertFalse(s.verify(sig), name);
+}
+```
+
+### signAPrecomputedDigest
+
+The `NONEwith` names sign a digest the caller has already computed: here SHA-256 of the message.
+
+```java
+byte[] digest = MessageDigest.getInstance("SHA-256", "JSL").digest(
+        "attack at dawn".getBytes(StandardCharsets.US_ASCII));
+String[] names = {"NONEwithRSA", "NONEwithECDSA", "NONEwithDSA"};
+String[] keyTypes = {"RSA", "EC", "DSA"};
+for (int i = 0; i < names.length; i++)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(keyTypes[i], "JSL").generateKeyPair();
+    Signature s = Signature.getInstance(names[i], "JSL");
+    s.initSign(kp.getPrivate());
+    s.update(digest);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(digest);
+    Assertions.assertTrue(s.verify(sig), names[i]);
+}
+```
+
+### edDsa
+
+EdDSA: Ed25519 and Ed448 sign the message itself; the `ph` variants sign its digest (RFC 8032
+prehash). `EdDSA` takes a key of either curve. Ed25519ctx binds a context string, which it requires.
+
+```java
+String[] names = {"Ed25519", "Ed448", "Ed25519ph", "Ed448ph", "EdDSA"};
+String[] curves = {"ED25519", "ED448", "ED25519", "ED448", "ED448"};
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+for (int i = 0; i < names.length; i++)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(curves[i], "JSL").generateKeyPair();
+    Signature s = Signature.getInstance(names[i], "JSL");
+    s.initSign(kp.getPrivate());
+    s.update(msg);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertTrue(s.verify(sig), names[i]);
+}
+KeyPair kp = KeyPairGenerator.getInstance("ED25519", "JSL").generateKeyPair();
+Signature ctx = Signature.getInstance("Ed25519ctx", "JSL");
+ctx.setParameter(new ContextParameterSpec("my protocol".getBytes(StandardCharsets.US_ASCII)));
+ctx.initSign(kp.getPrivate());
+ctx.update(msg);
+byte[] sig = ctx.sign();
+ctx.initVerify(kp.getPublic());
+ctx.update(msg);
+Assertions.assertTrue(ctx.verify(sig));
+```
+
+### mlDsaWithContext
+
+ML-DSA, with an optional context string set by `ContextParameterSpec`: a signature made under one
+context does not verify under another. The generic `MLDSA` name takes a key of any parameter set.
+
+```java
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+for (String name : new String[]{"ML-DSA-44", "ML-DSA-65", "ML-DSA-87", "MLDSA"})
+{
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance("MLDSA", "JSL");
+    kpg.initialize(MLDSAParameterSpec.ml_dsa_65);
+    KeyPair kp = name.equals("MLDSA") ? kpg.generateKeyPair()
+            : KeyPairGenerator.getInstance(name, "JSL").generateKeyPair();
+    Signature s = Signature.getInstance(name, "JSL");
+    s.setParameter(new ContextParameterSpec("app one".getBytes(StandardCharsets.US_ASCII)));
+    s.initSign(kp.getPrivate());
+    s.update(msg);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertTrue(s.verify(sig), name);
+    s.setParameter(new ContextParameterSpec("app two".getBytes(StandardCharsets.US_ASCII)));
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertFalse(s.verify(sig), name);
+}
+```
+
+### mlDsaExternalMu
+
+ML-DSA with the message representative mu computed separately: `ML-DSA-CALCULATE-MU` returns the
+64-byte mu for a message and key, and `ML-DSA-EXTERNAL-MU` signs and verifies given mu instead of the
+message, so the message never has to reach the signer.
+
+```java
+KeyPair kp = KeyPairGenerator.getInstance("ML-DSA-65", "JSL").generateKeyPair();
+Signature calc = Signature.getInstance("ML-DSA-CALCULATE-MU", "JSL");
+calc.initSign(kp.getPrivate());
+calc.update("attack at dawn".getBytes(StandardCharsets.US_ASCII));
+byte[] mu = calc.sign();
+Assertions.assertEquals(64, mu.length);
+
+Signature external = Signature.getInstance("ML-DSA-EXTERNAL-MU", "JSL");
+external.initSign(kp.getPrivate());
+external.update(mu);
+byte[] sig = external.sign();
+Signature verifier = Signature.getInstance("ML-DSA-65", "JSL");
+verifier.initVerify(kp.getPublic());
+verifier.update("attack at dawn".getBytes(StandardCharsets.US_ASCII));
+Assertions.assertTrue(verifier.verify(sig));
+```
+
+### slhDsaEveryParameterSet
+
+SLH-DSA, one name per parameter set: SHA2 or SHAKE, level 128, 192 or 256, S (smaller) or F (faster).
+
+```java
+String[] names = {"SLH-DSA-SHA2-128S", "SLH-DSA-SHA2-128F", "SLH-DSA-SHA2-192S", "SLH-DSA-SHA2-192F",
+        "SLH-DSA-SHA2-256S", "SLH-DSA-SHA2-256F", "SLH-DSA-SHAKE-128S", "SLH-DSA-SHAKE-128F",
+        "SLH-DSA-SHAKE-192S", "SLH-DSA-SHAKE-192F", "SLH-DSA-SHAKE-256S", "SLH-DSA-SHAKE-256F"};
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+for (String name : names)
+{
+    KeyPair kp = KeyPairGenerator.getInstance(name, "JSL").generateKeyPair();
+    Signature s = Signature.getInstance(name, "JSL");
+    s.initSign(kp.getPrivate());
+    s.update(msg);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertTrue(s.verify(sig), name);
+}
+```
+
+### slhDsaVariants
+
+The SLH-DSA variants: the generic `SLHDSA` and `SLH-DSA-PURE` names take a key of any set,
+`SLH-DSA-NONE` signs a message the caller has already reduced itself, and the `DET-` names sign
+deterministically (the same signature every time) rather than with fresh randomness.
+
+```java
+byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
+KeyPair kp = KeyPairGenerator.getInstance("SLH-DSA-SHA2-128F", "JSL").generateKeyPair();
+for (String name : new String[]{"SLHDSA", "SLH-DSA-PURE", "SLH-DSA-NONE", "DET-SLH-DSA-PURE",
+        "DET-SLH-DSA-NONE"})
+{
+    Signature s = Signature.getInstance(name, "JSL");
+    s.initSign(kp.getPrivate());
+    s.update(msg);
+    byte[] sig = s.sign();
+    s.initVerify(kp.getPublic());
+    s.update(msg);
+    Assertions.assertTrue(s.verify(sig), name);
+}
+```
+
+## KeyAgreement
+
+Key agreement. Two parties each combine their own private key with the other's public key and arrive at the
+same secret. Each party initialises its own `KeyAgreement` with its private key, passes the peer's public key
+to `doPhase`, and reads the shared secret with `generateSecret`.
+
+Imports used in this section:
+
+```java
+import org.openssl.jostle.jcajce.spec.HybridValueParameterSpec;
+import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
+import javax.crypto.KeyAgreement;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.spec.ECGenParameterSpec;
+```
+
+### ecdhRawSecret
+
+ECDH on P-256. The raw secret is not a key: derive one with a KDF, or ask for a named key as below.
+
+```java
+KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", "JSL");
+kpg.initialize(new ECGenParameterSpec("secp256r1"));
+KeyPair alice = kpg.generateKeyPair();
+KeyPair bob = kpg.generateKeyPair();
+
+KeyAgreement a = KeyAgreement.getInstance("ECDH", "JSL");
+a.init(alice.getPrivate());
+a.doPhase(bob.getPublic(), true);
+byte[] aliceSecret = a.generateSecret();
+
+KeyAgreement b = KeyAgreement.getInstance("ECDH", "JSL");
+b.init(bob.getPrivate());
+b.doPhase(alice.getPublic(), true);
+Assertions.assertArrayEquals(aliceSecret, b.generateSecret());
+```
+
+### namedKeyFromEveryPlainAgreement
+
+Ask for a named key: `generateSecret("AES")` takes the leading bytes of the secret as a 256-bit AES key.
+`XDH` takes keys of either Montgomery curve.
+
+```java
+String[] agreements = {"X25519", "X448", "XDH", "ECDH", "DH"};
+String[] generators = {"X25519", "X448", "X25519", "EC", "DH"};
+for (int i = 0; i < agreements.length; i++)
+{
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance(generators[i], "JSL");
+    KeyPair alice = kpg.generateKeyPair();
+    KeyPair bob = kpg.generateKeyPair();
+    KeyAgreement a = KeyAgreement.getInstance(agreements[i], "JSL");
+    a.init(alice.getPrivate());
+    a.doPhase(bob.getPublic(), true);
+    KeyAgreement b = KeyAgreement.getInstance(agreements[i], "JSL");
+    b.init(bob.getPrivate());
+    b.doPhase(alice.getPublic(), true);
+    Assertions.assertArrayEquals(a.generateSecret("AES").getEncoded(),
+            b.generateSecret("AES").getEncoded(), agreements[i]);
+}
+```
+
+### agreementsWithAKdf
+
+The agreements with a KDF built in derive a key-encryption key for AES key wrap, named by the wrap's
+object identifier (here AES-256 wrap), with optional user keying material. These are the X9.63 KDF over
+ECDH, and the RFC 2631 KDF over DH.
+
+```java
+String[] agreements = {"ECDHwithSHA1KDF", "ECDHwithSHA224KDF", "ECDHwithSHA256KDF", "ECDHwithSHA384KDF",
+        "ECDHwithSHA512KDF", "DHwithRFC2631KDF"};
+String aes256Wrap = "2.16.840.1.101.3.4.1.45";
+UserKeyingMaterialSpec ukm = new UserKeyingMaterialSpec("key id 7".getBytes(StandardCharsets.US_ASCII));
+for (String name : agreements)
+{
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance(name.startsWith("DH") ? "DH" : "EC", "JSL");
+    KeyPair alice = kpg.generateKeyPair();
+    KeyPair bob = kpg.generateKeyPair();
+    KeyAgreement a = KeyAgreement.getInstance(name, "JSL");
+    a.init(alice.getPrivate(), ukm);
+    a.doPhase(bob.getPublic(), true);
+    KeyAgreement b = KeyAgreement.getInstance(name, "JSL");
+    b.init(bob.getPrivate(), ukm);
+    b.doPhase(alice.getPublic(), true);
+    byte[] kek = a.generateSecret(aes256Wrap).getEncoded();
+    Assertions.assertArrayEquals(kek, b.generateSecret(aes256Wrap).getEncoded(), name);
+    Assertions.assertEquals(32, kek.length, name);
+}
+```
+
+### openPgpEcdh
+
+The OpenPGP ECDH agreements (RFC 6637): the KDF input includes the OpenPGP parameter block, which each
+side passes as user keying material; it is required.
+
+```java
+String[] agreements = {"ECCDHwithSHA256CKDF", "ECCDHwithSHA384CKDF", "ECCDHwithSHA512CKDF",
+        "X25519withSHA256CKDF", "X25519withSHA384CKDF", "X25519withSHA512CKDF", "X448withSHA256CKDF",
+        "X448withSHA384CKDF", "X448withSHA512CKDF"};
+UserKeyingMaterialSpec param = new UserKeyingMaterialSpec("openpgp param block".getBytes(
+        StandardCharsets.US_ASCII));
+for (String name : agreements)
+{
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance(name.startsWith("ECC") ? "EC"
+            : name.startsWith("X448") ? "X448" : "X25519", "JSL");
+    KeyPair alice = kpg.generateKeyPair();
+    KeyPair bob = kpg.generateKeyPair();
+    KeyAgreement a = KeyAgreement.getInstance(name, "JSL");
+    a.init(alice.getPrivate(), param);
+    a.doPhase(bob.getPublic(), true);
+    KeyAgreement b = KeyAgreement.getInstance(name, "JSL");
+    b.init(bob.getPrivate(), param);
+    b.doPhase(alice.getPublic(), true);
+    Assertions.assertArrayEquals(a.generateSecret("2.16.840.1.101.3.4.1.45").getEncoded(),
+            b.generateSecret("2.16.840.1.101.3.4.1.45").getEncoded(), name);
+}
+```
+
+### hkdfOverXdh
+
+HKDF over X25519 and X448: the `XDHwithSHAnHKDF` names take plain HKDF info as user keying material;
+the OpenPGP v6 names (RFC 9580) also bind the two public keys, passed as `T` in a
+`HybridValueParameterSpec`.
+
+```java
+String[] agreements = {"XDHwithSHA256HKDF", "XDHwithSHA384HKDF", "XDHwithSHA512HKDF",
+        "X25519withSHA256HKDF", "X448withSHA512HKDF"};
+UserKeyingMaterialSpec info = new UserKeyingMaterialSpec("hkdf info".getBytes(StandardCharsets.US_ASCII));
+for (String name : agreements)
+{
+    KeyPairGenerator kpg = KeyPairGenerator.getInstance(name.startsWith("X448") ? "X448" : "X25519", "JSL");
+    KeyPair eph = kpg.generateKeyPair();
+    KeyPair rcpt = kpg.generateKeyPair();
+    byte[] ep = eph.getPublic().getEncoded();
+    byte[] rp = rcpt.getPublic().getEncoded();
+    byte[] t = new byte[ep.length + rp.length];
+    System.arraycopy(ep, 0, t, 0, ep.length);
+    System.arraycopy(rp, 0, t, ep.length, rp.length);
+    boolean v6 = !name.startsWith("XDH");
+    KeyAgreement a = KeyAgreement.getInstance(name, "JSL");
+    a.init(eph.getPrivate(), v6 ? new HybridValueParameterSpec(t, true, info) : info);
+    a.doPhase(rcpt.getPublic(), true);
+    KeyAgreement b = KeyAgreement.getInstance(name, "JSL");
+    b.init(rcpt.getPrivate(), v6 ? new HybridValueParameterSpec(t, true, info) : info);
+    b.doPhase(eph.getPublic(), true);
+    Assertions.assertArrayEquals(a.generateSecret("2.16.840.1.101.3.4.1.45").getEncoded(),
+            b.generateSecret("2.16.840.1.101.3.4.1.45").getEncoded(), name);
+}
 ```
