@@ -21,6 +21,7 @@
 #define Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getKeyProvider Java_org_openssl_jostle_jcajce_provider_fips_SpecFIPSJNI_ni_1getKeyProvider
 #define Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap          Java_org_openssl_jostle_jcajce_provider_fips_SpecFIPSJNI_ni_1encap
 #define Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap          Java_org_openssl_jostle_jcajce_provider_fips_SpecFIPSJNI_ni_1decap
+#define Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encapSecretLength Java_org_openssl_jostle_jcajce_provider_fips_SpecFIPSJNI_ni_1encapSecretLength
 /* *INDENT-ON* */
 
 #include "spec_ni_jni.c"

@@ -16,6 +16,12 @@
 int32_t encap(const key_spec *key_spec, const char *kem, uint8_t *secret, size_t secret_len, uint8_t *out,
               size_t out_len, void *rand_src);
 
+/*
+ * The length of the shared secret an encapsulation to this key produces, asked of
+ * OpenSSL by a size query that writes nothing. Negative on error.
+ */
+int32_t encap_secret_len(const key_spec *key_spec, const char *kem, void *rand_src);
+
 int32_t decap(const key_spec *key_spec, const char *kem, const uint8_t *input, size_t in_len, uint8_t *out,
                size_t out_len, void *rand_src);
 

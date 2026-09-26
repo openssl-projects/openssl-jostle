@@ -44,6 +44,13 @@ public interface SpecNI extends DefaultServiceNI
 
     int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
 
+    /**
+     * The length of the shared secret an encapsulation to this key produces, from a size query that writes
+     * nothing. The encapsulation-length query cannot answer it: a null output there returns the
+     * encapsulation's length.
+     */
+    int ni_encapSecretLength(long keyRef, String opt, RandSource randSource);
+
 
     default void dispose(long reference)
     {
@@ -78,6 +85,11 @@ public interface SpecNI extends DefaultServiceNI
         return (int)handleErrors( ni_decap(keyRef, opt, input, inOff, inLen, out, off, len, randSource));
     }
 
+    default int encapSecretLength(long keyRef, String opt, RandSource randSource)
+    {
+        return (int) handleErrors(ni_encapSecretLength(keyRef, opt, randSource));
+    }
+
     default long handleErrors(long code)
     {
         if (code >= 0)
@@ -103,6 +115,9 @@ public interface SpecNI extends DefaultServiceNI
     /** This implementation's memo; one per instance, so a length belongs to its library. */
     NativeLengthCache<OSSLKeyType> lengthCache();
 
+    /** The shared-secret lengths, kept apart from the encapsulation lengths in {@link #lengthCache()}. */
+    NativeLengthCache<OSSLKeyType> secretLengthCache();
+
     /**
      * The encapsulation length for the key {@code keyRef}, asked of this library
      * once per key type by a size query that writes nothing.
@@ -114,6 +129,21 @@ public interface SpecNI extends DefaultServiceNI
         {
             len = encap(keyRef, null, new byte[secretLen], 0, secretLen, null, 0, 0, randSource);
             lengthCache().cache(type, len);
+        }
+        return len;
+    }
+
+    /**
+     * The shared-secret length for the key {@code keyRef}, asked of this library once per key type by a size
+     * query that writes nothing.
+     */
+    default int sharedSecretLength(long keyRef, OSSLKeyType type, RandSource randSource)
+    {
+        int len = secretLengthCache().get(type);
+        if (len == NativeLengthCache.UNKNOWN)
+        {
+            len = encapSecretLength(keyRef, null, randSource);
+            secretLengthCache().cache(type, len);
         }
         return len;
     }

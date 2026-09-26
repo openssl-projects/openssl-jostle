@@ -55,8 +55,11 @@ import java.util.Map;
  */
 public class NativeFactCacheBindingTest
 {
-    /** The seven interfaces, in the order the table prints them. */
-    static final String[] INTERFACES = {"MD", "MAC", "ED", "MLDSA", "SLHDSA", "SPEC", "RAND"};
+    /**
+     * One row per cached fact, in the order the table prints them. SpecNI caches two facts, the encapsulation
+     * length (SPEC) and the shared-secret length (SPEC_SECRET), each in its own cache.
+     */
+    static final String[] INTERFACES = {"MD", "MAC", "ED", "MLDSA", "SLHDSA", "SPEC", "SPEC_SECRET", "RAND"};
 
     private static final String P = "org.openssl.jostle.jcajce.";
 
@@ -75,6 +78,7 @@ public class NativeFactCacheBindingTest
         BASE.put("SLHDSA", new String[]{P + "provider.slhdsa.SLHDSAServiceJNI",
                 P + "provider.slhdsa.SLHDSAServiceFFM"});
         BASE.put("SPEC", new String[]{P + "spec.SpecJNI", P + "spec.SpecFFM"});
+        BASE.put("SPEC_SECRET", new String[]{P + "spec.SpecJNI", P + "spec.SpecFFM"});
         BASE.put("RAND", new String[]{P + "provider.rand.RandServiceJNI", P + "provider.rand.RandServiceFFM"});
 
         String f = P + "provider.fips.";
@@ -84,6 +88,7 @@ public class NativeFactCacheBindingTest
         FIPS.put("MLDSA", new String[]{f + "MLDSAServiceFIPSJNI", f + "MLDSAServiceFIPSFFM"});
         FIPS.put("SLHDSA", new String[]{f + "SLHDSAServiceFIPSJNI", f + "SLHDSAServiceFIPSFFM"});
         FIPS.put("SPEC", new String[]{f + "SpecFIPSJNI", f + "SpecFIPSFFM"});
+        FIPS.put("SPEC_SECRET", new String[]{f + "SpecFIPSJNI", f + "SpecFIPSFFM"});
         FIPS.put("RAND", new String[]{f + "RandServiceFIPSJNI", f + "RandServiceFIPSFFM"});
     }
 
@@ -96,6 +101,7 @@ public class NativeFactCacheBindingTest
         KEY_ALG.put("MLDSA", "ML-DSA-65");
         KEY_ALG.put("SLHDSA", "SLH-DSA-SHA2-128F");
         KEY_ALG.put("SPEC", "ML-KEM-768");
+        KEY_ALG.put("SPEC_SECRET", "ML-KEM-768");
     }
 
     @BeforeAll
@@ -136,9 +142,9 @@ public class NativeFactCacheBindingTest
         return c.newInstance();
     }
 
-    static NativeLengthCache<?> cacheOf(Object ni) throws Exception
+    static NativeLengthCache<?> cacheOf(String iface, Object ni) throws Exception
     {
-        Method m = ni.getClass().getMethod("lengthCache");
+        Method m = ni.getClass().getMethod("SPEC_SECRET".equals(iface) ? "secretLengthCache" : "lengthCache");
         m.setAccessible(true);
         return (NativeLengthCache<?>) m.invoke(ni);
     }
@@ -176,6 +182,11 @@ public class NativeFactCacheBindingTest
             {
                 PKEYKeySpec pub = ((OSSLKey) kp.getPublic()).getSpec();
                 return ((SpecNI) ni).encapsulationLength(pub.getReference(), pub.getType(), 32, TestUtil.RNDSrc);
+            }
+            if ("SPEC_SECRET".equals(iface))
+            {
+                PKEYKeySpec pub = ((OSSLKey) kp.getPublic()).getSpec();
+                return ((SpecNI) ni).sharedSecretLength(pub.getReference(), pub.getType(), TestUtil.RNDSrc);
             }
             if ("ED".equals(iface))
             {
@@ -255,8 +266,8 @@ public class NativeFactCacheBindingTest
 
             Object first = fresh(BASE, iface);
             Object second = fresh(secondClasses(), iface);
-            NativeLengthCache<?> a = cacheOf(first);
-            NativeLengthCache<?> b = cacheOf(second);
+            NativeLengthCache<?> a = cacheOf(iface, first);
+            NativeLengthCache<?> b = cacheOf(iface, second);
             Assertions.assertNotSame(a, b, iface + ": the two instances share one cache");
 
             int va = probe(iface, first, firstProvider());

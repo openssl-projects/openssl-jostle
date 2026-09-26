@@ -177,3 +177,64 @@ exit:
     rand_clear_java_srand_call();
     return ret;
 }
+
+int32_t encap_secret_len(const key_spec *key_spec, const char *kem, void *rand_src) {
+    jo_assert(key_spec != NULL);
+    jo_assert(key_spec->key != NULL);
+
+    int32_t ret = 0;
+    EVP_PKEY_CTX *ctx = NULL;
+
+    if (rand_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    // A size query writes nothing and draws no entropy, but the up-call target
+    // is bound anyway so nothing inside OpenSSL can read a stale one.
+    rand_set_java_srand_call(rand_src);
+
+    ERR_clear_error();
+
+    ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), key_spec->key, NULL);
+
+    if (OPS_OPENSSL_ERROR_1 ctx == NULL) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1301);
+        goto exit;
+    }
+
+    if (OPS_OPENSSL_ERROR_2 EVP_PKEY_encapsulate_init(ctx, NULL) <= 0) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1302);
+        goto exit;
+    }
+
+    if (kem != NULL) {
+        if (OPS_OPENSSL_ERROR_3 EVP_PKEY_CTX_set_kem_op(ctx, kem) <= 0) {
+            ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(1303);
+            goto exit;
+        }
+    }
+
+    size_t out_len = 0;
+    size_t secret_len = 0;
+
+    // With both output pointers NULL, OpenSSL reports the two lengths and
+    // writes nothing; only the shared secret's is wanted here.
+    if (OPS_OPENSSL_ERROR_4 EVP_PKEY_encapsulate(ctx, NULL, &out_len, NULL, &secret_len) <= 0) {
+        ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(1304);
+        goto exit;
+    }
+
+    if (OPS_INT32_OVERFLOW_1 secret_len > INT32_MAX) {
+        ret = JO_OUTPUT_SIZE_INT_OVERFLOW;
+        goto exit;
+    }
+
+    ret = (int32_t) secret_len;
+
+exit:
+    if (ctx != NULL) {
+        EVP_PKEY_CTX_free(ctx);
+    }
+    rand_clear_java_srand_call();
+    return ret;
+}

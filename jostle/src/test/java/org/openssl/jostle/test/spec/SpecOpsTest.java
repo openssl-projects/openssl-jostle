@@ -62,7 +62,7 @@ public class SpecOpsTest
 
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:125
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:163
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -85,7 +85,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:151
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:189
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -108,7 +108,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:191
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:229
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             specNI.encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -235,6 +235,123 @@ public class SpecOpsTest
         }
     }
 
+    // Encap secret length
+
+    @Test
+    public void encapSecretLength_oppAccess() throws Exception
+    {
+        Assumptions.assumeFalse(Loader.isFFM()); // JNI
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:395
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
+            Assertions.assertEquals(ErrorCode.JO_FAILED_ACCESS_ENCAP_OPP.getCode(),
+                    specNI.ni_encapSecretLength(keyRef, "cats", TestUtil.RNDSrc));
+        } finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void encapSecretLength_pkey_ctx_create() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/nonfips/util/encapdecap.c:200
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1301,
+                    specNI.ni_encapSecretLength(keyRef, null, TestUtil.RNDSrc));
+        } finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void encapSecretLength_EVP_PKEY_encapsulate_init() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/nonfips/util/encapdecap.c:205
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1302,
+                    specNI.ni_encapSecretLength(keyRef, null, TestUtil.RNDSrc));
+        } finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void encapSecretLength_EVP_PKEY_CTX_set_kem_op() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/nonfips/util/encapdecap.c:211
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1303,
+                    specNI.ni_encapSecretLength(keyRef, "cats", TestUtil.RNDSrc));
+        } finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void encapSecretLength_EVP_PKEY_encapsulate() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/nonfips/util/encapdecap.c:222
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1304,
+                    specNI.ni_encapSecretLength(keyRef, null, TestUtil.RNDSrc));
+        } finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void encapSecretLength_secretLenOverflowInt32() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            // Exercises interface/nonfips/util/encapdecap.c:227
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            Assertions.assertEquals(ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode(),
+                    specNI.ni_encapSecretLength(keyRef, null, TestUtil.RNDSrc));
+        } finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
     // Decap
 
 
@@ -248,7 +365,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:246
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:284
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -271,7 +388,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:272
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:310
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -294,7 +411,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:312
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:350
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             specNI.decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();

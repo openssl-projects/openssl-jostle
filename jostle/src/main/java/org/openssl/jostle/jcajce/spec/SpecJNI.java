@@ -23,6 +23,14 @@ public class SpecJNI implements SpecNI
         return lengthCache;
     }
 
+    private final NativeLengthCache<OSSLKeyType> secretLengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> secretLengthCache()
+    {
+        return secretLengthCache;
+    }
+
     @Override
     public native void ni_dispose(long reference);
 
@@ -40,4 +48,7 @@ public class SpecJNI implements SpecNI
 
     @Override
     public native int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off, int len, RandSource randSource);
+
+    @Override
+    public native int ni_encapSecretLength(long keyRef, String opt, RandSource randSource);
 }

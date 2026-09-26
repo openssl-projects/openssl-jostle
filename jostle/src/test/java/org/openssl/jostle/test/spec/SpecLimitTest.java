@@ -155,6 +155,86 @@ public class SpecLimitTest
     }
 
     @Test
+    public void encapSecretLength_unusableKeySpecHandles_rejectedTyped() throws Exception
+    {
+        try
+        {
+            specNI.encapSecretLength(0, null, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("key spec is null", e.getMessage());
+        }
+
+        long req = specNI.allocate();
+        try
+        {
+            specNI.encapSecretLength(req, null, TestUtil.RNDSrc);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("key spec has null key", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(req);
+        }
+    }
+
+    @Test
+    public void encapSecretLength_nullRandSrc() throws Exception
+    {
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            specNI.encapSecretLength(spec, null, null);
+            Assertions.fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assertions.assertEquals("supplied random source was null", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    /**
+     * The query writes nothing and answers the shared secret's length: an encapsulation into a secret window
+     * of exactly that length succeeds, one byte less is refused.
+     */
+    @Test
+    public void encapSecretLength_isTheSmallestWindowEncapAccepts() throws Exception
+    {
+        long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            int secretLen = specNI.encapSecretLength(spec, null, TestUtil.RNDSrc);
+            Assertions.assertEquals(32, secretLen);
+            int encLen = specNI.encap(spec, null, new byte[secretLen], 0, secretLen, null, 0, 0, TestUtil.RNDSrc);
+            Assertions.assertEquals(encLen, specNI.encap(spec, null, new byte[secretLen], 0, secretLen,
+                    new byte[encLen], 0, encLen, TestUtil.RNDSrc));
+            try
+            {
+                specNI.encap(spec, null, new byte[secretLen - 1], 0, secretLen - 1, new byte[encLen], 0, encLen,
+                        TestUtil.RNDSrc);
+                Assertions.fail();
+            }
+            catch (IllegalArgumentException e)
+            {
+                Assertions.assertEquals("output too small", e.getMessage());
+            }
+        }
+        finally
+        {
+            specNI.dispose(spec);
+        }
+    }
+
+    @Test
     public void encap_nullInput() throws Exception
     {
         // A null input array (with a valid keyspec) must surface the typed

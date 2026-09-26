@@ -217,6 +217,66 @@ public class FIPSSpecLimitTest
     }
 
     @Test
+    public void encapSecretLength_unusableKeySpecHandles_rejectedTyped()
+    {
+        assertTyped(IllegalArgumentException.class, "key spec is null",
+                () -> ni.encapSecretLength(0, null, RND));
+
+        long ref = ni.allocate();
+        try
+        {
+            assertTyped(IllegalArgumentException.class, "key spec has null key",
+                    () -> ni.encapSecretLength(ref, null, RND));
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void encapSecretLength_nullRandSrc_rejectedTyped()
+    {
+        assumeMlKem();
+        long ref = mlKemKey();
+        try
+        {
+            assertTyped(IllegalArgumentException.class, "supplied random source was null",
+                    () -> ni.encapSecretLength(ref, null, null));
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    /**
+     * The query answers the shared secret's length: a secret window of exactly that length is accepted, one
+     * byte less is refused.
+     */
+    @Test
+    public void encapSecretLength_isTheSmallestWindowEncapAccepts()
+    {
+        assumeMlKem();
+        long ref = mlKemKey();
+        try
+        {
+            int secretLen = ni.encapSecretLength(ref, null, RND);
+            Assertions.assertEquals(32, secretLen);
+            int encLen = ni.encap(ref, null, new byte[secretLen], 0, secretLen, null, 0, 0, RND);
+            Assertions.assertEquals(encLen, ni.encap(ref, null, new byte[secretLen], 0, secretLen,
+                    new byte[encLen], 0, encLen, RND));
+            assertTyped(IllegalArgumentException.class, "output too small",
+                    () -> ni.encap(ref, null, new byte[secretLen - 1], 0, secretLen - 1, new byte[encLen], 0,
+                            encLen, RND));
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
     public void encap_nullBuffers_rejectedTyped()
     {
         assumeMlKem();

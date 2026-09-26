@@ -99,6 +99,22 @@ exit:
 }
 
 
+/*
+ * The shared secret's length for an encapsulation to this key; writes nothing.
+ */
+int32_t JoSpec_EncapSecretLength(key_spec *ks, const char *opp, void *rand_src) {
+    if (ks == NULL) {
+        return JO_KEY_SPEC_IS_NULL;
+    }
+
+    if (ks->key == NULL) {
+        return JO_KEY_SPEC_HAS_NULL_KEY;
+    }
+
+    return encap_secret_len(ks, opp, rand_src);
+}
+
+
 int32_t JoSpec_Decap(
     key_spec *ks,
     const char *opp,

@@ -367,3 +367,42 @@ exit:
 
     return ret;
 }
+
+/*
+ * Class:     org_openssl_jostle_jcajce_spec_SpecJNI
+ * Method:    encapSecretLength
+ * Signature: (JLjava/lang/String;Lorg/openssl/jostle/rand/RandSource;)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encapSecretLength
+(JNIEnv *env, jobject jo, jlong ref, jstring _opp, jobject rand_src) {
+    UNUSED(jo);
+
+    // rand_src is null-checked by util, after the handle checks, as for encap.
+    key_spec *ks = (key_spec *) ((void *) ref);
+    if (ks == NULL) {
+        return JO_KEY_SPEC_IS_NULL;
+    }
+
+    if (ks->key == NULL) {
+        return JO_KEY_SPEC_HAS_NULL_KEY;
+    }
+
+    int32_t ret = 0;
+    char *opp = NULL;
+
+    if (_opp != NULL) {
+        opp = (char *) (*env)->GetStringUTFChars(env, _opp, NULL);
+        if (OPS_FAILED_ACCESS_3 opp == NULL) {
+            ret = JO_FAILED_ACCESS_ENCAP_OPP;
+            goto exit;
+        }
+    }
+
+    ret = encap_secret_len(ks, (const char *) opp, rand_src);
+
+exit:
+    if (opp != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _opp, opp);
+    }
+    return ret;
+}

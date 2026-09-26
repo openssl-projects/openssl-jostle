@@ -35,6 +35,14 @@ public class SpecFFM implements SpecNI
         return lengthCache;
     }
 
+    private final NativeLengthCache<OSSLKeyType> secretLengthCache = new NativeLengthCache<OSSLKeyType>();
+
+    @Override
+    public NativeLengthCache<OSSLKeyType> secretLengthCache()
+    {
+        return secretLengthCache;
+    }
+
     private static final Logger L = Logger.getLogger("SpecNI_FFM");
     private static final Linker linker = Linker.nativeLinker();
 
@@ -45,6 +53,8 @@ public class SpecFFM implements SpecNI
     private final MethodHandle encapFuncHandle;
 
     private final MethodHandle decapFuncHandle;
+
+    private final MethodHandle encapSecretLengthFuncHandle;
 
     private final MethodHandle getNameFuncHandle;
     private final MethodHandle getKeyProviderFuncHandle;
@@ -113,6 +123,15 @@ public class SpecFFM implements SpecNI
                         ValueLayout.ADDRESS
                 ));
 
+
+        MemorySegment encapSecretLengthFunc = lookup.find(symPrefix + "JoSpec_EncapSecretLength").orElseThrow();
+        encapSecretLengthFuncHandle = linker.downcallHandle(encapSecretLengthFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS, // spec
+                        ValueLayout.ADDRESS, // opp
+                        ValueLayout.ADDRESS  // rand upcall
+                ));
 
         MemorySegment getNameFunc = lookup.find(symPrefix + "JoSpec_GetName").orElseThrow();
         getNameFuncHandle = linker.downcallHandle(getNameFunc,
@@ -344,6 +363,39 @@ public class SpecFFM implements SpecNI
             throw new RuntimeException(t.getMessage(), t);
         }
 
+    }
+
+    @Override
+    public int ni_encapSecretLength(long keyRef, String opt, RandSource randSource)
+    {
+        // Not critical: the RAND up-call target is bound on the C side, which needs an upcall stub.
+        try (Arena a = Arena.ofConfined())
+        {
+            var ref = MemorySegment.ofAddress(keyRef);
+            var optRef = opt != null ? a.allocateFrom(opt) : MemorySegment.NULL;
+            MemorySegment getEntropySegment;
+            if (randSource == null)
+            {
+                getEntropySegment = MemorySegment.NULL;
+            }
+            else
+            {
+                var gHandle = MethodHandles.lookup().findVirtual(
+                        RandSource.class,
+                        "getRandomSegment",
+                        entropyMt).bindTo(randSource);
+                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+            }
+            return (int) encapSecretLengthFuncHandle.invokeExact(ref, optRef, getEntropySegment);
+        }
+        catch (Throwable t)
+        {
+            L.log(
+                    Level.WARNING,
+                    "FFM JoSpec_EncapSecretLength",
+                    t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
     }
 
     @Override
