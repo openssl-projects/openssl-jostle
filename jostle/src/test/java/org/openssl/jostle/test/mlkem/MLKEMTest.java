@@ -171,7 +171,7 @@ public class MLKEMTest
             encapsulator.init(KEMGenerateSpec.builder()
                     .withPublicKey(keyPair.getPublic())
                     .withKeySizeInBits(256)
-                    .withAlgorithmName("AES").build());
+                    .withAlgorithmName("AES").withNoKdf().build());
 
             SecretKeyWithEncapsulation secretKey = (SecretKeyWithEncapsulation) encapsulator.generateKey();
 
@@ -182,7 +182,7 @@ public class MLKEMTest
                     .withAlgorithmName("AES")
                     .withKeySizeInBits(256)
                     .withEncapsulatedKey(secretKey.getEncapsulation())
-                    .build());
+                    .withNoKdf().build());
 
             SecretKeyWithEncapsulation recoveredKey = (SecretKeyWithEncapsulation) extractor.generateKey();
 
@@ -218,7 +218,7 @@ public class MLKEMTest
                     .withKeySizeInBits(256)
                     .withPublicKey(receiverRecoveredPublicKey)
                     .withAlgorithmName("AES")
-                    .build()
+                    .withNoKdf().build()
             );
             SecretKeyWithEncapsulation encapsulation = (SecretKeyWithEncapsulation) joKeyGenerator.generateKey();
 
@@ -273,7 +273,7 @@ public class MLKEMTest
                     .withEncapsulatedKey(encapsulation.getEncapsulation())
                     .withAlgorithmName("AES")
                     .withPrivate(receiverKeyPair.getPrivate())
-                    .withKeySizeInBits(256).build()
+                    .withKeySizeInBits(256).withNoKdf().build()
             );
             SecretKeyWithEncapsulation decapsulatedKey = (SecretKeyWithEncapsulation) serverKeyFactory.generateKey();
 
@@ -291,7 +291,7 @@ public class MLKEMTest
                     .withEncapsulatedKey(vandalised)
                     .withAlgorithmName("AES")
                     .withPrivate(receiverKeyPair.getPrivate())
-                    .withKeySizeInBits(256).build()
+                    .withKeySizeInBits(256).withNoKdf().build()
             );
             SecretKeyWithEncapsulation vandalisedDecapsulatedKey = (SecretKeyWithEncapsulation) serverKeyFactory.generateKey();
             Assertions.assertFalse(Arrays.areEqual(encapsulation.getEncoded(), vandalisedDecapsulatedKey.getEncoded()));
@@ -516,7 +516,7 @@ public class MLKEMTest
             encapsulator.init(KEMGenerateSpec.builder()
                     .withPublicKey(pubKey)
                     .withKeySizeInBits(256)
-                    .withAlgorithmName("AES").build());
+                    .withAlgorithmName("AES").withNoKdf().build());
             SecretKeyWithEncapsulation secretKey = (SecretKeyWithEncapsulation) encapsulator.generateKey();
 
             KeyGenerator extractor = KeyGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
@@ -525,7 +525,7 @@ public class MLKEMTest
                     .withAlgorithmName("AES")
                     .withKeySizeInBits(256)
                     .withEncapsulatedKey(secretKey.getEncapsulation())
-                    .build());
+                    .withNoKdf().build());
             SecretKeyWithEncapsulation recoveredKey = (SecretKeyWithEncapsulation) extractor.generateKey();
 
             Assertions.assertArrayEquals(secretKey.getEncoded(), recoveredKey.getEncoded());
@@ -558,7 +558,7 @@ public class MLKEMTest
             encapsulator.init(KEMGenerateSpec.builder()
                     .withPublicKey(publicKey)
                     .withKeySizeInBits(256)
-                    .withAlgorithmName("AES").build());
+                    .withAlgorithmName("AES").withNoKdf().build());
             SecretKeyWithEncapsulation secretKey = (SecretKeyWithEncapsulation) encapsulator.generateKey();
 
             KeyGenerator extractor = KeyGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
@@ -567,7 +567,7 @@ public class MLKEMTest
                     .withAlgorithmName("AES")
                     .withKeySizeInBits(256)
                     .withEncapsulatedKey(secretKey.getEncapsulation())
-                    .build());
+                    .withNoKdf().build());
             SecretKeyWithEncapsulation recoveredKey = (SecretKeyWithEncapsulation) extractor.generateKey();
 
             Assertions.assertArrayEquals(secretKey.getEncoded(), recoveredKey.getEncoded());

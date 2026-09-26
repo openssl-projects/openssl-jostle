@@ -12,9 +12,6 @@ package org.openssl.jostle.jcajce.spec;
 
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
-import org.openssl.jostle.util.asn1.Der;
-import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
-import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -35,14 +32,6 @@ import java.security.spec.AlgorithmParameterSpec;
 public class KTSParameterSpec
     implements AlgorithmParameterSpec
 {
-    /**
-     * Ceiling on the KDF {@code AlgorithmIdentifier} DER. An
-     * {@code AlgorithmIdentifier} naming a KDF and a digest is under 40 bytes;
-     * 256 leaves room for parameters this class does not yet interpret without
-     * being open-ended.
-     */
-    private static final int MAX_KDF_ALGORITHM_BYTES = 256;
-
     private final String keyAlgorithmName;
     private final int keySize;
     private final byte[] otherInfo;
@@ -89,19 +78,14 @@ public class KTSParameterSpec
 
     public static final class Builder
     {
-        /**
-         * KDF3 (X9.44 concatenation KDF) with SHA-256 — the default when
-         * neither {@link #withKdfAlgorithm(byte[])} nor {@link #withNoKdf()} is
-         * called. Matches BouncyCastle's default.
-         */
-        private static final byte[] DEFAULT_KDF_ALGORITHM = Der.sequence(
-                Der.objectIdentifier(X9ObjectIdentifiers.id_kdf_kdf3.getId()),
-                Der.sequence(Der.objectIdentifier(NISTObjectIdentifiers.id_sha256.getId())));
-
         private final String algorithmName;
         private final int keySizeInBits;
         private final byte[] otherInfo;
-        private byte[] kdfAlgorithm = DEFAULT_KDF_ALGORITHM;
+        /**
+         * KDF3 (X9.44 concatenation KDF) with SHA-256 unless {@link #withKdfAlgorithm(byte[])} or
+         * {@link #withNoKdf()} is called. Matches BouncyCastle's default.
+         */
+        private byte[] kdfAlgorithm = KdfAlgorithmIdentifiers.defaultKdf();
 
         public Builder(String algorithmName, int keySizeInBits)
         {
@@ -133,17 +117,7 @@ public class KTSParameterSpec
          */
         public Builder withKdfAlgorithm(byte[] derAlgorithmIdentifier)
         {
-            if (derAlgorithmIdentifier == null)
-            {
-                throw new NullPointerException("derAlgorithmIdentifier is null");
-            }
-            if (derAlgorithmIdentifier.length > MAX_KDF_ALGORITHM_BYTES)
-            {
-                throw new IllegalArgumentException(
-                        "KDF AlgorithmIdentifier exceeds " + MAX_KDF_ALGORITHM_BYTES + " bytes: "
-                                + derAlgorithmIdentifier.length);
-            }
-            this.kdfAlgorithm = Arrays.clone(derAlgorithmIdentifier);
+            this.kdfAlgorithm = KdfAlgorithmIdentifiers.checked(derAlgorithmIdentifier);
             return this;
         }
 
@@ -157,15 +131,7 @@ public class KTSParameterSpec
          */
         public Builder withKdfAlgorithm(ASN1ObjectIdentifier kdf, ASN1ObjectIdentifier digest)
         {
-            if (kdf == null)
-            {
-                throw new NullPointerException("kdf is null");
-            }
-            byte[] der = (digest == null)
-                    ? Der.sequence(Der.objectIdentifier(kdf.getId()))
-                    : Der.sequence(Der.objectIdentifier(kdf.getId()),
-                            Der.sequence(Der.objectIdentifier(digest.getId())));
-            return withKdfAlgorithm(der);
+            return withKdfAlgorithm(KdfAlgorithmIdentifiers.of(kdf, digest));
         }
 
         /** Use the shared secret directly as the KEK; no KDF is applied. */

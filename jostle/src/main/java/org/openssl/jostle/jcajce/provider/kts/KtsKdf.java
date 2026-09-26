@@ -51,6 +51,11 @@ public final class KtsKdf
     /** Named in both refusal messages so the caller learns what IS accepted. */
     private static final String ACCEPTED = "KDF2, KDF3, HKDF-SHA256/384/512";
 
+    /** The KEM specs accept one more KDF than the KTS ciphers: SHAKE256 alone, as BouncyCastle's do. */
+    private static final String ACCEPTED_FOR_KEM = ACCEPTED + ", SHAKE256";
+
+    private static final String ID_SHAKE256 = NISTObjectIdentifiers.id_shake256.getId();
+
     /** Likewise, for the digest an X9.44 KDF2/KDF3 parameter may name. */
     private static final String ACCEPTED_DIGESTS = "SHA-256, SHA-512, SHAKE128, SHAKE256";
 
@@ -66,7 +71,9 @@ public final class KtsKdf
         /** {@code Hash(counter || Z || otherInfo)}, counter from 1. */
         KDF3,
         /** RFC 5869, IKM = Z, salt absent, info = otherInfo. */
-        HKDF
+        HKDF,
+        /** {@code SHAKE256(Z || otherInfo)}, truncated. Accepted for the KEM specs only. */
+        SHAKE256
     }
 
     /**
@@ -114,6 +121,22 @@ public final class KtsKdf
     public static Resolved resolve(byte[] derAlgorithmIdentifier)
         throws InvalidAlgorithmParameterException
     {
+        return resolve(derAlgorithmIdentifier, false);
+    }
+
+    /**
+     * As {@link #resolve(byte[])}, for the KEM {@code KeyGenerator} specs, which also accept {@code id-shake256}
+     * alone, with its parameters absent.
+     */
+    public static Resolved resolveForKem(byte[] derAlgorithmIdentifier)
+        throws InvalidAlgorithmParameterException
+    {
+        return resolve(derAlgorithmIdentifier, true);
+    }
+
+    private static Resolved resolve(byte[] derAlgorithmIdentifier, boolean kem)
+        throws InvalidAlgorithmParameterException
+    {
         String kdfOid;
         Kind kind;
         boolean hasParams;
@@ -130,10 +153,19 @@ public final class KtsKdf
         {
             throw new InvalidAlgorithmParameterException("malformed KDF AlgorithmIdentifier", e);
         }
+        if (kem && ID_SHAKE256.equals(kdfOid))
+        {
+            if (hasParams)
+            {
+                throw new InvalidAlgorithmParameterException("SHAKE256 as a KDF must carry absent parameters");
+            }
+            return new Resolved(Kind.SHAKE256, "SHAKE-256");
+        }
         kind = kindForOid(kdfOid);
         if (kind == null)
         {
-            throw new InvalidAlgorithmParameterException(unsupportedKdfMessage(kdfOid));
+            throw new InvalidAlgorithmParameterException(
+                    kem ? unsupportedKemKdfMessage(kdfOid) : unsupportedKdfMessage(kdfOid));
         }
         if (Kind.HKDF == kind)
         {
@@ -240,6 +272,44 @@ public final class KtsKdf
         return "unsupported KDF " + kdfOid + "; supported: " + ACCEPTED;
     }
 
+    /** The KEM specs' refusal, naming their wider accepted set. */
+    public static String unsupportedKemKdfMessage(String kdfOid)
+    {
+        return "unsupported KDF " + kdfOid + "; supported: " + ACCEPTED_FOR_KEM;
+    }
+
+    /**
+     * The most bytes the KDF can derive through {@code ownProvider}, or -1 for no limit short of the ones its
+     * derivation enforces itself. Only the SHAKE256 kind has one: the provider's SHAKE-256 digest has a fixed
+     * output length, asked of the provider rather than written down here.
+     */
+    public static int maxOutputBytes(Provider ownProvider, Kind kind)
+        throws NoSuchAlgorithmException
+    {
+        if (kind != Kind.SHAKE256)
+        {
+            return -1;
+        }
+        return digestFromOwnProvider(ownProvider, "SHAKE-256").getDigestLength();
+    }
+
+    /**
+     * Fails unless {@code ownProvider} serves the primitive the KDF runs on, so a caller learns it at init
+     * rather than when the key is generated.
+     */
+    public static void requireAvailable(Provider ownProvider, Kind kind, String digestName)
+        throws NoSuchAlgorithmException
+    {
+        if (kind == Kind.HKDF)
+        {
+            macFromOwnProvider(ownProvider, digestName);
+        }
+        else
+        {
+            digestFromOwnProvider(ownProvider, digestName);
+        }
+    }
+
     /** Likewise. RFC 8619 forbids the parameter on HKDF, X9.44 requires it. */
     public static String digestParameterRequiredMessage()
     {
@@ -276,6 +346,8 @@ public final class KtsKdf
             return x944(ownProvider, digestName, z, otherInfo, outLen, true);
         case HKDF:
             return hkdf(ownProvider, digestName, z, otherInfo, outLen);
+        case SHAKE256:
+            return shake(ownProvider, digestName, z, otherInfo, outLen);
         default:
             throw new NoSuchAlgorithmException("unhandled KDF kind " + kind);
         }
@@ -325,6 +397,35 @@ public final class KtsKdf
             i++;
         }
         return out;
+    }
+
+    /**
+     * SHAKE256 over Z and otherInfo, truncated to {@code outLen}: an XOF's shorter output is a prefix of its
+     * longer one, so this is BouncyCastle's derivation for any length the digest can produce.
+     */
+    private static byte[] shake(Provider ownProvider, String digestName, byte[] z, byte[] otherInfo, int outLen)
+        throws NoSuchAlgorithmException
+    {
+        MessageDigest md = digestFromOwnProvider(ownProvider, digestName);
+        md.update(z);
+        if (otherInfo != null && otherInfo.length != 0)
+        {
+            md.update(otherInfo);
+        }
+        byte[] full = md.digest();
+        try
+        {
+            if (outLen > full.length)
+            {
+                throw new NoSuchAlgorithmException(
+                        digestName + " as a KDF produces at most " + full.length * 8 + " bits here");
+            }
+            return java.util.Arrays.copyOf(full, outLen);
+        }
+        finally
+        {
+            Arrays.fill(full, (byte) 0);
+        }
     }
 
     /**

@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.interfaces.MLXKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.kts.KemKeyDerivation;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
@@ -39,11 +40,11 @@ import java.security.spec.AlgorithmParameterSpec;
  * generic {@code SpecNI} encap/decap - the same shape as
  * {@code MLKEMKeyGenerator}, bound to a single group.
  *
- * <p>The shared secret is the ML-KEM secret and the ECDH secret CONCATENATED,
- * not combined by a KDF, so its length is group-specific: 64 bytes for the
- * X25519 and SecP256r1 pairs, 88 for X448MLKEM1024 and 80 for
- * SecP384r1MLKEM1024. A caller who wants all of it asks for
- * {@code getSharedSecretBytes() * 8} bits.
+ * <p>The group's shared secret is the ML-KEM secret and the ECDH secret
+ * CONCATENATED, so its length is group-specific. The key the caller gets is
+ * derived from it through the spec's KDF (X9.44 KDF3 with SHA-256 by default),
+ * the same rule as {@code MLKEMKeyGenerator}; a TLS caller wanting the raw
+ * secret sets no KDF and asks for exactly the secret's length.
  */
 public class MLXKEMKeyGenerator extends KeyGeneratorSpi
 {
@@ -63,6 +64,7 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
     private boolean extract;
     private AlgorithmParameterSpec kemSpec;
     private RandSource randSource;
+    private KemKeyDerivation derivation;
 
     public MLXKEMKeyGenerator(MLXKEMParameterSpec parameterSpec)
     {
@@ -153,6 +155,10 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
             throw new InvalidAlgorithmParameterException("KEMExtractSpec has no encapsulation");
         }
 
+        checkKeySize(params.getKeySizeInBits());
+        derivation = KemKeyDerivation.plan(spec, params.getKeySizeInBits(), params.getKdfAlgorithm(),
+                params.getOtherInfo(), providerInstance, randSource);
+
         extract = true;
         kemSpec = params;
         randSource = DefaultRandSource.replaceWith(randSource, random, parameterSpec.getRequiredStrengthBits());
@@ -196,13 +202,9 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         }
         requireGroup(pubSpec.getType());
 
-        int keySizeInBits = params.getKeySizeInBits();
-        if (keySizeInBits < MIN_KEY_SIZE_BITS || keySizeInBits > MAX_KEY_SIZE_BITS)
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "KEM key size in bits out of range [" + MIN_KEY_SIZE_BITS + ", "
-                            + MAX_KEY_SIZE_BITS + "]: " + keySizeInBits);
-        }
+        checkKeySize(params.getKeySizeInBits());
+        KemKeyDerivation planned = KemKeyDerivation.plan(pubSpec, params.getKeySizeInBits(),
+                params.getKdfAlgorithm(), params.getOtherInfo(), providerInstance, randSource);
 
         int strengthBits = parameterSpec.getRequiredStrengthBits();
 
@@ -218,8 +220,20 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         }
 
         extract = false;
+        derivation = planned;
         kemSpec = params;
         randSource = DefaultRandSource.replaceWith(randSource, random, strengthBits);
+    }
+
+    private static void checkKeySize(int keySizeInBits)
+            throws InvalidAlgorithmParameterException
+    {
+        if (keySizeInBits < MIN_KEY_SIZE_BITS || keySizeInBits > MAX_KEY_SIZE_BITS)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "KEM key size in bits out of range [" + MIN_KEY_SIZE_BITS + ", "
+                            + MAX_KEY_SIZE_BITS + "]: " + keySizeInBits);
+        }
     }
 
     private void requireGroup(OSSLKeyType type) throws InvalidAlgorithmParameterException
@@ -255,6 +269,7 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         long len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length,
                 null, 0, 0, randSource);
         byte[] out = new byte[(int) len];
+        byte[] key = null;
         try
         {
             len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length,
@@ -263,21 +278,28 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
             {
                 throw new IllegalStateException("shared secret length mismatch");
             }
-            // SecretKeySpec clones its input; the finally scrubs the local copy
-            // of the shared secret (wrappedKey is the public encapsulation).
+            key = derivation.keyFrom(out);
+            // SecretKeySpec clones its input; the finally scrubs the local copies
+            // of the shared secret and the key (wrappedKey is the public encapsulation).
             return new SecretKeyWithEncapsulation(
-                    new SecretKeySpec(out, extractSpec.getAlgorithmName()), wrappedKey);
+                    new SecretKeySpec(key, extractSpec.getAlgorithmName()), wrappedKey);
         }
         finally
         {
             Arrays.fill(out, (byte) 0);
+            if (key != null)
+            {
+                Arrays.fill(key, (byte) 0);
+            }
         }
     }
 
     private SecretKey encapsulate(KEMGenerateSpec generateSpec)
     {
         PKEYKeySpec spec = ((OSSLKey) generateSpec.getPublicKey()).getSpec();
-        byte[] secret = new byte[generateSpec.getKeySizeInBits() / 8];
+        // Sized to the shared secret the KEM produces; the key is derived from it.
+        byte[] secret = new byte[derivation.secretBytes()];
+        byte[] key = null;
         try
         {
             int encapsulationLen = spec.getSpecNI().encapsulationLength(spec.getReference(), spec.getType(),
@@ -289,12 +311,17 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
             {
                 throw new IllegalStateException("encapsulation length mismatch");
             }
+            key = derivation.keyFrom(secret);
             return new SecretKeyWithEncapsulation(
-                    new SecretKeySpec(secret, generateSpec.getAlgorithmName()), wrappedKey);
+                    new SecretKeySpec(key, generateSpec.getAlgorithmName()), wrappedKey);
         }
         finally
         {
             Arrays.fill(secret, (byte) 0);
+            if (key != null)
+            {
+                Arrays.fill(key, (byte) 0);
+            }
         }
     }
 }

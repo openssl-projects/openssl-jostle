@@ -314,7 +314,7 @@ public class FIPSMLXKEMAgreementTest
                         .withAlgorithmName("AES")
                         .withKeySizeInBits(spec.getSharedSecretBytes() * 8)
                         .withEncapsulatedKey(new byte[1])
-                        .build()),
+                        .withNoKdf().build()),
                 spec.getName() + ": " + user + " must refuse a " + owner + " private key");
         Assertions.assertEquals(
                 "private key was created by a different Jostle provider instance; hybrid KEM keys have no encoding, "
@@ -384,7 +384,7 @@ public class FIPSMLXKEMAgreementTest
                 .withPublicKey(pub)
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(spec.getSharedSecretBytes() * 8)
-                .build());
+                .withNoKdf().build());
         return (SecretKeyWithEncapsulation) kg.generateKey();
     }
 
@@ -399,7 +399,7 @@ public class FIPSMLXKEMAgreementTest
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(spec.getSharedSecretBytes() * 8)
                 .withEncapsulatedKey(encapsulation)
-                .build());
+                .withNoKdf().build());
         return (SecretKeyWithEncapsulation) kg.generateKey();
     }
 }

@@ -268,7 +268,7 @@ public class MLXKEMAgreementTest
                 .withPublicKey(pub)
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(spec.getSharedSecretBytes() * 8)
-                .build());
+                .withNoKdf().build());
         return (SecretKeyWithEncapsulation) kg.generateKey();
     }
 
@@ -282,7 +282,7 @@ public class MLXKEMAgreementTest
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(spec.getSharedSecretBytes() * 8)
                 .withEncapsulatedKey(encapsulation)
-                .build());
+                .withNoKdf().build());
         return (SecretKeyWithEncapsulation) kg.generateKey();
     }
 }

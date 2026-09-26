@@ -151,7 +151,7 @@ public class MLKEMAgreementTest
                     .withKeySizeInBits(256)
                     .withPublicKey(importPublic(JSL, bcPair.getPublic()))
                     .withAlgorithmName("AES")
-                    .build());
+                    .withNoKdf().build());
             SecretKeyWithEncapsulation encapsulated = (SecretKeyWithEncapsulation) joGen.generateKey();
 
             KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", BC);
@@ -185,7 +185,7 @@ public class MLKEMAgreementTest
                     .withEncapsulatedKey(encapsulated.getEncapsulation())
                     .withAlgorithmName("AES")
                     .withKeySizeInBits(256)
-                    .build());
+                    .withNoKdf().build());
             SecretKeyWithEncapsulation recovered = (SecretKeyWithEncapsulation) joGen.generateKey();
 
             Assertions.assertTrue(Arrays.areEqual(encapsulated.getEncoded(), recovered.getEncoded()),
@@ -222,7 +222,7 @@ public class MLKEMAgreementTest
                 .withEncapsulatedKey(first.getEncapsulation())
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(256)
-                .build());
+                .withNoKdf().build());
         SecretKeyWithEncapsulation wrongKey = (SecretKeyWithEncapsulation) joGen.generateKey();
 
         Assertions.assertFalse(Arrays.areEqual(first.getEncoded(), wrongKey.getEncoded()),
@@ -233,7 +233,7 @@ public class MLKEMAgreementTest
     {
         KeyGenerator g = KeyGenerator.getInstance("ML-KEM", JSL);
         g.init(KEMGenerateSpec.builder()
-                .withKeySizeInBits(256).withPublicKey(pub).withAlgorithmName("AES").build());
+                .withKeySizeInBits(256).withPublicKey(pub).withAlgorithmName("AES").withNoKdf().build());
         return (SecretKeyWithEncapsulation) g.generateKey();
     }
 
@@ -325,7 +325,7 @@ public class MLKEMAgreementTest
                     .withEncapsulatedKey(enc.getEncapsulation())
                     .withAlgorithmName("AES")
                     .withKeySizeInBits(256)
-                    .build());
+                    .withNoKdf().build());
             SecretKeyWithEncapsulation back = (SecretKeyWithEncapsulation) g.generateKey();
             Assertions.assertTrue(Arrays.areEqual(enc.getEncoded(), back.getEncoded()),
                     paramSet + ": a round-tripped BC keypair no longer operates");
@@ -384,7 +384,7 @@ public class MLKEMAgreementTest
                         {
                             KeyGenerator g = KeyGenerator.getInstance(alg, JSL);
                             g.init(KEMGenerateSpec.builder().withKeySizeInBits(256)
-                                    .withPublicKey(kp.getPublic()).withAlgorithmName("AES").build());
+                                    .withPublicKey(kp.getPublic()).withAlgorithmName("AES").withNoKdf().build());
                             Assertions.assertNotNull(g.generateKey());
                         }
                         else if ("Cipher".equals(type))

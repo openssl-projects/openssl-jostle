@@ -157,6 +157,39 @@ public class NamedSecretSizingParityTest
                 + String.join("\n", bad));
     }
 
+    /**
+     * Requests around each agreement's secret length: less, equal, one byte more, twice, and far beyond. Both
+     * providers must return the same bytes under the same name, or refuse with the same type; the refusal falls
+     * exactly where the request exceeds the secret. X25519 (32 bytes), X448 (56), ECDH P-521 (66), DH-2048 (256).
+     */
+    @Test
+    public void requestsAroundTheSecretLengthAgreeWithBouncyCastle() throws Exception
+    {
+        String[] names = {"DES", "AES[128]", "AES[248]", "AES[256]", "AES[264]", "AES[512]", "AES[4096]"};
+        int[] bytes = {8, 16, 31, 32, 33, 64, 512};
+        List<String> bad = new ArrayList<String>();
+        int cells = 0;
+        for (String agreement : new String[] {"X25519", "X448", "ECDH", "DH"})
+        {
+            Keys k = keys(agreement);
+            int secretLen = raw(bc, agreement, k).length;
+            for (int i = 0; i < names.length; i++)
+            {
+                cells += compare(bad, agreement, k, names[i]);
+                boolean bcRefused = refusalType(bc, agreement, k, names[i]) != null;
+                if (bcRefused != (bytes[i] > secretLen))
+                {
+                    bad.add(agreement + " " + names[i] + ": control: BouncyCastle "
+                            + (bcRefused ? "refused" : "accepted") + " a " + bytes[i] + "-byte key from a "
+                            + secretLen + "-byte secret");
+                }
+            }
+        }
+        Assertions.assertEquals(names.length * 4, cells, "expected one cell per size per agreement");
+        Assertions.assertTrue(bad.isEmpty(), "sizing around the secret length diverges:\n"
+                + String.join("\n", bad));
+    }
+
     @Test
     public void aSecretTooShortForTheNamedKeyIsRefusedOnBothSides() throws Exception
     {

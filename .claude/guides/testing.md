@@ -897,6 +897,50 @@ Fixed-length validation is often condensed into a compact single-expression chec
 
 Apply the matrix to keys, IVs, nonces, and salts **independently** — a missing IV-length check is easy to hide if a key-length check happens to fire first. And confirm the exception type matches the contract (`IllegalArgumentException` from `init`, `InvalidKeyException` from JCE entry points); a `bc_assert` abort on the C side looks identical to a clean failure from a poorly-written test, so verify the rejection reaches Java as a typed exception rather than a process abort.
 
+### Ask every secret producer for MORE than it holds, and for LESS
+
+**Symptom: every positive test asks for exactly the size the object holds, and the two halves of the exchange
+disagree at any other size.** A KEM `KeyGenerator` holds a shared secret of a fixed length after init; the caller
+asks for a key size. Every test asked for 256 bits against a 32-byte secret, so nobody saw that a larger request
+made the sender's key and the receiver's key differ in size and content, and that a smaller one failed late with a
+bare unchecked exception.
+
+Any object that turns fixed material into a caller-sized secret has two sizes: what it HOLDS after init (the
+encapsulated or agreed secret) and what the caller ASKS for (a key size in bits, a named key algorithm, an output
+length). A test at the held size proves nothing about the others. For every such service, the tests drive:
+
+1. **The held size exactly**, both halves agreeing: the baseline.
+2. **MORE than held**: one bit more, one byte more, twice, and a large value. The only acceptable answers are a
+   typed refusal at the call that names the size (init where the spec carries it, `generateSecret(String)` for a
+   key agreement), or a derivation through a KDF the spec names, byte-equal on both halves and against
+   BouncyCastle.
+3. **LESS than held**: one bit less, one byte less, zero, negative. Whatever the documented contract says
+   (BouncyCastle cuts a raw secret to a prefix, so we do; a KDF derives), both halves produce the same bytes, and
+   zero and negative are typed refusals at that same call.
+4. **Both halves for every row**: the generate, encapsulate or agree side AND the extract, decapsulate or other
+   side, initialised with the same request, asserting byte-equal outputs or the same refusal type. A one-sided
+   test cannot see the two halves disagreeing.
+5. **Sizes that are not a whole number of bytes** (7, 12 bits): pin the rounding, matching BouncyCastle where it
+   is typed.
+
+Where we refuse earlier or with a different type than BouncyCastle (it refuses these late, unchecked, at
+`generateKey`), pin both halves of the divergence: measure BouncyCastle's refusal live in one cell and assert ours
+in the next.
+
+The producers this covers, and the request each takes:
+
+- KEM `KeyGenerator` (ML-KEM, the TLS hybrids): `withKeySizeInBits` on `KEMGenerateSpec` and `KEMExtractSpec`, with
+  and without a KDF. `KemKdfSizingLimitTest` and its FIPS twin are the reference.
+- `KeyAgreement.generateSecret(String algorithm)`, every family including the CKDF, HKDF and RFC 2631 variants,
+  with `UserKeyingMaterialSpec` where they take one. `NamedSecretSizingParityTest` is the reference.
+- The KTS ciphers (`ML-KEM`, `RSA-KTS-KEM-KWS`) with a KDF and with `withNoKdf`, and `ETSIKEMwithSHA256`, whose KEK
+  follows the wrapped key's length. `SecretSizingParityTest` holds the rows.
+- Any future producer (a seed-expanding key generator, an XOF-backed derivation): the same rows.
+
+To find the producers, grep for `getKeySizeInBits`, `withKeySizeInBits`, `keySize`, `generateSecret(` with an
+argument, `withNoKdf` and `sharedSecretLength`. A literal grep for `generateSecret("` misses every call that passes
+the name in a variable, which is how the parity test itself calls it, so read the call sites, not the grep.
+
 ### Verify offset-write contracts via functional round-trip, not sentinel bytes
 
 Every NI (and SPI) entry point that writes into a caller-supplied buffer at a non-zero `outOff` is making two contracts: (1) it must NOT write to bytes preceding `outOff`, and (2) the bytes from `outOff..outOff+writtenLen` must be the actual ciphertext / signature / digest the operation claims to have produced. Single-byte sentinel proxies for either contract are flaky because the operation's output is essentially uniformly random — `assertNotEquals((byte) 0xAA, big[outOff])` has a built-in 1-in-256 false-positive rate. Across a multi-config CI matrix that's a real flake.

@@ -134,7 +134,7 @@ public class FIPSMLKEMAgreementTest
     {
         KeyGenerator g = KeyGenerator.getInstance("ML-KEM", provider);
         g.init(KEMGenerateSpec.builder()
-                .withKeySizeInBits(256).withPublicKey(pub).withAlgorithmName("AES").build());
+                .withKeySizeInBits(256).withPublicKey(pub).withAlgorithmName("AES").withNoKdf().build());
         return (SecretKeyWithEncapsulation) g.generateKey();
     }
 
@@ -147,7 +147,7 @@ public class FIPSMLKEMAgreementTest
                 .withEncapsulatedKey(encapsulation)
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(256)
-                .build());
+                .withNoKdf().build());
         return (SecretKeyWithEncapsulation) g.generateKey();
     }
 
@@ -339,7 +339,7 @@ public class FIPSMLKEMAgreementTest
                         {
                             KeyGenerator g = KeyGenerator.getInstance(alg, FIPS);
                             g.init(KEMGenerateSpec.builder().withKeySizeInBits(256)
-                                    .withPublicKey(kp.getPublic()).withAlgorithmName("AES").build());
+                                    .withPublicKey(kp.getPublic()).withAlgorithmName("AES").withNoKdf().build());
                             Assertions.assertNotNull(g.generateKey(), alg);
                         }
                         else if ("Cipher".equals(type))
