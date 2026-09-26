@@ -11,12 +11,15 @@
 
 package org.openssl.jostle.test.fips;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.test.examples.ExamplesCoverage;
 
+import java.security.KeyPairGenerator;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -41,6 +44,26 @@ public class FIPSExamplesCoverageTest
     static void before()
     {
         fips = FIPSTestUtil.assumeFipsProvider();
+    }
+
+    /**
+     * JSLFIPS registers ML-KEM if and only if the loaded module implements it, asked of the module itself. The
+     * coverage check below keys on that registration to recognise the 3.5.x module the guide describes, so this
+     * cell makes its skip on any other module a measured absence rather than an assumed one. Where the module
+     * has no ML-KEM, JSL on mainline OpenSSL still serves it.
+     */
+    @Test
+    public void mlKemServedIffModuleImplementsIt()
+            throws Exception
+    {
+        boolean implemented = FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768");
+        Assertions.assertEquals(implemented, fips.getService("KeyPairGenerator", "ML-KEM-768") != null,
+                "JSLFIPS KeyPairGenerator.ML-KEM-768 registration disagrees with the loaded module");
+        if (!implemented)
+        {
+            Assertions.assertNotNull(KeyPairGenerator.getInstance("ML-KEM-768", new JostleProvider()),
+                    "ML-KEM-768 must still resolve through JSL");
+        }
     }
 
     @Test

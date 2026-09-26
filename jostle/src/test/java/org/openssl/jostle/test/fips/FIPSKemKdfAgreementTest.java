@@ -17,9 +17,11 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.test.spec.KemKdfCases;
 
+import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
@@ -39,6 +41,24 @@ public class FIPSKemKdfAgreementTest
     {
         fips = FIPSTestUtil.assumeFipsProvider();
         bc = Security.getProvider("BC") != null ? Security.getProvider("BC") : new BouncyCastleProvider();
+    }
+
+    /**
+     * JSLFIPS registers ML-KEM if and only if the loaded module implements it, asked of the module itself, so
+     * when the cells below skip on a module without ML-KEM, that is the module's limit and not a lost
+     * registration. Where the module has none, JSL on mainline OpenSSL still serves it.
+     */
+    @Test
+    public void mlKemServedIffModuleImplementsIt() throws Exception
+    {
+        boolean implemented = FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768");
+        Assertions.assertEquals(implemented, fips.getService("KeyPairGenerator", "ML-KEM-768") != null,
+                "JSLFIPS KeyPairGenerator.ML-KEM-768 registration disagrees with the loaded module");
+        if (!implemented)
+        {
+            Assertions.assertNotNull(KeyPairGenerator.getInstance("ML-KEM-768", new JostleProvider()),
+                    "ML-KEM-768 must still resolve through JSL");
+        }
     }
 
     private static void assumeMlKem()
