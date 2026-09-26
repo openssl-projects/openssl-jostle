@@ -390,6 +390,11 @@ sourceSets {
 
 }
 
+// The worked examples live outside the jar's namespace (package jostle.examples) and are consumer code:
+// they run on every classpath unit leg through the test source set, and on the module legs through
+// testModule, where exports are enforced.
+sourceSets.test.java.srcDir('src/test/examples')
+
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     // BouncyCastle is SANCTIONED on the TEST classpath only, as the second
@@ -904,6 +909,7 @@ tasks.register('fipsUnitTest25FFM', Test) {
     jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=ffm', '-Dtest.java.interface_type=ffm']
     filter {
         includeTestsMatching "org.openssl.jostle.test.fips.*"
+        includeTestsMatching "jostle.examples.fips.*ExamplesTest"
         excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
         excludeTestsMatching "*OpsTest*"
@@ -931,6 +937,7 @@ tasks.register('fipsUnitTest25JNI', Test) {
     jvmArgs = ['-Dtest.java.version.prefix=25', '-Dorg.openssl.jostle.loader.interface=jni', '-Dtest.java.interface_type=jni']
     filter {
         includeTestsMatching "org.openssl.jostle.test.fips.*"
+        includeTestsMatching "jostle.examples.fips.*ExamplesTest"
         excludeTestsMatching "*LimitTest*"
         excludeTestsMatching "*IntegrationTest*"
         excludeTestsMatching "*OpsTest*"
@@ -1026,7 +1033,7 @@ sourceSets {
         java {
             // NOT src/test/java: those tests import packages module-info
             // does not export (jcajce.provider.kts, .kdf, .mlkem, .wrap).
-            srcDirs = ["src/test/module"]
+            srcDirs = ["src/test/module", "src/test/examples"]
             compileClasspath += files(jar.archiveFile)
         }
     }
@@ -1165,6 +1172,7 @@ def registerModuleLeg = { String name, int jdk, String cell, String iface, boole
 
         filter {
             includeTestsMatching "org.openssl.jostle.test.module.*Test"
+            includeTestsMatching "jostle.examples.*ExamplesTest"
         }
     }
 }
@@ -1245,6 +1253,19 @@ tasks.withType(Test) {
     inputs.property("TEST_FIPS_LIB", providers.environmentVariable("TEST_FIPS_LIB")).optional(true)
     // The version the build wrote into the jar, so a test can compare the two.
     systemProperty 'jostle.test.project.version', project.version.toString()
+    // The repository root, so the examples guide tests can read the example sources and the guide.
+    systemProperty 'jostle.examples.root', rootProject.projectDir.absolutePath
+}
+
+// Regenerates docs/jostle-ai-guide.md from the preamble and the example classes. The currency test
+// (ExamplesGuideCurrentTest) runs the same generator in memory and fails when the file on disk differs.
+tasks.register('generateExamplesGuide', JavaExec) {
+    group = 'documentation'
+    description = 'Regenerate docs/jostle-ai-guide.md from src/test/examples'
+    dependsOn('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.openssl.jostle.test.examples.ExamplesGuide'
+    args rootProject.projectDir.absolutePath
 }
 
 

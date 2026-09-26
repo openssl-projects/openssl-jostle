@@ -100,3 +100,6 @@ clean diff of exactly what was added or removed.
 Show the user the counts and the diff (`git diff SERVICES.md`) so they can see
 which algorithms changed, then let them commit. The file is a generated
 artifact; do not hand-edit it — change the provider registration and re-run.
+
+A registration change also moves the worked-examples guide: the coverage tests name any registered
+service no example calls. Add the example and regenerate with the `regenerate-examples-guide` skill.

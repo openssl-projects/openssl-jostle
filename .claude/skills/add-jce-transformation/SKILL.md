@@ -166,3 +166,5 @@ After writing all the code, walk through `references/verification-checklist.md` 
 11. Write tests at every level.
 12. Run unit + limit + ops tests on both JNI and FFM bridges (`unitTest25JNI`, `unitTest25FFM`, `integrationTest25JNI`, `integrationTest25FFM`).
 13. Walk through `references/verification-checklist.md`.
+14. Add a worked example for every new primary name and regenerate the guide (`regenerate-examples-guide`
+    skill); the coverage tests name any new service that has none.
