@@ -59,5 +59,12 @@ class ProvCAMELLIA
         // before MT-18, so getParameters() threw IllegalStateException.
         provider.addAlgorithmImplementation("AlgorithmParameters", "CAMELLIA",
                 IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
+
+        // The CBC OIDs name the CAMELLIA parameters too, as they do in BouncyCastle.
+        // The JDK names an algorithm OID it does not know from the providers'
+        // "OID." aliases, so without these a SunJCE key store reads a CAMELLIA
+        // secret key back under its OID.
+        provider.addAlias("AlgorithmParameters", "CAMELLIA", NTTObjectIdentifiers.id_camellia128_cbc,
+                NTTObjectIdentifiers.id_camellia192_cbc, NTTObjectIdentifiers.id_camellia256_cbc);
     }
 }

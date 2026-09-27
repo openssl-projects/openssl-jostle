@@ -255,15 +255,8 @@ public class JostleProvider
         }
         creatorMap.put(key1, creator);
 
-        // A service whose PRIMARY name is an OID needs the "OID."-prefixed
-        // spelling too, exactly as the ASN1ObjectIdentifier overload below
-        // registers it. Two services are named this way - Cipher
-        // 1.2.840.113549.3.7 and SecretKeyFactory 1.3.6.1.4.1.11591.4.11 -
-        // and both resolved by the bare spelling alone until this was added.
-        if (OID_SHAPED.matcher(name).matches())
-        {
-            doPut("Alg.Alias." + type + ".OID." + name, name);
-        }
+        // A primary named by an OID gets no "OID."-prefixed alias property:
+        // getService resolves that spelling itself. See the note there.
     }
 
     public void addAlgorithmImplementation(String type, ASN1ObjectIdentifier name, String className, Map<String, String> attributes, EngineCreator creator)
@@ -291,7 +284,8 @@ public class JostleProvider
         }
         creatorMap.put(key1, creator);
 
-        doPut("Alg.Alias." + type + ".OID." + name, name.getId());
+        // No "OID."-prefixed alias property: getService resolves that spelling
+        // itself. See the note there.
     }
 
     void addAlias(String key, String value)
@@ -409,6 +403,18 @@ public class JostleProvider
     public synchronized final Service getService(String type, String algorithm)
     {
         String upperCaseAlgName = algorithm.toUpperCase(Locale.ROOT);
+
+        // A primary named by an OID gets no "OID." alias property: the JDK builds its OID-naming table from
+        // every provider's "OID." aliases, so a self-valued one makes SunJCE name the algorithm, and
+        // BouncyCastle's keys when this provider comes first, by the OID. The spelling is resolved here; an
+        // explicit "OID." alias naming a real primary is found by the lookup below.
+        if (upperCaseAlgName.startsWith("OID.")
+                && !containsKey("Alg.Alias." + type + "." + upperCaseAlgName)
+                && OID_SHAPED.matcher(upperCaseAlgName.substring(4)).matches())
+        {
+            algorithm = algorithm.substring(4);
+            upperCaseAlgName = upperCaseAlgName.substring(4);
+        }
 
         JoService service = serviceMap.get(type + "." + upperCaseAlgName);
 

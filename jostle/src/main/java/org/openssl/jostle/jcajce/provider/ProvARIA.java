@@ -63,5 +63,12 @@ class ProvARIA
         // before MT-18, so getParameters() threw IllegalStateException.
         provider.addAlgorithmImplementation("AlgorithmParameters", "ARIA",
                 IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
+
+        // The CBC OIDs name the ARIA parameters too, as they do in BouncyCastle.
+        // The JDK names an algorithm OID it does not know from the providers'
+        // "OID." aliases, so without these a SunJCE key store reads an ARIA
+        // secret key back under its OID.
+        provider.addAlias("AlgorithmParameters", "ARIA", NSRIObjectIdentifiers.id_aria128_cbc,
+                NSRIObjectIdentifiers.id_aria192_cbc, NSRIObjectIdentifiers.id_aria256_cbc);
     }
 }

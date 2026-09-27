@@ -492,10 +492,11 @@ public class KSServiceAgreementTest
     }
 
     /**
-     * SunJCE names a secret key through the providers registered in the JVM, so ARIA and Camellia can come back
-     * under their OID. The name JSL's file reads as is therefore compared with the name SunJCE's own file reads as
-     * in the same JVM, and the bytes with the key. Where SunJCE names its own key by OID, it writes an OID of its
-     * own (JDK 8 names ARIA by id-aria256-ofb), so JSL's key must then come back under an OID too.
+     * The key JSL's file reads back as in SunJCE: its bytes, and the same name SunJCE's own file reads back as.
+     * From JDK 11 that name is the key's own algorithm: SunJCE names an OID it does not know from the registered
+     * providers' "OID." aliases, and JSL's name ARIA and Camellia. JDK 8's key store names no such OID from any
+     * provider, measured with JSL, BouncyCastle or neither registered, and it writes ARIA under id-aria256-ofb
+     * where JSL writes id-aria256-cbc, so there both keys read back under an OID, and not the same one.
      */
     private static void assertSunReadsLikeItsOwn(byte[] p12, javax.crypto.SecretKey[] keys, String label)
         throws Exception
@@ -511,13 +512,108 @@ public class KSServiceAgreementTest
             Assertions.assertNotNull(got, what);
             Assertions.assertArrayEquals(keys[i].getEncoded(), got.getEncoded(), what);
             String ownName = own.getKey("k" + i, SK_PASSWORD).getAlgorithm();
-            if (Character.isDigit(ownName.charAt(0)))
+            if (jdkFeature() == 8 && isOid(ownName))
             {
-                Assertions.assertTrue(Character.isDigit(got.getAlgorithm().charAt(0)), what + " " + got.getAlgorithm());
+                Assertions.assertTrue(isOid(got.getAlgorithm()), what + " " + got.getAlgorithm());
             }
             else
             {
                 Assertions.assertEquals(ownName, got.getAlgorithm(), what);
+                Assertions.assertTrue(keys[i].getAlgorithm().equalsIgnoreCase(got.getAlgorithm()),
+                        what + " read as " + got.getAlgorithm());
+            }
+        }
+    }
+
+    private static boolean isOid(String name)
+    {
+        return name.matches("\\d+(\\.\\d+)+");
+    }
+
+    /**
+     * SunJCE names JSL's ARIA and Camellia keys, and its own, by algorithm name whichever of JSL and BouncyCastle
+     * is registered first, and with JSL alone: a JSL "OID." alias whose value was the OID itself once made SunJCE
+     * name them by OID, and did so for BouncyCastle too when JSL came first. The orders are driven from JDK 17,
+     * where SunJCE rebuilds its naming table when the provider list changes; JDK 11 builds it once per JVM, so
+     * there the cell checks the naming with both providers registered as this class leaves them; JDK 8 names
+     * these OIDs from no provider (see assertSunReadsLikeItsOwn), so there the cell pins that. The provider list
+     * is restored and checked by name and position.
+     */
+    @Test
+    public void secretKeys_sunNamesAriaAndCamelliaWhateverTheProviderOrder()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = {
+                secret("ARIA", 16), secret("ARIA", 32), secret("Camellia", 16), secret("Camellia", 32)};
+        java.security.Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        java.security.Provider bc = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME);
+        java.security.Provider[] before = Security.getProviders();
+        byte[] jslFile = storeSecrets(KeyStore.getInstance("PKCS12", jsl), keys,
+                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
+        byte[] sunFile = storeSecrets(sunKeyStore(), keys, null);
+        if (jdkFeature() < 17)
+        {
+            assertSunNames(jslFile, sunFile, keys, "registered as left", jdkFeature() == 8);
+            return;
+        }
+        java.security.Provider[][] orders = {{jsl}, {jsl, bc}, {bc, jsl}};
+        try
+        {
+            for (java.security.Provider[] order : orders)
+            {
+                Security.removeProvider(jsl.getName());
+                Security.removeProvider(bc.getName());
+                StringBuilder label = new StringBuilder();
+                for (java.security.Provider p : order)
+                {
+                    Security.addProvider(p);
+                    label.append(p.getName()).append(' ');
+                }
+                assertSunNames(jslFile, sunFile, keys, label.toString().trim(), false);
+            }
+        }
+        finally
+        {
+            Security.removeProvider(jsl.getName());
+            Security.removeProvider(bc.getName());
+            for (int i = 0; i < before.length; i++)
+            {
+                if (before[i] == jsl || before[i] == bc)
+                {
+                    Security.insertProviderAt(before[i], i + 1);
+                }
+            }
+        }
+        java.security.Provider[] after = Security.getProviders();
+        Assertions.assertEquals(before.length, after.length, "provider list not restored");
+        for (int i = 0; i < before.length; i++)
+        {
+            Assertions.assertSame(before[i], after[i], "provider " + (i + 1) + " not restored");
+        }
+    }
+
+    private static void assertSunNames(byte[] jslFile, byte[] sunFile, javax.crypto.SecretKey[] keys, String order,
+                                       boolean byOid)
+        throws Exception
+    {
+        for (byte[] file : new byte[][]{jslFile, sunFile})
+        {
+            KeyStore read = sunKeyStore();
+            read.load(new ByteArrayInputStream(file), SK_PASSWORD);
+            for (int i = 0; i < keys.length; i++)
+            {
+                java.security.Key got = read.getKey("k" + i, SK_PASSWORD);
+                String what = order + ": " + (file == jslFile ? "JSL(SUNJCE)" : "SUN") + " "
+                        + keys[i].getAlgorithm() + "/" + keys[i].getEncoded().length + " read as " + got.getAlgorithm();
+                Assertions.assertArrayEquals(keys[i].getEncoded(), got.getEncoded(), what);
+                if (byOid)
+                {
+                    Assertions.assertTrue(isOid(got.getAlgorithm()), what);
+                }
+                else
+                {
+                    Assertions.assertTrue(keys[i].getAlgorithm().equalsIgnoreCase(got.getAlgorithm()), what);
+                }
             }
         }
     }

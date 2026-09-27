@@ -38,6 +38,12 @@ public class FIPSOidSpellingParityTest
      */
     private static final int MIN_OIDS = 100;
 
+    /**
+     * Measured 25 on 3.5.8 (16 Cipher, 9 AlgorithmParameters) and 24 on 3.1.2 (15 Cipher): the services whose primary
+     * name is itself an OID.
+     */
+    private static final int MIN_OID_PRIMARIES = 22;
+
     private static JostleFIPSProvider provider;
 
     @BeforeAll
@@ -50,5 +56,12 @@ public class FIPSOidSpellingParityTest
     public void everyOidResolvesUnderBothSpellings()
     {
         OidSpellingParityTest.assertBothSpellings(provider, MIN_OIDS);
+    }
+
+    @Test
+    public void noOidAliasNamesAnOid()
+        throws Exception
+    {
+        OidSpellingParityTest.assertNoOidAliasNamesAnOid(provider, MIN_OID_PRIMARIES);
     }
 }

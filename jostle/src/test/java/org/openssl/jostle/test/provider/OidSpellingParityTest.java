@@ -75,6 +75,85 @@ public class OidSpellingParityTest
         assertBothSpellings(Security.getProvider(JostleProvider.PROVIDER_NAME), MIN_OIDS);
     }
 
+    @Test
+    public void noOidAliasNamesAnOid()
+        throws Exception
+    {
+        assertNoOidAliasNamesAnOid(Security.getProvider(JostleProvider.PROVIDER_NAME), MIN_OID_PRIMARIES);
+    }
+
+    /**
+     * Measured 32 on JSL: the services whose primary name is itself an OID.
+     */
+    private static final int MIN_OID_PRIMARIES = 30;
+
+    /**
+     * No {@code Alg.Alias.<type>.OID.<oid>} property names an OID. The JDK builds a table from every
+     * provider's "OID." aliases to name an algorithm OID it does not know, so an alias whose value is the OID
+     * makes SunJCE name the algorithm by its own OID, and does so for BouncyCastle's keys too when this
+     * provider comes first; measured on SunJCE's PKCS12 key store, which read ARIA and Camellia secret keys back
+     * under their OIDs. A primary named by an OID therefore gets no such property, and its "OID." spelling is
+     * resolved by getService; this cell also requires both spellings of every such primary through
+     * {@code getService} and through the JCA {@code getInstance} path.
+     */
+    public static void assertNoOidAliasNamesAnOid(Provider provider, int minOidPrimaries)
+        throws Exception
+    {
+        Assertions.assertNotNull(provider, "provider not registered");
+        List<String> oidValued = new ArrayList<String>();
+        for (Object key : provider.keySet())
+        {
+            String k = (String) key;
+            int at = k.toUpperCase(java.util.Locale.ROOT).indexOf(".OID.");
+            if (k.startsWith("Alg.Alias.") && at >= 0 && provider.getProperty(k).matches("\\d+(\\.\\d+)+"))
+            {
+                oidValued.add(k + " = " + provider.getProperty(k));
+            }
+        }
+        Assertions.assertEquals(new ArrayList<String>(), oidValued,
+                provider.getName() + ": \"OID.\" aliases whose value is an OID");
+
+        int primaries = 0;
+        for (Provider.Service s : provider.getServices())
+        {
+            String oid = s.getAlgorithm();
+            if (!oid.matches("\\d+(\\.\\d+)+"))
+            {
+                continue;
+            }
+            primaries++;
+            for (String spelling : new String[]{oid, "OID." + oid, "oid." + oid})
+            {
+                Provider.Service got = provider.getService(s.getType(), spelling);
+                Assertions.assertNotNull(got, provider.getName() + " " + s.getType() + " " + spelling);
+                Assertions.assertEquals(s.getClassName(), got.getClassName(), s.getType() + " " + spelling);
+                Object engine = getInstance(s.getType(), spelling, provider);
+                Assertions.assertNotNull(engine, provider.getName() + " getInstance " + s.getType() + " " + spelling);
+            }
+        }
+        Assertions.assertTrue(primaries >= minOidPrimaries,
+                provider.getName() + ": only " + primaries + " OID-named primaries, expected at least "
+                        + minOidPrimaries);
+    }
+
+    private static Object getInstance(String type, String algorithm, Provider provider)
+        throws Exception
+    {
+        if (type.equals("Cipher"))
+        {
+            return javax.crypto.Cipher.getInstance(algorithm, provider);
+        }
+        if (type.equals("AlgorithmParameters"))
+        {
+            return java.security.AlgorithmParameters.getInstance(algorithm, provider);
+        }
+        if (type.equals("SecretKeyFactory"))
+        {
+            return javax.crypto.SecretKeyFactory.getInstance(algorithm, provider);
+        }
+        throw new IllegalStateException("no getInstance for " + type + " " + algorithm);
+    }
+
     /**
      * Shared by {@code FIPSOidSpellingParityTest}, which runs the identical
      * sweep over JSLFIPS. The two providers build their surfaces from separate
