@@ -845,11 +845,10 @@ Properties may be set in a security policy file or on the command line via -Dxxx
 
 #### Property: "org.openssl.jostle.loader.install_dir"
 
-Directly specify an installation directory rather than use one derived from the default temporary 
-directory provided by the JVM. 
-
-**This is very useful if your host system is configured to deny
-execution from any binary file (this also includes libraries) that are installed in a temp drive.**
+Directly specify an installation directory rather than the one derived from the JVM's default temporary
+directory. Use it when that directory is on a filesystem mounted `noexec`: the JVM extracts the libraries there
+and asks the operating system to load them, and the operating system's loader refuses to map executable code
+from such a filesystem.
 
 #### Property: "org.openssl.jostle.loader.load_lib_NN"
 This property allows you to override the list of native libraries loaded that are not interface libraries,

@@ -54,7 +54,8 @@ Jostle loads a native library, so from JDK 24 the JVM warns unless native access
 JDK 11 rejects the flag; JDK 17 to 23 accept it and need nothing. The loader reads these system properties:
 
 1. `org.openssl.jostle.loader.install_dir`: where the native libraries are extracted, by default the temporary
-   directory. Set it where that directory does not allow loading native code (mounted `noexec`, for example).
+   directory. Set it when that directory is on a filesystem mounted `noexec`, since the operating system refuses
+   to load a native library from there.
 2. `org.openssl.jostle.loader.interface`: `auto` (the default), `ffm`, `jni` or `none`. Under `auto` the
    loader uses FFM on Java 25 and JNI on every other JDK.
 3. `org.openssl.jostle.loader.extract_openssl`: `false` stops the loader extracting the bundled OpenSSL, for
