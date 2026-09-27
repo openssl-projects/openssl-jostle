@@ -181,7 +181,7 @@ public class FIPSX509OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/fips/util/x509.c, offset 7000
+            // Exercises interface/fips/util/x509.c:100
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int[] err = new int[1];
             byte[] der = cert();
@@ -200,7 +200,7 @@ public class FIPSX509OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/fips/util/x509.c, offset 7005
+            // Exercises interface/fips/util/x509.c:994
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int[] err = new int[1];
             byte[] der = crl();
@@ -249,7 +249,7 @@ public class FIPSX509OpsTest
         {
             byte[] der = cert();
             ref = x509NI.allocate(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
-            // Exercises interface/fips/util/x509.c, offset 7003
+            // Exercises interface/fips/util/x509.c:246
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             Assertions.assertEquals(-7005, x509NI.ni_fieldsLen(ref));
         }
@@ -272,7 +272,7 @@ public class FIPSX509OpsTest
         {
             byte[] der = cert();
             ref = x509NI.allocate(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
-            // Exercises interface/fips/util/x509.c, offset 7001
+            // Exercises interface/fips/util/x509.c:167
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             Assertions.assertEquals(-7003, x509NI.ni_fieldsLen(ref));
         }
@@ -318,7 +318,7 @@ public class FIPSX509OpsTest
         try
         {
             ref = x509NI.allocate(cert(), 0, cert().length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
-            // Exercises interface/fips/util/x509.c, offset 7002
+            // Exercises interface/fips/util/x509.c:172
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(-7004, x509NI.ni_fieldsLen(ref));
         }
@@ -342,7 +342,7 @@ public class FIPSX509OpsTest
             ref = x509NI.allocate(cert(), 0, cert().length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             int need = x509NI.ni_fieldsLen(ref);
             Assertions.assertTrue(need > 0, "control: the length query must succeed first");
-            // Exercises interface/fips/util/x509.c, offset 7004
+            // Exercises interface/fips/util/x509.c:268
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             Assertions.assertEquals(-7006, x509NI.ni_fields(ref, new byte[need],
                     new int[org.openssl.jostle.jcajce.provider.cert.X509NI.SLOT_COUNT], new int[org.openssl.jostle.jcajce.provider.cert.X509NI.INFO_COUNT]));
@@ -387,7 +387,7 @@ public class FIPSX509OpsTest
         try
         {
             ref = x509NI.allocateCrl(crl(), 0, crl().length, org.openssl.jostle.jcajce.provider.cert.X509NI.maxContainerBytes(), new int[1]);
-            // Exercises interface/fips/util/x509.c, offset 7009
+            // Exercises interface/fips/util/x509.c:1367
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(-7011, x509NI.ni_crlEntriesLen(ref));
         }
@@ -411,7 +411,7 @@ public class FIPSX509OpsTest
             ref = x509NI.allocateCrl(crl(), 0, crl().length, org.openssl.jostle.jcajce.provider.cert.X509NI.maxContainerBytes(), new int[1]);
             int need = x509NI.ni_crlFieldsLen(ref);
             Assertions.assertTrue(need > 0, "control: the length query must succeed first");
-            // Exercises interface/fips/util/x509.c, offset 7007
+            // Exercises interface/fips/util/x509.c:1089
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             Assertions.assertEquals(-7009, x509NI.ni_crlFields(ref, new byte[need],
                     new int[org.openssl.jostle.jcajce.provider.cert.X509NI.CRL_SLOT_COUNT], new int[org.openssl.jostle.jcajce.provider.cert.X509NI.CRL_INFO_COUNT]));

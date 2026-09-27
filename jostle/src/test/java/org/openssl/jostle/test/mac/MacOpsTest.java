@@ -45,7 +45,7 @@ public class MacOpsTest
         long ref = 0;
         try
         {
-            // Exercises interface/nonfips/jni/mac_jni.c:48
+            // Exercises interface/nonfips/jni/mac_jni.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
             Assertions.fail();
@@ -73,7 +73,7 @@ public class MacOpsTest
         long ref = 0;
         try
         {
-            // Exercises interface/nonfips/jni/mac_jni.c:54
+            // Exercises interface/nonfips/jni/mac_jni.c:56
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
             Assertions.fail();
@@ -102,7 +102,7 @@ public class MacOpsTest
         long ref = 0;
         try
         {
-            // Exercises interface/nonfips/util/mac.c:110
+            // Exercises interface/nonfips/util/mac.c:224
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
             Assertions.fail();
@@ -129,7 +129,7 @@ public class MacOpsTest
         long ref = 0;
         try
         {
-            // Exercises interface/nonfips/util/mac.c:227
+            // Exercises interface/nonfips/util/mac.c:230
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int[] err = new int[1];
             ref = MacServiceNI.ni_allocateMac("HMAC", "SHA-256", err);
@@ -155,7 +155,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            // Exercises interface/nonfips/jni/mac_jni.c:98
+            // Exercises interface/nonfips/jni/mac_jni.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             MacServiceNI.engineInit(ref, new byte[16], null, null, 0);
             Assertions.fail();
@@ -206,7 +206,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:187
+            // Exercises interface/nonfips/util/mac.c:190
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = MacServiceNI.ni_init(ref, new byte[16], null, null, 0);
             Assertions.assertEquals(-1003, code);
@@ -230,7 +230,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16], null, null, 0);
-            // Exercises interface/nonfips/jni/mac_jni.c:166
+            // Exercises interface/nonfips/jni/mac_jni.c:160
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             MacServiceNI.engineUpdate(ref, new byte[10], 1, 9);
             Assertions.fail();
@@ -255,7 +255,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16], null, null, 0);
-            // Exercises interface/nonfips/util/mac.c:448
+            // Exercises interface/nonfips/util/mac.c:453
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = MacServiceNI.ni_updateBytes(ref, new byte[10], 1, 9);
             Assertions.assertEquals(-1004, code);
@@ -278,7 +278,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16], null, null, 0);
-            // Exercises interface/nonfips/jni/mac_jni.c:219
+            // Exercises interface/nonfips/jni/mac_jni.c:243
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             MacServiceNI.doFinal(ref, new byte[32], 0);
             Assertions.fail();
@@ -303,7 +303,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16], null, null, 0);
-            // Exercises interface/nonfips/util/mac.c:487
+            // Exercises interface/nonfips/util/mac.c:492
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = MacServiceNI.ni_doFinal(ref, new byte[32], 0);
             Assertions.assertEquals(-1005, code);
@@ -328,7 +328,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16], null, null, 0);
-            // Exercises interface/nonfips/util/mac.c:210
+            // Exercises interface/nonfips/util/mac.c:190
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             MacServiceNI.doFinal(ref, new byte[32], 0);
             Assertions.fail();
@@ -354,7 +354,7 @@ public class MacOpsTest
         try
         {
             MacServiceNI.engineInit(ref, new byte[16], null, null, 0);
-            // Exercises interface/nonfips/util/mac.c:234
+            // Exercises interface/nonfips/util/mac.c:496
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             MacServiceNI.getMacLength(ref);
             Assertions.fail();
@@ -404,7 +404,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:518
+            // Exercises interface/nonfips/util/mac.c:523
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = MacServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1012, code);
@@ -424,7 +424,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("CMAC", "aes-cbc");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:539
+            // Exercises interface/nonfips/util/mac.c:544
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = MacServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1013, code);
@@ -444,7 +444,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("HMAC", "SHA-256");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:523
+            // Exercises interface/nonfips/util/mac.c:528
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = MacServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1014, code);
@@ -464,7 +464,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("CMAC", "aes-cbc");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:544
+            // Exercises interface/nonfips/util/mac.c:549
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = MacServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1015, code);
@@ -484,7 +484,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("POLY1305", "POLY1305");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:60
+            // Exercises interface/nonfips/util/mac.c:101
             // OPS_ALTERNATE_3 skips the POLY1305 init branch; with the CMAC/HMAC
             // branches not matching the name, init falls through to the final
             // else -> JO_UNEXPECTED_STATE.
@@ -511,7 +511,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("POLY1305", "POLY1305");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:563
+            // Exercises interface/nonfips/util/mac.c:568
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             int code = MacServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1016, code);
@@ -531,7 +531,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("GMAC", "aes-gcm");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:81
+            // Exercises interface/nonfips/util/mac.c:111
             // OPS_ALTERNATE_4 skips the GMAC init branch; with the CMAC/HMAC/
             // POLY1305 branches not matching the name, init falls through to
             // the final else -> JO_UNEXPECTED_STATE.
@@ -558,7 +558,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("KMAC-128", "KMAC-128");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:148
+            // Exercises interface/nonfips/util/mac.c:151
             // OPS_ALTERNATE_5 skips the KMAC init branch; with CMAC/HMAC/
             // POLY1305/GMAC not matching the name, init falls through to the
             // final else -> JO_UNEXPECTED_STATE.
@@ -586,7 +586,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("KMAC-128", "KMAC-128");
         try
         {
-            // Exercises interface/nonfips/jni/mac_jni.c:166
+            // Exercises interface/nonfips/jni/mac_jni.c:170
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_6);
             MacServiceNI.engineInit(ref, new byte[32], null, new byte[]{1, 2, 3}, 0);
             Assertions.fail();
@@ -611,7 +611,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("KMAC-128", "KMAC-128");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:587
+            // Exercises interface/nonfips/util/mac.c:592
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
             int code = MacServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1019, code);
@@ -631,7 +631,7 @@ public class MacOpsTest
         long ref = MacServiceNI.allocateMac("KMAC-128", "KMAC-128");
         try
         {
-            // Exercises interface/nonfips/util/mac.c:592
+            // Exercises interface/nonfips/util/mac.c:597
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = MacServiceNI.ni_macLengthMeta(ref);
             Assertions.assertEquals(-1020, code);

@@ -112,7 +112,7 @@ public class MLKEMOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:79
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:91
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.ordinal(), new byte[64], 64, TestUtil.RNDSrc);
             Assertions.fail();
@@ -136,7 +136,7 @@ public class MLKEMOpsTest
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:133
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:145
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.getPublicKey(keyRef, new byte[2048]);
@@ -167,7 +167,7 @@ public class MLKEMOpsTest
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:173
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:185
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
@@ -388,7 +388,7 @@ public class MLKEMOpsTest
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:213
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:225
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.getSeed(keyRef, new byte[2048]);
@@ -419,7 +419,7 @@ public class MLKEMOpsTest
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/mlkem.c:250
+            // Exercises interface/nonfips/util/mlkem.c:272
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             mlkemServiceNI.getSeed(keyRef, new byte[2048]);
@@ -448,7 +448,7 @@ public class MLKEMOpsTest
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/mlkem.c:255
+            // Exercises interface/nonfips/util/mlkem.c:257
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             mlkemServiceNI.getSeed(keyRef, new byte[2048]);
@@ -477,7 +477,7 @@ public class MLKEMOpsTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:249
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:261
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024, TestUtil.RNDSrc);
@@ -527,7 +527,7 @@ public class MLKEMOpsTest
             {
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
-                // Exercises interface/nonfips/util/mlkem.c:380
+                // Exercises interface/nonfips/util/mlkem.c:402
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 mlkemServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length, TestUtil.RNDSrc);
                 Assertions.fail();
@@ -557,7 +557,7 @@ public class MLKEMOpsTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:309
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:321
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024, TestUtil.RNDSrc);
@@ -613,7 +613,7 @@ public class MLKEMOpsTest
             {
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
-                // Exercises interface/nonfips/util/mlkem.c:313
+                // Exercises interface/nonfips/util/mlkem.c:335
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 mlkemServiceNI.decode_privateKey(keyRef, keyType, key, 0, key.length, TestUtil.RNDSrc);
                 Assertions.fail();

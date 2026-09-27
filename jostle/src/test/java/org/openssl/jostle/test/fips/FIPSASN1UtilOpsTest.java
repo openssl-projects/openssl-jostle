@@ -112,7 +112,7 @@ public class FIPSASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/fips/util/asn1_util.c:523
+            // Exercises interface/fips/util/asn1_util.c:527
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[10], 0, 10);
             Assertions.fail();
@@ -138,7 +138,7 @@ public class FIPSASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/fips/util/asn1_util.c:466
+            // Exercises interface/fips/util/asn1_util.c:469
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPrivateKeyInfo(new byte[10], 0, 10);
             Assertions.fail();
@@ -225,7 +225,7 @@ public class FIPSASN1UtilOpsTest
         {
             asn1Ref = asn1NI.allocate();
             keyRef = genEcKey();
-            // Exercises interface/fips/util/asn1_util.c:164
+            // Exercises interface/fips/util/asn1_util.c:167
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             asn1NI.encodePublicKey(asn1Ref, keyRef);
             Assertions.fail();
@@ -252,7 +252,7 @@ public class FIPSASN1UtilOpsTest
         {
             asn1Ref = asn1NI.allocate();
             keyRef = genEcKey();
-            // Exercises interface/fips/util/asn1_util.c:424
+            // Exercises interface/fips/util/asn1_util.c:427
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
             Assertions.fail();
@@ -431,7 +431,7 @@ public class FIPSASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/fips/util/asn1_util.c:486
+            // Exercises interface/fips/util/asn1_util.c:489
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
             keyRef = asn1NI.fromPrivateKeyInfo(pkcs8, 0, pkcs8.length);
             Assertions.fail();
@@ -469,7 +469,7 @@ public class FIPSASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/fips/util/asn1_util.c:543
+            // Exercises interface/fips/util/asn1_util.c:547
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
             keyRef = asn1NI.fromPublicKeyInfo(x509, 0, x509.length);
             Assertions.fail();

@@ -90,7 +90,7 @@ public class MLDSOpsTest
 
         try
         {
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:74
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:88
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.ordinal(), new byte[32], 32, TestUtil.RNDSrc);
@@ -116,7 +116,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:126
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:140
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.getPublicKey(keyRef, new byte[2048]);
@@ -148,7 +148,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:166
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:180
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.getPrivateKey(keyRef, new byte[4096]);
@@ -377,7 +377,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:211
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:225
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.getSeed(keyRef, new byte[2048]);
@@ -410,7 +410,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/mldsa.c:479
+            // Exercises interface/nonfips/util/mldsa.c:499
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             mldsaServiceNI.getSeed(keyRef, new byte[2048]);
@@ -441,7 +441,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/mldsa.c:484
+            // Exercises interface/nonfips/util/mldsa.c:485
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             mldsaServiceNI.getSeed(keyRef, new byte[2048]);
@@ -472,7 +472,7 @@ public class MLDSOpsTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:251
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:265
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_DSA_44.getKsType(), new byte[1024], 0, 1024);
@@ -523,7 +523,7 @@ public class MLDSOpsTest
             {
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
-                // Exercises interface/nonfips/util/mldsa.c:640
+                // Exercises interface/nonfips/util/mldsa.c:601
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 mldsaServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length);
                 Assertions.fail();
@@ -553,7 +553,7 @@ public class MLDSOpsTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:309
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:323
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_DSA_44.getKsType(), new byte[1024], 0, 1024);
@@ -603,7 +603,7 @@ public class MLDSOpsTest
 
                 decodeRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(decodeRef > 0);
-                // Exercises interface/nonfips/util/mldsa.c:557
+                // Exercises interface/nonfips/util/mldsa.c:601
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 mldsaServiceNI.decode_privateKey(decodeRef, keyType.getKsType(), privateKey, 0, privateKey.length);
                 Assertions.fail();
@@ -638,7 +638,7 @@ public class MLDSOpsTest
             keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:450
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:467
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[1024], 0, 0, TestUtil.RNDSrc);
@@ -674,7 +674,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/mldsa.c:873
+            // Exercises interface/nonfips/util/mldsa.c:875
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = mldsaServiceNI.ni_initSign(mldsaRef, keyRef, new byte[1024], 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1002, code); // OpenSSL error with offset
@@ -704,7 +704,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/mldsa.c:878
+            // Exercises interface/nonfips/util/mldsa.c:880
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = mldsaServiceNI.ni_initSign(mldsaRef, keyRef, new byte[1024], 0, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1003, code); // OpenSSL error with offset
@@ -736,7 +736,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/mldsa.c:788
+            // Exercises interface/nonfips/util/mldsa.c:835
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc);
             Assertions.fail();
@@ -768,7 +768,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/mldsa.c:956
+            // Exercises interface/nonfips/util/mldsa.c:1012
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, 0);
             Assertions.fail();
@@ -806,7 +806,7 @@ public class MLDSOpsTest
 
             // Trigger init failure at EVP_PKEY_sign_message_init — leaves
             // sig + pctx + hash all live without the rollback fix.
-            // Exercises interface/nonfips/util/mldsa.c:878
+            // Exercises interface/nonfips/util/mldsa.c:880
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = mldsaServiceNI.ni_initSign(mldsaRef, keyRef, new byte[0], 0,
                     MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
@@ -849,7 +849,7 @@ public class MLDSOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/util/mldsa.c:1048
+            // Exercises interface/nonfips/util/mldsa.c:1050
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = mldsaServiceNI.ni_initVerify(mldsaRef, keyRef, new byte[0], 0,
                     MLDSASignatureSpi.MuHandling.INTERNAL.ordinal());
@@ -892,7 +892,7 @@ public class MLDSOpsTest
             keyRef = TestNISelector.getMLDSANI().generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:396
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:410
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[1024], 0, 1024);
@@ -928,7 +928,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/mldsa.c:1042
+            // Exercises interface/nonfips/util/mldsa.c:1044
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = mldsaServiceNI.ni_initVerify(mldsaRef, keyRef, new byte[1024], 0, 0);
             Assertions.assertEquals(-1005, code); // OpenSSL error with offset
@@ -958,7 +958,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/mldsa.c:1048
+            // Exercises interface/nonfips/util/mldsa.c:1050
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = mldsaServiceNI.ni_initVerify(mldsaRef, keyRef, new byte[1024], 0, 0);
             Assertions.assertEquals(-1006, code); // OpenSSL error with offset
@@ -991,7 +991,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:521
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:538
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10);
 
@@ -1027,7 +1027,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.EXTERNAL_MU.ordinal(), TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/mldsa.c:1201
+            // Exercises interface/nonfips/util/mldsa.c:1219
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10);
 
@@ -1065,7 +1065,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/mldsa.c:1207
+            // Exercises interface/nonfips/util/mldsa.c:1151
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             mldsaServiceNI.update(mldsaRef, new byte[10], 0, 10);
 
@@ -1103,7 +1103,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, 0, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:568
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:588
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mldsaServiceNI.sign(mldsaRef, new byte[1], 0, TestUtil.RNDSrc);
 
@@ -1141,7 +1141,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/mldsa.c:1061
+            // Exercises interface/nonfips/util/mldsa.c:1044
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             OpenSSL.getOpenSSLErrors(); // Purge any errors
             long len = mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc);
@@ -1184,7 +1184,7 @@ public class MLDSOpsTest
             byte[] sig = new byte[(int) len];
 
             OpenSSL.getOpenSSLErrors(); // Purge any errors
-            // Exercises interface/nonfips/util/mldsa.c:1095
+            // Exercises interface/nonfips/util/mldsa.c:1050
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc);
 
@@ -1224,7 +1224,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.initSign(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal(), TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/mldsa.c:1068
+            // Exercises interface/nonfips/util/mldsa.c:1124
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             mldsaServiceNI.sign(mldsaRef, null, 0, TestUtil.RNDSrc);
 
@@ -1266,7 +1266,7 @@ public class MLDSOpsTest
 
             byte[] sig = new byte[(int) len];
 
-            // Exercises interface/nonfips/util/mldsa.c:1101
+            // Exercises interface/nonfips/util/mldsa.c:1157
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_LEN_CHANGE_1);
             mldsaServiceNI.sign(mldsaRef, sig, 0, TestUtil.RNDSrc);
 
@@ -1305,7 +1305,7 @@ public class MLDSOpsTest
             mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal());
 
             OpenSSL.getOpenSSLErrors(); // Purge any errors
-            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:623
+            // Exercises interface/nonfips/jni/mldsa_ni_jni.c:643
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mldsaServiceNI.verify(mldsaRef, new byte[1], 1);
 
@@ -1342,7 +1342,7 @@ public class MLDSOpsTest
             Assertions.assertTrue(keyRef > 0);
             mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[0], 0, MLDSASignatureSpi.MuHandling.INTERNAL.ordinal());
 
-            // Exercises interface/nonfips/util/mldsa.c:1154
+            // Exercises interface/nonfips/util/mldsa.c:1117
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             mldsaServiceNI.verify(mldsaRef, new byte[1], 1);
 

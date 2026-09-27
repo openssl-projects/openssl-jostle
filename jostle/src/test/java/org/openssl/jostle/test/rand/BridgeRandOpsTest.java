@@ -88,7 +88,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:94
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:96
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_THREAD_ATTACH_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -107,7 +107,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:102
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:104
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -125,7 +125,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:68
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:70
             // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:35
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
@@ -144,7 +144,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:73
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:75
             // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:40
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
@@ -163,7 +163,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:133
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:135
             // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:50
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
@@ -183,7 +183,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:147
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:149
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
             Assertions.fail();
@@ -201,7 +201,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/rand_upcall_jni.c:62
+            // Exercises interface/nonfips/jni/rand_upcall_jni.c:64
             // Exercises interface/nonfips/ffm/rand_upcall_ffm.c:29
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_RAND_UP_CALL_NULL);
             mldsaServiceNI.generateKeyPair(17, DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
@@ -233,7 +233,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/nonfips/util/rand.c:115
+        // Exercises interface/nonfips/util/rand.c:133
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -247,7 +247,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/nonfips/util/rand.c:125
+        // Exercises interface/nonfips/util/rand.c:234
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -261,7 +261,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/nonfips/util/rand.c:136
+        // Exercises interface/nonfips/util/rand.c:144
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -275,7 +275,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/nonfips/util/rand.c:152
+        // Exercises interface/nonfips/util/rand.c:160
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -289,7 +289,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/nonfips/util/rand.c:183
+        // Exercises interface/nonfips/util/rand.c:191
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -305,7 +305,7 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/util/rand.c:255
+            // Exercises interface/nonfips/util/rand.c:297
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
 
@@ -326,7 +326,7 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/util/rand.c:238
+            // Exercises interface/nonfips/util/rand.c:280
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
             int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
 
@@ -347,9 +347,9 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/util/rand.c:285
+            // Exercises interface/nonfips/util/rand.c:327
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
-            // Exercises interface/nonfips/util/rand.c:286
+            // Exercises interface/nonfips/util/rand.c:297
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
@@ -370,7 +370,7 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/util/rand.c:296
+            // Exercises interface/nonfips/util/rand.c:338
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
@@ -391,7 +391,7 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/util/rand.c:282
+            // Exercises interface/nonfips/util/rand.c:324
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
@@ -416,7 +416,7 @@ public class BridgeRandOpsTest
         Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
 
         int[] err = new int[1];
-        // Exercises interface/nonfips/jni/rand_jni.c:66
+        // Exercises interface/nonfips/jni/rand_jni.c:72
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, new byte[1], err);
 
@@ -433,7 +433,7 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/jni/rand_jni.c:144
+            // Exercises interface/nonfips/jni/rand_jni.c:150
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
 
@@ -455,7 +455,7 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/jni/rand_jni.c:150
+            // Exercises interface/nonfips/jni/rand_jni.c:156
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, new byte[1]);
 
@@ -477,7 +477,7 @@ public class BridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/nonfips/jni/rand_jni.c:198
+            // Exercises interface/nonfips/jni/rand_jni.c:211
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, new byte[1]);
 

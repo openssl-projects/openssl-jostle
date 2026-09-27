@@ -123,7 +123,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_pkcs1.c:98
+            // Exercises interface/fips/util/rsa_pkcs1.c:100
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2100 + JO_OPENSSL_ERROR (-2) → -2102.
@@ -149,7 +149,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_pkcs1.c:109
+            // Exercises interface/fips/util/rsa_pkcs1.c:111
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2101 + JO_OPENSSL_ERROR (-2) → -2103.
@@ -178,7 +178,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             // Injected fault fires at the EVP_PKEY_decrypt_init check, BEFORE
             // the implicit-rejection capability probe — so the offset code
             // (-2103) wins over the module's natural -135 refusal.
-            // Exercises interface/fips/util/rsa_pkcs1.c:109
+            // Exercises interface/fips/util/rsa_pkcs1.c:111
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
             Assertions.assertEquals(-2103, code);
@@ -204,7 +204,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_pkcs1.c:114
+            // Exercises interface/fips/util/rsa_pkcs1.c:116
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // -2 + (-2110) = -2112.
@@ -237,7 +237,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/fips/util/rsa_pkcs1.c:215
+            // Exercises interface/fips/util/rsa_pkcs1.c:217
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // Offset 2102 + JO_OPENSSL_ERROR (-2) → -2104 (ENCRYPT mode).
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -266,7 +266,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_pkcs1.c:226
+            // Exercises interface/fips/util/rsa_pkcs1.c:228
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3, null, 0, TestUtil.RNDSrc);
             Assertions.fail();
@@ -302,7 +302,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/fips/util/rsa_pkcs1.c:247
+            // Exercises interface/fips/util/rsa_pkcs1.c:249
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2103 + JO_OPENSSL_ERROR (-2) → -2105 (ENCRYPT mode).
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -336,7 +336,7 @@ public class FIPSRSAPKCS1CipherOpsTest
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/jni/rsa_pkcs1_ni_jni.c:109
+            // Exercises interface/fips/jni/rsa_pkcs1_ni_jni.c:113
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     null, 0, TestUtil.RNDSrc);
@@ -373,7 +373,7 @@ public class FIPSRSAPKCS1CipherOpsTest
                     null, 0, TestUtil.RNDSrc);
             byte[] out = new byte[needed];
 
-            // Exercises interface/fips/jni/rsa_pkcs1_ni_jni.c:130
+            // Exercises interface/fips/jni/rsa_pkcs1_ni_jni.c:134
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     out, 0, TestUtil.RNDSrc);

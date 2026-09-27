@@ -107,7 +107,7 @@ public class FIPSBlockCipherOpsTest
             byte[] out = new byte[32];
             blockCipherNI.update(ref, out, 0, in, 0, in.length);
 
-            // Exercises interface/fips/util/block_cipher_ctx.c:870
+            // Exercises interface/fips/util/block_cipher_ctx.c:1493
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             try
             {
@@ -159,7 +159,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
-            // Exercises interface/fips/util/block_cipher_ctx.c:782
+            // Exercises interface/fips/util/block_cipher_ctx.c:1402
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             try
             {
@@ -190,7 +190,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
-            // Exercises interface/fips/util/block_cipher_ctx.c:847
+            // Exercises interface/fips/util/block_cipher_ctx.c:1475
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             try
             {
@@ -219,7 +219,7 @@ public class FIPSBlockCipherOpsTest
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
-            // Exercises interface/fips/util/block_cipher_ctx.c:987
+            // Exercises interface/fips/util/block_cipher_ctx.c:1674
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             try
             {
@@ -248,7 +248,7 @@ public class FIPSBlockCipherOpsTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
-            // Exercises interface/fips/util/block_cipher_ctx.c:1141
+            // Exercises interface/fips/util/block_cipher_ctx.c:1917
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             try
             {
@@ -278,7 +278,7 @@ public class FIPSBlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
             blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16);
-            // Exercises interface/fips/util/block_cipher_ctx.c:1398
+            // Exercises interface/fips/util/block_cipher_ctx.c:2394
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             try
             {
@@ -318,7 +318,7 @@ public class FIPSBlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
             blockCipherNI.update(ref, new byte[16], 0, new byte[16], 0, 16);
-            // Exercises interface/fips/util/block_cipher_ctx.c:1416
+            // Exercises interface/fips/util/block_cipher_ctx.c:2412
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             try
             {
@@ -359,7 +359,7 @@ public class FIPSBlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
             byte[] ct = new byte[32];
             blockCipherNI.update(ref, new byte[32], 0, ct, 0, ct.length);
-            // Exercises interface/fips/util/block_cipher_ctx.c:1442
+            // Exercises interface/fips/util/block_cipher_ctx.c:2438
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             try
             {
@@ -399,7 +399,7 @@ public class FIPSBlockCipherOpsTest
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
-            // Exercises interface/fips/util/block_cipher_ctx.c:1165
+            // Exercises interface/fips/util/block_cipher_ctx.c:1917
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             try
             {
@@ -439,7 +439,7 @@ public class FIPSBlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
             blockCipherNI.update(ref, new byte[16], 0, new byte[16], 0, 16);
-            // Exercises interface/fips/util/block_cipher_ctx.c:1197
+            // Exercises interface/fips/util/block_cipher_ctx.c:1917
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             try
             {
@@ -478,7 +478,7 @@ public class FIPSBlockCipherOpsTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
-            // Exercises interface/fips/util/block_cipher_ctx.c:1212
+            // Exercises interface/fips/util/block_cipher_ctx.c:1917
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             try
             {
@@ -517,7 +517,7 @@ public class FIPSBlockCipherOpsTest
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
-            // Exercises interface/fips/util/block_cipher_ctx.c:992
+            // Exercises interface/fips/util/block_cipher_ctx.c:1674
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             try
             {
@@ -555,7 +555,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
-            // Exercises interface/fips/util/block_cipher_ctx.c:843
+            // Exercises interface/fips/util/block_cipher_ctx.c:1471
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
             try
             {
@@ -584,7 +584,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
-            // Exercises interface/fips/util/block_cipher_ctx.c:881
+            // Exercises interface/fips/util/block_cipher_ctx.c:1471
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
             try
             {
@@ -614,7 +614,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
-            // Exercises interface/fips/util/block_cipher_ctx.c:865
+            // Exercises interface/fips/util/block_cipher_ctx.c:1493
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             try
             {
@@ -644,7 +644,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0);
-            // Exercises interface/fips/util/block_cipher_ctx.c:885
+            // Exercises interface/fips/util/block_cipher_ctx.c:1475
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             try
             {
@@ -671,7 +671,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0);
-            // Exercises interface/fips/util/block_cipher_ctx.c:900
+            // Exercises interface/fips/util/block_cipher_ctx.c:1493
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             try
             {
@@ -699,7 +699,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
-            // Exercises interface/fips/util/block_cipher_ctx.c:905
+            // Exercises interface/fips/util/block_cipher_ctx.c:1493
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             try
             {
@@ -727,7 +727,7 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
-            // Exercises interface/fips/util/block_cipher_ctx.c:923
+            // Exercises interface/fips/util/block_cipher_ctx.c:1558
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
             try
             {
@@ -758,7 +758,7 @@ public class FIPSBlockCipherOpsTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
-            // Exercises interface/fips/util/block_cipher_ctx.c:1522
+            // Exercises interface/fips/util/block_cipher_ctx.c:1654
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             try
             {
@@ -789,7 +789,7 @@ public class FIPSBlockCipherOpsTest
         {
             ref = blockCipherNI.makeInstance(8, 1, 1); // AES128, CBC, PADDED
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
-            // Exercises interface/fips/util/block_cipher_ctx.c:1580
+            // Exercises interface/fips/util/block_cipher_ctx.c:1770
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             try
             {
