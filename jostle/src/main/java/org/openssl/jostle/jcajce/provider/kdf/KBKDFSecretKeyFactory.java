@@ -10,6 +10,7 @@
 package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.KBKDFParameterSpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
 import org.openssl.jostle.util.Arrays;
@@ -105,6 +106,12 @@ public class KBKDFSecretKeyFactory extends SecretKeyFactorySpi
                     rawKey, 0, rawKey.length));
 
             return new SecretKeySpec(rawKey, "KBKDF");
+        }
+        catch (OpenSSLException e)
+        {
+            // An input the library refuses (the FIPS key-length checks among them)
+            // reaches here unchecked; generateSecret declares InvalidKeySpecException.
+            throw new InvalidKeySpecException(e.getMessage(), e);
         }
         finally
         {

@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.mac;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.KMACParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
@@ -281,6 +282,12 @@ public class MacServiceSPI extends MacSpi implements Cloneable
             try
             {
                 macServiceNI.engineInit(ref.getReference(), keyBytes, iv, custom, requestedLen);
+            }
+            catch (OpenSSLException e)
+            {
+                // An input the library refuses (the FIPS MAC key-length checks among
+                // them) reaches here unchecked; init declares InvalidKeyException.
+                throw new InvalidKeyException(e.getMessage(), e);
             }
             finally
             {

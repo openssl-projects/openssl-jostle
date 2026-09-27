@@ -485,7 +485,10 @@ public class KBKDFTest
      * seed length". Not a Java-side check (the spec does not know which PRF it
      * will be handed to), so this pins BOTH branches against the real
      * provider: the exact size derives, one byte either side is refused, and
-     * absent is accepted as "no IV".
+     * absent is accepted as "no IV". The refusal is the InvalidKeySpecException
+     * generateSecret declares, carrying OpenSSL's refusal as its cause; this
+     * cell once pinned the unchecked OpenSSLException itself, which a caller
+     * catching the declared type would never see.
      */
     @Test
     public void feedbackIvMustMatchThePrfOutputSize() throws Exception
@@ -505,10 +508,12 @@ public class KBKDFTest
 
             for (int bad : new int[]{h - 1, h + 1})
             {
-                OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
+                InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
                         () -> jostle(alg, rawSpec(ki, context, random(bad, sr),
                                 KBKDFParameterSpec.Mode.FEEDBACK, 32, 32)),
                         alg + " must refuse an IV of " + bad + " bytes");
+                Assertions.assertTrue(e.getCause() instanceof OpenSSLException,
+                        "unexpected cause: " + e.getCause());
                 Assertions.assertTrue(e.getMessage().contains("invalid seed length"),
                         "unexpected message: " + e.getMessage());
             }
@@ -522,9 +527,11 @@ public class KBKDFTest
                     rawSpec(cmacKi, context, random(16, sr),
                             KBKDFParameterSpec.Mode.FEEDBACK, 32, 32)).length,
                     alg + " must accept a 16-byte IV");
-            OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
+            InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
                     () -> jostle(alg, rawSpec(cmacKi, context, random(17, sr),
                             KBKDFParameterSpec.Mode.FEEDBACK, 32, 32)));
+            Assertions.assertTrue(e.getCause() instanceof OpenSSLException,
+                    "unexpected cause: " + e.getCause());
             Assertions.assertTrue(e.getMessage().contains("invalid seed length"),
                     "unexpected message: " + e.getMessage());
         }
