@@ -683,7 +683,8 @@ public class KSServiceSPI
             try
             {
                 byte[] encoded = ksServiceNI.store(ref.getReference(), encodedPassword,
-                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter, randSource);
+                        keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter,
+                        KSServiceNI.SECRET_FORM_RFC7292, randSource);
                 if (encoded == null)
                 {
                     // The NI contract returns the DER on success and throws on a

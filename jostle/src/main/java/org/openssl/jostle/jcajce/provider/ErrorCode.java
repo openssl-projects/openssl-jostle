@@ -344,6 +344,15 @@ public enum ErrorCode
     // properties.
     JO_CRL_TOO_LARGE(-183),
 
+    // PKCS#12 secret-key entries: the algorithm OID the SPI passes is null or
+    // not a dotted OID, or the key exceeds the stated length bound.
+    JO_KS_SECRET_OID_IS_NULL(-184),
+    JO_KS_SECRET_OID_INVALID(-185),
+    JO_KS_SECRET_TOO_LONG(-186),
+    JO_KS_SECRET_EMPTY(-187),
+    // A JVM access failure reading an OID string, not caller data.
+    JO_KS_SECRET_OID_FAILED_ACCESS(-188),
+
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
     JO_FIPS_PROVIDER_UNAVAILABLE(-402),

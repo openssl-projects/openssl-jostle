@@ -650,6 +650,18 @@
  */
 #define JO_CRL_TOO_LARGE -183
 /*
+ * PKCS#12 secret-key entries. The key algorithm OID travels as a dotted
+ * string the SPI supplies; null and malformed are the caller's to fix. The
+ * key length is bounded by KS_SECRET_MAX_LEN so every buffer sized from a
+ * stored or decoded secret has a stated limit.
+ */
+#define JO_KS_SECRET_OID_IS_NULL -184
+#define JO_KS_SECRET_OID_INVALID -185
+#define JO_KS_SECRET_TOO_LONG -186
+#define JO_KS_SECRET_EMPTY -187
+/* A JVM access failure reading an OID string, not caller data. */
+#define JO_KS_SECRET_OID_FAILED_ACCESS -188
+/*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module
  * path with no parent directory / empty module name; a config

@@ -237,6 +237,16 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("key store PBE iteration count is negative");
             case JO_KS_MAC_ITER_NEGATIVE:
                 throw new IllegalArgumentException("key store MAC iteration count is negative");
+            case JO_KS_SECRET_OID_IS_NULL:
+                throw new NullPointerException("key store secret key algorithm OID is null");
+            case JO_KS_SECRET_OID_INVALID:
+                throw new IllegalArgumentException("key store secret key algorithm OID is not valid");
+            case JO_KS_SECRET_TOO_LONG:
+                throw new IllegalArgumentException("key store secret key is longer than 8192 bytes");
+            case JO_KS_SECRET_EMPTY:
+                throw new IllegalArgumentException("key store secret key is empty");
+            case JO_KS_SECRET_OID_FAILED_ACCESS:
+                throw new AccessException("unable to access key store secret key algorithm OID");
             case JO_KS_MAC_VERIFY_FAILED:
                 // Defensive fallback. KSServiceNI.load intercepts this code
                 // first and surfaces it as an IOException whose cause is an

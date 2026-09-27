@@ -463,7 +463,7 @@ public class KSServiceTest
 
             // profile: AES-256-CBC keys, AES-128-CBC certs (PBES2), HMAC-SHA256 MAC
             byte[] encoded = serviceNI.store(source, password,
-                    3, 2, 1, 2, 2048, 2048, TestUtil.RNDSrc);
+                    3, 2, 1, 2, 2048, 2048, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc);
             Assertions.assertNotNull(encoded);
             Assertions.assertTrue(encoded.length > 0);
 
@@ -526,7 +526,7 @@ public class KSServiceTest
 
             // profile: AES-256-CBC keys, AES-128-CBC certs (PBES2), HMAC-SHA256 MAC
             byte[] encoded = serviceNI.store(source, password,
-                    3, 2, 1, 2, 2048, 2048, TestUtil.RNDSrc);
+                    3, 2, 1, 2, 2048, 2048, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc);
             Assertions.assertNotNull(encoded);
             Assertions.assertTrue(encoded.length > 0);
 

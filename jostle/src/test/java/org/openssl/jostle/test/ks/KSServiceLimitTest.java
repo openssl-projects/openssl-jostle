@@ -135,7 +135,7 @@ public class KSServiceLimitTest
         try
         {
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
-                    -1, MAC_ITER, TestUtil.RNDSrc);
+                    -1, MAC_ITER, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IOException e)
@@ -156,7 +156,7 @@ public class KSServiceLimitTest
         try
         {
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
-                    Integer.MIN_VALUE, MAC_ITER, TestUtil.RNDSrc);
+                    Integer.MIN_VALUE, MAC_ITER, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IOException e)
@@ -171,7 +171,7 @@ public class KSServiceLimitTest
         try
         {
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
-                    PBE_ITER, -1, TestUtil.RNDSrc);
+                    PBE_ITER, -1, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IOException e)
@@ -188,7 +188,7 @@ public class KSServiceLimitTest
         try
         {
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
-                    PBE_ITER, Integer.MIN_VALUE, TestUtil.RNDSrc);
+                    PBE_ITER, Integer.MIN_VALUE, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IOException e)
@@ -203,7 +203,7 @@ public class KSServiceLimitTest
         try
         {
             ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
-                    PBE_ITER, MAC_ITER, null);
+                    PBE_ITER, MAC_ITER, KSServiceNI.SECRET_FORM_RFC7292, null);
             Assertions.fail();
         }
         catch (IOException e)
@@ -218,7 +218,7 @@ public class KSServiceLimitTest
         try
         {
             ni.store(0L, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST,
-                    PBE_ITER, MAC_ITER, TestUtil.RNDSrc);
+                    PBE_ITER, MAC_ITER, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IOException e)
@@ -612,6 +612,283 @@ public class KSServiceLimitTest
         catch (KeyStoreException e)
         {
             Assertions.assertEquals("key store alias is null", e.getMessage());
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Secret-key entries (PKCS#12 secretBag)
+    // -----------------------------------------------------------------
+
+    private static final String RFC_AES128 = "2.16.840.1.101.3.4.1.2";
+    private static final String SUN_AES = "2.16.840.1.101.3.4.1";
+    private static final byte[] SECRET = new byte[16];
+
+    static
+    {
+        new java.security.SecureRandom().nextBytes(SECRET);
+    }
+
+    private void assertSetSecretRefused(long ref, String alias, byte[] key, String rfcOid, String sunOid,
+                                        String message)
+    {
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.setSecretKey(ref, alias, key, rfcOid, sunOid, PASSWORD));
+        Assertions.assertEquals(message, e.getMessage());
+    }
+
+    private byte[] storeWith(long ref, byte[] password, int certPbe, int form)
+        throws Exception
+    {
+        return ni.store(ref, password, KEY_PBE, certPbe, MAC_SCHEME, MAC_DIGEST,
+                PBE_ITER, MAC_ITER, form, TestUtil.RNDSrc);
+    }
+
+    /** The (OID, key) pair a getSecretKey DER carries. */
+    private static Object[] decode(byte[] der)
+    {
+        org.bouncycastle.asn1.ASN1Sequence seq = org.bouncycastle.asn1.ASN1Sequence.getInstance(der);
+        Assertions.assertEquals(2, seq.size());
+        return new Object[]{
+                org.bouncycastle.asn1.ASN1ObjectIdentifier.getInstance(seq.getObjectAt(0)).getId(),
+                org.bouncycastle.asn1.ASN1OctetString.getInstance(seq.getObjectAt(1)).getOctets()};
+    }
+
+    @Test
+    public void setSecret_nullCtx()
+    {
+        assertSetSecretRefused(0L, "s", SECRET, RFC_AES128, SUN_AES, "key store context is null");
+    }
+
+    @Test
+    public void setSecret_nullAlias()
+    {
+        assertSetSecretRefused(validRef, null, SECRET, RFC_AES128, SUN_AES, "key store alias is null");
+    }
+
+    @Test
+    public void setSecret_nullKey()
+    {
+        assertSetSecretRefused(validRef, "s", null, RFC_AES128, SUN_AES, "key store key is null");
+    }
+
+    @Test
+    public void setSecret_nullOids()
+    {
+        assertSetSecretRefused(validRef, "s", SECRET, null, SUN_AES, "key store secret key algorithm OID is null");
+        assertSetSecretRefused(validRef, "s", SECRET, RFC_AES128, null, "key store secret key algorithm OID is null");
+    }
+
+    @Test
+    public void setSecret_emptyKey()
+    {
+        assertSetSecretRefused(validRef, "s", new byte[0], RFC_AES128, SUN_AES,
+                "key store secret key is empty");
+    }
+
+    /** The stated bound is exact: 8192 bytes is held and read back, 8193 is refused. */
+    @Test
+    public void setSecret_lengthBoundary()
+        throws Exception
+    {
+        assertSetSecretRefused(validRef, "s", new byte[KSServiceNI.SECRET_MAX_LEN + 1], RFC_AES128, SUN_AES,
+                "key store secret key is longer than 8192 bytes");
+        byte[] max = new byte[KSServiceNI.SECRET_MAX_LEN];
+        new java.security.SecureRandom().nextBytes(max);
+        ni.setSecretKey(validRef, "s", max, RFC_AES128, SUN_AES, PASSWORD);
+        Assertions.assertArrayEquals(max, (byte[]) decode(ni.getSecretKey(validRef, "s", PASSWORD))[1]);
+    }
+
+    /**
+     * Both OIDs must be dotted; the RFC 7292 one must also be known to OpenSSL, since that bag is written from
+     * it, while the SunJCE one may be any dotted OID.
+     */
+    @Test
+    public void setSecret_oidValidation()
+        throws Exception
+    {
+        String invalid = "key store secret key algorithm OID is not valid";
+        assertSetSecretRefused(validRef, "s", SECRET, "not.an.oid", SUN_AES, invalid);
+        assertSetSecretRefused(validRef, "s", SECRET, "AES", SUN_AES, invalid);
+        assertSetSecretRefused(validRef, "s", SECRET, "1.2.3.4.5.6.7", SUN_AES, invalid);
+        assertSetSecretRefused(validRef, "s", SECRET, RFC_AES128, "not.an.oid", invalid);
+        Assertions.assertFalse(ni.containsAlias(validRef, "s"), "a refused set left an entry");
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, "1.2.3.4.5.6.7", PASSWORD);
+        Assertions.assertTrue(ni.isSecretKeyEntry(validRef, "s"));
+    }
+
+    @Test
+    public void getSecret_nullCtxAndAlias()
+    {
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.getSecretKey(0L, "s", PASSWORD));
+        Assertions.assertEquals("key store context is null", e.getMessage());
+        e = Assertions.assertThrows(KeyStoreException.class, () -> ni.getSecretKey(validRef, null, PASSWORD));
+        Assertions.assertEquals("key store alias is null", e.getMessage());
+    }
+
+    /** The DER is exactly SEQUENCE { the RFC 7292 OID, the key }; an absent alias gives null. */
+    @Test
+    public void getSecret_shapeAndAbsence()
+        throws Exception
+    {
+        Assertions.assertNull(ni.getSecretKey(validRef, "s", PASSWORD));
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        Object[] got = decode(ni.getSecretKey(validRef, "s", PASSWORD));
+        Assertions.assertEquals(RFC_AES128, got[0]);
+        Assertions.assertArrayEquals(SECRET, (byte[]) got[1]);
+    }
+
+    @Test
+    public void getSecret_wrongPasswordRefused()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.getSecretKey(validRef, "s", "wrong".getBytes(StandardCharsets.UTF_8)));
+        Assertions.assertEquals("unable to decode key store private key", e.getMessage());
+    }
+
+    @Test
+    public void isSecretEntry_nullCtxAlias_andEntryKinds()
+        throws Exception
+    {
+        IllegalArgumentException c = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ni.isSecretKeyEntry(0L, "s"));
+        Assertions.assertEquals("key store context is null", c.getMessage());
+        NullPointerException a = Assertions.assertThrows(NullPointerException.class,
+                () -> ni.isSecretKeyEntry(validRef, null));
+        Assertions.assertEquals("key store alias is null", a.getMessage());
+
+        Assertions.assertFalse(ni.isSecretKeyEntry(validRef, "s"));
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        Assertions.assertTrue(ni.isSecretKeyEntry(validRef, "s"));
+        Assertions.assertTrue(ni.isKeyEntry(validRef, "s"), "a secret entry is a key entry");
+        Assertions.assertFalse(ni.isCertificateEntry(validRef, "s"));
+    }
+
+    /**
+     * RFC 7292 form: the bag carries no per-entry protection, so after a load the key comes back whatever
+     * password getSecretKey is given, and under the RFC OID.
+     */
+    @Test
+    public void rfcForm_roundTrip_anyPasswordAfterLoad()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        byte[] p12 = storeWith(validRef, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_RFC7292);
+        long loaded = ni.allocateKeyStore("PKCS12");
+        try
+        {
+            ni.load(loaded, p12, PASSWORD);
+            Assertions.assertTrue(ni.isSecretKeyEntry(loaded, "s"));
+            for (byte[] pw : new byte[][]{PASSWORD, "wrong".getBytes(StandardCharsets.UTF_8), null})
+            {
+                Object[] got = decode(ni.getSecretKey(loaded, "s", pw));
+                Assertions.assertEquals(RFC_AES128, got[0]);
+                Assertions.assertArrayEquals(SECRET, (byte[]) got[1]);
+            }
+        }
+        finally
+        {
+            ni.dispose(loaded);
+        }
+    }
+
+    /**
+     * SunJCE form: the bag is encrypted under the entry password, the load decrypts it with the store password,
+     * and afterwards the entry keeps that password, so a wrong one is refused. The OID read back is SunJCE's.
+     */
+    @Test
+    public void sunForm_roundTrip_passwordRequiredAfterLoad()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        byte[] p12 = storeWith(validRef, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_SUNJCE);
+        long loaded = ni.allocateKeyStore("PKCS12");
+        try
+        {
+            ni.load(loaded, p12, PASSWORD);
+            Object[] got = decode(ni.getSecretKey(loaded, "s", PASSWORD));
+            Assertions.assertEquals(SUN_AES, got[0]);
+            Assertions.assertArrayEquals(SECRET, (byte[]) got[1]);
+            KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                    () -> ni.getSecretKey(loaded, "s", "wrong".getBytes(StandardCharsets.UTF_8)));
+            Assertions.assertEquals("unable to decode key store private key", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(loaded);
+        }
+    }
+
+    /** A SunJCE-form bag under an entry password other than the store password cannot be read back. */
+    @Test
+    public void sunForm_entryPasswordOtherThanStorePassword_loadFails()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, "entry".getBytes(StandardCharsets.UTF_8));
+        byte[] p12 = storeWith(validRef, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_SUNJCE);
+        long loaded = ni.allocateKeyStore("PKCS12");
+        try
+        {
+            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+                    () -> ni.load(loaded, p12, PASSWORD));
+            Assertions.assertEquals("key store load failed", e.getMessage());
+        }
+        finally
+        {
+            ni.dispose(loaded);
+        }
+    }
+
+    /** The RFC 7292 bag holds the raw key, so it is never written into a cleartext safe; the SunJCE bag can be. */
+    @Test
+    public void rfcForm_cleartextCertificateSafeRefused()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+                () -> storeWith(validRef, PASSWORD, 0, KSServiceNI.SECRET_FORM_RFC7292));
+        Assertions.assertEquals("key store store failed", e.getMessage());
+        Assertions.assertNotNull(storeWith(validRef, PASSWORD, 0, KSServiceNI.SECRET_FORM_SUNJCE));
+    }
+
+    @Test
+    public void store_invalidSecretForm()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        for (int form : new int[]{-1, 2, Integer.MIN_VALUE})
+        {
+            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+                    () -> storeWith(validRef, PASSWORD, CERT_PBE, form), "form " + form);
+            Assertions.assertEquals("key store store failed", e.getMessage());
+        }
+    }
+
+    /**
+     * An OID OpenSSL does not know can arrive from a SunJCE-form file; the RFC 7292 form, whose bag is built
+     * from a NID, then refuses to write it, while the SunJCE form still can.
+     */
+    @Test
+    public void unknownOidReadFromSunForm_cannotBeWrittenAsRfc()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, "1.2.3.4.5.6.7", PASSWORD);
+        byte[] p12 = storeWith(validRef, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_SUNJCE);
+        long loaded = ni.allocateKeyStore("PKCS12");
+        try
+        {
+            ni.load(loaded, p12, PASSWORD);
+            Assertions.assertEquals("1.2.3.4.5.6.7", decode(ni.getSecretKey(loaded, "s", PASSWORD))[0]);
+            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+                    () -> storeWith(loaded, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_RFC7292));
+            Assertions.assertEquals("key store store failed", e.getMessage());
+            Assertions.assertNotNull(storeWith(loaded, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_SUNJCE));
+        }
+        finally
+        {
+            ni.dispose(loaded);
         }
     }
 }

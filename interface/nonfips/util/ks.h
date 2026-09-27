@@ -29,6 +29,18 @@ typedef struct ks_entry_st {
      */
     unsigned char *local_key_id;
     int local_key_id_len;
+    /*
+     * Secret-key entry (PKCS#12 secretBag): the raw key, and the key algorithm
+     * OID written under each bag form. NULL for a private-key or certificate
+     * entry. secret_any_password marks an entry read from an RFC 7292 bag,
+     * which carries no per-entry protection, so its key is returned whatever
+     * password is given.
+     */
+    uint8_t *secret;
+    size_t secret_len;
+    char *secret_rfc_oid;
+    char *secret_sun_oid;
+    int secret_any_password;
     struct ks_entry_st *next;
 } ks_entry;
 
@@ -72,6 +84,21 @@ typedef enum ks_md_e {
     KS_MD_SHA512 = 3
 } ks_md;
 
+/*
+ * How ks_store writes a secret-key entry. RFC7292 is the secretBag BouncyCastle
+ * writes (secretTypeId = the key OID, secretValue = the raw key), in the
+ * encrypted safe; SUNJCE is SunJCE's (secretTypeId = pkcs8ShroudedKeyBag,
+ * secretValue = an EncryptedPrivateKeyInfo under the entry password), in the
+ * cleartext safe. ks_load reads both.
+ */
+typedef enum ks_secret_form_e {
+    KS_SECRET_FORM_RFC7292 = 0,
+    KS_SECRET_FORM_SUNJCE = 1
+} ks_secret_form;
+
+/* Stated bound on a secret key's length, on every path that sizes a buffer from one. */
+#define KS_SECRET_MAX_LEN 8192
+
 ks_ctx *ks_allocate(const char *type, int32_t *err);
 
 void ks_free(ks_ctx *ctx);
@@ -83,13 +110,28 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
                  const uint8_t *password, size_t password_len,
                  int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
                  int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
-                 void *rnd_src);
+                 int32_t secret_form, void *rnd_src);
 
 int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len,
                    const uint8_t *password, size_t password_len);
 
 int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t key_len,
                    const uint8_t *password, size_t password_len);
+
+/*
+ * Secret-key entries. ks_set_secret takes the key and its OID under each bag
+ * form; ks_get_secret returns DER SEQUENCE { OBJECT IDENTIFIER, OCTET STRING }
+ * (the RFC 7292 OID and the key), or JO_SUCCESS with *out NULL when the alias
+ * holds no secret.
+ */
+int32_t ks_set_secret(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t key_len,
+                      const char *rfc_oid, const char *sun_oid,
+                      const uint8_t *password, size_t password_len);
+
+int32_t ks_get_secret(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len,
+                      const uint8_t *password, size_t password_len);
+
+int32_t ks_is_secret_entry(ks_ctx *ctx, const char *alias);
 
 int32_t ks_get_certificate_chain(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len);
 

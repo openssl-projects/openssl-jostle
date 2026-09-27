@@ -147,6 +147,20 @@ static int password_matches(ks_entry *entry, const uint8_t *password,
     return CRYPTO_memcmp(entry->key_password, password, password_len) == 0;
 }
 
+static void clear_secret(ks_entry *entry) {
+    if (entry == NULL) {
+        return;
+    }
+    OPENSSL_clear_free(entry->secret, entry->secret_len);
+    entry->secret = NULL;
+    entry->secret_len = 0;
+    OPENSSL_free(entry->secret_rfc_oid);
+    entry->secret_rfc_oid = NULL;
+    OPENSSL_free(entry->secret_sun_oid);
+    entry->secret_sun_oid = NULL;
+    entry->secret_any_password = 0;
+}
+
 static void free_entry(ks_entry *entry) {
     if (entry == NULL) {
         return;
@@ -157,6 +171,7 @@ static void free_entry(ks_entry *entry) {
     EVP_PKEY_free(entry->key);
     clear_key_password(entry);
     clear_certificate_chain(entry);
+    clear_secret(entry);
     OPENSSL_free(entry->local_key_id);
     OPENSSL_clear_free(entry, sizeof(*entry));
 }
@@ -363,6 +378,89 @@ static int32_t load_key_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
     return set_key_password(entry, (const uint8_t *) password, (size_t) password_len);
 }
 
+/*
+ * A secretBag in either form. RFC 7292 (BouncyCastle): secretTypeId is the key
+ * OID and secretValue the raw key; the bag has no per-entry protection, so the
+ * entry is marked any-password. SunJCE: secretTypeId is pkcs8ShroudedKeyBag and
+ * secretValue an EncryptedPrivateKeyInfo, decrypted here with the store
+ * password, whose PKCS#8 names the key OID and holds the raw key; the entry
+ * keeps that password, as a private key does. Both OIDs are set to the one
+ * read; the SPI re-sets them for the form it writes.
+ */
+static int32_t load_secret_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
+                               const char *password, int password_len) {
+    const ASN1_OBJECT *type = PKCS12_SAFEBAG_get0_bag_type(bag);
+    const ASN1_TYPE *value = PKCS12_SAFEBAG_get0_bag_obj(bag);
+    if (type == NULL || value == NULL || ASN1_TYPE_get(value) != V_ASN1_OCTET_STRING
+            || value->value.octet_string == NULL) {
+        return JO_KS_LOAD_FAILED;
+    }
+    const unsigned char *octets = ASN1_STRING_get0_data(value->value.octet_string);
+    int octets_len = ASN1_STRING_length(value->value.octet_string);
+    if (octets == NULL || octets_len <= 0) {
+        return JO_KS_LOAD_FAILED;
+    }
+
+    int32_t ret = JO_KS_LOAD_FAILED;
+    X509_SIG *epki = NULL;
+    PKCS8_PRIV_KEY_INFO *p8 = NULL;
+    const unsigned char *key = octets;
+    int key_len = octets_len;
+    const ASN1_OBJECT *key_oid = type;
+    int shrouded = OBJ_obj2nid(type) == NID_pkcs8ShroudedKeyBag;
+    char oid_text[128];
+
+    if (shrouded) {
+        const unsigned char *q = octets;
+        epki = d2i_X509_SIG(NULL, &q, octets_len);
+        if (epki == NULL || q - octets != octets_len) {
+            goto exit;
+        }
+        p8 = PKCS8_decrypt_ex(epki, password, password_len,
+                get_global_jostle_ossl_lib_ctx(), NULL);
+        if (OPS_OPENSSL_ERROR_8 p8 == NULL) {
+            goto exit;
+        }
+        if (!PKCS8_pkey_get0(&key_oid, &key, &key_len, NULL, p8)
+                || key_oid == NULL || key == NULL || key_len <= 0) {
+            goto exit;
+        }
+    }
+
+    if (key_len > KS_SECRET_MAX_LEN) {
+        ret = JO_KS_SECRET_TOO_LONG;
+        goto exit;
+    }
+    int oid_len = OBJ_obj2txt(oid_text, sizeof(oid_text), key_oid, 1);
+    if (oid_len <= 0 || oid_len >= (int) sizeof(oid_text)) {
+        goto exit;
+    }
+
+    ks_entry *entry = find_or_create_entry(ctx, alias);
+    clear_secret(entry);
+    EVP_PKEY_free(entry->key);
+    entry->key = NULL;
+    entry->certificate_entry = 0;
+    entry->secret = OPENSSL_memdup(key, (size_t) key_len);
+    jo_assert(entry->secret != NULL);
+    entry->secret_len = (size_t) key_len;
+    entry->secret_rfc_oid = OPENSSL_strdup(oid_text);
+    entry->secret_sun_oid = OPENSSL_strdup(oid_text);
+    jo_assert(entry->secret_rfc_oid != NULL && entry->secret_sun_oid != NULL);
+    if (shrouded) {
+        ret = set_key_password(entry, (const uint8_t *) password, (size_t) password_len);
+    } else {
+        clear_key_password(entry);
+        entry->secret_any_password = 1;
+        ret = JO_SUCCESS;
+    }
+
+exit:
+    PKCS8_PRIV_KEY_INFO_free(p8);
+    X509_SIG_free(epki);
+    return ret;
+}
+
 static int32_t load_cert_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag) {
     if (PKCS12_SAFEBAG_get_bag_nid(bag) != NID_x509Certificate) {
         return JO_SUCCESS;
@@ -383,7 +481,7 @@ static int32_t load_cert_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag
         X509_free(cert);
         return JO_FAIL;
     }
-    if (entry->key == NULL) {
+    if (entry->key == NULL && entry->secret == NULL) {
         entry->certificate_entry = 1;
     }
     return JO_SUCCESS;
@@ -410,7 +508,8 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
     for (int i = 0; i < sk_PKCS12_SAFEBAG_num(bags); i++) {
         PKCS12_SAFEBAG *bag = sk_PKCS12_SAFEBAG_value(bags, i);
         int bag_nid = PKCS12_SAFEBAG_get_nid(bag);
-        if (bag_nid != NID_keyBag && bag_nid != NID_pkcs8ShroudedKeyBag) {
+        if (bag_nid != NID_keyBag && bag_nid != NID_pkcs8ShroudedKeyBag
+                && bag_nid != NID_secretBag) {
             continue;
         }
 
@@ -419,7 +518,9 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
             return JO_KS_LOAD_FAILED;
         }
 
-        int32_t ret = load_key_bag(ctx, alias, bag, password, password_len);
+        int32_t ret = bag_nid == NID_secretBag
+                ? load_secret_bag(ctx, alias, bag, password, password_len)
+                : load_key_bag(ctx, alias, bag, password, password_len);
         if (ret == JO_SUCCESS) {
             ks_entry *entry = find_entry(ctx, alias);
             const unsigned char *id;
@@ -696,11 +797,104 @@ exit:
     return ret;
 }
 
+/*
+ * Write one secret-key entry. RFC7292: a secretBag of (key OID, raw key) in the
+ * certificate safe, which the store encrypts, as BouncyCastle writes it; the
+ * OID must have an OpenSSL NID, which ks_set_secret requires and only an
+ * unknown OID read from a file can lack. SUNJCE: the raw key as a PKCS#8
+ * (version 0, the key OID, absent parameters) encrypted under the entry
+ * password with the key PBE, carried as secretBag { pkcs8ShroudedKeyBag,
+ * EncryptedPrivateKeyInfo } in the cleartext safe, as SunJCE writes it.
+ */
+static int32_t add_secret_bag(STACK_OF(PKCS12_SAFEBAG) **key_bags,
+                              STACK_OF(PKCS12_SAFEBAG) **cert_bags,
+                              ks_entry *entry, int32_t secret_form, int key_nid,
+                              int cert_nid, int32_t pbe_iter, const char *pass,
+                              int pass_len, OSSL_LIB_CTX *libctx) {
+    jo_assert(entry->secret_len <= KS_SECRET_MAX_LEN);
+
+    PKCS12_SAFEBAG *bag = NULL;
+    PKCS8_PRIV_KEY_INFO *p8 = NULL;
+    PKCS12_SAFEBAG *shrouded = NULL;
+    ASN1_OBJECT *oid = NULL;
+    unsigned char *penc = NULL;
+    unsigned char *epki_der = NULL;
+    char *entry_pass = NULL;
+    int32_t ret = JO_KS_STORE_FAILED;
+
+    if (secret_form == KS_SECRET_FORM_RFC7292) {
+        /* The RFC 7292 bag holds the raw key: never write it into a cleartext safe. */
+        int nid = OBJ_txt2nid(entry->secret_rfc_oid);
+        if (cert_nid == -1 || nid == NID_undef) {
+            goto exit;
+        }
+        bag = PKCS12_add_secret(cert_bags, nid, entry->secret, (int) entry->secret_len);
+        if (OPS_OPENSSL_ERROR_6 bag == NULL) {
+            goto exit;
+        }
+    } else {
+        oid = OBJ_txt2obj(entry->secret_sun_oid, 1);
+        p8 = PKCS8_PRIV_KEY_INFO_new();
+        penc = OPENSSL_memdup(entry->secret, entry->secret_len);
+        if (oid == NULL || p8 == NULL || penc == NULL
+                || !PKCS8_pkey_set0(p8, oid, 0, V_ASN1_UNDEF, NULL, penc,
+                        (int) entry->secret_len)) {
+            goto exit;
+        }
+        oid = NULL;
+        penc = NULL;
+
+        /* The entry's own password, as SunJCE; the store password when none was set. */
+        const char *bag_pass = pass;
+        int bag_pass_len = pass_len;
+        if (entry->key_password != NULL && entry->key_password_len != 0) {
+            entry_pass = copy_password(entry->key_password, entry->key_password_len);
+            jo_assert(entry_pass != NULL);
+            bag_pass = entry_pass;
+            bag_pass_len = (int) entry->key_password_len;
+        }
+        shrouded = PKCS12_SAFEBAG_create_pkcs8_encrypt_ex(key_nid, bag_pass, bag_pass_len,
+                NULL, 0, pbe_iter, p8, libctx, NULL);
+        if (OPS_OPENSSL_ERROR_7 shrouded == NULL) {
+            goto exit;
+        }
+        const X509_SIG *epki = PKCS12_SAFEBAG_get0_pkcs8(shrouded);
+        int der_len = epki == NULL ? -1 : i2d_X509_SIG(epki, &epki_der);
+        if (der_len > 0 && epki_der != NULL) {
+            bag = PKCS12_SAFEBAG_create_secret(NID_pkcs8ShroudedKeyBag, V_ASN1_OCTET_STRING,
+                    epki_der, der_len);
+        }
+        if (OPS_OPENSSL_ERROR_10 bag == NULL || !sk_PKCS12_SAFEBAG_push(*key_bags, bag)) {
+            PKCS12_SAFEBAG_free(bag);
+            bag = NULL;
+            goto exit;
+        }
+    }
+
+    if (OPS_OPENSSL_ERROR_11 !PKCS12_add_friendlyname_utf8(bag, entry->alias, -1)
+            || !PKCS12_add_localkeyid(bag, (unsigned char *) entry->alias,
+                    (int) strlen(entry->alias))) {
+        goto exit;
+    }
+    ret = JO_SUCCESS;
+
+exit:
+    ASN1_OBJECT_free(oid);
+    OPENSSL_clear_free(penc, entry->secret_len);
+    PKCS8_PRIV_KEY_INFO_free(p8);
+    PKCS12_SAFEBAG_free(shrouded);
+    OPENSSL_free(epki_der);
+    if (entry_pass != NULL) {
+        OPENSSL_clear_free(entry_pass, entry->key_password_len + 1);
+    }
+    return ret;
+}
+
 int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
                  const uint8_t *password, size_t password_len,
                  int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
                  int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
-                 void *rnd_src) {
+                 int32_t secret_form, void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(out != NULL);
     jo_assert(out_len != NULL);
@@ -730,6 +924,9 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     }
     if (mac_scheme != KS_MAC_NONE && mac_scheme != KS_MAC_TRADITIONAL
             && mac_scheme != KS_MAC_PBMAC1) {
+        return JO_KS_STORE_FAILED;
+    }
+    if (secret_form != KS_SECRET_FORM_RFC7292 && secret_form != KS_SECRET_FORM_SUNJCE) {
         return JO_KS_STORE_FAILED;
     }
     if (mac_scheme == KS_MAC_TRADITIONAL || mac_scheme == KS_MAC_PBMAC1) {
@@ -781,7 +978,14 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
         if (entry->alias == NULL) {
             continue;
         }
-        if (entry->key != NULL) {
+        if (entry->secret != NULL) {
+            cret = add_secret_bag(&key_bags, &cert_bags, entry, secret_form,
+                    key_nid, cert_nid, pbe_iter, pass, pass_len, libctx);
+            if (cret != JO_SUCCESS) {
+                ret = cret;
+                goto end;
+            }
+        } else if (entry->key != NULL) {
             PKCS12_SAFEBAG *bag = PKCS12_add_key_ex(&key_bags, entry->key, 0,
                     pbe_iter, key_nid, pass, libctx, NULL);
             if (OPS_OPENSSL_ERROR_1 bag == NULL
@@ -970,12 +1174,148 @@ int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t ke
 
     entry->key = spec->key;
     entry->certificate_entry = 0;
+    clear_secret(entry);
     spec->key = NULL;
     free_key_spec(spec);
     clear_key_password(entry);
     entry->key_password = password_copy;
     entry->key_password_len = password_len;
     return JO_SUCCESS;
+}
+
+int32_t ks_set_secret(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t key_len,
+                      const char *rfc_oid, const char *sun_oid,
+                      const uint8_t *password, size_t password_len) {
+    /* Bridge-validated: non-null pointers, 0 < key_len <= KS_SECRET_MAX_LEN. */
+    jo_assert(ctx != NULL);
+    jo_assert(alias != NULL);
+    jo_assert(key != NULL);
+    jo_assert(key_len > 0 && key_len <= KS_SECRET_MAX_LEN);
+    jo_assert(rfc_oid != NULL);
+    jo_assert(sun_oid != NULL);
+    jo_assert(password != NULL || password_len == 0);
+
+    clear_pending_store(ctx);
+    ERR_clear_error();
+
+    if (password_len > INT32_MAX) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+
+    /*
+     * Both OIDs must be dotted numeric forms; the RFC 7292 one must also be
+     * known to OpenSSL, since the bag it writes is built from a NID. Checked
+     * here, not at store, so a store never meets an entry it cannot write.
+     */
+    ERR_set_mark();
+    ASN1_OBJECT *rfc = OBJ_txt2obj(rfc_oid, 1);
+    ASN1_OBJECT *sun = OBJ_txt2obj(sun_oid, 1);
+    int valid = rfc != NULL && sun != NULL && OBJ_obj2nid(rfc) != NID_undef;
+    ASN1_OBJECT_free(rfc);
+    ASN1_OBJECT_free(sun);
+    ERR_pop_to_mark();
+    if (!valid) {
+        return JO_KS_SECRET_OID_INVALID;
+    }
+
+    ks_entry *entry = find_or_create_entry(ctx, alias);
+    EVP_PKEY_free(entry->key);
+    entry->key = NULL;
+    clear_certificate_chain(entry);
+    entry->certificate_entry = 0;
+    clear_secret(entry);
+    entry->secret = OPENSSL_memdup(key, key_len);
+    entry->secret_rfc_oid = OPENSSL_strdup(rfc_oid);
+    entry->secret_sun_oid = OPENSSL_strdup(sun_oid);
+    jo_assert(entry->secret != NULL && entry->secret_rfc_oid != NULL
+              && entry->secret_sun_oid != NULL);
+    entry->secret_len = key_len;
+    return set_key_password(entry, password, password_len);
+}
+
+/* DER length octets for n, which KS_SECRET_MAX_LEN keeps below 65536. */
+static size_t der_len_size(size_t n) {
+    return n < 0x80 ? 1 : (n < 0x100 ? 2 : 3);
+}
+
+static uint8_t *der_put_len(uint8_t *p, size_t n) {
+    if (n < 0x80) {
+        *p++ = (uint8_t) n;
+    } else if (n < 0x100) {
+        *p++ = 0x81;
+        *p++ = (uint8_t) n;
+    } else {
+        *p++ = 0x82;
+        *p++ = (uint8_t) (n >> 8);
+        *p++ = (uint8_t) n;
+    }
+    return p;
+}
+
+int32_t ks_get_secret(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len,
+                      const uint8_t *password, size_t password_len) {
+    jo_assert(ctx != NULL);
+    jo_assert(alias != NULL);
+    jo_assert(out != NULL);
+    jo_assert(out_len != NULL);
+    jo_assert(password != NULL || password_len == 0);
+
+    *out = NULL;
+    *out_len = 0;
+
+    ERR_clear_error();
+
+    ks_entry *entry = find_entry(ctx, alias);
+    if (entry == NULL || entry->secret == NULL) {
+        return JO_SUCCESS;
+    }
+    if (!entry->secret_any_password && !password_matches(entry, password, password_len)) {
+        return JO_KS_DECODE_KEY_FAILED;
+    }
+    jo_assert(entry->secret_len <= KS_SECRET_MAX_LEN);
+
+    /*
+     * SEQUENCE { OBJECT IDENTIFIER, OCTET STRING }, written by hand into one
+     * buffer the caller clear-frees, so the key has exactly one copy to scrub.
+     */
+    unsigned char *oid_der = NULL;
+    ASN1_OBJECT *oid = OBJ_txt2obj(entry->secret_rfc_oid, 1);
+    int oid_der_len = oid == NULL ? -1 : i2d_ASN1_OBJECT(oid, &oid_der);
+    ASN1_OBJECT_free(oid);
+    if (OPS_OPENSSL_ERROR_9 oid_der_len <= 0 || oid_der == NULL) {
+        OPENSSL_free(oid_der);
+        return JO_KS_ENCODE_KEY_FAILED;
+    }
+
+    size_t octets_len = 1 + der_len_size(entry->secret_len) + entry->secret_len;
+    size_t content_len = (size_t) oid_der_len + octets_len;
+    size_t total = 1 + der_len_size(content_len) + content_len;
+    uint8_t *der = OPENSSL_zalloc(total);
+    jo_assert(der != NULL);
+
+    uint8_t *p = der;
+    *p++ = 0x30;
+    p = der_put_len(p, content_len);
+    memcpy(p, oid_der, (size_t) oid_der_len);
+    p += oid_der_len;
+    *p++ = 0x04;
+    p = der_put_len(p, entry->secret_len);
+    memcpy(p, entry->secret, entry->secret_len);
+    p += entry->secret_len;
+    jo_assert((size_t) (p - der) == total);
+    OPENSSL_free(oid_der);
+
+    *out = der;
+    *out_len = total;
+    return JO_SUCCESS;
+}
+
+int32_t ks_is_secret_entry(ks_ctx *ctx, const char *alias) {
+    jo_assert(ctx != NULL);
+    jo_assert(alias != NULL);
+
+    ks_entry *entry = find_entry(ctx, alias);
+    return entry != NULL && entry->secret != NULL ? 1 : 0;
 }
 
 int32_t ks_get_certificate_chain(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len) {
@@ -1068,7 +1408,7 @@ int32_t ks_set_certificate_chain(ks_ctx *ctx, const char *alias, const uint8_t *
     ks_entry *entry = find_or_create_entry(ctx, alias);
     clear_certificate_chain(entry);
     entry->certificate_chain = parsed;
-    if (entry->key == NULL) {
+    if (entry->key == NULL && entry->secret == NULL) {
         /*
          * A chain attached to an alias with no private key is a trusted-cert
          * entry (matching load_cert_bag's keyless-bag handling). Without this
@@ -1098,7 +1438,7 @@ int32_t ks_set_certificate_entry(ks_ctx *ctx, const char *alias, const uint8_t *
     }
 
     ks_entry *entry = find_or_create_entry(ctx, alias);
-    if (entry->key != NULL) {
+    if (entry->key != NULL || entry->secret != NULL) {
         return JO_FAIL;
     }
 
@@ -1214,7 +1554,7 @@ int32_t ks_is_key_entry(ks_ctx *ctx, const char *alias) {
     jo_assert(alias != NULL);
 
     ks_entry *entry = find_entry(ctx, alias);
-    return entry != NULL && entry->key != NULL ? 1 : 0;
+    return entry != NULL && (entry->key != NULL || entry->secret != NULL) ? 1 : 0;
 }
 
 int32_t ks_is_certificate_entry(ks_ctx *ctx, const char *alias) {
@@ -1222,7 +1562,8 @@ int32_t ks_is_certificate_entry(ks_ctx *ctx, const char *alias) {
     jo_assert(alias != NULL);
 
     ks_entry *entry = find_entry(ctx, alias);
-    return entry != NULL && entry->key == NULL && entry->certificate_entry ? 1 : 0;
+    return entry != NULL && entry->key == NULL && entry->secret == NULL
+           && entry->certificate_entry ? 1 : 0;
 }
 
 int64_t ks_get_creation_date(ks_ctx *ctx, const char *alias, int32_t *err) {

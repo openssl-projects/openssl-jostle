@@ -52,7 +52,7 @@ int32_t JoKS_Load(ks_ctx *ctx, uint8_t *input, size_t input_size, uint8_t *passw
 int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
                       int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
                       int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
-                      void *rnd_src, int32_t *err, int32_t err_len) {
+                      int32_t secret_form, void *rnd_src, int32_t *err, int32_t err_len) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
@@ -84,7 +84,7 @@ int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
 
     *err = ks_store(ctx, &out, &out_len, password, password_size,
             key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter,
-            rnd_src);
+            secret_form, rnd_src);
     if (UNSUCCESSFUL(*err)) {
         goto exit;
     }
@@ -112,7 +112,7 @@ exit:
 int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size,
                    int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
                    int32_t mac_digest, int32_t pbe_iter, int32_t mac_iter,
-                   void *rnd_src, uint8_t *output, size_t output_size) {
+                   int32_t secret_form, void *rnd_src, uint8_t *output, size_t output_size) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t ret;
@@ -156,7 +156,7 @@ int32_t JoKS_Store(ks_ctx *ctx, uint8_t *password, size_t password_size,
 
     ret = ks_store(ctx, &out, &out_len, password, password_size,
             key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter,
-            rnd_src);
+            secret_form, rnd_src);
     if (UNSUCCESSFUL(ret) || out == NULL) {
         goto exit;
     }
@@ -328,6 +328,117 @@ int32_t JoKS_SetKey(ks_ctx *ctx, const char *alias, uint8_t *key, size_t key_siz
     }
 
     return ks_set_key(ctx, alias, key, key_size, password, password_size);
+}
+
+int32_t JoKS_SetSecret(ks_ctx *ctx, const char *alias, uint8_t *key, size_t key_size,
+                       const char *rfc_oid, const char *sun_oid,
+                       uint8_t *password, size_t password_size) {
+    if (ctx == NULL) {
+        return JO_KS_CTX_IS_NULL;
+    }
+    if (alias == NULL) {
+        return JO_KS_ALIAS_IS_NULL;
+    }
+    if (key == NULL) {
+        return JO_KS_KEY_IS_NULL;
+    }
+    if (rfc_oid == NULL || sun_oid == NULL) {
+        return JO_KS_SECRET_OID_IS_NULL;
+    }
+    if (key_size == 0) {
+        return JO_KS_SECRET_EMPTY;
+    }
+    if (key_size > KS_SECRET_MAX_LEN) {
+        return JO_KS_SECRET_TOO_LONG;
+    }
+    if (password == NULL && password_size != 0) {
+        return JO_FAILED_ACCESS_KEY;
+    }
+
+    return ks_set_secret(ctx, alias, key, key_size, rfc_oid, sun_oid, password, password_size);
+}
+
+int32_t JoKS_GetSecretLen(ks_ctx *ctx, const char *alias, uint8_t *password, size_t password_size,
+                          int32_t *err, int32_t err_len) {
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    int32_t result = 0;
+
+    /* err is jostle's own, so a null or empty one is a broken invariant
+     * rather than caller data: abort here instead of reporting it. */
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
+    if (ctx == NULL) {
+        *err = JO_KS_CTX_IS_NULL;
+        return 0;
+    }
+    if (alias == NULL) {
+        *err = JO_KS_ALIAS_IS_NULL;
+        return 0;
+    }
+    if (password == NULL && password_size != 0) {
+        *err = JO_FAILED_ACCESS_KEY;
+        return 0;
+    }
+
+    *err = ks_get_secret(ctx, alias, &out, &out_len, password, password_size);
+    if (UNSUCCESSFUL(*err) || out == NULL) {
+        goto exit;
+    }
+    /* Bounded by KS_SECRET_MAX_LEN plus the OID and DER headers. */
+    jo_assert(out_len <= KS_SECRET_MAX_LEN + 256);
+    result = (int32_t) out_len;
+
+exit:
+    OPENSSL_clear_free(out, out_len);
+    return result;
+}
+
+int32_t JoKS_GetSecret(ks_ctx *ctx, const char *alias, uint8_t *password, size_t password_size,
+                       uint8_t *output, size_t output_size) {
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    int32_t ret;
+
+    if (ctx == NULL) {
+        return JO_KS_CTX_IS_NULL;
+    }
+    if (alias == NULL) {
+        return JO_KS_ALIAS_IS_NULL;
+    }
+    if (password == NULL && password_size != 0) {
+        return JO_FAILED_ACCESS_KEY;
+    }
+    if (output == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+
+    ret = ks_get_secret(ctx, alias, &out, &out_len, password, password_size);
+    if (UNSUCCESSFUL(ret) || out == NULL) {
+        goto exit;
+    }
+    if (output_size < out_len) {
+        ret = JO_OUTPUT_TOO_SMALL;
+        goto exit;
+    }
+
+    memcpy(output, out, out_len);
+    ret = JO_SUCCESS;
+
+exit:
+    OPENSSL_clear_free(out, out_len);
+    return ret;
+}
+
+int32_t JoKS_IsSecretEntry(ks_ctx *ctx, const char *alias) {
+    if (ctx == NULL) {
+        return JO_KS_CTX_IS_NULL;
+    }
+    if (alias == NULL) {
+        return JO_KS_ALIAS_IS_NULL;
+    }
+
+    return ks_is_secret_entry(ctx, alias);
 }
 
 int32_t JoKS_SetCertificateChain(ks_ctx *ctx, const char *alias, uint8_t *chain, size_t chain_size) {

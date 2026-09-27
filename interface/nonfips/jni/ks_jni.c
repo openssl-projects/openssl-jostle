@@ -100,7 +100,7 @@ exit:
 JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1store
 (JNIEnv *env, jobject self, jlong ref, jbyteArray _password,
  jint key_pbe, jint cert_pbe, jint mac_scheme, jint mac_digest,
- jint pbe_iter, jint mac_iter, jintArray _err, jobject _randSource) {
+ jint pbe_iter, jint mac_iter, jint secret_form, jintArray _err, jobject _randSource) {
     UNUSED(self);
 
     ks_ctx *ctx = (ks_ctx *) ref;
@@ -145,7 +145,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
 
     *err = ks_store(ctx, &out, &out_len, password.bytearray, password.size,
             key_pbe, cert_pbe, mac_scheme, mac_digest, pbe_iter, mac_iter,
-            _randSource);
+            secret_form, _randSource);
     if (UNSUCCESSFUL(*err)) {
         goto exit;
     }
@@ -295,6 +295,183 @@ exit:
     }
     release_bytearray_ctx(&key);
     release_bytearray_ctx(&password);
+    return ret;
+}
+
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1setSecretKey
+(JNIEnv *env, jobject self, jlong ref, jstring _alias, jbyteArray _key, jstring _rfcOid,
+ jstring _sunOid, jbyteArray _password) {
+    UNUSED(self);
+
+    ks_ctx *ctx = (ks_ctx *) ref;
+    const char *alias = NULL;
+    const char *rfc_oid = NULL;
+    const char *sun_oid = NULL;
+    java_bytearray_ctx key;
+    java_bytearray_ctx password;
+    int32_t ret;
+
+    init_bytearray_ctx(&key);
+    init_bytearray_ctx(&password);
+
+    if (ctx == NULL) {
+        return JO_KS_CTX_IS_NULL;
+    }
+    if (_alias == NULL) {
+        return JO_KS_ALIAS_IS_NULL;
+    }
+    if (_key == NULL) {
+        return JO_KS_KEY_IS_NULL;
+    }
+    if (_rfcOid == NULL || _sunOid == NULL) {
+        return JO_KS_SECRET_OID_IS_NULL;
+    }
+
+    alias = (*env)->GetStringUTFChars(env, _alias, NULL);
+    if (OPS_FAILED_ACCESS_1 alias == NULL) {
+        ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&key, env, _key)) {
+        ret = JO_KS_FAILED_ACCESS_KEY;
+        goto exit;
+    }
+    if (key.size == 0) {
+        ret = JO_KS_SECRET_EMPTY;
+        goto exit;
+    }
+    if (key.size > KS_SECRET_MAX_LEN) {
+        ret = JO_KS_SECRET_TOO_LONG;
+        goto exit;
+    }
+    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&password, env, _password)) {
+        ret = JO_FAILED_ACCESS_KEY;
+        goto exit;
+    }
+    rfc_oid = (*env)->GetStringUTFChars(env, _rfcOid, NULL);
+    if (OPS_FAILED_ACCESS_4 rfc_oid == NULL) {
+        ret = JO_KS_SECRET_OID_FAILED_ACCESS;
+        goto exit;
+    }
+    sun_oid = (*env)->GetStringUTFChars(env, _sunOid, NULL);
+    if (OPS_FAILED_ACCESS_5 sun_oid == NULL) {
+        ret = JO_KS_SECRET_OID_FAILED_ACCESS;
+        goto exit;
+    }
+
+    ret = ks_set_secret(ctx, alias, key.bytearray, key.size, rfc_oid, sun_oid,
+            password.bytearray, password.size);
+
+exit:
+    if (alias != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _alias, alias);
+    }
+    if (rfc_oid != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _rfcOid, rfc_oid);
+    }
+    if (sun_oid != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _sunOid, sun_oid);
+    }
+    release_bytearray_ctx(&key);
+    release_bytearray_ctx(&password);
+    return ret;
+}
+
+JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1getSecretKey
+(JNIEnv *env, jobject self, jlong ref, jstring _alias, jbyteArray _password, jintArray _err) {
+    UNUSED(self);
+
+    ks_ctx *ctx = (ks_ctx *) ref;
+    const char *alias = NULL;
+    java_bytearray_ctx password;
+    int32_t *err = NULL;
+    uint8_t *out = NULL;
+    size_t out_len = 0;
+    jbyteArray result = NULL;
+
+    init_bytearray_ctx(&password);
+
+    /* err is jostle's own: a null one is a broken invariant, not caller
+     * data, so it aborts rather than returning quietly. */
+    jo_assert(_err != NULL);
+
+    // err is ours; a zero-length array would write out of bounds.
+    jo_assert((*env)->GetArrayLength(env, _err) >= 1);
+    err = (*env)->GetIntArrayElements(env, _err, NULL);
+    jo_assert(err != NULL);
+
+    if (ctx == NULL) {
+        *err = JO_KS_CTX_IS_NULL;
+        goto exit;
+    }
+    if (_alias == NULL) {
+        *err = JO_KS_ALIAS_IS_NULL;
+        goto exit;
+    }
+
+    alias = (*env)->GetStringUTFChars(env, _alias, NULL);
+    if (OPS_FAILED_ACCESS_1 alias == NULL) {
+        *err = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&password, env, _password)) {
+        *err = JO_FAILED_ACCESS_KEY;
+        goto exit;
+    }
+
+    *err = ks_get_secret(ctx, alias, &out, &out_len, password.bytearray, password.size);
+    if (UNSUCCESSFUL(*err) || out == NULL) {
+        goto exit;
+    }
+
+    /* Bounded by KS_SECRET_MAX_LEN plus the OID and DER headers, far below jsize. */
+    jo_assert(out_len <= KS_SECRET_MAX_LEN + 256);
+    result = (*env)->NewByteArray(env, (jsize) out_len);
+    if (result == NULL) {
+        *err = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+    (*env)->SetByteArrayRegion(env, result, 0, (jsize) out_len, (jbyte *) out);
+
+exit:
+    if (alias != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _alias, alias);
+    }
+    if (out != NULL) {
+        OPENSSL_clear_free(out, out_len);
+    }
+    release_bytearray_ctx(&password);
+    (*env)->ReleaseIntArrayElements(env, _err, err, 0);
+    return result;
+}
+
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1isSecretKeyEntry
+(JNIEnv *env, jobject self, jlong ref, jstring _alias) {
+    UNUSED(self);
+
+    ks_ctx *ctx = (ks_ctx *) ref;
+    const char *alias = NULL;
+    int32_t ret;
+
+    if (ctx == NULL) {
+        return JO_KS_CTX_IS_NULL;
+    }
+    if (_alias == NULL) {
+        return JO_KS_ALIAS_IS_NULL;
+    }
+
+    alias = (*env)->GetStringUTFChars(env, _alias, NULL);
+    if (OPS_FAILED_ACCESS_1 alias == NULL) {
+        ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+
+    ret = ks_is_secret_entry(ctx, alias);
+
+exit:
+    if (alias != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _alias, alias);
+    }
     return ret;
 }
 

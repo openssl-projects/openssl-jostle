@@ -21,6 +21,16 @@ import java.security.UnrecoverableKeyException;
 public interface KSServiceNI
     extends DefaultServiceNI
 {
+    /**
+     * How store writes a secret-key entry: the RFC 7292 secretBag BouncyCastle
+     * writes, or SunJCE's shrouded form. Load reads both.
+     */
+    int SECRET_FORM_RFC7292 = 0;
+    int SECRET_FORM_SUNJCE = 1;
+
+    /** The longest secret key a key store entry holds, in bytes; the native layer refuses longer. */
+    int SECRET_MAX_LEN = 8192;
+
     long ni_allocateKeyStore(String type, int[] err);
 
     void ni_dispose(long ref);
@@ -28,11 +38,19 @@ public interface KSServiceNI
     int ni_load(long ref, byte[] input, byte[] password);
 
     byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
-                    int macDigest, int pbeIter, int macIter, int[] err, RandSource randSource);
+                    int macDigest, int pbeIter, int macIter, int secretForm, int[] err,
+                    RandSource randSource);
 
     byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);
 
     int ni_setKey(long ref, String alias, byte[] key, byte[] password);
+
+    int ni_setSecretKey(long ref, String alias, byte[] key, String rfcOid, String sunOid, byte[] password);
+
+    /** DER SEQUENCE { OBJECT IDENTIFIER, OCTET STRING }, or null when the alias holds no secret key. */
+    byte[] ni_getSecretKey(long ref, String alias, byte[] password, int[] err);
+
+    int ni_isSecretKeyEntry(long ref, String alias);
 
     byte[] ni_getCertificateChain(long ref, String alias, int[] err);
 
@@ -87,12 +105,12 @@ public interface KSServiceNI
 
     default byte[] store(long ref, byte[] password,
                          int keyPbe, int certPbe, int macScheme, int macDigest,
-                         int pbeIter, int macIter, RandSource randSource)
+                         int pbeIter, int macIter, int secretForm, RandSource randSource)
         throws IOException
     {
         int[] err = new int[1];
         byte[] out = ni_store(ref, password, keyPbe, certPbe, macScheme,
-                macDigest, pbeIter, macIter, err, randSource);
+                macDigest, pbeIter, macIter, secretForm, err, randSource);
         handleIoErrors(err[0]);
         return out;
     }
@@ -110,6 +128,27 @@ public interface KSServiceNI
         throws KeyStoreException
     {
         handleKeyStoreErrors(ni_setKey(ref, alias, key, password));
+    }
+
+    default void setSecretKey(long ref, String alias, byte[] key, String rfcOid, String sunOid,
+                              byte[] password)
+        throws KeyStoreException
+    {
+        handleKeyStoreErrors(ni_setSecretKey(ref, alias, key, rfcOid, sunOid, password));
+    }
+
+    default byte[] getSecretKey(long ref, String alias, byte[] password)
+        throws KeyStoreException
+    {
+        int[] err = new int[1];
+        byte[] der = ni_getSecretKey(ref, alias, password, err);
+        handleKeyStoreErrors(err[0]);
+        return der;
+    }
+
+    default boolean isSecretKeyEntry(long ref, String alias)
+    {
+        return handleErrors(ni_isSecretKeyEntry(ref, alias)) != 0;
     }
 
     default byte[] getCertificateChain(long ref, String alias)

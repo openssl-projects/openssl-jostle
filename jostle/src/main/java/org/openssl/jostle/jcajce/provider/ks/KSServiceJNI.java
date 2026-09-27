@@ -26,13 +26,24 @@ public class KSServiceJNI
 
     @Override
     public native byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
-                                  int macDigest, int pbeIter, int macIter, int[] err, RandSource randSource);
+                                  int macDigest, int pbeIter, int macIter, int secretForm, int[] err,
+                                  RandSource randSource);
 
     @Override
     public native byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);
 
     @Override
     public native int ni_setKey(long ref, String alias, byte[] key, byte[] password);
+
+    @Override
+    public native int ni_setSecretKey(long ref, String alias, byte[] key, String rfcOid, String sunOid,
+                                      byte[] password);
+
+    @Override
+    public native byte[] ni_getSecretKey(long ref, String alias, byte[] password, int[] err);
+
+    @Override
+    public native int ni_isSecretKeyEntry(long ref, String alias);
 
     @Override
     public native byte[] ni_getCertificateChain(long ref, String alias, int[] err);
