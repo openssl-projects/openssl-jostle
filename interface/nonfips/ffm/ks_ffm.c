@@ -358,6 +358,21 @@ int32_t JoKS_SetSecret(ks_ctx *ctx, const char *alias, uint8_t *key, size_t key_
     return ks_set_secret(ctx, alias, key, key_size, rfc_oid, sun_oid, password, password_size);
 }
 
+int32_t JoKS_SetSecretOids(ks_ctx *ctx, const char *alias, const char *rfc_oid,
+                           const char *sun_oid) {
+    if (ctx == NULL) {
+        return JO_KS_CTX_IS_NULL;
+    }
+    if (alias == NULL) {
+        return JO_KS_ALIAS_IS_NULL;
+    }
+    if (rfc_oid == NULL || sun_oid == NULL) {
+        return JO_KS_SECRET_OID_IS_NULL;
+    }
+
+    return ks_set_secret_oids(ctx, alias, rfc_oid, sun_oid);
+}
+
 int32_t JoKS_GetSecretLen(ks_ctx *ctx, const char *alias, uint8_t *password, size_t password_size,
                           int32_t *err, int32_t err_len) {
     uint8_t *out = NULL;

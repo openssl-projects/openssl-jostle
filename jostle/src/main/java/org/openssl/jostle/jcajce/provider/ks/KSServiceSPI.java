@@ -55,6 +55,8 @@ import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Set;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
@@ -281,6 +283,10 @@ public class KSServiceSPI
         {
             throw new NullPointerException("alias must not be null");
         }
+        if (isSecretEntry(alias))
+        {
+            return getSecretKey(alias, password);
+        }
 
         byte[] encoded = null;
         byte[] encodedPassword = encodePassword(password);
@@ -389,9 +395,14 @@ public class KSServiceSPI
         {
             throw new KeyStoreException("key is null");
         }
+        if (key instanceof SecretKey)
+        {
+            setSecretKeyEntry(alias, (SecretKey) key, password);
+            return;
+        }
         if (!(key instanceof PrivateKey))
         {
-            throw new KeyStoreException("only private key entries are supported");
+            throw new KeyStoreException("only private and secret key entries are supported");
         }
         if (!"PKCS#8".equalsIgnoreCase(key.getFormat()))
         {
@@ -623,6 +634,12 @@ public class KSServiceSPI
     public void engineStore(OutputStream stream, char[] password)
         throws IOException, NoSuchAlgorithmException, CertificateException
     {
+        store(stream, password, KSServiceNI.SECRET_FORM_RFC7292);
+    }
+
+    private void store(OutputStream stream, char[] password, int secretForm)
+        throws IOException
+    {
         if (stream == null)
         {
             throw new IOException("output stream is null");
@@ -635,7 +652,7 @@ public class KSServiceSPI
             {
                 byte[] encoded = ksServiceNI.store(ref.getReference(), encodedPassword,
                         keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter,
-                        KSServiceNI.SECRET_FORM_RFC7292, randSource);
+                        secretForm, randSource);
                 if (encoded == null)
                 {
                     // The NI contract returns the DER on success and throws on a
@@ -668,8 +685,10 @@ public class KSServiceSPI
         {
             throw new IllegalArgumentException("output stream is required");
         }
-        engineStore(streamParam.getOutputStream(),
-                passwordFromProtection(streamParam.getProtectionParameter()));
+        store(streamParam.getOutputStream(),
+                passwordFromProtection(streamParam.getProtectionParameter()),
+                streamParam.getSecretKeyBagForm() == PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE
+                        ? KSServiceNI.SECRET_FORM_SUNJCE : KSServiceNI.SECRET_FORM_RFC7292);
     }
 
     @Override
@@ -705,6 +724,16 @@ public class KSServiceSPI
                 try
                 {
                     ksServiceNI.load(ref.getReference(), input, encodedPassword);
+                    try
+                    {
+                        normaliseSecretEntries(encodedPassword);
+                    }
+                    catch (KeyStoreException e)
+                    {
+                        IOException ioe = new IOException(e.getMessage());
+                        ioe.initCause(e);
+                        throw ioe;
+                    }
                 }
                 finally
                 {
@@ -737,7 +766,10 @@ public class KSServiceSPI
         }
         else if (param != null)
         {
-            protection = param.getProtectionParameter();
+            // As store refuses it, and as BouncyCastle refuses it at load: a foreign
+            // parameter carries no stream, and reading it as "load empty" would
+            // silently discard every entry this key store holds.
+            throw new IllegalArgumentException("PKCS12LoadStoreParameter required for load");
         }
         engineLoad(stream, passwordFromProtection(protection));
     }
@@ -810,6 +842,10 @@ public class KSServiceSPI
         if (key == null)
         {
             return null;
+        }
+        if (key instanceof SecretKey)
+        {
+            return new KeyStore.SecretKeyEntry((SecretKey) key);
         }
         if (!(key instanceof PrivateKey))
         {
@@ -888,6 +924,24 @@ public class KSServiceSPI
             return;
         }
 
+        if (entry instanceof KeyStore.SecretKeyEntry)
+        {
+            char[] password = null;
+            if (protParam != null)
+            {
+                KeyStore.PasswordProtection passwordProtection =
+                        (KeyStore.PasswordProtection)protParam;
+                if (passwordProtection.getProtectionAlgorithm() != null)
+                {
+                    throw new KeyStoreException(
+                            "unsupported password protection algorithm");
+                }
+                password = passwordProtection.getPassword();
+            }
+            setSecretKeyEntry(alias, ((KeyStore.SecretKeyEntry)entry).getSecretKey(), password);
+            return;
+        }
+
         throw new KeyStoreException(
                 "unsupported entry type: " + entry.getClass().getName());
     }
@@ -904,11 +958,156 @@ public class KSServiceSPI
         {
             return engineIsCertificateEntry(alias);
         }
+        if (entryClass == KeyStore.SecretKeyEntry.class)
+        {
+            return isSecretEntry(alias);
+        }
         if (entryClass == KeyStore.PrivateKeyEntry.class)
         {
-            return engineIsKeyEntry(alias) && engineGetCertificate(alias) != null;
+            return engineIsKeyEntry(alias) && !isSecretEntry(alias) && engineGetCertificate(alias) != null;
         }
         return false;
+    }
+
+    // Secret-key entries (PKCS#12 secretBag). Every native call goes through these
+    // four helpers, which hold this SPI reachable for the call.
+
+    private boolean isSecretEntry(String alias)
+    {
+        synchronized (this)
+        {
+            return ksServiceNI.isSecretKeyEntry(ref.getReference(), alias);
+        }
+    }
+
+    private byte[] secretDer(String alias, byte[] encodedPassword)
+        throws KeyStoreException
+    {
+        synchronized (this)
+        {
+            return ksServiceNI.getSecretKey(ref.getReference(), alias, encodedPassword);
+        }
+    }
+
+    private void setSecret(String alias, byte[] key, String rfcOid, String sunOid, byte[] encodedPassword)
+        throws KeyStoreException
+    {
+        synchronized (this)
+        {
+            ksServiceNI.setSecretKey(ref.getReference(), alias, key, rfcOid, sunOid, encodedPassword);
+        }
+    }
+
+    private void setSecretOids(String alias, String rfcOid, String sunOid)
+        throws KeyStoreException
+    {
+        synchronized (this)
+        {
+            ksServiceNI.setSecretKeyOids(ref.getReference(), alias, rfcOid, sunOid);
+        }
+    }
+
+    private Key getSecretKey(String alias, char[] password)
+        throws UnrecoverableKeyException
+    {
+        byte[] encodedPassword = encodePassword(password);
+        byte[] der = null;
+        byte[] key = null;
+        try
+        {
+            der = secretDer(alias, encodedPassword);
+            if (der == null)
+            {
+                return null;
+            }
+            Object[] decoded = PKCS12SecretKeys.decode(der);
+            key = (byte[]) decoded[1];
+            return new SecretKeySpec(key, PKCS12SecretKeys.nameFor((String) decoded[0]));
+        }
+        catch (KeyStoreException | RuntimeException e)
+        {
+            UnrecoverableKeyException uke = new UnrecoverableKeyException(e.getMessage());
+            uke.initCause(e);
+            throw uke;
+        }
+        finally
+        {
+            Arrays.clear(der);
+            Arrays.clear(key);
+            Arrays.clear(encodedPassword);
+        }
+    }
+
+    /**
+     * A secret-key entry holds no certificate chain: the JCA requires one only for a private key, and a PKCS#12
+     * secretBag has nowhere to carry one. A null password is accepted, as BouncyCastle and SunJCE accept it.
+     */
+    private void setSecretKeyEntry(String alias, SecretKey key, char[] password)
+        throws KeyStoreException
+    {
+        byte[] encoded = key.getEncoded();
+        if (encoded == null)
+        {
+            throw new KeyStoreException("secret key encoding is null");
+        }
+        byte[] encodedPassword = null;
+        try
+        {
+            PKCS12SecretKeys.Oids oids = PKCS12SecretKeys.oidsFor(key.getAlgorithm(), encoded.length);
+            if (oids == null)
+            {
+                throw new KeyStoreException("PKCS12 secret-key entries need an algorithm both PKCS#12 secretBag "
+                        + "forms can name; " + key.getAlgorithm() + " with a " + encoded.length
+                        + "-byte key is not one, use BCFKS");
+            }
+            encodedPassword = encodePassword(password);
+            setSecret(alias, encoded, oids.rfc, oids.sun, encodedPassword);
+        }
+        finally
+        {
+            Arrays.clear(encoded);
+            Arrays.clear(encodedPassword);
+        }
+    }
+
+    /**
+     * A load reads one OID per secret entry, the one its bag form carries; set both forms' OIDs so a store in
+     * either form names the key the way that form's readers expect. The key and its password rule are unchanged.
+     */
+    private void normaliseSecretEntries(byte[] encodedPassword)
+        throws KeyStoreException
+    {
+        Enumeration<String> aliases = engineAliases();
+        while (aliases.hasMoreElements())
+        {
+            String alias = aliases.nextElement();
+            if (!isSecretEntry(alias))
+            {
+                continue;
+            }
+            byte[] der = secretDer(alias, encodedPassword);
+            byte[] key = null;
+            try
+            {
+                if (der == null)
+                {
+                    continue;
+                }
+                Object[] decoded = PKCS12SecretKeys.decode(der);
+                key = (byte[]) decoded[1];
+                PKCS12SecretKeys.Oids oids =
+                        PKCS12SecretKeys.oidsFor(PKCS12SecretKeys.nameFor((String) decoded[0]), key.length);
+                if (oids != null)
+                {
+                    setSecretOids(alias, oids.rfc, oids.sun);
+                }
+            }
+            finally
+            {
+                Arrays.clear(der);
+                Arrays.clear(key);
+            }
+        }
     }
 
     public boolean engineProbe(InputStream stream)

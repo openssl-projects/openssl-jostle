@@ -247,6 +247,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("key store secret key is empty");
             case JO_KS_SECRET_OID_FAILED_ACCESS:
                 throw new AccessException("unable to access key store secret key algorithm OID");
+            case JO_KS_NOT_SECRET_ENTRY:
+                throw new IllegalArgumentException("key store alias holds no secret key");
             case JO_KS_MAC_VERIFY_FAILED:
                 // Defensive fallback. KSServiceNI.load intercepts this code
                 // first and surfaces it as an IOException whose cause is an

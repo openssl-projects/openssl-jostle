@@ -891,4 +891,110 @@ public class KSServiceLimitTest
             ni.dispose(loaded);
         }
     }
+
+    // -----------------------------------------------------------------
+    // setSecretKeyOids: replaces only the two OIDs of an existing secret entry
+    // -----------------------------------------------------------------
+
+    private static final String RFC_AES256 = "2.16.840.1.101.3.4.1.42";
+    private static final String NOT_SECRET = "key store alias holds no secret key";
+
+    private void assertSetOidsRefused(long ref, String alias, String rfcOid, String sunOid, String message)
+    {
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.setSecretKeyOids(ref, alias, rfcOid, sunOid));
+        Assertions.assertEquals(message, e.getMessage());
+    }
+
+    @Test
+    public void setSecretOids_nullArguments()
+    {
+        assertSetOidsRefused(0L, "s", RFC_AES128, SUN_AES, "key store context is null");
+        assertSetOidsRefused(validRef, null, RFC_AES128, SUN_AES, "key store alias is null");
+        assertSetOidsRefused(validRef, "s", null, SUN_AES, "key store secret key algorithm OID is null");
+        assertSetOidsRefused(validRef, "s", RFC_AES128, null, "key store secret key algorithm OID is null");
+    }
+
+    /** Refused for an absent alias, a private-key entry and a certificate entry: only a secret entry has OIDs. */
+    @Test
+    public void setSecretOids_aliasHoldsNoSecret()
+        throws Exception
+    {
+        assertSetOidsRefused(validRef, "absent", RFC_AES128, SUN_AES, NOT_SECRET);
+
+        java.security.KeyPairGenerator kpg = java.security.KeyPairGenerator.getInstance("RSA",
+                JostleProvider.PROVIDER_NAME);
+        kpg.initialize(2048);
+        java.security.KeyPair pair = kpg.generateKeyPair();
+        ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD);
+        assertSetOidsRefused(validRef, "k", RFC_AES128, SUN_AES, NOT_SECRET);
+
+        org.bouncycastle.asn1.x500.X500Name name = new org.bouncycastle.asn1.x500.X500Name("CN=Jostle KS Limit");
+        java.util.Date now = new java.util.Date();
+        org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder builder =
+                new org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder(name, java.math.BigInteger.ONE,
+                        new java.util.Date(now.getTime() - 3600_000L), new java.util.Date(now.getTime() + 3600_000L),
+                        name, pair.getPublic());
+        org.bouncycastle.operator.ContentSigner signer =
+                new org.bouncycastle.operator.jcajce.JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());
+        ni.setCertificateEntry(validRef, "c", builder.build(signer).getEncoded());
+        assertSetOidsRefused(validRef, "c", RFC_AES128, SUN_AES, NOT_SECRET);
+    }
+
+    /** The same OID rules as setSecretKey, and a refused call leaves the entry's OIDs as they were. */
+    @Test
+    public void setSecretOids_oidValidationLeavesOidsUnchanged()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        String invalid = "key store secret key algorithm OID is not valid";
+        assertSetOidsRefused(validRef, "s", "not.an.oid", SUN_AES, invalid);
+        assertSetOidsRefused(validRef, "s", "AES", SUN_AES, invalid);
+        assertSetOidsRefused(validRef, "s", "1.2.3.4.5.6.7", SUN_AES, invalid);
+        assertSetOidsRefused(validRef, "s", RFC_AES128, "not.an.oid", invalid);
+        Assertions.assertEquals(RFC_AES128, decode(ni.getSecretKey(validRef, "s", PASSWORD))[0]);
+
+        ni.setSecretKeyOids(validRef, "s", RFC_AES256, "1.2.3.4.5.6.7");
+        Object[] got = decode(ni.getSecretKey(validRef, "s", PASSWORD));
+        Assertions.assertEquals(RFC_AES256, got[0]);
+        Assertions.assertArrayEquals(SECRET, (byte[]) got[1], "the key must be unchanged");
+    }
+
+    /** A session-set entry keeps its password rule: a wrong password is refused before and after. */
+    @Test
+    public void setSecretOids_keepsThePasswordRule()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        byte[] wrong = "wrong".getBytes(StandardCharsets.UTF_8);
+        Assertions.assertThrows(KeyStoreException.class, () -> ni.getSecretKey(validRef, "s", wrong));
+        ni.setSecretKeyOids(validRef, "s", RFC_AES256, SUN_AES);
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.getSecretKey(validRef, "s", wrong));
+        Assertions.assertEquals("unable to decode key store private key", e.getMessage());
+    }
+
+    /** An RFC-loaded entry keeps its any-password rule: a wrong password returns the key before and after. */
+    @Test
+    public void setSecretOids_keepsTheAnyPasswordRule()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        byte[] p12 = storeWith(validRef, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_RFC7292);
+        long loaded = ni.allocateKeyStore("PKCS12");
+        try
+        {
+            ni.load(loaded, p12, PASSWORD);
+            byte[] wrong = "wrong".getBytes(StandardCharsets.UTF_8);
+            Assertions.assertArrayEquals(SECRET, (byte[]) decode(ni.getSecretKey(loaded, "s", wrong))[1]);
+            ni.setSecretKeyOids(loaded, "s", RFC_AES256, SUN_AES);
+            Object[] got = decode(ni.getSecretKey(loaded, "s", wrong));
+            Assertions.assertEquals(RFC_AES256, got[0]);
+            Assertions.assertArrayEquals(SECRET, (byte[]) got[1]);
+        }
+        finally
+        {
+            ni.dispose(loaded);
+        }
+    }
 }

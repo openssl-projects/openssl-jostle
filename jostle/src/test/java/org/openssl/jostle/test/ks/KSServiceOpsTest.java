@@ -571,7 +571,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:413
+            // Exercises interface/nonfips/jni/ks_jni.c:401
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ni.setCertificateChain(validRef, "alias", DUMMY);
             Assertions.fail();
@@ -593,7 +593,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:417
+            // Exercises interface/nonfips/jni/ks_jni.c:406
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             ni.setCertificateChain(validRef, "alias", DUMMY);
             Assertions.fail();
@@ -619,7 +619,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:413
+            // Exercises interface/nonfips/jni/ks_jni.c:401
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ni.setCertificateEntry(validRef, "alias", DUMMY);
             Assertions.fail();
@@ -641,7 +641,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:417
+            // Exercises interface/nonfips/jni/ks_jni.c:406
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             ni.setCertificateEntry(validRef, "alias", DUMMY);
             Assertions.fail();
@@ -695,7 +695,7 @@ public class KSServiceOpsTest
         ni.setKey(validRef, "k", keyPkcs8, PASSWORD);
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:682
+            // Exercises interface/nonfips/jni/ks_jni.c:733
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             ni.getAliases(validRef);
             Assertions.fail();
@@ -721,7 +721,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:562
+            // Exercises interface/nonfips/jni/ks_jni.c:560
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ni.containsAlias(validRef, "alias");
             Assertions.fail();
@@ -747,7 +747,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:562
+            // Exercises interface/nonfips/jni/ks_jni.c:560
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ni.isKeyEntry(validRef, "alias");
             Assertions.fail();
@@ -773,7 +773,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:602
+            // Exercises interface/nonfips/jni/ks_jni.c:613
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ni.isCertificateEntry(validRef, "alias");
             Assertions.fail();
@@ -799,7 +799,7 @@ public class KSServiceOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:639
+            // Exercises interface/nonfips/jni/ks_jni.c:653
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ni.getCreationDate(validRef, "alias");
             Assertions.fail();
@@ -923,7 +923,7 @@ public class KSServiceOpsTest
         Assertions.assertNotNull(ni.getSecretKey(validRef, "s", PASSWORD));
         try
         {
-            // Exercises interface/nonfips/util/ks.c:1285
+            // Exercises interface/nonfips/util/ks.c:1318
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
             ni.getSecretKey(validRef, "s", PASSWORD);
             Assertions.fail();
@@ -1016,7 +1016,7 @@ public class KSServiceOpsTest
         ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:413
+            // Exercises interface/nonfips/jni/ks_jni.c:401
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             ni.getSecretKey(validRef, "s", PASSWORD);
             Assertions.fail();
@@ -1040,7 +1040,7 @@ public class KSServiceOpsTest
         ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
         try
         {
-            // Exercises interface/nonfips/jni/ks_jni.c:417
+            // Exercises interface/nonfips/jni/ks_jni.c:406
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             ni.getSecretKey(validRef, "s", PASSWORD);
             Assertions.fail();
@@ -1169,6 +1169,78 @@ public class KSServiceOpsTest
             // Exercises interface/nonfips/jni/ks_jni.c:357
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_5);
             ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+            Assertions.fail();
+        }
+        catch (Exception e)
+        {
+            Assertions.assertEquals("unable to access key store secret key algorithm OID", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void setSecretOids_failedAccessAlias()
+        throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        try
+        {
+            // Exercises interface/nonfips/jni/ks_jni.c:401
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            ni.setSecretKeyOids(validRef, "s", RFC_AES128, SUN_AES);
+            Assertions.fail();
+        }
+        catch (Exception e)
+        {
+            Assertions.assertEquals("unable to access key store alias", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void setSecretOids_failedAccessRfcOid()
+        throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        try
+        {
+            // Exercises interface/nonfips/jni/ks_jni.c:406
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            ni.setSecretKeyOids(validRef, "s", RFC_AES128, SUN_AES);
+            Assertions.fail();
+        }
+        catch (Exception e)
+        {
+            Assertions.assertEquals("unable to access key store secret key algorithm OID", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void setSecretOids_failedAccessSunOid()
+        throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        try
+        {
+            // Exercises interface/nonfips/jni/ks_jni.c:411
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
+            ni.setSecretKeyOids(validRef, "s", RFC_AES128, SUN_AES);
             Assertions.fail();
         }
         catch (Exception e)

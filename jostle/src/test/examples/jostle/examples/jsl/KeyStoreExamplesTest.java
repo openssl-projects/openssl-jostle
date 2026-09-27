@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
 
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -119,6 +120,30 @@ public class KeyStoreExamplesTest
             loaded.load(new ByteArrayInputStream(out.toByteArray()), password);
             Assertions.assertEquals(root, loaded.getCertificate("root"), name);
         }
+    }
+
+    /**
+     * A secret key in a PKCS#12 store. By default it is written the way BouncyCastle writes it (RFC 7292); pass
+     * `PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE` to write the form the JDK's own PKCS12 reads instead.
+     * Either form reads back here.
+     */
+    @Test
+    public void pkcs12SecretKeyEntry()
+            throws Exception
+    {
+        char[] password = "change it".toCharArray();
+        SecretKey key = KeyGenerator.getInstance("AES", "JSL").generateKey();
+
+        KeyStore ks = KeyStore.getInstance("PKCS12", "JSL");
+        ks.load(null, null);
+        ks.setEntry("aes", new KeyStore.SecretKeyEntry(key), new KeyStore.PasswordProtection(password));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ks.store(out, password);
+
+        KeyStore loaded = KeyStore.getInstance("PKCS12", "JSL");
+        loaded.load(new ByteArrayInputStream(out.toByteArray()), password);
+        Assertions.assertArrayEquals(key.getEncoded(), loaded.getKey("aes", password).getEncoded());
+        Assertions.assertTrue(loaded.entryInstanceOf("aes", KeyStore.SecretKeyEntry.class));
     }
 
     /**

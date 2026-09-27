@@ -1183,6 +1183,22 @@ int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t ke
     return JO_SUCCESS;
 }
 
+/*
+ * Both OIDs must be dotted numeric forms; the RFC 7292 one must also be known
+ * to OpenSSL, since the bag it writes is built from a NID. Checked when an OID
+ * is set, not at store, so a store never meets an entry it cannot write.
+ */
+static int secret_oids_valid(const char *rfc_oid, const char *sun_oid) {
+    ERR_set_mark();
+    ASN1_OBJECT *rfc = OBJ_txt2obj(rfc_oid, 1);
+    ASN1_OBJECT *sun = OBJ_txt2obj(sun_oid, 1);
+    int valid = rfc != NULL && sun != NULL && OBJ_obj2nid(rfc) != NID_undef;
+    ASN1_OBJECT_free(rfc);
+    ASN1_OBJECT_free(sun);
+    ERR_pop_to_mark();
+    return valid;
+}
+
 int32_t ks_set_secret(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t key_len,
                       const char *rfc_oid, const char *sun_oid,
                       const uint8_t *password, size_t password_len) {
@@ -1202,19 +1218,7 @@ int32_t ks_set_secret(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t
         return JO_INPUT_TOO_LONG_INT32;
     }
 
-    /*
-     * Both OIDs must be dotted numeric forms; the RFC 7292 one must also be
-     * known to OpenSSL, since the bag it writes is built from a NID. Checked
-     * here, not at store, so a store never meets an entry it cannot write.
-     */
-    ERR_set_mark();
-    ASN1_OBJECT *rfc = OBJ_txt2obj(rfc_oid, 1);
-    ASN1_OBJECT *sun = OBJ_txt2obj(sun_oid, 1);
-    int valid = rfc != NULL && sun != NULL && OBJ_obj2nid(rfc) != NID_undef;
-    ASN1_OBJECT_free(rfc);
-    ASN1_OBJECT_free(sun);
-    ERR_pop_to_mark();
-    if (!valid) {
+    if (!secret_oids_valid(rfc_oid, sun_oid)) {
         return JO_KS_SECRET_OID_INVALID;
     }
 
@@ -1231,6 +1235,35 @@ int32_t ks_set_secret(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t
               && entry->secret_sun_oid != NULL);
     entry->secret_len = key_len;
     return set_key_password(entry, password, password_len);
+}
+
+int32_t ks_set_secret_oids(ks_ctx *ctx, const char *alias, const char *rfc_oid,
+                           const char *sun_oid) {
+    /* Bridge-validated: non-null pointers. */
+    jo_assert(ctx != NULL);
+    jo_assert(alias != NULL);
+    jo_assert(rfc_oid != NULL);
+    jo_assert(sun_oid != NULL);
+
+    clear_pending_store(ctx);
+    ERR_clear_error();
+
+    ks_entry *entry = find_entry(ctx, alias);
+    if (entry == NULL || entry->secret == NULL) {
+        return JO_KS_NOT_SECRET_ENTRY;
+    }
+    if (!secret_oids_valid(rfc_oid, sun_oid)) {
+        return JO_KS_SECRET_OID_INVALID;
+    }
+
+    char *rfc = OPENSSL_strdup(rfc_oid);
+    char *sun = OPENSSL_strdup(sun_oid);
+    jo_assert(rfc != NULL && sun != NULL);
+    OPENSSL_free(entry->secret_rfc_oid);
+    OPENSSL_free(entry->secret_sun_oid);
+    entry->secret_rfc_oid = rfc;
+    entry->secret_sun_oid = sun;
+    return JO_SUCCESS;
 }
 
 /* DER length octets for n, which KS_SECRET_MAX_LEN keeps below 65536. */

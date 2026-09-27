@@ -363,4 +363,410 @@ public class KSServiceAgreementTest
                 label + ": BouncyCastle => " + bcOutcome
                         + " but Jostle => " + jostleOutcome);
     }
+
+    // -----------------------------------------------------------------
+    // Secret-key entries (PKCS#12 secretBag): JSL against BouncyCastle and SunJCE, both forms
+    // -----------------------------------------------------------------
+
+    private static final char[] SK_PASSWORD = "secret store".toCharArray();
+    private static final String BC_ALLOW_SUN = "org.bouncycastle.pkcs12.allow_sun_secret_keys";
+
+    /** The JDK's own PKCS12 key store: provider SUN from JDK 9, SunJSSE on JDK 8. */
+    private static KeyStore sunKeyStore()
+        throws Exception
+    {
+        for (String name : new String[]{"SUN", "SunJSSE"})
+        {
+            java.security.Provider p = Security.getProvider(name);
+            if (p != null && p.getService("KeyStore", "PKCS12") != null)
+            {
+                KeyStore ks = KeyStore.getInstance("PKCS12", p);
+                return ks;
+            }
+        }
+        throw new IllegalStateException("no JDK PKCS12 key store");
+    }
+
+    private static boolean jdk8()
+    {
+        return System.getProperty("java.specification.version").startsWith("1.");
+    }
+
+    /**
+     * BouncyCastle's writer types JSL can read: BouncyCastle's plain "PKCS12" encrypts its safe with
+     * pbeWithSHAAnd40BitRC2-CBC, which OpenSSL 3's default provider does not implement.
+     */
+    private static final String[] BC_READABLE_TYPES = {"PKCS12-3DES-3DES", "PKCS12-AES256-AES128"};
+
+    /**
+     * The JDK's PKCS12 key store refuses some secret keys at set on older JDKs, measured: DESede, the HmacSHA3
+     * family and RC2 on JDK 8; DESede and RC2 on JDK 11; RC2 on JDK 17; none from JDK 21. The keys it stores on
+     * this JDK are the ones interop is checked with; a refusal outside that set, or any refusal from JDK 21, fails.
+     */
+    private static final java.util.Set<String> SUN_HISTORICAL_GAPS = new java.util.HashSet<String>(
+            java.util.Arrays.asList("DESede", "HmacSHA3-224", "HmacSHA3-256", "HmacSHA3-384", "HmacSHA3-512",
+                    "RC2"));
+
+    private static int jdkFeature()
+    {
+        String v = System.getProperty("java.specification.version");
+        return v.startsWith("1.") ? Integer.parseInt(v.substring(2)) : Integer.parseInt(v);
+    }
+
+    private static javax.crypto.SecretKey[] sunStorable(javax.crypto.SecretKey[] keys)
+        throws Exception
+    {
+        java.util.List<javax.crypto.SecretKey> out = new java.util.ArrayList<javax.crypto.SecretKey>();
+        for (javax.crypto.SecretKey key : keys)
+        {
+            KeyStore probe = sunKeyStore();
+            probe.load(null, null);
+            try
+            {
+                probe.setEntry("p", new KeyStore.SecretKeyEntry(key), new KeyStore.PasswordProtection(SK_PASSWORD));
+                out.add(key);
+            }
+            catch (java.security.KeyStoreException e)
+            {
+                Assertions.assertTrue(jdkFeature() < 21 && SUN_HISTORICAL_GAPS.contains(key.getAlgorithm()),
+                        "SunJCE refused " + key.getAlgorithm() + " on JDK " + jdkFeature() + ": " + e);
+                Assertions.assertTrue(e.getMessage().startsWith("Key protection algorithm not found"), e.getMessage());
+            }
+        }
+        return out.toArray(new javax.crypto.SecretKey[0]);
+    }
+
+    private static javax.crypto.SecretKey secret(String algorithm, int len)
+    {
+        byte[] k = new byte[len];
+        new java.security.SecureRandom().nextBytes(k);
+        return new javax.crypto.spec.SecretKeySpec(k, algorithm);
+    }
+
+    private static byte[] storeSecrets(KeyStore ks, javax.crypto.SecretKey[] keys,
+                                       org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm form)
+        throws Exception
+    {
+        ks.load(null, null);
+        for (int i = 0; i < keys.length; i++)
+        {
+            ks.setEntry("k" + i, new KeyStore.SecretKeyEntry(keys[i]), new KeyStore.PasswordProtection(SK_PASSWORD));
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        if (form == null)
+        {
+            ks.store(out, SK_PASSWORD);
+        }
+        else
+        {
+            ks.store(new org.openssl.jostle.jcajce.PKCS12LoadStoreParameter(out,
+                    new KeyStore.PasswordProtection(SK_PASSWORD), form));
+        }
+        return out.toByteArray();
+    }
+
+    private static javax.crypto.SecretKey[] supportedKeys()
+    {
+        Object[][] algs = PKCS12SecretKeyTest.SUPPORTED;
+        javax.crypto.SecretKey[] keys = new javax.crypto.SecretKey[algs.length];
+        for (int i = 0; i < algs.length; i++)
+        {
+            keys[i] = secret((String) algs[i][0], (Integer) algs[i][1]);
+        }
+        return keys;
+    }
+
+    private static void assertReads(KeyStore reader, byte[] p12, javax.crypto.SecretKey[] keys, String label)
+        throws Exception
+    {
+        reader.load(new ByteArrayInputStream(p12), SK_PASSWORD);
+        for (int i = 0; i < keys.length; i++)
+        {
+            java.security.Key got = reader.getKey("k" + i, SK_PASSWORD);
+            String what = label + " " + keys[i].getAlgorithm() + "/" + keys[i].getEncoded().length;
+            Assertions.assertNotNull(got, what);
+            Assertions.assertArrayEquals(keys[i].getEncoded(), got.getEncoded(), what);
+            Assertions.assertTrue(keys[i].getAlgorithm().equalsIgnoreCase(got.getAlgorithm()),
+                    what + " read as " + got.getAlgorithm());
+        }
+    }
+
+    /**
+     * SunJCE names a secret key through the providers registered in the JVM, so ARIA and Camellia can come back
+     * under their OID. The name JSL's file reads as is therefore compared with the name SunJCE's own file reads as
+     * in the same JVM, and the bytes with the key. Where SunJCE names its own key by OID, it writes an OID of its
+     * own (JDK 8 names ARIA by id-aria256-ofb), so JSL's key must then come back under an OID too.
+     */
+    private static void assertSunReadsLikeItsOwn(byte[] p12, javax.crypto.SecretKey[] keys, String label)
+        throws Exception
+    {
+        KeyStore own = sunKeyStore();
+        own.load(new ByteArrayInputStream(storeSecrets(sunKeyStore(), keys, null)), SK_PASSWORD);
+        KeyStore read = sunKeyStore();
+        read.load(new ByteArrayInputStream(p12), SK_PASSWORD);
+        for (int i = 0; i < keys.length; i++)
+        {
+            java.security.Key got = read.getKey("k" + i, SK_PASSWORD);
+            String what = label + " " + keys[i].getAlgorithm() + "/" + keys[i].getEncoded().length;
+            Assertions.assertNotNull(got, what);
+            Assertions.assertArrayEquals(keys[i].getEncoded(), got.getEncoded(), what);
+            String ownName = own.getKey("k" + i, SK_PASSWORD).getAlgorithm();
+            if (Character.isDigit(ownName.charAt(0)))
+            {
+                Assertions.assertTrue(Character.isDigit(got.getAlgorithm().charAt(0)), what + " " + got.getAlgorithm());
+            }
+            else
+            {
+                Assertions.assertEquals(ownName, got.getAlgorithm(), what);
+            }
+        }
+    }
+
+    @Test
+    public void secretKeys_jslDefaultFormBouncyCastleReads()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = supportedKeys();
+        byte[] p12 = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys, null);
+        assertReads(KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME), p12, keys, "JSL->BC");
+    }
+
+    @Test
+    public void secretKeys_bouncyCastleWritesJslReads()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = supportedKeys();
+        for (String type : BC_READABLE_TYPES)
+        {
+            byte[] p12 = storeSecrets(KeyStore.getInstance(type, BouncyCastleProvider.PROVIDER_NAME), keys, null);
+            assertReads(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), p12, keys,
+                    "BC " + type + "->JSL");
+        }
+    }
+
+    @Test
+    public void secretKeys_sunWritesJslReads()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = sunStorable(supportedKeys());
+        byte[] p12 = storeSecrets(sunKeyStore(), keys, null);
+        assertReads(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), p12, keys, "SUN->JSL");
+    }
+
+    @Test
+    public void secretKeys_jslSunFormSunReads()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = sunStorable(supportedKeys());
+        byte[] jslFile = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys,
+                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
+        assertSunReadsLikeItsOwn(jslFile, keys, "JSL(SUNJCE)->SUN");
+    }
+
+    /**
+     * A file read in one form and written by JSL in the other reaches that form's reader: SunJCE's file stored by
+     * default reads in BouncyCastle, and BouncyCastle's file stored in the SunJCE form reads in SunJCE.
+     */
+    @Test
+    public void secretKeys_crossFormRewriteReachesTheOtherReader()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = sunStorable(supportedKeys());
+        KeyStore jsl = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+        jsl.load(new ByteArrayInputStream(storeSecrets(sunKeyStore(), keys, null)), SK_PASSWORD);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        jsl.store(out, SK_PASSWORD);
+        assertReads(KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME), out.toByteArray(), keys,
+                "SUN->JSL->BC");
+
+        jsl = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+        jsl.load(new ByteArrayInputStream(storeSecrets(
+                KeyStore.getInstance(BC_READABLE_TYPES[0], BouncyCastleProvider.PROVIDER_NAME), keys, null)),
+                SK_PASSWORD);
+        out = new ByteArrayOutputStream();
+        jsl.store(new org.openssl.jostle.jcajce.PKCS12LoadStoreParameter(out,
+                new KeyStore.PasswordProtection(SK_PASSWORD),
+                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE));
+        assertSunReadsLikeItsOwn(out.toByteArray(), keys, "BC->JSL(SUNJCE)->SUN");
+    }
+
+    /**
+     * Divergence, pinned in both halves: SunJCE cannot read the RFC 7292 form, whether BouncyCastle or JSL wrote
+     * it; the store loads and getKey refuses. BouncyCastle's own file is the control.
+     */
+    @Test
+    public void secretKeys_divergence_sunCannotReadTheRfcForm()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = {secret("AES", 16)};
+        byte[][] files = {
+                storeSecrets(KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME), keys, null),
+                storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys, null)};
+        for (byte[] p12 : files)
+        {
+            KeyStore sun = sunKeyStore();
+            sun.load(new ByteArrayInputStream(p12), SK_PASSWORD);
+            Assertions.assertThrows(java.security.UnrecoverableKeyException.class,
+                    () -> sun.getKey("k0", SK_PASSWORD));
+        }
+    }
+
+    /**
+     * Divergence, pinned in both halves: BouncyCastle reads the SunJCE form only with its opt-in property set.
+     * Without it the load is refused naming the secretBag type; with it the key is read. The property is global
+     * state, so it is restored and the restoration asserted.
+     */
+    @Test
+    public void secretKeys_divergence_bouncyCastleReadsSunFormOnlyWhenAllowed()
+        throws Exception
+    {
+        javax.crypto.SecretKey[] keys = {secret("HmacSHA256", 32)};
+        byte[] p12 = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys,
+                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
+        String before = System.getProperty(BC_ALLOW_SUN);
+        try
+        {
+            System.clearProperty(BC_ALLOW_SUN);
+            KeyStore refused = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
+            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+                    () -> refused.load(new ByteArrayInputStream(p12), SK_PASSWORD));
+            Assertions.assertEquals("unrecognised PKCS12 secretBag algorithm: 1.2.840.113549.1.12.10.1.2",
+                    e.getMessage());
+
+            System.setProperty(BC_ALLOW_SUN, "true");
+            KeyStore allowed = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
+            allowed.load(new ByteArrayInputStream(p12), SK_PASSWORD);
+            Assertions.assertArrayEquals(keys[0].getEncoded(), allowed.getKey("k0", SK_PASSWORD).getEncoded());
+        }
+        finally
+        {
+            if (before == null)
+            {
+                System.clearProperty(BC_ALLOW_SUN);
+            }
+            else
+            {
+                System.setProperty(BC_ALLOW_SUN, before);
+            }
+        }
+        Assertions.assertEquals(before, System.getProperty(BC_ALLOW_SUN), "the property must be restored");
+    }
+
+    /**
+     * Divergence rows: SunJCE also stores Blowfish, DES and RC2 keys, which have no RFC 7292 OID BouncyCastle
+     * writes, so JSL refuses them; SunJCE drops a chain given with a secret key, as JSL does (the control), where
+     * BouncyCastle keeps it in memory.
+     */
+    @Test
+    public void secretKeys_divergence_extrasAndChains()
+        throws Exception
+    {
+        for (Object[] x : new Object[][]{{"Blowfish", 16}, {"DES", 8}, {"RC2", 16}})
+        {
+            javax.crypto.SecretKey key = secret((String) x[0], (Integer) x[1]);
+            if (sunStorable(new javax.crypto.SecretKey[]{key}).length == 1)
+            {
+                KeyStore sun = sunKeyStore();
+                sun.load(null, null);
+                sun.setKeyEntry("s", key, SK_PASSWORD, null);
+                Assertions.assertTrue(sun.isKeyEntry("s"), "SunJCE stores " + x[0]);
+            }
+            KeyStore jsl = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+            jsl.load(null, null);
+            Assertions.assertThrows(java.security.KeyStoreException.class,
+                    () -> jsl.setKeyEntry("s", key, SK_PASSWORD, null), "JSL refuses " + x[0]);
+        }
+
+        KeyPair pair = newRsaKeyPair(BouncyCastleProvider.PROVIDER_NAME);
+        Certificate[] chain = {selfSignedCertificate(pair, "CN=secret chain", BigInteger.ONE)};
+        javax.crypto.SecretKey key = secret("AES", 16);
+        KeyStore bc = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
+        bc.load(null, null);
+        bc.setKeyEntry("s", key, SK_PASSWORD, chain);
+        Assertions.assertEquals(1, bc.getCertificateChain("s").length, "BouncyCastle keeps the chain in memory");
+        KeyStore sun = sunKeyStore();
+        sun.load(null, null);
+        sun.setKeyEntry("s", key, SK_PASSWORD, chain);
+        Assertions.assertNull(sun.getCertificateChain("s"), "SunJCE holds no chain for a secret key");
+        KeyStore jsl = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+        jsl.load(null, null);
+        jsl.setKeyEntry("s", key, SK_PASSWORD, chain);
+        Assertions.assertNull(jsl.getCertificateChain("s"), "JSL holds no chain for a secret key");
+    }
+
+    /**
+     * Password rules, pinned against both peers. BouncyCastle returns a secret key whatever password is given, in
+     * memory and after an RFC 7292 load; JSL agrees after that load (the bag carries no protection) and refuses a
+     * wrong password in memory (a divergence). SunJCE refuses a wrong password, in memory and after a load of its
+     * own form, as JSL does after a SunJCE-form load.
+     */
+    @Test
+    public void secretKeys_passwordRulesAgainstBothPeers()
+        throws Exception
+    {
+        char[] wrong = "wrong".toCharArray();
+        javax.crypto.SecretKey[] keys = {secret("AES", 32)};
+
+        KeyStore bc = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
+        byte[] bcFile = storeSecrets(bc, keys, null);
+        Assertions.assertNotNull(bc.getKey("k0", wrong), "BouncyCastle in memory ignores the password");
+        KeyStore jslMemory = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+        byte[] jslRfc = storeSecrets(jslMemory, keys, null);
+        Assertions.assertThrows(java.security.UnrecoverableKeyException.class,
+                () -> jslMemory.getKey("k0", wrong), "JSL in memory checks the password");
+
+        KeyStore bcLoaded = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
+        bcLoaded.load(new ByteArrayInputStream(bcFile), SK_PASSWORD);
+        Assertions.assertNotNull(bcLoaded.getKey("k0", wrong));
+        KeyStore jslLoaded = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+        jslLoaded.load(new ByteArrayInputStream(jslRfc), SK_PASSWORD);
+        Assertions.assertArrayEquals(keys[0].getEncoded(), jslLoaded.getKey("k0", wrong).getEncoded());
+
+        KeyStore sun = sunKeyStore();
+        byte[] sunFile = storeSecrets(sun, keys, null);
+        Assertions.assertThrows(java.security.UnrecoverableKeyException.class, () -> sun.getKey("k0", wrong));
+        KeyStore sunLoaded = sunKeyStore();
+        sunLoaded.load(new ByteArrayInputStream(sunFile), SK_PASSWORD);
+        Assertions.assertThrows(java.security.UnrecoverableKeyException.class, () -> sunLoaded.getKey("k0", wrong));
+        KeyStore jslSunLoaded = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
+        jslSunLoaded.load(new ByteArrayInputStream(sunFile), SK_PASSWORD);
+        Assertions.assertThrows(java.security.UnrecoverableKeyException.class,
+                () -> jslSunLoaded.getKey("k0", wrong));
+    }
+
+    /**
+     * A foreign LoadStoreParameter type. At load BouncyCastle refuses it with IllegalArgumentException and keeps
+     * its entries (the control) and JSL does the same; SunJCE empties the store (a divergence). At store
+     * BouncyCastle and JSL refuse with IllegalArgumentException and SunJCE with UnsupportedOperationException.
+     */
+    @Test
+    public void foreignLoadStoreParameter_againstBothPeers()
+        throws Exception
+    {
+        KeyStore.LoadStoreParameter foreign = () -> new KeyStore.PasswordProtection(SK_PASSWORD);
+        javax.crypto.SecretKey[] keys = {secret("AES", 16)};
+        for (String provider : new String[]{BouncyCastleProvider.PROVIDER_NAME, JostleProvider.PROVIDER_NAME})
+        {
+            KeyStore ks = KeyStore.getInstance("PKCS12", provider);
+            storeSecrets(ks, keys, null);
+            Assertions.assertThrows(IllegalArgumentException.class, () -> ks.load(foreign), provider);
+            Assertions.assertEquals(1, ks.size(), provider + " keeps its entries");
+            Assertions.assertThrows(IllegalArgumentException.class, () -> ks.store(foreign), provider);
+        }
+        KeyStore sun = sunKeyStore();
+        storeSecrets(sun, keys, null);
+        if (jdk8())
+        {
+            Assertions.assertThrows(UnsupportedOperationException.class, () -> sun.load(foreign));
+            Assertions.assertEquals(1, sun.size(), "JDK 8 SunJSSE refuses the parameter");
+        }
+        else
+        {
+            sun.load(foreign);
+            Assertions.assertEquals(0, sun.size(), "SunJCE empties the store");
+        }
+        KeyStore sunStore = sunKeyStore();
+        sunStore.load(null, null);
+        Assertions.assertThrows(UnsupportedOperationException.class, () -> sunStore.store(foreign));
+    }
 }

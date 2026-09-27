@@ -662,6 +662,8 @@
 #define JO_KS_SECRET_EMPTY -187
 /* A JVM access failure reading an OID string, not caller data. */
 #define JO_KS_SECRET_OID_FAILED_ACCESS -188
+/* The alias names no entry, or an entry that is not a secret key. */
+#define JO_KS_NOT_SECRET_ENTRY -189
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

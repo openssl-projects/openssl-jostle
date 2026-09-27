@@ -40,6 +40,9 @@ public class KSServiceJNI
                                       byte[] password);
 
     @Override
+    public native int ni_setSecretKeyOids(long ref, String alias, String rfcOid, String sunOid);
+
+    @Override
     public native byte[] ni_getSecretKey(long ref, String alias, byte[] password, int[] err);
 
     @Override

@@ -377,6 +377,57 @@ exit:
     return ret;
 }
 
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1setSecretKeyOids
+(JNIEnv *env, jobject self, jlong ref, jstring _alias, jstring _rfcOid, jstring _sunOid) {
+    UNUSED(self);
+
+    ks_ctx *ctx = (ks_ctx *) ref;
+    const char *alias = NULL;
+    const char *rfc_oid = NULL;
+    const char *sun_oid = NULL;
+    int32_t ret;
+
+    if (ctx == NULL) {
+        return JO_KS_CTX_IS_NULL;
+    }
+    if (_alias == NULL) {
+        return JO_KS_ALIAS_IS_NULL;
+    }
+    if (_rfcOid == NULL || _sunOid == NULL) {
+        return JO_KS_SECRET_OID_IS_NULL;
+    }
+
+    alias = (*env)->GetStringUTFChars(env, _alias, NULL);
+    if (OPS_FAILED_ACCESS_1 alias == NULL) {
+        ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    rfc_oid = (*env)->GetStringUTFChars(env, _rfcOid, NULL);
+    if (OPS_FAILED_ACCESS_2 rfc_oid == NULL) {
+        ret = JO_KS_SECRET_OID_FAILED_ACCESS;
+        goto exit;
+    }
+    sun_oid = (*env)->GetStringUTFChars(env, _sunOid, NULL);
+    if (OPS_FAILED_ACCESS_3 sun_oid == NULL) {
+        ret = JO_KS_SECRET_OID_FAILED_ACCESS;
+        goto exit;
+    }
+
+    ret = ks_set_secret_oids(ctx, alias, rfc_oid, sun_oid);
+
+exit:
+    if (alias != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _alias, alias);
+    }
+    if (rfc_oid != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _rfcOid, rfc_oid);
+    }
+    if (sun_oid != NULL) {
+        (*env)->ReleaseStringUTFChars(env, _sunOid, sun_oid);
+    }
+    return ret;
+}
+
 JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1getSecretKey
 (JNIEnv *env, jobject self, jlong ref, jstring _alias, jbyteArray _password, jintArray _err) {
     UNUSED(self);

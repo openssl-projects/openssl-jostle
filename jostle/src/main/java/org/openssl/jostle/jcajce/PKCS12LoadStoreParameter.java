@@ -30,6 +30,11 @@ import java.security.KeyStore;
  *
  * <p>The standard {@code KeyStore.load(InputStream, char[])} /
  * {@code KeyStore.store(OutputStream, char[])} forms do not need this type.
+ *
+ * <p>The {@link SecretKeyBagForm} chooses how {@code store} writes a secret-key
+ * entry; {@code load} reads either. An RFC 7292 bag has no protection of its
+ * own, so after a load its key is protected by the store password only; a SunJCE
+ * bag is encrypted under its entry's password, which reading it back requires.
  */
 public final class PKCS12LoadStoreParameter
     implements KeyStore.LoadStoreParameter
@@ -37,6 +42,20 @@ public final class PKCS12LoadStoreParameter
     private final InputStream inputStream;
     private final OutputStream outputStream;
     private final KeyStore.ProtectionParameter protectionParameter;
+    private final SecretKeyBagForm secretKeyBagForm;
+
+    /**
+     * How a secret-key entry is written. {@link #RFC7292} is the RFC 7292
+     * secretBag BouncyCastle writes and reads, holding the key OID and the key;
+     * SunJCE cannot read it. {@link #SUNJCE} is the form SunJCE writes and reads,
+     * an encrypted PKCS#8 inside the bag; BouncyCastle reads it only when its
+     * {@code org.bouncycastle.pkcs12.allow_sun_secret_keys} property is set.
+     */
+    public enum SecretKeyBagForm
+    {
+        RFC7292,
+        SUNJCE
+    }
 
     public PKCS12LoadStoreParameter(InputStream inputStream,
                                     KeyStore.ProtectionParameter protectionParameter)
@@ -54,9 +73,32 @@ public final class PKCS12LoadStoreParameter
                                     OutputStream outputStream,
                                     KeyStore.ProtectionParameter protectionParameter)
     {
+        this(inputStream, outputStream, protectionParameter, SecretKeyBagForm.RFC7292);
+    }
+
+    /**
+     * For {@code store}: write secret-key entries in {@code secretKeyBagForm}.
+     */
+    public PKCS12LoadStoreParameter(OutputStream outputStream,
+                                    KeyStore.ProtectionParameter protectionParameter,
+                                    SecretKeyBagForm secretKeyBagForm)
+    {
+        this(null, outputStream, protectionParameter, secretKeyBagForm);
+    }
+
+    public PKCS12LoadStoreParameter(InputStream inputStream,
+                                    OutputStream outputStream,
+                                    KeyStore.ProtectionParameter protectionParameter,
+                                    SecretKeyBagForm secretKeyBagForm)
+    {
+        if (secretKeyBagForm == null)
+        {
+            throw new NullPointerException("secretKeyBagForm must not be null");
+        }
         this.inputStream = inputStream;
         this.outputStream = outputStream;
         this.protectionParameter = protectionParameter;
+        this.secretKeyBagForm = secretKeyBagForm;
     }
 
     public InputStream getInputStream()
@@ -67,6 +109,14 @@ public final class PKCS12LoadStoreParameter
     public OutputStream getOutputStream()
     {
         return outputStream;
+    }
+
+    /**
+     * How {@code store} writes a secret-key entry; RFC7292 unless one was given.
+     */
+    public SecretKeyBagForm getSecretKeyBagForm()
+    {
+        return secretKeyBagForm;
     }
 
     @Override

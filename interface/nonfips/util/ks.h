@@ -131,6 +131,14 @@ int32_t ks_set_secret(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t
 int32_t ks_get_secret(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len,
                       const uint8_t *password, size_t password_len);
 
+/*
+ * Replace only the two OIDs of an existing secret entry, leaving the key, its
+ * password and secret_any_password as they are. The SPI calls it after a load,
+ * which reads one OID, so a store in either form writes that form's OID.
+ */
+int32_t ks_set_secret_oids(ks_ctx *ctx, const char *alias, const char *rfc_oid,
+                           const char *sun_oid);
+
 int32_t ks_is_secret_entry(ks_ctx *ctx, const char *alias);
 
 int32_t ks_get_certificate_chain(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len);

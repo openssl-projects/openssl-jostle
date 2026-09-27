@@ -40,6 +40,7 @@ public class KSServiceFFM
     private final MethodHandle getKeyH;
     private final MethodHandle setKeyH;
     private final MethodHandle setSecretH;
+    private final MethodHandle setSecretOidsH;
     private final MethodHandle getSecretLenH;
     private final MethodHandle getSecretH;
     private final MethodHandle isSecretEntryH;
@@ -111,6 +112,10 @@ public class KSServiceFFM
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
+        this.setSecretOidsH = linker.downcallHandle(
+                lookup.find("JoKS_SetSecretOids").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         this.getSecretLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetSecretLen").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
@@ -430,6 +435,23 @@ public class KSServiceFFM
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFM JoKS_SetSecret", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_setSecretKeyOids(long ref, String alias, String rfcOid, String sunOid)
+    {
+        try (Arena arena = Arena.ofConfined())
+        {
+            MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
+            MemorySegment rfcSeg = rfcOid == null ? MemorySegment.NULL : arena.allocateFrom(rfcOid);
+            MemorySegment sunSeg = sunOid == null ? MemorySegment.NULL : arena.allocateFrom(sunOid);
+            return (int) setSecretOidsH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, rfcSeg, sunSeg);
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM JoKS_SetSecretOids", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

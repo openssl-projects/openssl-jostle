@@ -47,6 +47,8 @@ public interface KSServiceNI
 
     int ni_setSecretKey(long ref, String alias, byte[] key, String rfcOid, String sunOid, byte[] password);
 
+    int ni_setSecretKeyOids(long ref, String alias, String rfcOid, String sunOid);
+
     /** DER SEQUENCE { OBJECT IDENTIFIER, OCTET STRING }, or null when the alias holds no secret key. */
     byte[] ni_getSecretKey(long ref, String alias, byte[] password, int[] err);
 
@@ -135,6 +137,13 @@ public interface KSServiceNI
         throws KeyStoreException
     {
         handleKeyStoreErrors(ni_setSecretKey(ref, alias, key, rfcOid, sunOid, password));
+    }
+
+    /** Replaces only the two OIDs of an existing secret entry; its key and password rule are unchanged. */
+    default void setSecretKeyOids(long ref, String alias, String rfcOid, String sunOid)
+        throws KeyStoreException
+    {
+        handleKeyStoreErrors(ni_setSecretKeyOids(ref, alias, rfcOid, sunOid));
     }
 
     default byte[] getSecretKey(long ref, String alias, byte[] password)

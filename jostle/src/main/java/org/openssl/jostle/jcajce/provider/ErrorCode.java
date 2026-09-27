@@ -352,6 +352,8 @@ public enum ErrorCode
     JO_KS_SECRET_EMPTY(-187),
     // A JVM access failure reading an OID string, not caller data.
     JO_KS_SECRET_OID_FAILED_ACCESS(-188),
+    // The alias names no entry, or an entry that is not a secret key.
+    JO_KS_NOT_SECRET_ENTRY(-189),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),
