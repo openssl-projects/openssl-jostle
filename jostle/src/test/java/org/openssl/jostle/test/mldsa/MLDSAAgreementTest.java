@@ -12,6 +12,7 @@
 package org.openssl.jostle.test.mldsa;
 
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.jcajce.interfaces.MLDSAKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -825,6 +826,36 @@ public class MLDSAAgreementTest
             byte[] sig = sign(JSL, e.getValue(), kp.getPrivate(), msg, null);
             Assertions.assertTrue(verify(BC, e.getKey(), bcPublic(kp.getPublic()), msg, sig, null),
                     e.getKey() + ": a signature made under the OID alias did not verify at BouncyCastle");
+        }
+    }
+
+    /**
+     * The generic generators used without initialize() agree with BouncyCastle's generic generator used the same
+     * way: BouncyCastle reads the same parameter set from our encoding as its own default key carries (ML-DSA-87),
+     * and each side verifies the other's signature.
+     */
+    @Test
+    public void bareGenericGeneratorsAgreeWithBouncyCastlesDefault() throws Exception
+    {
+        KeyPair bc = KeyPairGenerator.getInstance("ML-DSA", BC).generateKeyPair();
+        String bcDefault = ((MLDSAKey) bc.getPublic()).getParameterSpec().getName();
+        Assertions.assertEquals("ML-DSA-87", bcDefault, "BouncyCastle's default moved");
+        PublicKey bcPubAtJsl = KeyFactory.getInstance("ML-DSA", JSL)
+                .generatePublic(new X509EncodedKeySpec(bc.getPublic().getEncoded()));
+        for (String name : new String[]{"ML-DSA", "MLDSA"})
+        {
+            KeyPair jsl = KeyPairGenerator.getInstance(name, JSL).generateKeyPair();
+            PublicKey jslPubAtBc = bcPublic(jsl.getPublic());
+            Assertions.assertEquals(bcDefault, ((MLDSAKey) jslPubAtBc).getParameterSpec().getName(), name);
+
+            byte[] msg = new byte[1 + RANDOM.nextInt(256)];
+            RANDOM.nextBytes(msg);
+            byte[] jslSig = sign(JSL, "ML-DSA", jsl.getPrivate(), msg, null);
+            Assertions.assertTrue(verify(BC, "ML-DSA", jslPubAtBc, msg, jslSig, null), name + ": JSL signed");
+            byte[] bcSig = sign(BC, "ML-DSA", bc.getPrivate(), msg, null);
+            Assertions.assertTrue(verify(JSL, "ML-DSA", bcPubAtJsl, msg, bcSig, null), name + ": BC signed");
+            msg[0] ^= 1;
+            Assertions.assertFalse(verify(BC, "ML-DSA", jslPubAtBc, msg, jslSig, null), name + ": tampered");
         }
     }
 }

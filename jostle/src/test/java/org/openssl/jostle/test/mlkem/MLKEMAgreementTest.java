@@ -15,6 +15,7 @@ import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.jcajce.spec.KEMExtractSpec;
+import org.bouncycastle.jcajce.interfaces.MLKEMKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -433,5 +434,52 @@ public class MLKEMAgreementTest
             return k1024;
         }
         return k768;
+    }
+
+    /**
+     * The generic generators used without initialize() agree with BouncyCastle's generic generator used the same
+     * way: BouncyCastle reads the same parameter set from our encoding as its own default key carries (ML-KEM-768),
+     * and a secret encapsulated by either side to the other's default key is recovered.
+     */
+    @Test
+    public void bareGenericGeneratorsAgreeWithBouncyCastlesDefault() throws Exception
+    {
+        KeyPair bc = KeyPairGenerator.getInstance("ML-KEM", BC).generateKeyPair();
+        String bcDefault = ((MLKEMKey) bc.getPublic()).getParameterSpec().getName();
+        Assertions.assertEquals("ML-KEM-768", bcDefault, "BouncyCastle's default moved");
+        for (String name : new String[]{"ML-KEM", "MLKEM"})
+        {
+            KeyPair jsl = KeyPairGenerator.getInstance(name, JSL).generateKeyPair();
+            PublicKey jslPubAtBc = importPublic(BC, jsl.getPublic());
+            Assertions.assertEquals(bcDefault, ((MLKEMKey) jslPubAtBc).getParameterSpec().getName(), name);
+
+            KeyGenerator joGen = KeyGenerator.getInstance("ML-KEM", JSL);
+            joGen.init(KEMGenerateSpec.builder()
+                    .withKeySizeInBits(256)
+                    .withPublicKey(importPublic(JSL, bc.getPublic()))
+                    .withAlgorithmName("AES")
+                    .withNoKdf().build());
+            SecretKeyWithEncapsulation toBc = (SecretKeyWithEncapsulation) joGen.generateKey();
+            KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", BC);
+            bcGen.init(new KEMExtractSpec.Builder(bc.getPrivate(), toBc.getEncapsulation(), "AES", 256)
+                    .withKdfAlgorithm(null).build());
+            Assertions.assertTrue(Arrays.areEqual(toBc.getEncoded(), bcGen.generateKey().getEncoded()),
+                    name + ": BC decapsulated a different secret");
+
+            bcGen = KeyGenerator.getInstance("ML-KEM", BC);
+            bcGen.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(jslPubAtBc, "AES", 256)
+                    .withKdfAlgorithm(null).build());
+            org.bouncycastle.jcajce.SecretKeyWithEncapsulation toJsl =
+                    (org.bouncycastle.jcajce.SecretKeyWithEncapsulation) bcGen.generateKey();
+            joGen = KeyGenerator.getInstance("ML-KEM", JSL);
+            joGen.init(org.openssl.jostle.jcajce.spec.KEMExtractSpec.builder()
+                    .withPrivate(jsl.getPrivate())
+                    .withEncapsulatedKey(toJsl.getEncapsulation())
+                    .withAlgorithmName("AES")
+                    .withKeySizeInBits(256)
+                    .withNoKdf().build());
+            Assertions.assertTrue(Arrays.areEqual(toJsl.getEncoded(), joGen.generateKey().getEncoded()),
+                    name + ": JSL decapsulated a different secret");
+        }
     }
 }

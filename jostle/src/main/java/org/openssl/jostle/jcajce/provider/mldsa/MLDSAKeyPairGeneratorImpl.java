@@ -38,9 +38,9 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 
     // True when the parameter set was fixed at construction (a typed
     // generator such as getInstance("ML-DSA-65")); false for the umbrella
-    // "ML-DSA" generator, which latches its type from the first initialize
-    // and may be re-initialised to a different parameter set (JCA re-init
-    // contract).
+    // "ML-DSA" generator, which generates ML-DSA-87 until an initialize
+    // latches another type, and may be re-initialised to a different
+    // parameter set (JCA re-init contract).
     private final boolean typeFixed;
 
     /**
@@ -123,13 +123,16 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         }
 
         typeFixed = keyType != OSSLKeyType.NONE;
+        if (!typeFixed)
+        {
+            // The umbrella "ML-DSA" generator used without initialize()
+            // generates ML-DSA-87, BouncyCastle's default; initialize() may
+            // still re-latch it to any parameter set.
+            keyType = OSSLKeyType.ML_DSA_87;
+        }
 
-        // Pre-resolve a strength-appropriate default RandSource so a
-        // typed instance (e.g. KeyPairGenerator.getInstance("ML-DSA-65"))
-        // works without an explicit initialize() call. The umbrella
-        // "ML-DSA" alias resolves to NONE; fall back to the 128-bit
-        // category — generateKeyPair on a NONE instance without
-        // initialize() will fail at the native layer anyway.
+        // Pre-resolve a strength-appropriate default RandSource so
+        // generateKeyPair works without an explicit initialize() call.
         // A strength-targeted DRBG costs a SecureRandom.getInstance("DRBG",
         // DrbgParameters...) per instance; under a provider that supplies its
         // own entropy nothing reads it, so take the plain default there.
@@ -235,8 +238,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 
     private static int strengthForKeyType(OSSLKeyType type)
     {
-        OSSLKeyType activeType = (type == OSSLKeyType.NONE) ? OSSLKeyType.ML_DSA_44 : type;
-        return MLDSAParameterSpec.fromName(activeType.getTypeName()).getRequiredStrengthBits();
+        return MLDSAParameterSpec.fromName(type.getTypeName()).getRequiredStrengthBits();
     }
 
     @Override

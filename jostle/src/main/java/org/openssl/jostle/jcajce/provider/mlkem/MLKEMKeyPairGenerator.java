@@ -125,13 +125,16 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
         }
 
         constructedType = keyType;
+        if (constructedType == OSSLKeyType.NONE)
+        {
+            // The umbrella "ML-KEM" generator used without initialize()
+            // generates ML-KEM-768, BouncyCastle's default; initialize() may
+            // still re-latch it to any parameter set.
+            keyType = OSSLKeyType.ML_KEM_768;
+        }
 
-        // Pre-resolve a strength-appropriate default RandSource so a
-        // typed instance (e.g. KeyPairGenerator.getInstance("ML-KEM-768"))
-        // works without an explicit initialize() call. The umbrella
-        // "ML-KEM" alias resolves to NONE; fall back to the 128-bit
-        // category — generateKeyPair on a NONE instance without
-        // initialize() will fail at the native layer anyway.
+        // Pre-resolve a strength-appropriate default RandSource so
+        // generateKeyPair works without an explicit initialize() call.
         // A strength-targeted DRBG costs a SecureRandom.getInstance("DRBG",
         // DrbgParameters...) per instance; under a provider that supplies its
         // own entropy nothing reads it, so take the plain default there.
@@ -246,8 +249,7 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
 
     private static int strengthForKeyType(OSSLKeyType type)
     {
-        OSSLKeyType activeType = (type == OSSLKeyType.NONE) ? OSSLKeyType.ML_KEM_512 : type;
-        return MLKEMParameterSpec.getSpecForOSSLType(activeType).getRequiredStrengthBits();
+        return MLKEMParameterSpec.getSpecForOSSLType(type).getRequiredStrengthBits();
     }
 
     @Override
