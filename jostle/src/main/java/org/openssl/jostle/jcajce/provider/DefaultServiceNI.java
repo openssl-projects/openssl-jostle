@@ -271,7 +271,9 @@ public interface DefaultServiceNI
                 // DHAlgorithmParameterGenerator translates to
                 // ProviderException.
                 throw new ProviderCapabilityException(
-                        "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead");
+                        "DH parameter generation is not supported by the loaded provider, "
+                                + "which substitutes a named group where one exists and refuses otherwise; "
+                                + "use named-group key generation instead");
             case JO_DSA_KEYGEN_UNAVAILABLE:
                 // The loaded provider refuses DSA key generation (OpenSSL's
                 // 3.5+ FIPS module gates it behind the "sign-check" FIPS

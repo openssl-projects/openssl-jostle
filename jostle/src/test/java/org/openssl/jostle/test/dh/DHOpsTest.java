@@ -191,7 +191,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:151
+        // Exercises interface/nonfips/util/dh.c:176
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -205,7 +205,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:156
+        // Exercises interface/nonfips/util/dh.c:181
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -219,7 +219,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:166
+        // Exercises interface/nonfips/util/dh.c:191
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -233,7 +233,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:174
+        // Exercises interface/nonfips/util/dh.c:199
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -247,7 +247,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:179
+        // Exercises interface/nonfips/util/dh.c:204
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -266,7 +266,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:217
+        // Exercises interface/nonfips/util/dh.c:290
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -280,7 +280,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:222
+        // Exercises interface/nonfips/util/dh.c:295
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int[] err = new int[1];
@@ -294,7 +294,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:239
+        // Exercises interface/nonfips/util/dh.c:312
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int[] err = new int[1];
@@ -308,7 +308,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:244
+        // Exercises interface/nonfips/util/dh.c:317
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int[] err = new int[1];
@@ -322,7 +322,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:249
+        // Exercises interface/nonfips/util/dh.c:328
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
         int[] err = new int[1];
@@ -347,7 +347,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:244
+        // Exercises interface/nonfips/util/dh.c:346
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
 
         int[] err = new int[1];
@@ -368,13 +368,15 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:244
+        // Exercises interface/nonfips/util/dh.c:346
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
 
         ProviderCapabilityException e = Assertions.assertThrows(ProviderCapabilityException.class,
                 () -> dh.generateParameters(512, TestUtil.RNDSrc));
         Assertions.assertEquals(
-                "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead",
+                "DH parameter generation is not supported by the loaded provider, "
+                        + "which substitutes a named group where one exists and refuses otherwise; "
+                        + "use named-group key generation instead",
                 e.getMessage());
     }
 
@@ -390,7 +392,7 @@ public class DHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dh.c:336
+        // Exercises interface/nonfips/util/dh.c:415
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -406,7 +408,7 @@ public class DHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dh.c:392
+        // Exercises interface/nonfips/util/dh.c:471
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int[] err = new int[1];
@@ -422,7 +424,7 @@ public class DHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dh.c:397
+        // Exercises interface/nonfips/util/dh.c:476
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int[] err = new int[1];
@@ -438,7 +440,7 @@ public class DHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dh.c:421
+        // Exercises interface/nonfips/util/dh.c:500
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
 
         int[] err = new int[1];
@@ -454,7 +456,7 @@ public class DHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dh.c:431
+        // Exercises interface/nonfips/util/dh.c:510
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
         int[] err = new int[1];
@@ -470,7 +472,7 @@ public class DHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dh.c:436
+        // Exercises interface/nonfips/util/dh.c:515
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
         int[] err = new int[1];
@@ -486,7 +488,7 @@ public class DHOpsTest
         OpenSSL.getOpenSSLErrors();
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
-        // Exercises interface/nonfips/util/dh.c:404
+        // Exercises interface/nonfips/util/dh.c:522
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
         int[] err = new int[1];
@@ -508,7 +510,7 @@ public class DHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dh.c:358
+        // Exercises interface/nonfips/util/dh.c:437
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -525,7 +527,7 @@ public class DHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dh.c:379
+        // Exercises interface/nonfips/util/dh.c:458
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -542,7 +544,7 @@ public class DHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dh.c:383
+        // Exercises interface/nonfips/util/dh.c:462
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int[] err = new int[1];
@@ -559,7 +561,7 @@ public class DHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dh.c:406
+        // Exercises interface/nonfips/util/dh.c:485
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
         int[] err = new int[1];
@@ -576,7 +578,7 @@ public class DHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
-        // Exercises interface/nonfips/util/dh.c:413
+        // Exercises interface/nonfips/util/dh.c:492
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
 
         int[] err = new int[1];
@@ -598,7 +600,7 @@ public class DHOpsTest
         byte[] p = component(DHServiceNI.COMP_P);
         byte[] g = component(DHServiceNI.COMP_G);
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
-        // Exercises interface/nonfips/util/dh.c:344
+        // Exercises interface/nonfips/util/dh.c:423
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -617,7 +619,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:572
+        // Exercises interface/nonfips/util/dh.c:762
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
         int[] err = new int[1];
@@ -631,7 +633,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:577
+        // Exercises interface/nonfips/util/dh.c:767
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
         int[] err = new int[1];
@@ -645,7 +647,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:582
+        // Exercises interface/nonfips/util/dh.c:772
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
         int[] err = new int[1];
@@ -659,7 +661,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:604
+        // Exercises interface/nonfips/util/dh.c:794
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
         int[] err = new int[1];
@@ -678,7 +680,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:632
+        // Exercises interface/nonfips/util/dh.c:822
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
         int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
@@ -690,7 +692,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:638
+        // Exercises interface/nonfips/util/dh.c:828
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
         int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
@@ -702,7 +704,7 @@ public class DHOpsTest
     {
         Assumptions.assumeTrue(ops.opsTestAvailable());
         OpenSSL.getOpenSSLErrors();
-        // Exercises interface/nonfips/util/dh.c:654
+        // Exercises interface/nonfips/util/dh.c:844
         ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
 
         int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
@@ -722,7 +724,7 @@ public class DHOpsTest
         long ref = dh.allocateKex();
         try
         {
-            // Exercises interface/nonfips/util/dh.c:758
+            // Exercises interface/nonfips/util/dh.c:950
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
             int code = dh.ni_kexInit(ref, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5260), code);
@@ -745,7 +747,7 @@ public class DHOpsTest
             // The class key is ffdhe2048 (HAS q), so the q-less diagnosis
             // branch inside the failed-derive-init arm is skipped and the
             // generic per-site code is returned.
-            // Exercises interface/nonfips/util/dh.c:763
+            // Exercises interface/nonfips/util/dh.c:955
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12);
             int code = dh.ni_kexInit(ref, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5261), code);
@@ -765,7 +767,7 @@ public class DHOpsTest
         long ref = dh.allocateKex();
         try
         {
-            // Exercises interface/nonfips/util/dh.c:734
+            // Exercises interface/nonfips/util/dh.c:996
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
             int code = dh.ni_kexInit(ref, keyRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5262), code);
@@ -786,7 +788,7 @@ public class DHOpsTest
         try
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
-            // Exercises interface/nonfips/util/dh.c:845
+            // Exercises interface/nonfips/util/dh.c:1037
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = dh.ni_kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5270), code);
@@ -808,7 +810,7 @@ public class DHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/nonfips/util/dh.c:890
+            // Exercises interface/nonfips/util/dh.c:1086
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = dh.ni_kexDerive(ref, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5280), code);
@@ -830,7 +832,7 @@ public class DHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/nonfips/util/dh.c:911
+            // Exercises interface/nonfips/util/dh.c:1107
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = dh.ni_kexDerive(ref, new byte[256], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(5281), code);
@@ -852,7 +854,7 @@ public class DHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/nonfips/util/dh.c:813
+            // Exercises interface/nonfips/util/dh.c:1091
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             int code = dh.ni_kexDerive(ref, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(JO_OUTPUT_TOO_LONG_INT32, code);
@@ -877,7 +879,7 @@ public class DHOpsTest
             // A real output buffer (not the probe path) so the actual
             // EVP_PKEY_derive runs and the post-derive overflow guard at
             // dh.c:817 is reached.
-            // Exercises interface/nonfips/util/dh.c:834
+            // Exercises interface/nonfips/util/dh.c:1112
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             int code = dh.ni_kexDerive(ref, new byte[256], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(JO_OUTPUT_TOO_LONG_INT32, code);
@@ -921,7 +923,7 @@ public class DHOpsTest
         Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:76
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:82
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_generateKeyPairByGroup("ffdhe2048", err, TestUtil.RNDSrc);
@@ -943,7 +945,7 @@ public class DHOpsTest
         byte[] g = component(DHServiceNI.COMP_G);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:161
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:171
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
@@ -965,7 +967,7 @@ public class DHOpsTest
         byte[] g = component(DHServiceNI.COMP_G);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:165
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:175
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
             long ref = dh.ni_makeParamsFromComponents(p, null, g, err);
@@ -988,7 +990,7 @@ public class DHOpsTest
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:264
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:292
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
@@ -1011,7 +1013,7 @@ public class DHOpsTest
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:268
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:296
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
             long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
@@ -1034,7 +1036,7 @@ public class DHOpsTest
         byte[] x = component(DHServiceNI.COMP_PRIVATE_VALUE);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:272
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:300
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int[] err = new int[1];
             long ref = dh.ni_makePrivateFromComponents(p, null, g, x, err, TestUtil.RNDSrc);
@@ -1057,7 +1059,7 @@ public class DHOpsTest
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:327
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:292
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = dh.ni_makePublicFromComponents(p, null, g, y, err);
@@ -1080,7 +1082,7 @@ public class DHOpsTest
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:331
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:296
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int[] err = new int[1];
             long ref = dh.ni_makePublicFromComponents(p, null, g, y, err);
@@ -1103,7 +1105,7 @@ public class DHOpsTest
         byte[] y = component(DHServiceNI.COMP_PUBLIC_VALUE);
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:335
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:300
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int[] err = new int[1];
             long ref = dh.ni_makePublicFromComponents(p, null, g, y, err);
@@ -1123,7 +1125,7 @@ public class DHOpsTest
         Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:388
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:374
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = dh.ni_getComponent(keyRef, DHServiceNI.COMP_P, new byte[512]);
             Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, code);
@@ -1144,7 +1146,7 @@ public class DHOpsTest
         {
             dh.kexInit(ref, keyRef, TestUtil.RNDSrc);
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/nonfips/jni/dh_ni_jni.c:518
+            // Exercises interface/nonfips/jni/dh_ni_jni.c:580
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = dh.ni_kexDerive(ref, new byte[256], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, code);

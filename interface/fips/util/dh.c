@@ -219,6 +219,54 @@ exit:
 // Domain-parameter generation (safe prime)
 // =============================================================
 
+/*
+ * A substituting module refuses every size with no RFC 7919 group and raises
+ * only a generic keymgmt failure, so re-drive a generation at a size that has
+ * a group and ask the result for a group name: an answer means substitution.
+ * Mainline never answers. No OPS macro here (classifier rule); the caller
+ * skips injected failures. ERR marks keep the probe's errors out of the
+ * primary report.
+ */
+static int32_t classify_paramgen_failure(void) {
+    int32_t ret = JO_OPENSSL_ERROR;
+    unsigned int probe_bits = 2048;
+    EVP_PKEY_CTX *ctx = NULL;
+    EVP_PKEY *probe = NULL;
+    char group_name[80];
+    OSSL_PARAM params[3];
+
+    ERR_set_mark();
+
+    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_fips_ossl_lib_ctx(),
+                                     "DH", NULL);
+    if (ctx == NULL || 1 != EVP_PKEY_paramgen_init(ctx)) {
+        goto exit;
+    }
+
+    params[0] = OSSL_PARAM_construct_utf8_string(
+            OSSL_PKEY_PARAM_FFC_TYPE, (char *) "generator", 0);
+    params[1] = OSSL_PARAM_construct_uint(OSSL_PKEY_PARAM_FFC_PBITS, &probe_bits);
+    params[2] = OSSL_PARAM_construct_end();
+    if (1 != EVP_PKEY_CTX_set_params(ctx, params)) {
+        goto exit;
+    }
+
+    if (1 != EVP_PKEY_paramgen(ctx, &probe) || probe == NULL) {
+        goto exit;
+    }
+
+    if (1 == EVP_PKEY_get_utf8_string_param(probe, OSSL_PKEY_PARAM_GROUP_NAME,
+                                            group_name, sizeof(group_name), NULL)) {
+        ret = JO_DH_PARAMGEN_SUBSTITUTED;
+    }
+
+exit:
+    EVP_PKEY_free(probe);
+    EVP_PKEY_CTX_free(ctx);
+    ERR_pop_to_mark();
+    return ret;
+}
+
 int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
                                void *rnd_src) {
     // Bridge-validated invariant: both bridges range-check p_bits > 0;
@@ -268,6 +316,12 @@ int32_t dh_generate_parameters(key_spec *spec, int32_t p_bits,
 
     if (OPS_OPENSSL_ERROR_9 1 != EVP_PKEY_paramgen(ctx, &(spec->key))) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_9(5213);
+        // A module that substitutes named groups refuses every size that
+        // has none; report that as the substitution refusal, never an
+        // injected failure (dsa.c rationale).
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_paramgen_failure();
+        }
         goto exit;
     }
 

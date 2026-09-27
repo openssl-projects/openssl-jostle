@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
@@ -32,9 +33,12 @@ import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.spec.DHParameterSpec;
 import java.math.BigInteger;
+import java.security.AlgorithmParameterGenerator;
+import java.security.InvalidParameterException;
 import java.security.KeyPairGenerator;
 import java.security.ProviderException;
 import java.security.SecureRandom;
+import java.security.Security;
 
 /**
  * Input-validation limit tests at the FIPS DH service NI surface
@@ -194,8 +198,68 @@ public class FIPSDHLimitTest
         ProviderCapabilityException e = Assertions.assertThrows(ProviderCapabilityException.class,
                 () -> dh.generateParameters(2048, RND));
         Assertions.assertEquals(
-                "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead",
+                "DH parameter generation is not supported by the loaded provider, "
+                        + "which substitutes a named group where one exists and refuses otherwise; "
+                        + "use named-group key generation instead",
                 e.getMessage());
+    }
+
+    /**
+     * The module never generates fresh DH parameters at any size: it substitutes the RFC 7919 group for a size
+     * that has one and refuses every other size. Both answers reach the caller as the one substitution refusal:
+     * the raw JO_DH_PARAMGEN_SUBSTITUTED code at the NI for every size, including those outside the SPI's bounds,
+     * and at the JCA the typed ProviderException carrying the capability message for every size the SPI accepts.
+     * 511 and 10001 are refused earlier, typed, by the SPI's bounds at init.
+     */
+    @Test
+    public void generateParameters_everySize_refusedAsSubstitution() throws Exception
+    {
+        for (int size : new int[]{511, 512, 1024, 1536, 2048, 3072, 10000, 10001})
+        {
+            int[] err = new int[1];
+            long ref = dh.ni_generateParameters(size, err, RND);
+            Assertions.assertEquals(0L, ref, size + " bits");
+            Assertions.assertEquals(ErrorCode.JO_DH_PARAMGEN_SUBSTITUTED.getCode(), err[0], size + " bits");
+
+            AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DH",
+                    JostleFIPSProvider.PROVIDER_NAME);
+            if (size < 512 || size > 10000)
+            {
+                InvalidParameterException e = Assertions.assertThrows(InvalidParameterException.class,
+                        () -> apg.init(size), size + " bits");
+                Assertions.assertEquals("DH parameter size " + size + " is not supported. Sizes must be 512..10000.",
+                        e.getMessage());
+                continue;
+            }
+            apg.init(size);
+            ProviderException e = Assertions.assertThrows(ProviderException.class, apg::generateParameters,
+                    size + " bits");
+            Assertions.assertTrue(e.getCause() instanceof ProviderCapabilityException, size + ": " + e.getCause());
+            Assertions.assertEquals(
+                    "DH parameter generation is not supported by the loaded provider, "
+                            + "which substitutes a named group where one exists and refuses otherwise; "
+                            + "use named-group key generation instead",
+                    e.getMessage(), size + " bits");
+        }
+    }
+
+    /**
+     * The control: the same generator on JSL runs the real safe-prime search at a size with no named group, so
+     * the refusal above belongs to the module, not to the SPI.
+     */
+    @Test
+    public void generateParameters_1024_generatesOnJsl() throws Exception
+    {
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        apg.init(1024);
+        DHParameterSpec spec = apg.generateParameters().getParameterSpec(DHParameterSpec.class);
+        Assertions.assertEquals(1024, spec.getP().bitLength());
+        Assertions.assertTrue(spec.getP().isProbablePrime(40), "p must be prime");
+        Assertions.assertTrue(spec.getP().shiftRight(1).isProbablePrime(40), "p must be a safe prime");
     }
 
     // -----------------------------------------------------------------

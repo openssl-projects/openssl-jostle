@@ -480,7 +480,9 @@ public class FIPSDHKeyAgreementTest
         catch (ProviderException expected)
         {
             Assertions.assertEquals(
-                    "DH parameter generation is not supported by the loaded provider (a named group would be substituted); use named-group key generation instead",
+                    "DH parameter generation is not supported by the loaded provider, "
+                            + "which substitutes a named group where one exists and refuses otherwise; "
+                            + "use named-group key generation instead",
                     expected.getMessage());
         }
     }
