@@ -209,6 +209,26 @@ public class EdSignatureSpi extends SignatureSpi
         edServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), name, context, contextLen);
     }
 
+    /**
+     * RFC 8032 says an Ed25519ctx context SHOULD NOT be empty, and OpenSSL refuses
+     * to sign without one, late and unchecked. Init stays permissive, so the context
+     * may be set before or after it; the first operation without one is refused here.
+     */
+    private void requireContext() throws SignatureException
+    {
+        if (forcedType != OSSLKeyType.Ed25519ctx)
+        {
+            return;
+        }
+        byte[] context = algorithmParameterSpec instanceof ContextParameterSpec
+                ? ((ContextParameterSpec) algorithmParameterSpec).getContext() : null;
+        if (context == null || context.length == 0)
+        {
+            throw new SignatureException("Ed25519ctx requires a non-empty context: call "
+                    + "setParameter(ContextParameterSpec) before update");
+        }
+    }
+
     @Override
     protected void engineUpdate(byte b) throws SignatureException
     {
@@ -221,6 +241,7 @@ public class EdSignatureSpi extends SignatureSpi
         synchronized (this)
         {
             requireInitialised();
+            requireContext();
             updateCalled = true;
             edServiceNI.update(ref.getReference(), b, off, len);
         }
@@ -232,6 +253,7 @@ public class EdSignatureSpi extends SignatureSpi
         synchronized (this)
         {
             requireInitialised();
+            requireContext();
             byte[] sig = null;
             try
             {
@@ -258,6 +280,7 @@ public class EdSignatureSpi extends SignatureSpi
         synchronized (this)
         {
             requireInitialised();
+            requireContext();
             try
             {
                 int code = edServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
