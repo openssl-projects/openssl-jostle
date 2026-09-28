@@ -876,7 +876,7 @@ The two classes are not redundant. They cover different code and different failu
 | Runs when | always | only with `TEST_FIPS_LIB` set (`FIPSTestUtil.assumeFipsProvider()`) |
 | Registered set it guards | `JostleProvider.getServices()` | `JostleFIPSProvider.getServices()` |
 
-So a base-only algorithm (scrypt, Argon2, ChaCha20, the memory-hard KDFs) is covered by the first and *cannot* be covered by the second, and a JSLFIPS registration bug is invisible to the first. **Neither substitutes for the other.** In particular, do not treat "the base sweep went green" as evidence the FIPS side is covered — that exact inference is what let KMAC ship with one-shot-only FIPS agreement (see DI-3 in `reviews/fips-missing-algorithms-plan.md`).
+So a base-only algorithm (scrypt, Argon2, ChaCha20, the memory-hard KDFs) is covered by the first and *cannot* be covered by the second, and a JSLFIPS registration bug is invisible to the first. **Neither substitutes for the other.** In particular, do not treat "the base sweep went green" as evidence the FIPS side is covered — that exact inference is what let KMAC ship with one-shot-only FIPS agreement.
 
 **Rules.**
 

@@ -27,7 +27,6 @@ import java.security.Security;
  * the ABSENCE OF FAILURE, not the warning text. When a JDK starts blocking,
  * the {@code default} legs turn red and name this class. A named module has
  * no manifest route to enable itself, so the flag is the consumer's to pass.
- * MT-96 in reviews/misc-tasks-plan.md carries the measurement.
  */
 public class ModuleNativeAccessTest
 {

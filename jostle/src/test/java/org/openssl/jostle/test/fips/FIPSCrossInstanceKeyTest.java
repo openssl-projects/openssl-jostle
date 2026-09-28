@@ -199,11 +199,11 @@ public class FIPSCrossInstanceKeyTest
     private static void requireArmed() throws Exception
     {
         Assumptions.assumeTrue(bindingActivated(),
-                "MT-14 instance binding is not activated yet: the acceptance checks are in "
-                        + "place (Phase 1) but registrations do not pass a provider instance, "
+                "Provider-instance key binding is not activated yet: the acceptance checks "
+                        + "are in place but registrations do not pass a provider instance, "
                         + "so every key spec is unbound and no cross-instance contract can "
-                        + "hold. This test arms itself automatically when Phase 2 lands — see "
-                        + "the two-phase landing note in reviews/misc-tasks-plan.md.");
+                        + "hold. This test arms itself automatically once every family's "
+                        + "registrations pass their provider instance, all at once.");
     }
 
     private static String providerOf(java.security.Key key)

@@ -77,7 +77,7 @@ public class PkitsThreeWayTest
      * BouncyCastle both miss it, for unrelated causes.
      *
      * <p>Every reason is the text that provider actually produced, measured
-     * 2026-09-12 on the corrected paths (reviews/three-way-reprobe-2026-09-12.md).
+     * 2026-09-12 on the corrected paths.
      */
     private static final List<Exclusion> EXCLUSIONS = new ArrayList<Exclusion>();
 

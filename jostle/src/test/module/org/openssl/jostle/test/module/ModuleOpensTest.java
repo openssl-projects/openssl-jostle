@@ -38,7 +38,6 @@ import java.security.Security;
  * the {@code isExported} and {@code isOpen} tests at :309 and :324. Same line
  * at :294 on JDK 11, :311 on 17, :339 on 21. All seven of jostle's opens were
  * qualified to java.base, and all seven are now removed.
- * MT-96 in reviews/misc-tasks-plan.md carries the measurement.
  *
  * <p>These cells pin what a caller sees, not the clauses.
  */

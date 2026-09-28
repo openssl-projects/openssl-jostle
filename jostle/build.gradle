@@ -1026,8 +1026,8 @@ tasks.register('fipsTest25') {
 //   unnamed    jostle MP, bcprov on the classpath
 //   control    both on the classpath - the falsification control
 //
-// The 25 legs also cover the bridge and native-access dimensions. See MT-96
-// in reviews/misc-tasks-plan.md.
+// The 25 legs also cover the bridge (JNI as well as FFM) and native-access
+// (with and without --enable-native-access) dimensions.
 //
 sourceSets {
     testModule {

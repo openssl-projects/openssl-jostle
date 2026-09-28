@@ -242,8 +242,8 @@ public class CertPathAgreementTest
      * {@code ossl_x509_check_cert_time} raises the expired error on that
      * value, so equality reads as expired at one end and valid at the other.
      * A certificate is therefore refused for the final second of its stated
-     * validity. Reported upstream in
-     * reviews/openssl-notafter-boundary-report-2026-09-19.md.
+     * validity. The command line shows it too: {@code openssl verify -attime}
+     * at the notAfter second reports error 10, certificate has expired.
      * <p>
      * Four answers are pinned, not one, because the disagreement is INTERNAL
      * as well as external: our own {@code checkValidity} accepts the instant

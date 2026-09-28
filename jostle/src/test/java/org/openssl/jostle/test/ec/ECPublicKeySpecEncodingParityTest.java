@@ -43,8 +43,8 @@ public class ECPublicKeySpecEncodingParityTest
     /**
      * Curves where {@code ECPublicKey.getW()} itself fails today —
      * {@code ec_get_component} draws RAND for affine-coordinate retrieval
-     * and {@code ni_getComponent} carries no RandSource. Pre-existing,
-     * outside this arc's scope (see reviews/follow-ups-2026-09-14.md);
+     * and {@code ni_getComponent} carries no RandSource. Pre-existing, and
+     * SM2 is the only built-in curve affected;
      * skipped explicitly rather than absorbed into a broad catch.
      */
     private static final Set<String> KNOWN_INTROSPECTION_GAPS = new HashSet<>(java.util.Arrays.asList("SM2"));
