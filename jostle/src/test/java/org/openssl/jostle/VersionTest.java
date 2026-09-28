@@ -90,7 +90,7 @@ public class VersionTest
     @Test
     public void theDefaultIsTheFallback()
     {
-        Assertions.assertEquals("v0.1-SNAPSHOT", Version.DEFAULT);
+        Assertions.assertEquals("v0.1.0", Version.DEFAULT);
         Assertions.assertEquals(0.01, Version.toDouble(Version.DEFAULT), 0.0);
     }
 
@@ -113,7 +113,7 @@ public class VersionTest
     {
         IsolatedLoader loader = new IsolatedLoader(null);
         Class<?> c = loader.loadClass(Version.class.getName());
-        Assertions.assertEquals("v0.1-SNAPSHOT", call(c, "getVersionString"));
+        Assertions.assertEquals("v0.1.0", call(c, "getVersionString"));
         Assertions.assertEquals(0.01, (Double) call(c, "getVersionDouble"), 0.0);
         Assertions.assertEquals(Boolean.FALSE, call(c, "fromResource"));
         Assertions.assertTrue(loader.lookups >= 1, "the resource lookup never reached the loader");
@@ -127,7 +127,7 @@ public class VersionTest
         {
             IsolatedLoader loader = new IsolatedLoader(served);
             Class<?> c = loader.loadClass(Version.class.getName());
-            Assertions.assertEquals("v0.1-SNAPSHOT", call(c, "getVersionString"), served);
+            Assertions.assertEquals("v0.1.0", call(c, "getVersionString"), served);
             Assertions.assertEquals(0.01, (Double) call(c, "getVersionDouble"), 0.0, served);
             Assertions.assertEquals(Boolean.FALSE, call(c, "fromResource"), served);
             Assertions.assertTrue(loader.lookups >= 1, "the resource lookup never reached the loader");
