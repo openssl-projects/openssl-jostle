@@ -26,7 +26,7 @@ public final class Version
     private static final Logger L = Logger.getLogger(Version.class.getName());
 
     static final String RESOURCE = "version.properties";
-    static final String DEFAULT = "v0.1.0-SNAPSHOT";
+    static final String DEFAULT = "v0.2.0-SNAPSHOT";
 
     private static final String VERSION_STRING;
     private static final double VERSION_DOUBLE;
