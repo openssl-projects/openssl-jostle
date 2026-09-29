@@ -1,8 +1,20 @@
 name: "CI"
 
+# Skip CI for changes that cannot affect the build or the tests. Path filters
+# see the whole push (or the whole PR), not just its last commit, and are not
+# evaluated for tag pushes, so a release tag always runs.
 on:
-  - "pull_request"
-  - "push"
+  pull_request:
+    paths: &code-paths
+      - "**"
+      - "!**.md"
+      # Read by ExamplesGuideCurrentTest, so a guide-only change must still run it.
+      - "docs/jostle-ai-guide.md"
+      - "docs/jostle-ai-guide-preamble.md"
+      - "!LICENSE"
+      - "!.claude/**"
+  push:
+    paths: *code-paths
 
 permissions:
   contents: "read"
