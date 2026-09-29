@@ -13,6 +13,8 @@ on:
       - "docs/jostle-ai-guide-preamble.md"
       - "!LICENSE"
       - "!.claude/**"
+      # The module-path task list the CI job reads, so a change to it must still run CI.
+      - ".claude/skills/verify-test-matrix/**"
   push:
     paths: *code-paths
 
