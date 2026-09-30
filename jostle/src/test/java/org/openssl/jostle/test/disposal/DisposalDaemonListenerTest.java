@@ -216,22 +216,36 @@ public class DisposalDaemonListenerTest
                 "a removed listener still received registered");
     }
 
-    /** Registering must move the pending count; a count that never moves measures nothing. */
+    /**
+     * Registrations this cell holds cannot be retired, so pending counts at least them however many other handles
+     * the daemon retires meanwhile; a before-and-after delta raced that retirement.
+     */
     @Test
     public void pendingCountsRegistrationsNotYetFired() throws Exception
     {
-        int before = DisposalDaemon.pending();
-
-        Disposable fake = new Fake(0x9E4DL, new Runnable()
+        Recorder recorder = listen();
+        int held = 256;
+        List<Disposable> fakes = new ArrayList<Disposable>();
+        for (int i = 0; i < held; i++)
         {
-            public void run()
+            Disposable fake = new Fake(0x9E4D0000L + i, new Runnable()
             {
-            }
-        });
-        DisposalDaemon.addDisposable(fake);
+                public void run()
+                {
+                }
+            });
+            DisposalDaemon.addDisposable(fake);
+            fakes.add(fake);
+        }
 
-        Assertions.assertTrue(DisposalDaemon.pending() > before,
-                "pending did not move when a disposable was registered");
-        fake = null;
+        int pending = DisposalDaemon.pending();
+        Assertions.assertTrue(pending >= held,
+                "pending is " + pending + " while " + held + " registered disposables are still held");
+        for (Disposable fake : fakes)
+        {
+            Assertions.assertTrue(recorder.registered.contains(fake.getReference()),
+                    "no registered event for " + fake);
+        }
+        fakes.clear();
     }
 }
