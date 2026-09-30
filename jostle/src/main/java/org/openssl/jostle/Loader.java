@@ -397,20 +397,20 @@ public class Loader
                 if ("jni".equals(interfaceResolutionStrategy))
                 {
                     interfaceType = Extractions.Type.JNI;
-                    L.fine("JNI resolution strategy is JNI");
+                    L.fine("Interface resolution strategy is JNI");
                 }
                 else
                 {
                     if ("ffm".equals(interfaceResolutionStrategy))
                     {
                         interfaceType = Extractions.Type.FFM;
-                        L.fine("JNI resolution strategy is JNI");
+                        L.fine("Interface resolution strategy is FFM");
                     }
                     else
                     {
                         if ("auto".equals(interfaceResolutionStrategy))
                         {
-                            L.fine("JNI resolution strategy is auto");
+                            L.fine("Interface resolution strategy is auto");
                             try
                             {
                                 //
