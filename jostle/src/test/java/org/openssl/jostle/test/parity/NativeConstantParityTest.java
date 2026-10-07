@@ -43,17 +43,15 @@ import java.util.regex.Pattern;
  */
 public class NativeConstantParityTest
 {
-    private static final Pattern C_DEFINE =
-            Pattern.compile("^#define\\s+(JO_[A-Z0-9_]+)\\s+\\(?(-?\\d+)\\)?\\s*$", Pattern.MULTILINE);
+    // A trailing comment is allowed: JO_SUCCESS, JO_FAIL and JO_UNKNOWN_OSSL_KEY_TYPE carry one.
+    private static final Pattern C_DEFINE = Pattern.compile(
+            "^#define\\s+(JO_[A-Z0-9_]+)\\s+\\(?(-?\\d+)\\)?\\s*(?:/\\*.*|//.*)?$", Pattern.MULTILINE);
 
-    /**
-     * C codes with no {@link ErrorCode} entry, each because nothing in Java
-     * has ever had to name it. Listed rather than tolerated silently, and
-     * guarded below so an entry cannot outlive its reason.
-     */
-    private static final TreeSet<String> UNMAPPED_IN_JAVA = new TreeSet<>(java.util.Arrays.asList(
-            "JO_VALUE_EXCEEDS_INT_MAX",
-            "JO_KEY_SPEC_IS_NULL"));
+    private static final String NONFIPS_CODES = "interface/nonfips/util/bc_err_codes.h";
+    private static final String FIPS_CODES = "interface/fips/util/bc_err_codes.h";
+
+    /** Java's catch-all for a code no entry claims; no C header defines it. */
+    private static final String JAVA_SENTINEL = "JO_UNKNOWN";
 
     private static Path repoRoot()
     {
@@ -78,60 +76,77 @@ public class NativeConstantParityTest
         return out;
     }
 
-    @Test
-    public void everyErrorCodeJavaNamesCarriesItsCValue() throws Exception
+    private static Map<String, Integer> javaCodes()
     {
-        Map<String, Integer> c = cDefines("interface/nonfips/util/bc_err_codes.h");
-        Assertions.assertTrue(c.size() > 100,
-                "read only " + c.size() + " defines; the matcher is not reading the header");
-
-        int compared = 0;
-        StringBuilder bad = new StringBuilder();
-        for (Map.Entry<String, Integer> e : c.entrySet())
+        Map<String, Integer> out = new TreeMap<>();
+        for (ErrorCode code : ErrorCode.values())
         {
-            ErrorCode code;
-            try
+            if (!JAVA_SENTINEL.equals(code.name()))
             {
-                code = ErrorCode.valueOf(e.getKey());
-            }
-            catch (IllegalArgumentException absent)
-            {
-                continue;
-            }
-            compared++;
-            if (code.getCode() != e.getValue())
-            {
-                bad.append("\n  ").append(e.getKey())
-                   .append(": C ").append(e.getValue())
-                   .append(" vs Java ").append(code.getCode());
+                out.put(code.name(), code.getCode());
             }
         }
-        // Vacuity: a matcher that resolved nothing would report a clean sweep.
-        Assertions.assertTrue(compared > 100, "compared only " + compared + " codes");
-        Assertions.assertEquals(0, bad.length(), "error code value drift:" + bad);
+        return out;
+    }
+
+    /**
+     * Both C tables against ErrorCode, both ways: every code either tree defines (the FIPS tree's own codes
+     * included) has a Java entry with its value, every Java entry is a code in at least one tree, and a name both
+     * trees define has one value.
+     */
+    @Test
+    public void errorCodesAgreeAcrossBothTreesAndJava() throws Exception
+    {
+        Map<String, Integer> base = cDefines(NONFIPS_CODES);
+        Map<String, Integer> fips = cDefines(FIPS_CODES);
+        Map<String, Integer> java = javaCodes();
+        Assertions.assertTrue(base.size() > 100 && fips.size() > 100 && java.size() > 100,
+                "read " + base.size() + " / " + fips.size() + " / " + java.size()
+                        + " codes; a reader is not reading its source");
+
+        StringBuilder bad = new StringBuilder();
+        for (String name : new TreeSet<>(base.keySet()))
+        {
+            if (fips.containsKey(name) && !fips.get(name).equals(base.get(name)))
+            {
+                bad.append("\n  ").append(name).append(": nonfips ").append(base.get(name))
+                   .append(" vs fips ").append(fips.get(name));
+            }
+        }
+        Map<String, Integer> c = new TreeMap<>(fips);
+        c.putAll(base);
+        for (Map.Entry<String, Integer> e : c.entrySet())
+        {
+            Integer j = java.get(e.getKey());
+            if (j == null)
+            {
+                bad.append("\n  ").append(e.getKey()).append(" (").append(e.getValue())
+                   .append("): in C, no ErrorCode entry");
+            }
+            else if (!j.equals(e.getValue()))
+            {
+                bad.append("\n  ").append(e.getKey()).append(": C ").append(e.getValue())
+                   .append(" vs Java ").append(j);
+            }
+        }
+        for (Map.Entry<String, Integer> e : java.entrySet())
+        {
+            if (!c.containsKey(e.getKey()))
+            {
+                bad.append("\n  ").append(e.getKey()).append(" (").append(e.getValue())
+                   .append("): an ErrorCode entry neither C table defines");
+            }
+        }
+        Assertions.assertEquals(0, bad.length(), "error code tables disagree:" + bad);
     }
 
     @Test
-    public void theUnmappedListIsStillAccurate() throws Exception
+    public void theJavaSentinelIsNoCode() throws Exception
     {
-        Map<String, Integer> c = cDefines("interface/nonfips/util/bc_err_codes.h");
-        for (String name : UNMAPPED_IN_JAVA)
-        {
-            Assertions.assertTrue(c.containsKey(name),
-                    name + " is no longer defined in C; drop it from UNMAPPED_IN_JAVA");
-            boolean present;
-            try
-            {
-                ErrorCode.valueOf(name);
-                present = true;
-            }
-            catch (IllegalArgumentException absent)
-            {
-                present = false;
-            }
-            Assertions.assertFalse(present,
-                    name + " now HAS an ErrorCode entry; drop it from UNMAPPED_IN_JAVA");
-        }
+        Map<String, Integer> c = new TreeMap<>(cDefines(FIPS_CODES));
+        c.putAll(cDefines(NONFIPS_CODES));
+        Assertions.assertFalse(c.containsKey(JAVA_SENTINEL), JAVA_SENTINEL + " is now a C code");
+        Assertions.assertEquals(Integer.MIN_VALUE, ErrorCode.valueOf(JAVA_SENTINEL).getCode());
     }
 
     /**

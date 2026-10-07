@@ -7,10 +7,12 @@
 
 #include "../util/ops.h"
 #include <jni.h>
+#include <string.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
 #include "bytearrays.h"
+#include "secret_bytearrays.h"
 #include "types.h"
 #include "../util/jo_assert.h"
 #include "../util/rand.h"
@@ -172,6 +174,49 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1le
     UNUSED(env);
     UNUSED(o);
     ledger_reset();
+}
+
+/*
+ * Copies input into output through the secret contexts, after which it writes 0xA5 over the input copy: an
+ * input's Java array must come back unchanged regardless. report: [0] JVM made a copy of the input,
+ * [1] input bytes cleansed, [2] output bytes cleansed, [3] bytes copied. report is jostle's own.
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1secretRoundTrip
+(JNIEnv *env, jobject o, jbyteArray input, jbyteArray output, jintArray report) {
+    UNUSED(o);
+    jo_assert(report != NULL);
+    jo_assert((*env)->GetArrayLength(env, report) >= 4);
+
+    java_secret_bytearray_ctx in;
+    java_secret_bytearray_ctx out;
+    init_secret_bytearray_ctx(&in);
+    init_secret_bytearray_ctx(&out);
+
+    if (!load_secret_input_ctx(&in, env, input)) {
+        return JO_FAIL;
+    }
+    if (!load_secret_output_ctx(&out, env, output)) {
+        release_secret_bytearray_ctx(&in);
+        return JO_FAIL;
+    }
+
+    size_t n = in.size < out.size ? in.size : out.size;
+    if (n > 0) {
+        memcpy(out.bytearray, in.bytearray, n);
+    }
+    if (in.size > 0) {
+        memset(in.bytearray, 0xA5, in.size);
+    }
+    jint values[4];
+    values[0] = in.jvm_copy ? 1 : 0;
+
+    release_secret_bytearray_ctx(&in);
+    release_secret_bytearray_ctx(&out);
+    values[1] = (jint) in.cleansed;
+    values[2] = (jint) out.cleansed;
+    values[3] = (jint) n;
+    (*env)->SetIntArrayRegion(env, report, 0, 4, values);
+    return JO_SUCCESS;
 }
 
 #endif

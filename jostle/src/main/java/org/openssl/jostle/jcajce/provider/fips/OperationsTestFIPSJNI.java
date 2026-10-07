@@ -72,4 +72,7 @@ class OperationsTestFIPSJNI implements OperationsTestNI
 
     @Override
     public native void op_ledgerReset();
+
+    @Override
+    public native int op_secretRoundTrip(byte[] input, byte[] output, int[] report);
 }

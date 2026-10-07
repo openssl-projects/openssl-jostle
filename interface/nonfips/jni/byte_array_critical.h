@@ -32,6 +32,7 @@ void init_critical_ctx(critical_bytearray_ctx *ctx, JNIEnv *env, jbyteArray arra
 
 /**
  * Actually claim the byte ctx from the jvm if not already claimed.
+ * A refused pin returns false with a JNI exception pending; the caller returns to Java with no further JNI call.
  * @param ctx pointer to the java_bytearray_ctx
  * @return non-zero on success
  */

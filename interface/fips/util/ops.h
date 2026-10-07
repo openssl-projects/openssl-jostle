@@ -35,6 +35,10 @@ typedef enum jo_ledger_type {
     JO_LEDGER_RAND_CTX,
     JO_LEDGER_X509_CERT,
     JO_LEDGER_X509_CRL,
+    // Not handles: secret byte-array contexts (jni/secret_bytearrays.c). Created at load, destroyed at release;
+    // the CLEANSE type is destroyed at the cleanse, so a release that skips it leaves the pair apart.
+    JO_LEDGER_SECRET_BYTEARRAY,
+    JO_LEDGER_SECRET_CLEANSE,
     JO_LEDGER_TYPES
 } jo_ledger_type;
 

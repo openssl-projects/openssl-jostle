@@ -29,10 +29,9 @@ typedef struct {
  */
 void init_bytearray_ctx(java_bytearray_ctx *ctx);
 
-int load_bytearray_new(java_bytearray_ctx *ctx, JNIEnv *env, jsize len);
-
 /**
  * Load a java byte array and claim it from the jvm
+ * A refused Get returns 0 with a JNI exception pending; the caller returns to Java with no further JNI call.
  * @param env
  * @param array
  * @return

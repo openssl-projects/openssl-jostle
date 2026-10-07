@@ -104,6 +104,16 @@ public interface OperationsTestNI
     /** Zeroes every ledger count in this library. */
     void op_ledgerReset();
 
+    /**
+     * Copies input into output through the native secret byte-array contexts, then scribbles over the input
+     * copy. report receives: the JVM made a copy of the input (1/0), input bytes cleansed, output bytes
+     * cleansed, bytes copied. JNI only: the contexts are JNI marshalling.
+     */
+    default int op_secretRoundTrip(byte[] input, byte[] output, int[] report)
+    {
+        throw new UnsupportedOperationException("the secret byte-array contexts are JNI only");
+    }
+
     default int ledgerCreated(LedgerType type)
     {
         assert opsTestAvailable();
@@ -235,6 +245,8 @@ public interface OperationsTestNI
         RAND_CTX,
         X509_CERT,
         X509_CRL,
+        SECRET_BYTEARRAY,
+        SECRET_CLEANSE,
     }
 
 }

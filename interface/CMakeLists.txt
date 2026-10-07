@@ -186,6 +186,8 @@ set(FIPS_JNI_GLUE_SOURCES
         fips/jni/byte_array_critical.h
         fips/jni/bytearrays.c
         fips/jni/bytearrays.h
+        fips/jni/secret_bytearrays.c
+        fips/jni/secret_bytearrays.h
 )
 
 #
@@ -297,6 +299,8 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/jni/byte_array_critical.h
             nonfips/jni/bytearrays.c
             nonfips/jni/bytearrays.h
+            nonfips/jni/secret_bytearrays.c
+            nonfips/jni/secret_bytearrays.h
             nonfips/util/asn1_util.c
             nonfips/util/asn1_util.h
             nonfips/util/ks.h
@@ -583,6 +587,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/util/ctr_u128_t.c
             nonfips/jni/bytearrays.c
             nonfips/jni/bytearrays.h
+            nonfips/jni/secret_bytearrays.c
+            nonfips/jni/secret_bytearrays.h
             nonfips/util/key_spec.c
             nonfips/util/key_spec.h
             nonfips/util/asn1_util.c
@@ -853,6 +859,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/jni/byte_array_critical.h
             nonfips/jni/bytearrays.c
             nonfips/jni/bytearrays.h
+            nonfips/jni/secret_bytearrays.c
+            nonfips/jni/secret_bytearrays.h
             nonfips/util/asn1_util.c
             nonfips/util/asn1_util.h
             nonfips/util/ks.h

@@ -96,7 +96,7 @@ public interface DefaultServiceNI
                 }
                 throw ex;
             }
-            case JO_SPEC_HAS_NULL_KEY:
+            case JO_KEY_SPEC_IS_NULL:
                 throw new IllegalArgumentException("key spec is null");
             case JO_KEY_SPEC_HAS_NULL_KEY:
                 throw new IllegalArgumentException("key spec has null key");
@@ -164,8 +164,6 @@ public interface DefaultServiceNI
                 throw new IllegalStateException("unexpected sig length change");
             case JO_SIG_IS_NULL:
                 throw new IllegalArgumentException("sig is null");
-            case JO_SIG_LENGTH_IS_ZERO:
-                throw new IllegalArgumentException("sig length is zero");
             case JO_SIG_LENGTH_IS_NEGATIVE:
                 throw new IllegalArgumentException("sig length is negative");
             case JO_SIG_OUT_OF_RANGE:

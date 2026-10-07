@@ -90,6 +90,10 @@ public class DisposalLedgerOpsTest
     static final EnumSet<LedgerType> EXTRA_TYPES =
             EnumSet.of(LedgerType.ASN1_CTX, LedgerType.X509_CERT, LedgerType.X509_CRL);
 
+    /** Counted by the ledger but owned by no handle: the secret byte-array contexts, driven by their own test. */
+    static final EnumSet<LedgerType> NOT_HANDLES =
+            EnumSet.of(LedgerType.SECRET_BYTEARRAY, LedgerType.SECRET_CLEANSE);
+
     private DisposalRecorder recorder;
 
     @BeforeAll
@@ -194,6 +198,7 @@ public class DisposalLedgerOpsTest
     {
         EnumSet<LedgerType> owned = EnumSet.copyOf(TYPE_OF_FAMILY.values());
         owned.addAll(EXTRA_TYPES);
+        owned.addAll(NOT_HANDLES);
         EnumSet<LedgerType> missing = EnumSet.complementOf(owned);
         Assertions.assertTrue(missing.isEmpty(), "ledger types no driver produces: " + missing);
     }
@@ -351,7 +356,7 @@ public class DisposalLedgerOpsTest
     /** JSL drives all 20; the FIPS twin lowers this to what its modules register. */
     protected int minimumTypesExpected()
     {
-        return LedgerType.values().length;
+        return LedgerType.values().length - NOT_HANDLES.size();
     }
 
     /**
