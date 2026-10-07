@@ -8,6 +8,8 @@
 
 typedef struct jostle_lib_ctx {
     OSSL_LIB_CTX *ossl_libctx;
+    // The name the FIPS module was activated under; NULL for a ctx not built by jostle_ctx_init_fips.
+    char *provider_name;
 } jostle_lib_ctx;
 
 /**
@@ -42,6 +44,11 @@ int32_t set_global_jostle_fips_lib_ctx(jostle_lib_ctx *new_ctx);
  * jostle_ctx_init_fips. Every EVP_*_fetch in this tree resolves through it.
  */
 OSSL_LIB_CTX *get_global_jostle_fips_ossl_lib_ctx(void);
+
+/**
+ * The name the FIPS module was activated under in the global lib ctx.
+ */
+const char *get_global_jostle_fips_provider_name(void);
 
 
 /*

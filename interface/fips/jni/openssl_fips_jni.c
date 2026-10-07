@@ -23,6 +23,23 @@
 #include "../util/rand/jostle_fips_ctx.h"
 #include "../util/rand/jostle_lib_ctx.h"
 
+// True when any UTF-16 unit is below 0x20 or is 0x7F. These strings are written into OpenSSL config text,
+// and U+0000 must be refused here as FFM refuses its 0x00 byte, not passed on as modified UTF-8 C0 80.
+static int jstring_has_control(JNIEnv *env, jstring s, jsize len) {
+    jchar buf[64];
+    for (jsize off = 0; off < len; off += 64) {
+        jsize n = (len - off) < 64 ? (len - off) : 64;
+        (*env)->GetStringRegion(env, s, off, n, buf);
+        for (jsize i = 0; i < n; i++) {
+            if (buf[i] < 0x20 || buf[i] == 0x7F) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI
@@ -42,7 +59,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJ
     const char *config_path = NULL;
     int result = JO_FAIL;
 
-    if (_module_dir == NULL || (*env)->GetStringLength(env, _module_dir) == 0) {
+    if (_module_dir == NULL) {
+        result = JO_FIPS_MODULE_PATH_INVALID;
+        goto exit;
+    }
+    jsize module_dir_len = (*env)->GetStringLength(env, _module_dir);
+    if (module_dir_len == 0 || jstring_has_control(env, _module_dir, module_dir_len)) {
         result = JO_FIPS_MODULE_PATH_INVALID;
         goto exit;
     }
@@ -51,29 +73,39 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJ
         result = JO_PROV_NAME_NULL;
         goto exit;
     }
-    if ((*env)->GetStringLength(env, _prov_name) == 0) {
+    jsize prov_name_len = (*env)->GetStringLength(env, _prov_name);
+    if (prov_name_len == 0) {
         result = JO_PROV_NAME_EMPTY;
         goto exit;
     }
+    if (jstring_has_control(env, _prov_name, prov_name_len)) {
+        result = JO_PROV_NAME_INVALID;
+        goto exit;
+    }
 
-    if (_config_path == NULL || (*env)->GetStringLength(env, _config_path) == 0) {
+    if (_config_path == NULL) {
+        result = JO_FIPS_CONFIG_PATH_INVALID;
+        goto exit;
+    }
+    jsize config_path_len = (*env)->GetStringLength(env, _config_path);
+    if (config_path_len == 0 || jstring_has_control(env, _config_path, config_path_len)) {
         result = JO_FIPS_CONFIG_PATH_INVALID;
         goto exit;
     }
 
     module_dir = (*env)->GetStringUTFChars(env, _module_dir, NULL);
     if (module_dir == NULL) {
-        result = JO_FAIL;
+        result = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
     prov_name = (*env)->GetStringUTFChars(env, _prov_name, NULL);
     if (prov_name == NULL) {
-        result = JO_FAIL;
+        result = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
     config_path = (*env)->GetStringUTFChars(env, _config_path, NULL);
     if (config_path == NULL) {
-        result = JO_FAIL;
+        result = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
 
@@ -221,6 +253,9 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFI
  * Returns null when the algorithm is not fetchable at all; the Java side reads
  * that as "the module does not implement it", which is a legitimate answer and
  * is what proves the probe reports a real result rather than a constant.
+ * A diagnostic with no error codes: a null name, an op_type outside the range and
+ * a failed GetStringUTFChars also return null, where the FFM twin returns typed
+ * codes that its Java side reads as null.
  */
 JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_fips_OpenSSLFIPSJNI_implementingProvider(
     JNIEnv *env, jobject jo, jint op_type, jstring _name) {

@@ -14,6 +14,7 @@ package org.openssl.jostle.test.parity;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.OpenSSLNI;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
 
 import java.io.IOException;
@@ -21,7 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -50,6 +53,21 @@ public class NativeConstantParityTest
     private static final String NONFIPS_CODES = "interface/nonfips/util/bc_err_codes.h";
     private static final String FIPS_CODES = "interface/fips/util/bc_err_codes.h";
 
+    private static final String NONFIPS_CAPABILITY = "interface/nonfips/util/capability.h";
+    private static final String FIPS_CAPABILITY = "interface/fips/util/capability.h";
+
+    /** An alias of another define: {@code #define JO_A JO_B}, with an optional trailing comment. */
+    private static final Pattern C_ALIAS = Pattern.compile(
+            "^#define\\s+(JO_[A-Z0-9_]+)\\s+(JO_[A-Z0-9_]+)\\s*(?:/\\*.*|//.*)?$", Pattern.MULTILINE);
+
+    /** Every #define JO_ line, whatever follows the name. */
+    private static final Pattern ANY_JO_DEFINE = Pattern.compile("^#define\\s+(JO_[A-Za-z0-9_]+)\\b.*$",
+            Pattern.MULTILINE);
+
+    /** The only JO_ defines in the error-code headers that are not a numeric value. */
+    private static final Set<String> NON_NUMERIC = new HashSet<>(
+            java.util.Arrays.asList("JO_RAND_RESEED", "JO_ERROR_WAS_INJECTED"));
+
     /** Java's catch-all for a code no entry claims; no C header defines it. */
     private static final String JAVA_SENTINEL = "JO_UNKNOWN";
 
@@ -64,9 +82,14 @@ public class NativeConstantParityTest
         return p;
     }
 
+    private static String read(String relative) throws IOException
+    {
+        return new String(Files.readAllBytes(repoRoot().resolve(relative)), StandardCharsets.UTF_8);
+    }
+
     private static Map<String, Integer> cDefines(String relative) throws IOException
     {
-        String text = new String(Files.readAllBytes(repoRoot().resolve(relative)), StandardCharsets.UTF_8);
+        String text = read(relative);
         Map<String, Integer> out = new TreeMap<>();
         Matcher m = C_DEFINE.matcher(text);
         while (m.find())
@@ -138,6 +161,79 @@ public class NativeConstantParityTest
             }
         }
         Assertions.assertEquals(0, bad.length(), "error code tables disagree:" + bad);
+    }
+
+    /**
+     * Every #define JO_ line in the error-code headers is one the reader above parses, or one of the allow-listed
+     * non-numeric names. A define the reader cannot parse is a code the parity check silently skips.
+     */
+    @Test
+    public void everyErrorCodeDefineIsRead() throws Exception
+    {
+        StringBuilder bad = new StringBuilder();
+        for (String header : new String[]{NONFIPS_CODES, FIPS_CODES})
+        {
+            Map<String, Integer> parsed = cDefines(header);
+            Matcher m = ANY_JO_DEFINE.matcher(read(header));
+            int seen = 0;
+            while (m.find())
+            {
+                seen++;
+                String name = m.group(1);
+                if (!parsed.containsKey(name) && !NON_NUMERIC.contains(name))
+                {
+                    bad.append("\n  ").append(header).append(": ").append(m.group(0));
+                }
+            }
+            Assertions.assertTrue(seen > 100, header + ": saw only " + seen + " #define JO_ lines");
+        }
+        Assertions.assertEquals(0, bad.length(), "defines the parity reader does not parse:" + bad);
+    }
+
+    /**
+     * The capability op types select which EVP fetch a probe makes; a drift sends every probe to the wrong one.
+     * Both trees' headers, against OpenSSLNI. MIN and MAX are aliases and must name the ends of the range.
+     */
+    @Test
+    public void capabilityOpTypesMatchTheHeader() throws Exception
+    {
+        Map<String, Integer> expected = new TreeMap<>();
+        expected.put("JO_CAP_OP_KEYMGMT", OpenSSLNI.OP_KEYMGMT);
+        expected.put("JO_CAP_OP_KEYEXCH", OpenSSLNI.OP_KEYEXCH);
+        expected.put("JO_CAP_OP_SIGNATURE", OpenSSLNI.OP_SIGNATURE);
+        expected.put("JO_CAP_OP_ASYM_CIPHER", OpenSSLNI.OP_ASYM_CIPHER);
+        expected.put("JO_CAP_OP_MD", OpenSSLNI.OP_MD);
+        expected.put("JO_CAP_OP_CIPHER", OpenSSLNI.OP_CIPHER);
+        expected.put("JO_CAP_OP_KDF", OpenSSLNI.OP_KDF);
+        expected.put("JO_CAP_OP_MAC", OpenSSLNI.OP_MAC);
+        expected.put("JO_CAP_OP_RAND", OpenSSLNI.OP_RAND);
+
+        for (String header : new String[]{NONFIPS_CAPABILITY, FIPS_CAPABILITY})
+        {
+            Map<String, Integer> numeric = cDefines(header);
+            Assertions.assertEquals(expected, numeric, header + " op types drifted from OpenSSLNI");
+
+            Map<String, String> aliases = new TreeMap<>();
+            Matcher a = C_ALIAS.matcher(read(header));
+            while (a.find())
+            {
+                aliases.put(a.group(1), a.group(2));
+            }
+            Map<String, String> bounds = new TreeMap<>();
+            bounds.put("JO_CAP_OP_MAX", "JO_CAP_OP_RAND");
+            bounds.put("JO_CAP_OP_MIN", "JO_CAP_OP_KEYMGMT");
+            Assertions.assertEquals(bounds, aliases, header + " range bounds");
+
+            Matcher m = ANY_JO_DEFINE.matcher(read(header));
+            int seen = 0;
+            while (m.find())
+            {
+                seen++;
+                Assertions.assertTrue(numeric.containsKey(m.group(1)) || aliases.containsKey(m.group(1)),
+                        header + ": unread define " + m.group(0));
+            }
+            Assertions.assertEquals(expected.size() + bounds.size(), seen, header + " define count");
+        }
     }
 
     @Test

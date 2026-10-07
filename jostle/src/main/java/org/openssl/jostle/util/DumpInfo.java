@@ -130,6 +130,8 @@ public class DumpInfo
         {
             // -DM System.out.println
             System.out.println("  OpenSSL Version: " + NISelector.NativeServiceNI.getOpenSSLVersion());
+            // -DM System.out.println
+            System.out.println("  OpenSSL Build Version: " + NISelector.NativeServiceNI.getOpenSSLBuildVersion());
         }
         else
         {

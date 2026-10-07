@@ -664,6 +664,8 @@
 #define JO_KS_SECRET_OID_FAILED_ACCESS -188
 /* The alias names no entry, or an entry that is not a secret key. */
 #define JO_KS_NOT_SECRET_ENTRY -189
+/* A provider name holding a byte below 0x20 or 0x7F. */
+#define JO_PROV_NAME_INVALID -190
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

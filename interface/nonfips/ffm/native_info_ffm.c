@@ -8,9 +8,19 @@
 
 #include "native_info_ffm.h"
 #include "openssl/opensslconf.h"
+#include <openssl/crypto.h>
+#include <string.h>
 
 
+// The libcrypto loaded at runtime. *len counts the terminator; the string is static, never freed.
 const char * JoNative_libraryVersion(size_t *len) {
+    const char *v = OpenSSL_version(OPENSSL_FULL_VERSION_STRING);
+    *len = strlen(v) + 1;
+    return v;
+}
+
+// The OpenSSL headers this library was compiled against. *len counts the terminator.
+const char * JoNative_libraryBuildVersion(size_t *len) {
     *len = sizeof(OPENSSL_FULL_VERSION_STR);
     return OPENSSL_FULL_VERSION_STR;
 }

@@ -217,6 +217,49 @@ public class BridgeRandLimitTest
     }
 
     @Test
+    public void testControlCharacterProvNameRefused() throws Exception
+    {
+        // The name is written into OpenSSL config text. U+0000 must get the same code on both bridges: JNI sees
+        // the UTF-16 unit, FFM sees a 0x00 byte inside the length it is passed.
+        String[] names = {"\u0000", "default\u0000", "\u0000default", "def\nault", "default\r", "\t",
+                "a\u001fb", "a\u007fb"};
+        for (String name : names)
+        {
+            Assertions.assertEquals(ErrorCode.JO_PROV_NAME_INVALID.getCode(),
+                    TestNISelector.getOpenSSLNI().setOSSLProviderModule(name), escape(name));
+        }
+    }
+
+    @Test
+    public void testControlCharacterBoundaryAccepted() throws Exception
+    {
+        // 0x20 and 0x80 sit just outside the refused set, so they pass the check and reach the bound-name guard.
+        String[] names = {"a b", "a\u0080b", "\u00e9"};
+        for (String name : names)
+        {
+            Assertions.assertEquals(ErrorCode.JO_UNEXPECTED_STATE.getCode(),
+                    TestNISelector.getOpenSSLNI().setOSSLProviderModule(name), escape(name));
+        }
+    }
+
+    private static String escape(String s)
+    {
+        StringBuilder b = new StringBuilder();
+        for (char c : s.toCharArray())
+        {
+            if (c < 0x20 || c >= 0x7F)
+            {
+                b.append(String.format("\\u%04x", (int) c));
+            }
+            else
+            {
+                b.append(c);
+            }
+        }
+        return b.toString();
+    }
+
+    @Test
     public void testInvalidProviderName() throws Exception
     {
         // Provider is already initialised by JostleProvider's @BeforeAll.

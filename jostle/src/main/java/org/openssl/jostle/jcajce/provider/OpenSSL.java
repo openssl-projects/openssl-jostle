@@ -58,6 +58,10 @@ public class OpenSSL
                 throw new IllegalArgumentException("moduleName name is null");
             case JO_PROV_NAME_EMPTY:
                 throw new IllegalArgumentException("moduleName name is empty");
+            case JO_PROV_NAME_INVALID:
+                throw new IllegalArgumentException("moduleName name contains a control character");
+            case JO_UNABLE_TO_ACCESS_NAME:
+                throw new IllegalStateException("unable to access moduleName " + moduleName);
             case JO_UNEXPECTED_STATE:
                 throw new IllegalStateException("OpenSSL already initialized to a different module");
             default:

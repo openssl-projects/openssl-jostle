@@ -21,6 +21,19 @@
 #include "../util/rand/jostle_fips_ctx.h"
 #include "../util/rand/jostle_lib_ctx.h"
 
+// True when any of the len bytes is below 0x20 or is 0x7F. These strings are written into OpenSSL config text;
+// len comes from the Java segment, so an embedded 0x00 is seen rather than ending the string early.
+static int has_control_byte(const char *s, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char) s[i];
+        if (c < 0x20 || c == 0x7F) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 
 /*
  * Initialise the FIPS interface library's lib ctxs (operations + the
@@ -28,11 +41,12 @@
  * provider. The module is dlopen'd by libcrypto itself (search path + config
  * drive the integrity-MAC check and self-tests) - never System.load'ed.
  */
-int32_t JoFIPS_set_openssl_module(const char *module_dir, const char *prov_name,
-                                  const char *config_path) {
+int32_t JoFIPS_set_openssl_module(const char *module_dir, size_t module_dir_len,
+                                  const char *prov_name, size_t prov_name_len,
+                                  const char *config_path, size_t config_path_len) {
     int32_t result = JO_FAIL;
 
-    if (module_dir == NULL || *module_dir == '\0') {
+    if (module_dir == NULL || module_dir_len == 0 || has_control_byte(module_dir, module_dir_len)) {
         result = JO_FIPS_MODULE_PATH_INVALID;
         goto exit;
     }
@@ -41,12 +55,16 @@ int32_t JoFIPS_set_openssl_module(const char *module_dir, const char *prov_name,
         result = JO_PROV_NAME_NULL;
         goto exit;
     }
-    if (*prov_name == '\0') {
+    if (prov_name_len == 0) {
         result = JO_PROV_NAME_EMPTY;
         goto exit;
     }
+    if (has_control_byte(prov_name, prov_name_len)) {
+        result = JO_PROV_NAME_INVALID;
+        goto exit;
+    }
 
-    if (config_path == NULL || *config_path == '\0') {
+    if (config_path == NULL || config_path_len == 0 || has_control_byte(config_path, config_path_len)) {
         result = JO_FIPS_CONFIG_PATH_INVALID;
         goto exit;
     }

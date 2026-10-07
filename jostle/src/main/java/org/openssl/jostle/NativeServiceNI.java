@@ -14,6 +14,14 @@ public interface NativeServiceNI
 {
     boolean isNativeAvailable();
 
+    /**
+     * The version of the libcrypto loaded at runtime.
+     */
     String getOpenSSLVersion();
+
+    /**
+     * The version of the OpenSSL headers the interface library was compiled against.
+     */
+    String getOpenSSLBuildVersion();
 
 }

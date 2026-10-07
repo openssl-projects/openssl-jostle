@@ -22,15 +22,6 @@
 #include "jo_assert.h"
 #include "rand/jostle_lib_ctx.h"
 
-/*
- * The FIPS provider is loaded into this library's lib ctx under this name by
- * jostle_ctx_init_fips. Not caller-supplied — the Java layer's providerName
- * names the module FILE for the search path, while OSSL_PROVIDER_load here
- * needs the name it was activated under in the config, which the config
- * wrapper fixes as "fips".
- */
-#define FIPS_PROVIDER_NAME "fips"
-
 int32_t capability_module_version(char *out, size_t out_len) {
     // Bridge-validated invariant: both bridges supply a real buffer.
     jo_assert(out != NULL);
@@ -38,8 +29,10 @@ int32_t capability_module_version(char *out, size_t out_len) {
 
     out[0] = '\0';
 
+    // The name jostle_ctx_init_fips activated the module under (the module file name), so this takes a
+    // reference to the module already active in the lib ctx rather than searching for a module named "fips".
     OSSL_PROVIDER *prov = OSSL_PROVIDER_load(get_global_jostle_fips_ossl_lib_ctx(),
-                                             FIPS_PROVIDER_NAME);
+                                             get_global_jostle_fips_provider_name());
     if (prov == NULL) {
         ERR_clear_error();
         return JO_FIPS_PROVIDER_UNAVAILABLE;

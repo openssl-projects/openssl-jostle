@@ -20,11 +20,23 @@
 #include "../util/capability.h"
 #include "../util/bc_err_codes.h"
 
+// True when any of the len bytes is below 0x20 or is 0x7F. Both bridges refuse the same string; U+0000 would
+// otherwise split them. len comes from the Java segment, so an embedded 0x00 is seen rather than ending the string.
+static int has_control_byte(const char *s, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char) s[i];
+        if (c < 0x20 || c == 0x7F) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 /*
 * set the openssl module
 */
-int32_t JoOpenSSL_setModule(const char *prov_name /* JVM */) {
+int32_t JoOpenSSL_setModule(const char *prov_name /* JVM */, size_t prov_name_len) {
     int32_t result = JO_FAIL;
     int32_t rand_created = 0;
 
@@ -33,8 +45,13 @@ int32_t JoOpenSSL_setModule(const char *prov_name /* JVM */) {
         goto exit;
     }
 
-    if (*prov_name == '\0') {
+    if (prov_name_len == 0) {
         result = JO_PROV_NAME_EMPTY;
+        goto exit;
+    }
+
+    if (has_control_byte(prov_name, prov_name_len)) {
+        result = JO_PROV_NAME_INVALID;
         goto exit;
     }
 

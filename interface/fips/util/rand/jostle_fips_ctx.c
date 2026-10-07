@@ -154,6 +154,8 @@ int32_t jostle_ctx_init_fips(jostle_lib_ctx **ctx, const char *module_dir,
     // installed as both slots on a FIPS ctx): direct RAND_bytes_ex drew from
     // it; EC/RSA keygen, ECDSA nonces and OAEP seeds drew zero bytes.
     // FIPSRandBridgeLimitTest pins this contract from the Java side.
+    new_ctx->provider_name = OPENSSL_strdup(prov_name);
+    jo_assert(new_ctx->provider_name != NULL);
     new_ctx->ossl_libctx = libctx;
     *ctx = new_ctx;
 

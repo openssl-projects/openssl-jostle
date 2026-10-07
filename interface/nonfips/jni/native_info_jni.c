@@ -8,6 +8,7 @@
 #include <jni.h>
 #include "org_openssl_jostle_NativeServiceJNI.h"
 #include "openssl/opensslconf.h"
+#include <openssl/crypto.h>
 #include "types.h"
 
 
@@ -28,9 +29,25 @@ JNIEXPORT jboolean JNICALL Java_org_openssl_jostle_NativeServiceJNI_nativeAvaila
  * Class:     org_openssl_jostle_NativeInfo
  * Method:    openSSLVersion
  * Signature: ()Ljava/lang/String;
+ *
+ * The libcrypto loaded at runtime, which need not be the one the headers came from.
  */
 JNIEXPORT jstring JNICALL Java_org_openssl_jostle_NativeServiceJNI_openSSLVersion
 (JNIEnv *env, jclass cl) {
     UNUSED(cl);
-    return (*env)->NewStringUTF(env,OPENSSL_FULL_VERSION_STR);
+    return (*env)->NewStringUTF(env, OpenSSL_version(OPENSSL_FULL_VERSION_STRING));
+}
+
+
+/*
+ * Class:     org_openssl_jostle_NativeInfo
+ * Method:    openSSLBuildVersion
+ * Signature: ()Ljava/lang/String;
+ *
+ * The OpenSSL headers this library was compiled against.
+ */
+JNIEXPORT jstring JNICALL Java_org_openssl_jostle_NativeServiceJNI_openSSLBuildVersion
+(JNIEnv *env, jclass cl) {
+    UNUSED(cl);
+    return (*env)->NewStringUTF(env, OPENSSL_FULL_VERSION_STR);
 }

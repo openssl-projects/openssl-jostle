@@ -22,9 +22,16 @@ public class NativeServiceJNI implements NativeServiceNI
         return openSSLVersion();
     }
 
+    public String getOpenSSLBuildVersion()
+    {
+        return openSSLBuildVersion();
+    }
+
     private static native boolean nativeAvailable();
 
     private static native String openSSLVersion();
+
+    private static native String openSSLBuildVersion();
 
 
 }

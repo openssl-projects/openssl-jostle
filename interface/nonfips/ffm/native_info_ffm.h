@@ -14,6 +14,8 @@
 
 const char * JoNative_libraryVersion(size_t *len);
 
+const char * JoNative_libraryBuildVersion(size_t *len);
+
 FFM_BOOL JoNative_isAvailable(void);
 
 #endif //NATIVE_INFO_FFM_H

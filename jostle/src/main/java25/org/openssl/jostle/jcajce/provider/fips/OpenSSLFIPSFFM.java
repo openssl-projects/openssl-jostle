@@ -54,13 +54,15 @@ class OpenSSLFIPSFFM implements OpenSSLFIPSNI
         {
             var func = lookup.find("JoFIPS_set_openssl_module").orElseThrow();
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT,
-                    ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
             var dir = moduleDir != null ? arena.allocateFrom(moduleDir) : MemorySegment.ofAddress(0);
             var name = providerName != null ? arena.allocateFrom(providerName) : MemorySegment.ofAddress(0);
             var cnf = configPath != null ? arena.allocateFrom(configPath) : MemorySegment.ofAddress(0);
 
-            return (int) handle.invokeExact(dir, name, cnf);
+            return (int) handle.invokeExact(dir, FFM.cStringLength(dir), name, FFM.cStringLength(name),
+                    cnf, FFM.cStringLength(cnf));
         }
         catch (Throwable t)
         {
@@ -153,7 +155,7 @@ class OpenSSLFIPSFFM implements OpenSSLFIPSNI
         try (Arena arena = Arena.ofConfined())
         {
             var func = lookup.find("JoFIPS_get_openssl_errors").orElseThrow();
-            var len = arena.allocate(ValueLayout.ADDRESS);
+            var len = arena.allocate(ValueLayout.JAVA_LONG);
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
             MemorySegment content = null;

@@ -75,6 +75,7 @@ void jostle_ctx_destroy(jostle_lib_ctx *ctx) {
     if (ctx->ossl_libctx != NULL) {
         OSSL_LIB_CTX_free(ctx->ossl_libctx);
     }
+    OPENSSL_free(ctx->provider_name);
     OPENSSL_free(ctx);
 }
 
@@ -123,6 +124,13 @@ int32_t set_global_jostle_fips_lib_ctx(jostle_lib_ctx *new_ctx) {
 OSSL_LIB_CTX *get_global_jostle_fips_ossl_lib_ctx(void) {
     jo_assert(global_fips_lib_ctx != NULL);
     return global_fips_lib_ctx->ossl_libctx;
+}
+
+
+const char *get_global_jostle_fips_provider_name(void) {
+    jo_assert(global_fips_lib_ctx != NULL);
+    jo_assert(global_fips_lib_ctx->provider_name != NULL);
+    return global_fips_lib_ctx->provider_name;
 }
 
 

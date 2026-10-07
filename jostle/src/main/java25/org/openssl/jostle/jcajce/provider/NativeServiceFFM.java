@@ -35,8 +35,8 @@ public class NativeServiceFFM implements NativeServiceNI
         {
             var funcPtr = lookup.find("JoNative_isAvailable").orElseThrow();
             var linker = Linker.nativeLinker();
-            var dch = linker.downcallHandle(funcPtr, FunctionDescriptor.of(ValueLayout.JAVA_BYTE));
-            return FFM.ffm_bool((byte) dch.invokeExact());
+            var dch = linker.downcallHandle(funcPtr, FunctionDescriptor.of(ValueLayout.JAVA_INT));
+            return (int) dch.invokeExact() == 1;
         }
         catch (Throwable e)
         {
@@ -47,10 +47,35 @@ public class NativeServiceFFM implements NativeServiceNI
 
     public String getOpenSSLVersion()
     {
+        try
+        {
+            return staticString(lookup.find("JoNative_libraryVersion").orElseThrow());
+        }
+        catch (Throwable e)
+        {
+            L.warning("ffm access to JoNative_libraryVersion: " + e.getMessage());
+        }
+        return "unable to obtain OpenSSL library version";
+    }
+
+    public String getOpenSSLBuildVersion()
+    {
+        try
+        {
+            return staticString(lookup.find("JoNative_libraryBuildVersion").orElseThrow());
+        }
+        catch (Throwable e)
+        {
+            L.warning("ffm access to JoNative_libraryBuildVersion: " + e.getMessage());
+        }
+        return "unable to obtain OpenSSL build version";
+    }
+
+    // The C side returns static storage and its length with the terminator; nothing to free.
+    private static String staticString(MemorySegment funcPtr) throws Throwable
+    {
         try (Arena a = Arena.ofConfined())
         {
-            SymbolLookup stdLib = SymbolLookup.loaderLookup();
-            var funcPtr = stdLib.find("JoNative_libraryVersion").orElseThrow();
             var linker = Linker.nativeLinker();
             var dch = linker.downcallHandle(funcPtr, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
             var len = a.allocate(ValueLayout.JAVA_LONG);
@@ -58,11 +83,6 @@ public class NativeServiceFFM implements NativeServiceNI
             content = content.reinterpret(len.get(ValueLayout.OfLong.JAVA_LONG, 0));
             return content.getString(0, StandardCharsets.UTF_8);
         }
-        catch (Throwable e)
-        {
-            L.warning("ffm access to isNativeAvailable: " + e.getMessage());
-        }
-        return "unable to obtain OpenSSL library version";
     }
 
 }

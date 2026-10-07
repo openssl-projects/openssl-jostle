@@ -10,14 +10,15 @@
 #ifndef OPENSSL_FFM_H
 #define OPENSSL_FFM_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include "types.h"
 
 
 /*
-* set the openssl module
+* set the openssl module; prov_name_len is the name's byte length without the terminator
 */
-int32_t JoOpenSSL_setModule(const char *prov_name);
+int32_t JoOpenSSL_setModule(const char *prov_name, size_t prov_name_len);
 
 /*
 * return any available openssl errors

@@ -10,6 +10,7 @@
 #ifndef OPENSSL_FIPS_FFM_H
 #define OPENSSL_FIPS_FFM_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include "types.h"
 
@@ -20,10 +21,12 @@
  * properties. One-shot per library instance. Distinctly (JoFIPS_) named so
  * an nm audit trivially separates it from the base library's
  * set_openssl_module; FIPS FFM callers resolve this library's exports via a
- * library-scoped lookup, never the process-global loader lookup.
+ * library-scoped lookup, never the process-global loader lookup. Each *_len is the string's byte length
+ * without the terminator.
  */
-int32_t JoFIPS_set_openssl_module(const char *module_dir, const char *prov_name,
-                                  const char *config_path);
+int32_t JoFIPS_set_openssl_module(const char *module_dir, size_t module_dir_len,
+                                  const char *prov_name, size_t prov_name_len,
+                                  const char *config_path, size_t config_path_len);
 
 
 /*

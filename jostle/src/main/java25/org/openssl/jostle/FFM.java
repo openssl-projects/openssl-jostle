@@ -32,6 +32,18 @@ public class FFM
     }
 
     /**
+     * Byte length, without the terminator, of a string from {@code Arena.allocateFrom(String)}; 0 for NULL.
+     * Passed beside the pointer so C sees an embedded 0x00 rather than an early end of string.
+     *
+     * @param s the segment, or {@code MemorySegment.NULL}
+     * @return the byte length without the terminator
+     */
+    public static long cStringLength(MemorySegment s)
+    {
+        return s.address() == 0 ? 0 : s.byteSize() - 1;
+    }
+
+    /**
      * Calls free(ptr) on the passed in address.
      * Do not use this if there is a context specific free for whatever you are doing.
      * The underlying C implementation is null safe.

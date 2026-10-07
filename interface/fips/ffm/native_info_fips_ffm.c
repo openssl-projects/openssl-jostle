@@ -22,8 +22,9 @@
 //
 
 /* *INDENT-OFF* */
-#define JoNative_isAvailable    JoFIPS_JoNative_isAvailable
-#define JoNative_libraryVersion JoFIPS_JoNative_libraryVersion
+#define JoNative_isAvailable         JoFIPS_JoNative_isAvailable
+#define JoNative_libraryBuildVersion JoFIPS_JoNative_libraryBuildVersion
+#define JoNative_libraryVersion      JoFIPS_JoNative_libraryVersion
 /* *INDENT-ON* */
 
 #include "native_info_ffm.c"

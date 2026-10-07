@@ -104,8 +104,8 @@ public interface OpenSSLFIPSNI
 
     /**
      * The loaded FIPS module's self-reported name and version, e.g.
-     * {@code "OpenSSL FIPS Provider 3.1.2"}, or null when the provider cannot
-     * be queried.
+     * {@code "OpenSSL FIPS Provider 3.1.2"}, asked of the provider under the
+     * name it was activated with, or null when the provider cannot be queried.
      *
      * <p><b>Diagnostics only — never a gate.</b> Keying behaviour on a version
      * string is the transcribed table java-spi.md forbids, and it is wrong on
@@ -145,6 +145,10 @@ public interface OpenSSLFIPSNI
      *
      * <p>Unlike {@link #moduleVersion()} this IS a legitimate thing to assert
      * on - it reports what OpenSSL resolved, not what a build claims.
+     *
+     * <p>A diagnostic with no error codes: null also answers a null name, an
+     * {@code opType} outside the {@code OP_*} range and a name the JVM could
+     * not hand over, on both bridges.
      */
     String implementingProvider(int opType, String name);
 }

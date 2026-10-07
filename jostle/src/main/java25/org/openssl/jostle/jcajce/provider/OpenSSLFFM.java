@@ -34,11 +34,12 @@ class OpenSSLFFM implements OpenSSLNI
         try (Arena arena = Arena.ofConfined())
         {
             var func = lookup.find("JoOpenSSL_setModule").orElseThrow();
-            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+            var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_LONG));
 
             var provName = provider != null ? arena.allocateFrom(provider) : MemorySegment.ofAddress(0);
 
-            return (int) handle.invokeExact(provName);
+            return (int) handle.invokeExact(provName, FFM.cStringLength(provName));
         }
         catch (Throwable t)
         {
@@ -75,7 +76,7 @@ class OpenSSLFFM implements OpenSSLNI
         try (Arena arena = Arena.ofConfined())
         {
             var func = lookup.find("JoOpenSSL_getErrors").orElseThrow();
-            var len = arena.allocate(ValueLayout.ADDRESS);
+            var len = arena.allocate(ValueLayout.JAVA_LONG);
             var handle = linker.downcallHandle(func, FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
             MemorySegment content = null;

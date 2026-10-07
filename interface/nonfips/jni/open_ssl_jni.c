@@ -22,6 +22,22 @@
 #include "../util/rand/jostle_lib_ctx.h"
 #include "../util/capability.h"
 
+// True when any UTF-16 unit is below 0x20 or is 0x7F. Both bridges refuse the same string; U+0000 would
+// otherwise split them.
+static int jstring_has_control(JNIEnv *env, jstring s, jsize len) {
+    jchar buf[64];
+    for (jsize off = 0; off < len; off += 64) {
+        jsize n = (len - off) < 64 ? (len - off) : 64;
+        (*env)->GetStringRegion(env, s, off, n, buf);
+        for (jsize i = 0; i < n; i++) {
+            if (buf[i] < 0x20 || buf[i] == 0x7F) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_OpenSSLJNI
@@ -49,6 +65,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
         goto exit;
     }
 
+    if (jstring_has_control(env, _prov_name, len)) {
+        result = JO_PROV_NAME_INVALID;
+        goto exit;
+    }
+
 
     // Separate RAND context backs SecureRandomSpi. provider_ctx backs
     // OpenSSL operations using RandSource up-calls.
@@ -56,7 +77,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_OpenSSLJNI_setOSS
 
     prov_name = (*env)->GetStringUTFChars(env, _prov_name, NULL);
     if (prov_name == NULL) {
-        result = JO_FAIL;
+        result = JO_UNABLE_TO_ACCESS_NAME;
         goto exit;
     }
 
