@@ -81,8 +81,8 @@ dependencies {
     java17Implementation files([
             sourceSets.main.output.classesDirs,
             sourceSets.java9.output.classesDirs,
-            sourceSets.java11.output.classesDirs]) {
-        sourceSets.java15.output.classesDirs
+            sourceSets.java11.output.classesDirs,
+            sourceSets.java15.output.classesDirs]) {
         builtBy compileJava15Java
     }
 
@@ -117,6 +117,8 @@ compileJava {
 
 compileJava9Java {
     options.sourcepath = files(['src/main/java', 'src/main/java9'])
+    // Resolve against the base sources on the sourcepath, but emit class files for src/main/java9 only.
+    options.compilerArgs << '-implicit:none'
     options.release = 9
 }
 
