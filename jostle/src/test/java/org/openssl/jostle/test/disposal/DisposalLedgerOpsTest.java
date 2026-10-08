@@ -366,12 +366,19 @@ public class DisposalLedgerOpsTest
     @Test
     public void aSkippedFreeShowsOnExactlyThatType() throws Exception
     {
+        // Exercises interface/nonfips/util/md.c
+        skippedFreeShowsOnExactlyMdCtx(OpsTestFlag.OPS_LEDGER_SKIP_FREE_1);
+    }
+
+    /** Body of the skipped-free cell; each tree's cell passes the flag for its own library. */
+    protected void skippedFreeShowsOnExactlyMdCtx(OpsTestFlag flag) throws Exception
+    {
         Provider provider = provider();
 
         Object[] holder = new Object[]{new Object()};
         final WeakReference<Object> sentinel = new WeakReference<Object>(holder[0]);
 
-        ops().setFlag(OpsTestFlag.OPS_LEDGER_SKIP_FREE_1);
+        ops().setFlag(flag);
         makeAndDropOneDigest(provider);
         holder[0] = null;
         drain(sentinel);

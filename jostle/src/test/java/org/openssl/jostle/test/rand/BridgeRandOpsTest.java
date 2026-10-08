@@ -75,7 +75,7 @@ public class BridgeRandOpsTest
         DefaultRandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
         byte[] random = new byte[128];
-        int len = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 1, false, randSource);
+        int len = operationsTestNI.getRandDataViaOpenSSL(random, 1, false, randSource);
 
         Assertions.assertEquals(1, len); // Success code not length
         Assertions.assertFalse(Arrays.areAllZeroes(random, 0, random.length));
@@ -421,7 +421,7 @@ public class BridgeRandOpsTest
         {
             // Exercises interface/nonfips/util/rand/jostle_lib_ctx.c:77
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            int rc = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 0, false, randSource);
+            int rc = operationsTestNI.getRandDataViaOpenSSL(random, 0, false, randSource);
 
             Assertions.assertEquals(0, rc);
             String err = OpenSSL.getOpenSSLErrors();
@@ -449,7 +449,7 @@ public class BridgeRandOpsTest
         {
             // Exercises interface/nonfips/util/rand/jostle_lib_ctx.c:75
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            int rc = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 0, false, randSource);
+            int rc = operationsTestNI.getRandDataViaOpenSSL(random, 0, false, randSource);
 
             Assertions.assertEquals(1, rc);
             Assertions.assertFalse(Arrays.areAllZeroes(random, 0, random.length));

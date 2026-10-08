@@ -44,7 +44,7 @@ public interface OperationsTestNI
     void setOpsTestFlag(int flag, int value);
 
 
-    int op_getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource);
+    int op_getEntropy(byte[] out, int strength, boolean predictionResistant, RandSource randSource);
 
     /**
      * Create a DRBG whose entropy is the bytes given rather than the real
@@ -151,17 +151,16 @@ public interface OperationsTestNI
         }
     }
 
-    default int getRandDataViaOpenSSL(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource)
+    default int getRandDataViaOpenSSL(byte[] out, int strength, boolean predictionResistant, RandSource randSource)
     {
         assert opsTestAvailable();
-        return op_getEntropy(out, len, strength, predictionResistant, randSource);
+        return op_getEntropy(out, strength, predictionResistant, randSource);
     }
 
     enum OpsTestFlag
     {
         OPS_INT32_OVERFLOW_1,
         OPS_INT32_OVERFLOW_2,
-        OPS_INT32_OVERFLOW_3,
 
         OPS_FAILED_ACCESS_1,
         OPS_FAILED_ACCESS_2,
@@ -189,7 +188,6 @@ public interface OperationsTestNI
         OPS_FAILED_SET_2,
 
         OPS_THREAD_ATTACH_1,
-        OPS_JNI_FAIL_CREATE_1,
 
         OPS_SHORT_SIZE_1,
         OPS_RAND_UP_CALL_NULL,

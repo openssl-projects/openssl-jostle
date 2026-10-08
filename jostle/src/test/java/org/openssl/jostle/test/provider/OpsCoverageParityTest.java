@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -73,7 +74,7 @@ public class OpsCoverageParityTest
     private static final Pattern FLAG = Pattern.compile(
             "\\b(OPS_(?:FAILED_ACCESS|OPENSSL_ERROR|FAILED_CREATE|FAILED_INIT|FAILED_SET"
                     + "|LEN_CHANGE|INT32_OVERFLOW|SHORT_SIZE|ALTERNATE|THREAD_ATTACH"
-                    + "|JNI_FAIL_CREATE)_\\d+|OPS_POINTER_CHANGE|OPS_RAND_UP_CALL_NULL)\\b");
+                    + "|LEDGER_SKIP_FREE)_\\d+|OPS_POINTER_CHANGE|OPS_RAND_UP_CALL_NULL)\\b");
 
     /** Stops at the extension, so trailing prose cannot join the path. */
     private static final Pattern EXERCISES = Pattern.compile(
@@ -272,6 +273,9 @@ public class OpsCoverageParityTest
             }
         }
 
+        System.out.println("[ops-coverage] pairs=" + pairs + " uncovered=" + uncovered.size()
+                + " baseline=" + BASELINE.size());
+
         List<String> appeared = new ArrayList<String>();
         for (String u : uncovered)
         {
@@ -313,7 +317,9 @@ public class OpsCoverageParityTest
         String src = "// OPS_FAILED_INIT_1 in a line comment\n"
                 + "/* OPS_OPENSSL_ERROR_2 in a\n   block comment */\n"
                 + "const char *s = \"OPS_SHORT_SIZE_1 in a string\";\n"
-                + "if (OPS_FAILED_ACCESS_1 p == NULL) {\n";
+                + "// OPS_LEDGER_SKIP_FREE_1 in a comment\n"
+                + "if (OPS_FAILED_ACCESS_1 p == NULL) {\n"
+                + "if (OPS_LEDGER_SKIP_FREE_1 0) {\n";
         String stripped = stripCommentsAndStrings(src);
 
         Set<String> found = new TreeSet<String>();
@@ -322,7 +328,8 @@ public class OpsCoverageParityTest
         {
             found.add(m.group(1));
         }
-        Assertions.assertEquals(Collections.singleton("OPS_FAILED_ACCESS_1"), found);
+        Assertions.assertEquals(new TreeSet<String>(Arrays.asList("OPS_FAILED_ACCESS_1", "OPS_LEDGER_SKIP_FREE_1")),
+                found);
         Assertions.assertEquals(src.split("\n", -1).length, stripped.split("\n", -1).length, "line breaks kept");
     }
 

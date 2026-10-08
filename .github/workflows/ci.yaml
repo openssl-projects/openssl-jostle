@@ -610,35 +610,13 @@ jobs:
             exit 1
           fi
           echo "TEST_FIPS_LIB=$lib" >> "$GITHUB_ENV"
-      # Fail loudly if the artifact was instrumented after all - otherwise this
-      # job would quietly become a second OPS run and the shipped library would
-      # go back to being untested, with nothing to show for it.
+      # Fail loudly if the artifact was instrumented after all: this job would
+      # become a second OPS run and the shipped library would go untested.
       - name: "Assert the artifact is NOT ops-instrumented"
         shell: "bash"
         working-directory: "jostle"
         run: |
-          set -eu
-          # Resolve the library explicitly. A glob that matches nothing would
-          # make grep exit non-zero, which reads as "not instrumented" - the
-          # answer we want, for the wrong reason. Absent means unknown, and
-          # unknown must fail.
-          lib=$(ls jostle/src/main/resources/native/linux/*/libinterface_ffm.so 2>/dev/null | head -1)
-          if [ -z "$lib" ]; then
-            echo "no linux interface library in the downloaded artifact" >&2
-            find jostle/src/main/resources/native -type f >&2 || true
-            exit 1
-          fi
-          # JoOps_setFlag exists only under JOSTLE_OPS (ffm/ops_ffm.c is inside
-          # #ifdef JOSTLE_OPS). Symbol names appear literally in ELF, so a byte
-          # search needs no toolchain. Same probe as the verify-test-matrix
-          # skill's verify-results.py.
-          if grep -qa "JoOps_setFlag" "$lib"; then
-            echo "$lib IS ops-instrumented — the plain rebuild step in" >&2
-            echo "build-posix did not take effect, so this job would be a" >&2
-            echo "duplicate of test-posix and the shipped library untested." >&2
-            exit 1
-          fi
-          echo "confirmed shipped (uninstrumented) library: $lib"
+          ./.github/scripts/assert-shipped-plain.sh jostle/src/main/resources/native
       - name: "Run tests against the shipped library"
         working-directory: "jostle"
         env:
@@ -1016,9 +994,40 @@ jobs:
           check_name: "windows-2025 - ${{ matrix.config.name }} - module ${{ matrix.module }}"
           report_paths: "**/build/test-results/**/TEST-*.xml"
 
+  # Every library of every shipped artifact is plain before anything is
+  # packaged. The directory is walked, so a renamed or added library is checked.
+  assert-shipped-plain:
+    needs: ["build-posix", "build-windows"]
+    strategy:
+      fail-fast: false
+      matrix:
+        artifact:
+          - "native-shipped-ubuntu-latest"
+          - "native-shipped-ubuntu-24.04-arm"
+          - "native-shipped-macos-15"
+          - "native-shipped-macos-15-intel"
+          - "native-shipped-windows-2025"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout jostle"
+        uses: "actions/checkout@v7"
+        with:
+          persist-credentials: false
+          path: "jostle"
+      - name: "Download shipped native libraries"
+        uses: "actions/download-artifact@v8"
+        with:
+          name: "${{ matrix.artifact }}"
+          path: "native"
+      - name: "Assert every library is NOT ops-instrumented"
+        shell: "bash"
+        run: |
+          ./jostle/.github/scripts/assert-shipped-plain.sh native
+
   package-x86_64:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
-    needs: ["build-posix", "build-windows", "test-posix", "test-posix-shipped", "test-windows"]
+    needs: ["build-posix", "build-windows", "test-posix", "test-posix-shipped", "test-windows",
+            "assert-shipped-plain"]
     runs-on: "ubuntu-latest"
     steps:
       - name: "Checkout jostle"
@@ -1073,7 +1082,7 @@ jobs:
   package-aarch64:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag')
     # No arm64 Windows native, so nothing Windows-side ends up in this bundle.
-    needs: ["build-posix", "test-posix", "test-posix-shipped"]
+    needs: ["build-posix", "test-posix", "test-posix-shipped", "assert-shipped-plain"]
     runs-on: "ubuntu-latest"
     steps:
       - name: "Checkout jostle"

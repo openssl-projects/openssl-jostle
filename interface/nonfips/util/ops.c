@@ -34,18 +34,17 @@ int OPS_GetRandomBytes(uint8_t *buf, size_t len, int32_t strength, int32_t pred,
     (void) (pred);
 
 
+    jo_assert(buf != NULL);
+
     rand_set_java_srand_call(rnd_src);
 
     EVP_RAND_CTX *ctx = RAND_get0_public(get_global_jostle_ossl_lib_ctx());
+    jo_assert(ctx != NULL);
     // The generate call reads the thread-local up-call target; clear it
     // only after the draw completes.
     int ret = EVP_RAND_generate(ctx, buf, len, strength, pred, NULL, 0);
     rand_clear_java_srand_call();
     return ret;
-}
-
-int get_ops_test(const uint32_t index) {
-    return OPS_ARR[index];
 }
 
 //
@@ -100,8 +99,8 @@ int ledger_get_destroyed(int type) {
     return ledger_read(&ledger_destroyed_counts[type]);
 }
 
-// Atomic per slot: each count is brought to zero through the same add the
-// counters use, so a reset never races a concurrent count into a torn value.
+// Not atomic per slot: a read then an add, so a count landing between them is
+// subtracted away. Reset only after a drain, with nothing being counted.
 void ledger_reset(void) {
     for (int t = 0; t < JO_LEDGER_TYPES; t++) {
         ledger_add(&ledger_created_counts[t], -ledger_read(&ledger_created_counts[t]));

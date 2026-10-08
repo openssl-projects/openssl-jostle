@@ -50,7 +50,7 @@ class OperationsTestFIPSJNI implements OperationsTestNI
     public native void setOpsTestFlag(int flag, int value);
 
     @Override
-    public native int op_getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource);
+    public native int op_getEntropy(byte[] out, int strength, boolean predictionResistant, RandSource randSource);
 
     @Override
     public native long op_createTestDrbg(String mechanism, String variant,

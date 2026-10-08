@@ -14,6 +14,7 @@ package org.openssl.jostle.test.fips;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -21,6 +22,7 @@ import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.disposal.DisposalLedgerOpsTest;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 import org.openssl.jostle.util.ops.OperationsTestNI.LedgerType;
+import org.openssl.jostle.util.ops.OperationsTestNI.OpsTestFlag;
 
 import java.security.Provider;
 import java.security.Security;
@@ -66,6 +68,14 @@ public class FIPSDisposalLedgerOpsTest extends DisposalLedgerOpsTest
     protected int minimumTypesExpected()
     {
         return 15;
+    }
+
+    @Test
+    @Override
+    public void aSkippedFreeShowsOnExactlyThatType() throws Exception
+    {
+        // Exercises interface/fips/util/md.c
+        skippedFreeShowsOnExactlyMdCtx(OpsTestFlag.OPS_LEDGER_SKIP_FREE_1);
     }
 
     @Override

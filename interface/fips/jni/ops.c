@@ -61,6 +61,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1c
     jo_assert(_personalization != NULL);
     jo_assert(_entropy != NULL);
     jo_assert(_nonce != NULL);
+    jo_assert(_mechanism != NULL);
+    jo_assert(_variant != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
 
     java_bytearray_ctx personalization;
@@ -130,7 +132,7 @@ JNIEXPORT jboolean JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op
 }
 
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1getEntropy
-(JNIEnv *env, jobject o, jbyteArray _out, jint len, jint strength, jboolean pred, jobject rnd_src) {
+(JNIEnv *env, jobject o, jbyteArray _out, jint strength, jboolean pred, jobject rnd_src) {
     UNUSED(o);
 
     //
@@ -147,7 +149,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_ops_OperationsTestJNI_op_1ge
 
     jo_assert(load_bytearray_ctx(&data,env,_out) != 0);
 
-    int rc = OPS_GetRandomBytes(data.bytearray, len, strength, pred, rnd_src);
+    int rc = OPS_GetRandomBytes(data.bytearray, data.size, strength, pred, rnd_src);
 
     release_bytearray_ctx(&data);
 

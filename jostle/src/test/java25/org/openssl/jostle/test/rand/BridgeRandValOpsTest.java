@@ -66,7 +66,7 @@ public class BridgeRandValOpsTest
 
         DefaultRandSource randSource = DefaultRandSource.wrap(secRand);
         byte[] random = new byte[128];
-        int len = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 129, false, randSource);
+        int len = operationsTestNI.getRandDataViaOpenSSL(random, 129, false, randSource);
 
         Assertions.assertEquals(0, len); // FALSE from RAND_bytes_ex
 
@@ -90,7 +90,7 @@ public class BridgeRandValOpsTest
 
         DefaultRandSource randSource = DefaultRandSource.wrap(secRand);
         byte[] random = new byte[128];
-        int len = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 127, false, randSource);
+        int len = operationsTestNI.getRandDataViaOpenSSL(random, 127, false, randSource);
 
         Assertions.assertEquals(1, len); // SUCCESS
 
@@ -105,7 +105,7 @@ public class BridgeRandValOpsTest
 
         DefaultRandSource randSource = DefaultRandSource.wrap(secRand);
         byte[] random = new byte[128];
-        int len = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 128, false, randSource);
+        int len = operationsTestNI.getRandDataViaOpenSSL(random, 128, false, randSource);
 
         Assertions.assertEquals(1, len); // SUCCESS
 
@@ -122,7 +122,7 @@ public class BridgeRandValOpsTest
         DefaultRandSource randSource = DefaultRandSource.wrap(random);
 
         byte[] data = new byte[128];
-        int rc = operationsTestNI.getRandDataViaOpenSSL(data, data.length, 128, true, randSource);
+        int rc = operationsTestNI.getRandDataViaOpenSSL(data, 128, true, randSource);
 
         Assertions.assertEquals(1, rc); // SUCCESS
         Assertions.assertEquals(1, random.reseedCounter); // reseed was called!
@@ -139,7 +139,7 @@ public class BridgeRandValOpsTest
         DefaultRandSource randSource = new TestRandRandSource(random, DrbgParameters.instantiation(128, DrbgParameters.Capability.NONE, null));
 
         byte[] data = new byte[128];
-        int rc = operationsTestNI.getRandDataViaOpenSSL(data, data.length, 128, true, randSource);
+        int rc = operationsTestNI.getRandDataViaOpenSSL(data, 128, true, randSource);
 
         Assertions.assertEquals(0, rc); // Fail due to no reseed
         Assertions.assertEquals(0, random.reseedCounter); // reseed was called!

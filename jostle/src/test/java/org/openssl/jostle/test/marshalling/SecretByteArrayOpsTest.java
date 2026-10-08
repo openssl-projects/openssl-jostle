@@ -56,12 +56,27 @@ public class SecretByteArrayOpsTest
     }
 
     @BeforeEach
-    public void requireJniOpsBuild()
+    public void requireOpsBuild()
     {
-        Assumptions.assumeFalse(Loader.isFFM(), "JNI only: the secret contexts are JNI marshalling");
         Assumptions.assumeTrue(ops().opsTestAvailable(), "not an operations-test build");
         ops().resetFlags();
         ops().ledgerReset();
+    }
+
+    private static void requireJni()
+    {
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only: the secret contexts are JNI marshalling");
+    }
+
+    /** FFM has no secret contexts by design: the round trip is refused and neither ledger type moves. */
+    @Test
+    public void ffmHasNoSecretContexts()
+    {
+        Assumptions.assumeTrue(Loader.isFFM(), "FFM only: JNI is covered by the round-trip cells");
+        UnsupportedOperationException ex = Assertions.assertThrows(UnsupportedOperationException.class,
+                () -> ops().op_secretRoundTrip(new byte[8], new byte[8], new int[4]));
+        Assertions.assertEquals("the secret byte-array contexts are JNI only", ex.getMessage());
+        assertLedger(0);
     }
 
     /** Random bytes with no zero, so an uncleansed buffer cannot read as cleansed. */
@@ -90,6 +105,7 @@ public class SecretByteArrayOpsTest
     @Test
     public void roundTripCleansesBothCopiesAndNeverWritesTheInput()
     {
+        requireJni();
         int inLen = 1 + RANDOM.nextInt(256);
         int outLen = inLen + 1 + RANDOM.nextInt(32);
         byte[] input = nonZero(inLen);
@@ -119,6 +135,7 @@ public class SecretByteArrayOpsTest
     @Test
     public void nullArraysLoadEmptyAndReleaseAsNoOps()
     {
+        requireJni();
         int[] report = new int[]{-1, -1, -1, -1};
         Assertions.assertEquals(0, ops().op_secretRoundTrip(null, null, report));
         Assertions.assertArrayEquals(new int[]{0, 0, 0, 0}, report);
@@ -128,6 +145,7 @@ public class SecretByteArrayOpsTest
     @Test
     public void emptyArraysLoadAndRelease()
     {
+        requireJni();
         int[] report = new int[]{-1, -1, -1, -1};
         Assertions.assertEquals(0, ops().op_secretRoundTrip(new byte[0], new byte[0], report));
         System.out.println("[secret] library=" + library() + " inLen=0 outLen=0 jvmCopy=" + report[0]

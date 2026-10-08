@@ -26,8 +26,8 @@ import java.util.Optional;
  * the no-arg constructor uses the process-global {@code loaderLookup()} (the
  * base library); {@code OperationsTestFIPSFFM} passes a library-scoped lookup
  * pinned to the extracted FIPS library. The ops symbols exist only in a
- * JOSTLE_OPS_TEST build, so {@link #opsTestAvailable()} probes for
- * {@code set_ops_test} and reports false when absent.
+ * JOSTLE_OPS_TEST build, so {@link #opsTestAvailable()} reports whether the
+ * lookup resolves the prefixed {@code JoOps_setFlag}.
  */
 public class OperationsTestFFM implements OperationsTestNI
 {
@@ -307,8 +307,13 @@ public class OperationsTestFFM implements OperationsTestNI
     }
 
     @Override
-    public int op_getEntropy(byte[] out, int len, int strength, boolean predictionResistant, RandSource randSource)
+    public int op_getEntropy(byte[] out, int strength, boolean predictionResistant, RandSource randSource)
     {
+        if (!opsAvailable)
+        {
+            throw new IllegalStateException("no ops testing available on native side");
+        }
+
         try (Arena a = Arena.ofConfined())
         {
 
@@ -320,7 +325,8 @@ public class OperationsTestFFM implements OperationsTestNI
 
             MemorySegment outSegment = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-            int rc = (int) getRandomBytes.invokeExact(outSegment, (long) len, strength, predictionResistant ? 1 : 0, getEntropySegment);
+            int rc = (int) getRandomBytes.invokeExact(outSegment, (long) lengthOf(out), strength,
+                    predictionResistant ? 1 : 0, getEntropySegment);
 
             if (out != null)
             {
