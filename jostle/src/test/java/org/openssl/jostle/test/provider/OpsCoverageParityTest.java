@@ -85,7 +85,7 @@ public class OpsCoverageParityTest
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 139;
+    static final int BASELINE_SIZE = 134;
 
     private static final Set<String> BASELINE = baseline();
 
@@ -95,6 +95,10 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/ffm/asn1_ni_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/fips/ffm/mac_ffm.c", "OPS_INT32_OVERFLOW_2");
         add(s, "interface/fips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
+        // The FIPS-tree upcall rows (rand_upcall_ffm.c and rand_upcall_jni.c) are unreachable by construction: the FIPS
+        // lib ctx installs no bridge RAND, so nothing calls the upcall. The base attach-failure branch
+        // (rand_upcall_jni.c, OPS_THREAD_ATTACH_1 on the detached path) is unreachable too, every draw running on an
+        // attached Java thread; it has no row because its flag is shared with the attached-path check.
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_INT32_OVERFLOW_2");
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_RAND_UP_CALL_NULL");
@@ -184,7 +188,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_7");
         add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_8");
         add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_9");
-        add(s, "interface/fips/util/rand.c", "OPS_FAILED_INIT_2");
         add(s, "interface/fips/util/rsa_pkcs1.c", "OPS_FAILED_INIT_1");
         add(s, "interface/fips/util/rsa_pkcs1.c", "OPS_OPENSSL_ERROR_4");
         add(s, "interface/fips/util/slhdsa.c", "OPS_FAILED_CREATE_1");
@@ -227,10 +230,6 @@ public class OpsCoverageParityTest
         add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_7");
         add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_8");
         add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_9");
-        add(s, "interface/nonfips/util/rand.c", "OPS_FAILED_INIT_2");
-        add(s, "interface/nonfips/util/rand/jostle_lib_ctx.c", "OPS_OPENSSL_ERROR_1");
-        add(s, "interface/nonfips/util/rand/jostle_lib_ctx.c", "OPS_OPENSSL_ERROR_2");
-        add(s, "interface/nonfips/util/rand/jostle_lib_ctx.c", "OPS_RAND_UP_CALL_NULL");
         return Collections.unmodifiableSet(s);
     }
 
@@ -304,6 +303,29 @@ public class OpsCoverageParityTest
                 "the baseline literal and its declared size disagree");
     }
 
+    /**
+     * The scanner counts a flag only in code. A file annotated by a test that sets the same flag elsewhere would
+     * hide a comment-only pair from the coverage check, so the stripping is pinned on its own.
+     */
+    @Test
+    public void flagsInCommentsAndStringsAreNotScanned()
+    {
+        String src = "// OPS_FAILED_INIT_1 in a line comment\n"
+                + "/* OPS_OPENSSL_ERROR_2 in a\n   block comment */\n"
+                + "const char *s = \"OPS_SHORT_SIZE_1 in a string\";\n"
+                + "if (OPS_FAILED_ACCESS_1 p == NULL) {\n";
+        String stripped = stripCommentsAndStrings(src);
+
+        Set<String> found = new TreeSet<String>();
+        Matcher m = FLAG.matcher(stripped);
+        while (m.find())
+        {
+            found.add(m.group(1));
+        }
+        Assertions.assertEquals(Collections.singleton("OPS_FAILED_ACCESS_1"), found);
+        Assertions.assertEquals(src.split("\n", -1).length, stripped.split("\n", -1).length, "line breaks kept");
+    }
+
     private static Map<String, Set<String>> scanC(Path root) throws IOException
     {
         Map<String, Set<String>> out = new LinkedHashMap<String, Set<String>>();
@@ -325,7 +347,8 @@ public class OpsCoverageParityTest
                         continue;
                     }
                     String rel = root.relativize(p).toString().replace('\\', '/');
-                    String body = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
+                    String body = stripCommentsAndStrings(
+                            new String(Files.readAllBytes(p), StandardCharsets.UTF_8));
                     Matcher m = FLAG.matcher(body);
                     while (m.find())
                     {
@@ -345,6 +368,64 @@ public class OpsCoverageParityTest
             }
         }
         return out;
+    }
+
+    /**
+     * Blanks C comments and string and character literals, keeping line breaks. A flag named in a comment is not
+     * an injection point, and counting one put a pair in the baseline that no code could ever cover.
+     */
+    static String stripCommentsAndStrings(String src)
+    {
+        StringBuilder out = new StringBuilder(src.length());
+        int i = 0;
+        int n = src.length();
+        while (i < n)
+        {
+            char c = src.charAt(i);
+            if (c == '/' && i + 1 < n && src.charAt(i + 1) == '/')
+            {
+                while (i < n && src.charAt(i) != '\n')
+                {
+                    out.append(' ');
+                    i++;
+                }
+            }
+            else if (c == '/' && i + 1 < n && src.charAt(i + 1) == '*')
+            {
+                int end = src.indexOf("*/", i + 2);
+                end = end < 0 ? n : end + 2;
+                for (; i < end; i++)
+                {
+                    out.append(src.charAt(i) == '\n' ? '\n' : ' ');
+                }
+            }
+            else if (c == '"' || c == '\'')
+            {
+                out.append(' ');
+                i++;
+                while (i < n && src.charAt(i) != c && src.charAt(i) != '\n')
+                {
+                    if (src.charAt(i) == '\\' && i + 1 < n)
+                    {
+                        out.append(' ');
+                        i++;
+                    }
+                    out.append(' ');
+                    i++;
+                }
+                if (i < n && src.charAt(i) == c)
+                {
+                    out.append(' ');
+                    i++;
+                }
+            }
+            else
+            {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
     }
 
     private static Map<String, Set<String>> scanTests(Path root) throws IOException

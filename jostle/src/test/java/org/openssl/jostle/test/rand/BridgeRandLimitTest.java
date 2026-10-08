@@ -12,10 +12,8 @@
 package org.openssl.jostle.test.rand;
 
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
@@ -24,6 +22,8 @@ import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.SecureRandom;
 import java.security.Security;
@@ -79,9 +79,8 @@ public class BridgeRandLimitTest
     @Test
     public void testJavaUpCallThrows() throws Exception
     {
-        // RandSource that throws — JNI-only: FFM's upcallStub kills the JVM
-        // on a leaked exception, so this path doesn't apply there.
-        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
+        // RandSource that throws: JNI converts it in C, FFM in RandSource.getRandomSegment. Both hand the
+        // bridge RAND JO_RAND_ERROR, so both report the same failure.
         try
         {
             mldsaServiceNI.generateKeyPair(17, new ThrowingRandSource());
@@ -89,7 +88,7 @@ public class BridgeRandLimitTest
         }
         catch (Exception t)
         {
-            assertOpenSSLMessageContains(t, "rand up call threw an exception");
+            assertOpenSSLMessageContains(t, "rand up-call failed with code -99");
         }
     }
 
@@ -408,6 +407,30 @@ public class BridgeRandLimitTest
         public void nextBytes(byte[] bytes)
         {
             throw new RuntimeException("intentional throw from SecureRandom");
+        }
+    }
+
+    @Test
+    public void refusedCallLeavesTheArrayUntouched()
+    {
+        // A bridge refusal returns before the array is read, on both bridges.
+        RandServiceNI randServiceNI = TestNISelector.getRandNI();
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        byte[] out = new byte[48];
+        Arrays.fill(out, (byte) 0x5A);
+        try
+        {
+            int code = randServiceNI.ni_contextRandomBytes(ref, out, 32, 257, false, null);
+
+            Assertions.assertEquals(ErrorCode.JO_RAND_INSUFFICIENT_STRENGTH.getCode(), code);
+            for (int i = 0; i < out.length; i++)
+            {
+                Assertions.assertEquals((byte) 0x5A, out[i], "byte " + i + " changed on a refused call");
+            }
+        }
+        finally
+        {
+            randServiceNI.disposeContext(ref);
         }
     }
 }

@@ -20,6 +20,9 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.SecureRandom;
 
@@ -161,6 +164,30 @@ public class FIPSRandBridgeLimitTest
         public int getStrength()
         {
             return 256;
+        }
+    }
+
+    @Test
+    public void refusedCallLeavesTheArrayUntouched()
+    {
+        // A bridge refusal returns before the array is read, on both bridges.
+        RandServiceNI randServiceNI = FIPSNISelector.RandServiceNI;
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        byte[] out = new byte[48];
+        Arrays.fill(out, (byte) 0x5A);
+        try
+        {
+            int code = randServiceNI.ni_contextRandomBytes(ref, out, 32, 257, false, null);
+
+            Assertions.assertEquals(ErrorCode.JO_RAND_INSUFFICIENT_STRENGTH.getCode(), code);
+            for (int i = 0; i < out.length; i++)
+            {
+                Assertions.assertEquals((byte) 0x5A, out[i], "byte " + i + " changed on a refused call");
+            }
+        }
+        finally
+        {
+            randServiceNI.disposeContext(ref);
         }
     }
 }

@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.UpCallFailure;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Arrays;
@@ -72,6 +73,12 @@ public class BridgeRandValOpsTest
         String err = OpenSSL.getOpenSSLErrors();
 
         Assertions.assertTrue(err.contains("-97")); // JO_RAND_INSUFFICIENT_STRENGTH
+
+        // The draw returns a code with no handler; the refusal's type is left for the enclosing operation.
+        Throwable cause = UpCallFailure.takeAndClear();
+        Assertions.assertNotNull(cause, "no cause recorded for the strength refusal");
+        Assertions.assertEquals(IllegalArgumentException.class, cause.getClass());
+        Assertions.assertEquals("insufficient random strength", cause.getMessage());
     }
 
     @Test
@@ -139,6 +146,11 @@ public class BridgeRandValOpsTest
 
         String err = OpenSSL.getOpenSSLErrors();
         Assertions.assertTrue(err.contains("-100")); // JO_RAND_NO_RESEED
+
+        Throwable cause = UpCallFailure.takeAndClear();
+        Assertions.assertNotNull(cause, "no cause recorded for the reseed refusal");
+        Assertions.assertEquals(IllegalStateException.class, cause.getClass());
+        Assertions.assertEquals("random reseed failed", cause.getMessage());
     }
 
     // Pass DRBGParams regardless of what's in the SecureRandom.

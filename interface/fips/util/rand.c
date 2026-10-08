@@ -56,41 +56,6 @@ static unsigned int rand_strength(int32_t strength) {
     return (unsigned int) strength;
 }
 
-int32_t rand_init(const char *provider_name, int32_t *created) {
-    jo_assert(provider_name != NULL);
-    jo_assert(created != NULL);
-
-    *created = 0;
-    if (rand_libctx != NULL) {
-        // Native RAND state is process-wide and intentionally bound to the
-        // first successfully loaded provider name.
-        jo_assert(rand_provider_name != NULL);
-        if (strcmp(rand_provider_name, provider_name) != 0) {
-            return JO_UNEXPECTED_STATE;
-        }
-
-        return JO_SUCCESS;
-    }
-
-    char *provider_name_copy = OPENSSL_strdup(provider_name);
-    jo_assert(provider_name_copy != NULL);
-
-    OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
-    jo_assert(libctx != NULL);
-
-    ERR_clear_error();
-    if (OSSL_PROVIDER_load(libctx, provider_name) == NULL) {
-        OSSL_LIB_CTX_free(libctx);
-        OPENSSL_free(provider_name_copy);
-        return JO_OPENSSL_ERROR;
-    }
-
-    rand_libctx = libctx;
-    rand_provider_name = provider_name_copy;
-    *created = 1;
-    return JO_SUCCESS;
-}
-
 int32_t rand_init_fips(const char *module_dir, const char *prov_name,
                        const char *config_path, int32_t *created) {
     jo_assert(module_dir != NULL);
@@ -117,6 +82,8 @@ int32_t rand_init_fips(const char *module_dir, const char *prov_name,
     OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
     jo_assert(libctx != NULL);
 
+    // A second configure, after jostle_ctx_init_fips's: the module image and its self-tests are once per
+    // process, so this adds only a provider instance with its own DRBG chain.
     int32_t ret_code = jostle_fips_configure_libctx(libctx, module_dir, prov_name, config_path);
     if (UNSUCCESSFUL(ret_code)) {
         OSSL_LIB_CTX_free(libctx);

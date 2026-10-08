@@ -20,6 +20,7 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 /**
@@ -90,7 +91,7 @@ public class FIPSBridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/fips/util/rand.c:173
+        // Exercises interface/fips/util/rand.c:140
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -104,7 +105,7 @@ public class FIPSBridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/fips/util/rand.c:274
+        // Exercises interface/fips/util/rand.c:241
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -118,7 +119,7 @@ public class FIPSBridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/fips/util/rand.c:184
+        // Exercises interface/fips/util/rand.c:151
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -132,7 +133,7 @@ public class FIPSBridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/fips/util/rand.c:200
+        // Exercises interface/fips/util/rand.c:167
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -146,7 +147,7 @@ public class FIPSBridgeRandOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         int[] err = new int[1];
-        // Exercises interface/fips/util/rand.c:231
+        // Exercises interface/fips/util/rand.c:198
         operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
         long ref = randServiceNI.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
 
@@ -162,7 +163,7 @@ public class FIPSBridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/fips/util/rand.c:337
+            // Exercises interface/fips/util/rand.c:304
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
 
@@ -183,7 +184,7 @@ public class FIPSBridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/fips/util/rand.c:320
+            // Exercises interface/fips/util/rand.c:287
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
             int code = randServiceNI.ni_contextRandomBytes(ref, new byte[1], 1, 0, false, null);
 
@@ -204,9 +205,9 @@ public class FIPSBridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/fips/util/rand.c:367
+            // Exercises interface/fips/util/rand.c:334
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
-            // Exercises interface/fips/util/rand.c:337
+            // Exercises interface/fips/util/rand.c:335
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
@@ -227,11 +228,64 @@ public class FIPSBridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/fips/util/rand.c:378
+            // Exercises interface/fips/util/rand.c:345
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
             Assertions.assertEquals(JO_RAND_RESEED - 3051, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextReseedForcedReadyTakesTheReseedBranch()
+    {
+        // As the base twin: the forced non-READY state alone refuses; forcing the READY test then reseeds.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/fips/util/rand.c:331
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
+            // Exercises interface/fips/util/rand.c:344
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
+            int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
+
+            Assertions.assertEquals(0, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void failedGenerateLeavesTheRequestZeroAndTheRestUntouched()
+    {
+        // Both bridges: the requested span is set to zero on a failed generate, bytes past it are left as they were.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        byte[] out = new byte[48];
+        Arrays.fill(out, (byte) 0x5A);
+        try
+        {
+            // Exercises interface/fips/util/rand.c:304
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            int code = randServiceNI.ni_contextRandomBytes(ref, out, 32, 0, false, null);
+
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 3040, code);
+            Assertions.assertTrue(Arrays.areAllZeroes(out, 0, 32), "the requested span was not set to zero");
+            for (int i = 32; i < out.length; i++)
+            {
+                Assertions.assertEquals((byte) 0x5A, out[i], "byte " + i + " past the request changed");
+            }
         }
         finally
         {
@@ -248,7 +302,7 @@ public class FIPSBridgeRandOpsTest
         long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
         try
         {
-            // Exercises interface/fips/util/rand.c:364
+            // Exercises interface/fips/util/rand.c:331
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 

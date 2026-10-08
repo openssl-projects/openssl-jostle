@@ -16,6 +16,7 @@ import org.junit.jupiter.api.*;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
@@ -349,7 +350,7 @@ public class BridgeRandOpsTest
         {
             // Exercises interface/nonfips/util/rand.c:327
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
-            // Exercises interface/nonfips/util/rand.c:297
+            // Exercises interface/nonfips/util/rand.c:328
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
@@ -375,6 +376,111 @@ public class BridgeRandOpsTest
             int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
 
             Assertions.assertEquals(JO_RAND_RESEED - 3051, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void contextReseedForcedReadyTakesTheReseedBranch()
+    {
+        // The state is forced to neither UNINITIALISED nor READY, which alone refuses (the cell above); forcing the
+        // READY test then takes the reseed branch, which succeeds on a live ctx.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        try
+        {
+            // Exercises interface/nonfips/util/rand.c:324
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
+            // Exercises interface/nonfips/util/rand.c:337
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
+            int code = randServiceNI.ni_contextReseed(ref, 0, false, null);
+
+            Assertions.assertEquals(0, code);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            randServiceNI.disposeContext(ref);
+        }
+    }
+
+    @Test
+    public void bridgeGenerateRefusesAWholeUpcallResultWhenForced() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
+
+        DefaultRandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
+        byte[] random = new byte[32];
+        try
+        {
+            // Exercises interface/nonfips/util/rand/jostle_lib_ctx.c:77
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            int rc = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 0, false, randSource);
+
+            Assertions.assertEquals(0, rc);
+            String err = OpenSSL.getOpenSSLErrors();
+            Assertions.assertTrue(err.contains("rand up-call failed with code 32"), err);
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    /**
+     * The flag forces the up-call branch for a NULL target. No Java path draws with a NULL target: every entry sets
+     * one, and setting asserts it non-NULL. With a target the flag changes nothing, which is what this pins.
+     */
+    @Test
+    public void bridgeGenerateUpcallFlagIsInertWithATarget() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
+
+        DefaultRandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
+        byte[] random = new byte[32];
+        try
+        {
+            // Exercises interface/nonfips/util/rand/jostle_lib_ctx.c:75
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            int rc = operationsTestNI.getRandDataViaOpenSSL(random, random.length, 0, false, randSource);
+
+            Assertions.assertEquals(1, rc);
+            Assertions.assertFalse(Arrays.areAllZeroes(random, 0, random.length));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void failedGenerateLeavesTheRequestZeroAndTheRestUntouched()
+    {
+        // Both bridges: the requested span is set to zero on a failed generate, bytes past it are left as they were.
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long ref = randServiceNI.createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null);
+        byte[] out = new byte[48];
+        Arrays.fill(out, (byte) 0x5A);
+        try
+        {
+            // Exercises interface/nonfips/util/rand.c:297
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            int code = randServiceNI.ni_contextRandomBytes(ref, out, 32, 0, false, null);
+
+            Assertions.assertEquals(JO_OPENSSL_ERROR - 3040, code);
+            Assertions.assertTrue(Arrays.areAllZeroes(out, 0, 32), "the requested span was not set to zero");
+            for (int i = 32; i < out.length; i++)
+            {
+                Assertions.assertEquals((byte) 0x5A, out[i], "byte " + i + " past the request changed");
+            }
         }
         finally
         {

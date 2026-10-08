@@ -13,15 +13,6 @@ typedef struct jostle_lib_ctx {
 } jostle_lib_ctx;
 
 /**
- * Create a new jostle_lib_ctx and set **rnd_ctx.
- * @param rnd_ctx receiver of the new context.
- * @param name the name of the OpenSSL module to load.
- * @return JO_SUCCESS or other JO_xx code.
- */
-int32_t jostle_ctx_init_new(jostle_lib_ctx **rnd_ctx, const char *name);
-
-
-/**
  * Free a jostle_lib_ctx: OSSL_LIB_CTX (unloads providers) and the wrapper
  * struct. Safe with NULL. Failure-path rollback only; not a general
  * teardown primitive.

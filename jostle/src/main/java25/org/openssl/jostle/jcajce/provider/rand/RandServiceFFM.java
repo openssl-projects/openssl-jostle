@@ -185,28 +185,41 @@ public class RandServiceFFM implements RandServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
+            // The caller's bytes go in and [0, outputLen) comes back, as the JNI helper's copy and mode-0 release
+            // do: a refused call leaves the array as it was, and a failed generate (cleansed in C) leaves zeros.
             MemorySegment outputSeg = output == null ?
                     MemorySegment.NULL :
-                    a.allocate(output.length);
+                    a.allocateFrom(ValueLayout.JAVA_BYTE, output);
             MemorySegment additionalInputSeg = byteArraySegment(a, additionalInput);
 
-            int code = (int) contextRandomBytesFuncHandle.invokeExact(
-                    MemorySegment.ofAddress(reference),
-                    outputSeg,
-                    outputSeg.byteSize(),
-                    outputLen,
-                    strength,
-                    (byte) (predictionResistant ? 1 : 0),
-                    additionalInputSeg,
-                    additionalInputSeg.byteSize()
-            );
-
-            if (code >= 0 && output != null && outputLen > 0)
+            try
             {
-                outputSeg.asSlice(0, outputLen).asByteBuffer().get(output, 0, outputLen);
-            }
+                int code = (int) contextRandomBytesFuncHandle.invokeExact(
+                        MemorySegment.ofAddress(reference),
+                        outputSeg,
+                        outputSeg.byteSize(),
+                        outputLen,
+                        strength,
+                        (byte) (predictionResistant ? 1 : 0),
+                        additionalInputSeg,
+                        additionalInputSeg.byteSize()
+                );
 
-            return code;
+                if (output != null && outputLen > 0 && outputLen <= output.length)
+                {
+                    outputSeg.asSlice(0, outputLen).asByteBuffer().get(output, 0, outputLen);
+                }
+
+                return code;
+            }
+            finally
+            {
+                // Arena.close() frees but does not cleanse; the segment held DRBG output.
+                if (outputSeg.byteSize() > 0)
+                {
+                    outputSeg.fill((byte) 0);
+                }
+            }
         }
         catch (Throwable t)
         {

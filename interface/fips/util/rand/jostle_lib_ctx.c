@@ -24,10 +24,8 @@ static CRYPTO_THREAD_LOCAL java_srand_id;
 // that used to sit here as dead weight was removed so it cannot be wired in
 // by accident; do not reintroduce it. What remains live:
 //
-//   1. jostle_ctx_init_new / jostle_ctx_destroy — plain lib ctx lifecycle
-//      (bridge-less). Reached only through the base-named FFM init export
-//      (ffm/openssl_ffm.c, part of the shared FFM glue set); the JSLFIPS
-//      Java classes always use jostle_ctx_init_fips instead.
+//   1. jostle_ctx_destroy - frees a ctx built by jostle_ctx_init_fips (the
+//      only constructor in this tree; see jostle_fips_ctx.c).
 //   2. set_global_jostle_fips_lib_ctx / get_global_jostle_fips_ossl_lib_ctx —
 //      the provider-wide lib ctx accessor used by every util module. Named
 //      apart from the base tree's pair on purpose, so neither symbol exists
@@ -37,34 +35,6 @@ static CRYPTO_THREAD_LOCAL java_srand_id;
 //      bridge glue calls it on every entropy-accepting entry point (the
 //      util twins are byte-identical across trees), but in the FIPS tree
 //      nothing ever reads the thread-local: no consumer exists by design.
-
-
-int32_t jostle_ctx_init_new(jostle_lib_ctx **ctx, const char *name) {
-    jo_assert(ctx != NULL);
-    jo_assert(name != NULL);
-
-    jostle_lib_ctx *new_ctx = OPENSSL_zalloc(sizeof(jostle_lib_ctx));
-    jo_assert(new_ctx != NULL);
-
-    // Bridge-less by design (see the FIPS-tree note above): a fresh lib ctx
-    // with only the named provider loaded. Soft-error path: the provider
-    // failing to load rolls back so the caller can retry.
-    OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
-    jo_assert(libctx != NULL);
-
-    OSSL_PROVIDER *provider = OSSL_PROVIDER_load(libctx, name);
-    if (provider == NULL) {
-        OSSL_LIB_CTX_free(libctx);
-        OPENSSL_free(new_ctx);
-        *ctx = NULL;
-        return JO_OPENSSL_ERROR;
-    }
-
-    new_ctx->ossl_libctx = libctx;
-    *ctx = new_ctx;
-
-    return JO_SUCCESS;
-}
 
 
 void jostle_ctx_destroy(jostle_lib_ctx *ctx) {

@@ -5,6 +5,8 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
+#include <openssl/crypto.h>
+
 #include "types.h"
 #include "../util/bc_err_codes.h"
 #include "../util/jo_assert.h"
@@ -82,9 +84,14 @@ int32_t JoRand_contextRandomBytes(JO_RAND_CTX *ctx, uint8_t *output,
         return JO_INPUT_IS_NULL;
     }
 
-    return rand_ctx_random_bytes(ctx, output, output_len, strength,
-                                 prediction_resistant != 0, additional_input,
-                                 additional_input_size);
+    int32_t ret_code = rand_ctx_random_bytes(ctx, output, output_len, strength,
+                                             prediction_resistant != 0, additional_input,
+                                             additional_input_size);
+    if (ret_code < 0) {
+        // Generate failed: the buffer holds undefined (possibly partial DRBG) bytes. Zero it, as the JNI twin does.
+        OPENSSL_cleanse(output, (size_t) output_len);
+    }
+    return ret_code;
 }
 
 int32_t JoRand_contextReseed(JO_RAND_CTX *ctx, int32_t strength,

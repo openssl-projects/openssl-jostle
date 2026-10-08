@@ -186,6 +186,8 @@ public class DefaultRandSource implements RandSource
             if (strength > this.strength)
             {
                 LOG.warning(String.format("Insufficient strength: required %d but source strength is %d", strength, this.strength));
+                // The code reaches Java only as ERR text; the recorded cause carries its type.
+                UpCallFailure.record(new IllegalArgumentException("insufficient random strength"));
                 return ErrorCode.JO_RAND_INSUFFICIENT_STRENGTH.getCode();
             }
 
@@ -201,6 +203,7 @@ public class DefaultRandSource implements RandSource
                         // So fail
                         //
                         LOG.warning("OpenSSL requested prediction resistance but DRBG does not support it or reseeding");
+                        UpCallFailure.record(new IllegalStateException("random reseed failed"));
                         return ErrorCode.JO_RAND_NO_RESEED.getCode();
                     }
                     random.reseed();

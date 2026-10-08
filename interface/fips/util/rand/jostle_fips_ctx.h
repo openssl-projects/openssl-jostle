@@ -31,7 +31,7 @@
  * the resolved config path. The bridge layer validates the strings
  * (null/empty); util asserts them as invariants.
  *
- * Unlike jostle_ctx_init_new, NO java_rand_bridge provider is installed and
+ * Unlike the base tree's jostle_ctx_init_new, NO java_rand_bridge provider is installed and
  * rand_ctx is left NULL: entropy stays inside the FIPS boundary, served by
  * the module's own approved DRBGs (auto-instantiated by OpenSSL on first
  * use of the lib ctx RAND).
