@@ -19,8 +19,11 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.Asn1TrailingDataException;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.spec.MLDSAPrivateKeySpec;
+import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
@@ -771,6 +774,80 @@ public class Asn1LimitTest
                     () -> keyFactory.generatePublic(new X509EncodedKeySpec(withJunk)));
             Assertions.assertEquals("unable to decode ML-DSA public key", ex.getMessage());
             Assertions.assertEquals(Asn1TrailingDataException.class, ex.getCause().getClass());
+        }
+    }
+
+    /** An ML-DSA-44 private key imported from its expanded form, so it carries no seed. */
+    private static MLDSAPrivateKey seedlessMldsaKey() throws Exception
+    {
+        KeyPair kp = generateMldsaKeyPair();
+        MLDSAPrivateKey source = (MLDSAPrivateKey) kp.getPrivate();
+        MLDSAPrivateKey key = (MLDSAPrivateKey) KeyFactory.getInstance("ML-DSA-44", JostleProvider.PROVIDER_NAME)
+                .generatePrivate(new MLDSAPrivateKeySpec(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44,
+                        source.getPrivateData(), ((MLDSAPublicKey) kp.getPublic()).getPublicData()));
+        Assertions.assertNull(key.getSeed(), "the import must carry no seed");
+        return key;
+    }
+
+    @Test
+    public void encodePrivateKey_seedOnly_seedlessKeyRefusedTyped() throws Exception
+    {
+        MLDSAPrivateKey key = seedlessMldsaKey();
+        long ref = ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec().getReference();
+        long asn1Ref = TestNISelector.Asn1NI.allocate();
+        try
+        {
+            Assertions.assertEquals(ErrorCode.JO_INVALID_SEED_LEN.getCode(),
+                    TestNISelector.Asn1NI.ni_encodePrivateKey(asn1Ref, ref, PrivateKeyOptions.SEED_ONLY.getValue()));
+            IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, ref, PrivateKeyOptions.SEED_ONLY.getValue()));
+            Assertions.assertEquals("invalid seed length", ex.getMessage());
+        }
+        finally
+        {
+            TestNISelector.Asn1NI.dispose(asn1Ref);
+        }
+
+        // The JCA surface never asks for the seed form of such a key: it falls back to the expanded encoding.
+        Assertions.assertArrayEquals(key.getEncoded(), key.getPrivateKey(true).getEncoded());
+    }
+
+    @Test
+    public void fromKeyInfo_zeroLengthArray_sameCodeOnBothDecodes() throws Exception
+    {
+        // A zero-length array is not a null one: both decodes reach the decoder and refuse there.
+        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(),
+                TestNISelector.Asn1NI.ni_fromPrivateKeyInfo(new byte[0], 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(),
+                TestNISelector.Asn1NI.ni_fromPublicKeyInfo(new byte[0], 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(),
+                TestNISelector.Asn1NI.ni_fromPrivateKeyInfo(null, 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(),
+                TestNISelector.Asn1NI.ni_fromPublicKeyInfo(null, 0, 0));
+    }
+
+    @Test
+    public void getData_nullOutputGivesLength_andARepeatGivesTheSameBytes() throws Exception
+    {
+        PKEYKeySpec spec = ((org.openssl.jostle.jcajce.interfaces.OSSLKey) generateMldsaKeyPair().getPrivate())
+                .getSpec();
+        long asn1Ref = TestNISelector.Asn1NI.allocate();
+        try
+        {
+            int len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, spec.getReference(),
+                    PrivateKeyOptions.DEFAULT.getValue());
+            Assertions.assertEquals(len, TestNISelector.Asn1NI.getData(asn1Ref, null));
+
+            byte[] first = new byte[len];
+            Assertions.assertEquals(len, TestNISelector.Asn1NI.getData(asn1Ref, first));
+            byte[] second = new byte[len];
+            Assertions.assertEquals(len, TestNISelector.Asn1NI.getData(asn1Ref, second));
+            Assertions.assertArrayEquals(first, second);
+            TestNISelector.SpecNI.dispose(TestNISelector.Asn1NI.fromPrivateKeyInfo(second, 0, len));
+        }
+        finally
+        {
+            TestNISelector.Asn1NI.dispose(asn1Ref);
         }
     }
 

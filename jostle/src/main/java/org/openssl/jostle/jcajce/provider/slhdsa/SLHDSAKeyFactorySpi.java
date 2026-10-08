@@ -130,7 +130,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                     throw new InvalidKeySpecException("expected SLH-DSA key but got " + pkeySpec.getType());
                 }
 
-                return new JOSLHDSAPublicKey(slhdsaServiceNI, pkeySpec);
+                return new JOSLHDSAPublicKey(slhdsaServiceNI, asn1NI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -166,7 +166,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                     PKEYKeySpec pkeySpec = new PKEYKeySpec(specNI, specNI.allocate(), osslKeyType, providerInstance);
                     slhdsaServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
-                    return new JOSLHDSAPublicKey(slhdsaServiceNI, pkeySpec);
+                    return new JOSLHDSAPublicKey(slhdsaServiceNI, asn1NI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {
@@ -204,7 +204,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                     throw new InvalidKeySpecException("expected SLH-DSA key but got " + pkeySpec.getType());
                 }
 
-                return new JOSLHDSAPrivateKey(slhdsaServiceNI, pkeySpec);
+                return new JOSLHDSAPrivateKey(slhdsaServiceNI, asn1NI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -247,7 +247,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                     slhdsaServiceNI.decode_privateKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);
-                    return new JOSLHDSAPrivateKey(slhdsaServiceNI, pkeySpec);
+                    return new JOSLHDSAPrivateKey(slhdsaServiceNI, asn1NI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {

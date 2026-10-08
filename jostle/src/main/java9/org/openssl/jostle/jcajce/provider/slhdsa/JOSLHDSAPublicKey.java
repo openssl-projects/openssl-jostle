@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.lang.ref.Reference;
 
@@ -25,16 +26,18 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
     // interface library created its PKEY - NISelector for JSL, FIPSNISelector
     // for JSLFIPS - so it must not reach for the base provider's NI.
     private final SLHDSAServiceNI slhdsaServiceNI;
+    private final Asn1Ni asn1NI;
 
     public JOSLHDSAPublicKey(PKEYKeySpec spec)
     {
-        this(NISelector.SLHDSAServiceNI, spec);
+        this(NISelector.SLHDSAServiceNI, NISelector.Asn1NI, spec);
     }
 
-    public JOSLHDSAPublicKey(SLHDSAServiceNI slhdsaServiceNI, PKEYKeySpec spec)
+    public JOSLHDSAPublicKey(SLHDSAServiceNI slhdsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
     {
         super(spec);
         this.slhdsaServiceNI = slhdsaServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -59,7 +62,7 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
         try
         {
             // FIPS 205: AlgorithmIdentifier parameters MUST be absent.
-            return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(asn1NI, spec);
         }
         finally
         {

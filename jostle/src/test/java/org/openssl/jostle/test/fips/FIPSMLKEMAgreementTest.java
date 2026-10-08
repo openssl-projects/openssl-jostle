@@ -363,4 +363,48 @@ public class FIPSMLKEMAgreementTest
                     }
                 });
     }
+
+    /**
+     * From one shared 64-byte seed, JSLFIPS, JSL and BouncyCastle derive byte-identical keys, and the seed-form
+     * private encodings agree byte for byte.
+     */
+    @Test
+    public void sharedSeedYieldsByteEqualKeyEncodings() throws Exception
+    {
+        org.junit.jupiter.api.Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768"),
+                "the loaded FIPS module implements no ML-KEM (3.1.2)");
+        SecureRandom sr = seededRandom("sharedSeedYieldsByteEqualKeyEncodings");
+
+        for (String set : PARAM_SETS)
+        {
+            byte[] seed = new byte[64];
+            sr.nextBytes(seed);
+
+            org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey fipsPriv =
+                    (org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey) KeyFactory.getInstance(set, FIPS)
+                            .generatePrivate(new org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec(
+                                    org.openssl.jostle.jcajce.spec.MLKEMParameterSpec.fromName(set), seed));
+            org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey bcPriv =
+                    (org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey) KeyFactory.getInstance(set, BC)
+                            .generatePrivate(new org.bouncycastle.jcajce.spec.MLKEMPrivateKeySpec(
+                                    org.bouncycastle.jcajce.spec.MLKEMParameterSpec.fromName(set), seed));
+
+            Assertions.assertArrayEquals(bcPriv.getPublicKey().getEncoded(), fipsPriv.getPublicKey().getEncoded(),
+                    set + ": one seed produced two different public keys");
+            Assertions.assertArrayEquals(bcPriv.getPrivateKey(true).getEncoded(),
+                    fipsPriv.getPrivateKey(true).getEncoded(),
+                    set + ": one seed produced two different seed-form private keys");
+            Assertions.assertArrayEquals(bcPriv.getPrivateData(), fipsPriv.getPrivateData(),
+                    set + ": one seed expanded to two different private keys");
+
+            org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey jslPriv =
+                    (org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey) KeyFactory.getInstance(set, JSL)
+                            .generatePrivate(new org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec(
+                                    org.openssl.jostle.jcajce.spec.MLKEMParameterSpec.fromName(set), seed));
+            Assertions.assertArrayEquals(jslPriv.getPrivateKey(true).getEncoded(),
+                    fipsPriv.getPrivateKey(true).getEncoded(),
+                    set + ": JSLFIPS and JSL encoded one seed differently");
+        }
+    }
+
 }

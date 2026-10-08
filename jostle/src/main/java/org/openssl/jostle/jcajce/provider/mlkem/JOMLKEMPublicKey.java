@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
 {
@@ -23,16 +24,18 @@ class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
     // interface library created its PKEY - NISelector for JSL, FIPSNISelector
     // for JSLFIPS - so it must not reach for the base provider's NI.
     private final MLKEMServiceNI mlkemServiceNI;
+    private final Asn1Ni asn1NI;
 
     public JOMLKEMPublicKey(PKEYKeySpec spec)
     {
-        this(NISelector.MLKEMServiceNI, spec);
+        this(NISelector.MLKEMServiceNI, NISelector.Asn1NI, spec);
     }
 
-    public JOMLKEMPublicKey(MLKEMServiceNI mlkemServiceNI, PKEYKeySpec spec)
+    public JOMLKEMPublicKey(MLKEMServiceNI mlkemServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
     {
         super(spec);
         this.mlkemServiceNI = mlkemServiceNI;
+        this.asn1NI = asn1NI;
     }
 
     @Override
@@ -57,7 +60,7 @@ class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
         synchronized (this)
         {
             // FIPS 203: AlgorithmIdentifier parameters MUST be absent.
-            return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(spec);
+            return ASN1Encoder.asCanonicalSubjectPublicKeyInfo(asn1NI, spec);
         }
     }
 

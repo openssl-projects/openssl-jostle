@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.util.JdkSpecs;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Strings;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
@@ -85,10 +86,11 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
     // FIPSNISelector for JSLFIPS).
     private final MLKEMServiceNI mlkemServiceNI;
     private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
 
     public MLKEMKeyPairGenerator(Object algorithm)
     {
-        this(NISelector.MLKEMServiceNI, NISelector.SpecNI, algorithm);
+        this(NISelector.MLKEMServiceNI, NISelector.SpecNI, NISelector.Asn1NI, algorithm);
     }
 
     /**
@@ -106,17 +108,19 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
      */
     private final java.security.Provider providerInstance;
 
-    public MLKEMKeyPairGenerator(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Object algorithm)
+    public MLKEMKeyPairGenerator(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
     {
-        this(mlkemServiceNI, specNI, algorithm, null);
+        this(mlkemServiceNI, specNI, asn1NI, algorithm, null);
     }
 
-    public MLKEMKeyPairGenerator(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Object algorithm, java.security.Provider providerInstance)
+    public MLKEMKeyPairGenerator(MLKEMServiceNI mlkemServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm,
+                                 java.security.Provider providerInstance)
     {
         super(algorithm.toString());
         this.providerInstance = providerInstance;
         this.mlkemServiceNI = mlkemServiceNI;
         this.specNI = specNI;
+        this.asn1NI = asn1NI;
         keyType = paramToTypeMap.get(algorithm);
 
         if (keyType == null)
@@ -258,7 +262,8 @@ public class MLKEMKeyPairGenerator extends KeyPairGenerator
         long res = mlkemServiceNI.generateKeyPair(keyType.getKsType(), randSource);
 
         PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType, providerInstance);
-        return new KeyPair(new JOMLKEMPublicKey(spec), new JOMLKEMPrivateKey(spec));
+        return new KeyPair(new JOMLKEMPublicKey(mlkemServiceNI, asn1NI, spec),
+                new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, spec));
     }
 
 

@@ -73,7 +73,7 @@ public class ASN1UtilOpsTest
 
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:527
+            // Exercises interface/nonfips/util/asn1_util.c:336
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[10], 0, 10);
 
@@ -101,7 +101,7 @@ public class ASN1UtilOpsTest
 
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:469
+            // Exercises interface/nonfips/util/asn1_util.c:278
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPrivateKeyInfo(new byte[10], 0, 10);
             Assertions.fail();
@@ -133,7 +133,8 @@ public class ASN1UtilOpsTest
 
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:92
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:93
+            // Exercises interface/nonfips/ffm/asn1_ni_ffm.c:49
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             asn1NI.encodePublicKey(asn1Ref, keyRef);
             Assertions.fail();
@@ -165,7 +166,9 @@ public class ASN1UtilOpsTest
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:160
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:161
+
+            // Exercises interface/nonfips/ffm/asn1_ni_ffm.c:105
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
@@ -193,7 +196,7 @@ public class ASN1UtilOpsTest
         try
         {
             asn1Ref = asn1NI.allocate();
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:194
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:196
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             asn1NI.getData(asn1Ref, new byte[1024]);
             Assertions.fail();
@@ -227,7 +230,7 @@ public class ASN1UtilOpsTest
 
         try
         {
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:134
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:135
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             long len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue());
             byte[] out = new byte[(int) len];
@@ -259,7 +262,9 @@ public class ASN1UtilOpsTest
         {
             asn1Ref = asn1NI.allocate();
 
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:208
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:210
+
+            // Exercises interface/nonfips/ffm/asn1_ni_ffm.c:125
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             asn1NI.getData(asn1Ref, null);
 
@@ -298,7 +303,7 @@ public class ASN1UtilOpsTest
                 KeyPair key = keyGen.generateKeyPair();
                 MLDSAPrivateKey pk = (MLDSAPrivateKey) key.getPrivate();
                 pk = pk.getPrivateKey(true);
-                // Exercises interface/nonfips/util/asn1_util.c:213
+                // Exercises interface/nonfips/util/asn1_util.c:167
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 pk.getEncoded();
                 Assertions.fail("Should have thrown exception");
@@ -322,7 +327,7 @@ public class ASN1UtilOpsTest
                 KeyPair key = keyGen.generateKeyPair();
                 MLDSAPrivateKey pk = (MLDSAPrivateKey) key.getPrivate();
                 pk = pk.getPrivateKey(true);
-                // Exercises interface/nonfips/util/asn1_util.c:225
+                // Exercises interface/nonfips/util/asn1_util.c:177
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
                 pk.getEncoded();
                 Assertions.fail("Should have thrown exception");
@@ -349,7 +354,7 @@ public class ASN1UtilOpsTest
             asn1Ref = asn1NI.allocate();
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/util/asn1_util.c:167
+            // Exercises interface/nonfips/util/asn1_util.c:129
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             asn1NI.encodePublicKey(asn1Ref, keyRef);
             Assertions.fail();
@@ -378,7 +383,7 @@ public class ASN1UtilOpsTest
             asn1Ref = asn1NI.allocate();
             keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/util/asn1_util.c:427
+            // Exercises interface/nonfips/util/asn1_util.c:241
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
             Assertions.fail();
@@ -404,7 +409,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:236
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:237
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             keyRef = asn1NI.fromPrivateKeyInfo(new byte[100], 0, 100);
             Assertions.fail();
@@ -429,7 +434,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:294
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:295
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[100], 0, 100);
             Assertions.fail();
@@ -462,7 +467,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:489
+            // Exercises interface/nonfips/util/asn1_util.c:298
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
             keyRef = asn1NI.fromPrivateKeyInfo(pkcs8, 0, pkcs8.length);
             Assertions.fail();
@@ -496,7 +501,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:547
+            // Exercises interface/nonfips/util/asn1_util.c:356
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
             keyRef = asn1NI.fromPublicKeyInfo(x509, 0, x509.length);
             Assertions.fail();
@@ -537,7 +542,7 @@ public class ASN1UtilOpsTest
                 KeyPair key = keyGen.generateKeyPair();
                 MLKEMPrivateKey pk = (MLKEMPrivateKey) key.getPrivate();
                 pk = pk.getPrivateKey(true);
-                // Exercises interface/nonfips/util/asn1_util.c:296
+                // Exercises interface/nonfips/util/asn1_util.c:167
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 pk.getEncoded();
                 Assertions.fail("Should have thrown exception");
@@ -561,7 +566,7 @@ public class ASN1UtilOpsTest
                 KeyPair key = keyGen.generateKeyPair();
                 MLKEMPrivateKey pk = (MLKEMPrivateKey) key.getPrivate();
                 pk = pk.getPrivateKey(true);
-                // Exercises interface/nonfips/util/asn1_util.c:309
+                // Exercises interface/nonfips/util/asn1_util.c:177
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
                 pk.getEncoded();
                 Assertions.fail("Should have thrown exception");
@@ -573,6 +578,72 @@ public class ASN1UtilOpsTest
             {
                 operationsTestNI.resetFlags();
             }
+        }
+    }
+
+    /**
+     * A private key encode and decode copies the key through the cleansing contexts on JNI, one load each for the
+     * output and the input. FFM reads and writes the Java array itself and copies nothing.
+     */
+    @Test
+    public void privateKeyCopiesAreCleansed() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
+        Assertions.assertTrue(keyRef > 0);
+        long asn1Ref = 0;
+        long decoded = 0;
+        try
+        {
+            operationsTestNI.ledgerReset();
+            asn1Ref = asn1NI.allocate();
+            int len = asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
+            byte[] der = new byte[len];
+            asn1NI.getData(asn1Ref, der);
+            decoded = asn1NI.fromPrivateKeyInfo(der, 0, len);
+            Assertions.assertTrue(decoded > 0);
+
+            int expected = Loader.isFFM() ? 0 : 2;
+            for (OperationsTestNI.LedgerType t : new OperationsTestNI.LedgerType[]{
+                    OperationsTestNI.LedgerType.SECRET_BYTEARRAY, OperationsTestNI.LedgerType.SECRET_CLEANSE})
+            {
+                Assertions.assertEquals(expected, operationsTestNI.ledgerCreated(t), t + " created");
+                Assertions.assertEquals(expected, operationsTestNI.ledgerDestroyed(t), t + " destroyed");
+            }
+        }
+        finally
+        {
+            asn1NI.dispose(asn1Ref);
+            specNI.dispose(decoded);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void opsTestEncodePrivateKey_pkcs8EncoderFail() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long asn1Ref = 0;
+        long keyRef = 0;
+        try
+        {
+            asn1Ref = asn1NI.allocate();
+            keyRef = TestNISelector.getECNi().generateKeyPair("P-256", TestUtil.RNDSrc);
+            Assertions.assertTrue(keyRef > 0);
+            // Exercises interface/nonfips/util/asn1_util.c:236
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
+            Assertions.fail();
+        }
+        catch (OpenSSLException e)
+        {
+            Assertions.assertEquals("OpenSSL Error: null", e.getMessage());
+        }
+        finally
+        {
+            asn1NI.dispose(asn1Ref);
+            specNI.dispose(keyRef);
+            operationsTestNI.resetFlags();
         }
     }
 

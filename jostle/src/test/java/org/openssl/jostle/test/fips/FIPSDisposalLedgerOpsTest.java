@@ -90,7 +90,8 @@ public class FIPSDisposalLedgerOpsTest extends DisposalLedgerOpsTest
      * When no driver imported, nothing crossed and the base ledger must be
      * untouched for every type. When one did, exactly KEY_SPEC and ASN1_CTX
      * may move in the base library (the borrowed pair and its two encodings),
-     * both balanced, and every other type stays untouched.
+     * and SECRET_BYTEARRAY and SECRET_CLEANSE, as the encodings pass the JNI
+     * cleansing output context; all balanced, every other type untouched.
      */
     @Override
     protected void afterDraining(List<String> modes)
@@ -111,7 +112,8 @@ public class FIPSDisposalLedgerOpsTest extends DisposalLedgerOpsTest
             {
                 unbalanced.add(t + " created+" + dc + " destroyed+" + dd);
             }
-            boolean allowed = imported && (t == LedgerType.KEY_SPEC || t == LedgerType.ASN1_CTX);
+            boolean allowed = imported && (t == LedgerType.KEY_SPEC || t == LedgerType.ASN1_CTX
+                    || t == LedgerType.SECRET_BYTEARRAY || t == LedgerType.SECRET_CLEANSE);
             if ((dc != 0 || dd != 0) && !allowed)
             {
                 moved.add(t + " created+" + dc + " destroyed+" + dd);

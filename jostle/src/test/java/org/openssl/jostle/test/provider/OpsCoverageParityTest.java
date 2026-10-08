@@ -86,14 +86,13 @@ public class OpsCoverageParityTest
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 134;
+    static final int BASELINE_SIZE = 130;
 
     private static final Set<String> BASELINE = baseline();
 
     private static Set<String> baseline()
     {
         Set<String> s = new LinkedHashSet<String>();
-        add(s, "interface/fips/ffm/asn1_ni_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/fips/ffm/mac_ffm.c", "OPS_INT32_OVERFLOW_2");
         add(s, "interface/fips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
         // The FIPS-tree upcall rows (rand_upcall_ffm.c and rand_upcall_jni.c) are unreachable by construction: the FIPS
@@ -130,8 +129,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/jni/spec_ni_jni.c", "OPS_FAILED_ACCESS_2");
         add(s, "interface/fips/jni/spec_ni_jni.c", "OPS_FAILED_ACCESS_3");
         add(s, "interface/fips/jni/xec_ni_jni.c", "OPS_FAILED_ACCESS_1");
-        add(s, "interface/fips/util/asn1_util.c", "OPS_OPENSSL_ERROR_1");
-        add(s, "interface/fips/util/asn1_util.c", "OPS_OPENSSL_ERROR_2");
         add(s, "interface/fips/util/block_cipher_ctx.c", "OPS_FAILED_SET_1");
         add(s, "interface/fips/util/block_cipher_ctx.c", "OPS_FAILED_SET_2");
         add(s, "interface/fips/util/block_cipher_ctx.c", "OPS_OPENSSL_ERROR_10");
@@ -205,7 +202,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_2");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_3");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_4");
-        add(s, "interface/nonfips/ffm/asn1_ni_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/nonfips/ffm/mac_ffm.c", "OPS_INT32_OVERFLOW_2");
         add(s, "interface/nonfips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/nonfips/jni/block_cipher_ni_jni.c", "OPS_FAILED_ACCESS_1");

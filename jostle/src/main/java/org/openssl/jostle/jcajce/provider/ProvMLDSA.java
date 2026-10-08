@@ -126,7 +126,7 @@ class ProvMLDSA
 
     private static MLDSAKeyPairGeneratorImpl keyPairGenerator(JostleProvider provider, Object algorithm)
     {
-        return new MLDSAKeyPairGeneratorImpl(NISelector.MLDSAServiceNI, NISelector.SpecNI,
+        return new MLDSAKeyPairGeneratorImpl(NISelector.MLDSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI,
                 algorithm, provider);
     }
 }

@@ -127,7 +127,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-DSA key but got " + pkeySpec.getType());
                 }
 
-                return new JOMLDSAPublicKey(mldsaServiceNI, pkeySpec);
+                return new JOMLDSAPublicKey(mldsaServiceNI, asn1NI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -164,7 +164,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
 
                     mldsaServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length);
-                    return new JOMLDSAPublicKey(mldsaServiceNI, pkeySpec);
+                    return new JOMLDSAPublicKey(mldsaServiceNI, asn1NI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {
@@ -211,7 +211,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-DSA key but got " + pkeySpec.getType());
                 }
 
-                return new JOMLDSAPrivateKey(mldsaServiceNI, pkeySpec);
+                return new JOMLDSAPrivateKey(mldsaServiceNI, asn1NI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -262,7 +262,7 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                     mldsaServiceNI.decode_privateKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(),
                             encoded, 0, encoded.length);
-                    return new JOMLDSAPrivateKey(mldsaServiceNI, pkeySpec, spec.isSeed());
+                    return new JOMLDSAPrivateKey(mldsaServiceNI, asn1NI, pkeySpec, spec.isSeed());
                 }
                 catch (RuntimeException e)
                 {

@@ -66,6 +66,13 @@ class ProvFIPSMLDSA
     private static final Logger LOG = Logger.getLogger(ProvFIPSMLDSA.class.getName());
 
 
+    /** A KeyPairGenerator bound to the FIPS interface library AND to {@code provider}. */
+    private static MLDSAKeyPairGeneratorImpl fipsKeyPairGenerator(JostleFIPSProvider provider, Object algorithm)
+    {
+        return new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI,
+                FIPSNISelector.Asn1NI, algorithm, provider);
+    }
+
     public void configure(final JostleFIPSProvider provider)
     {
         if (!FIPSCapabilities.canFetchKeyMgmt("ML-DSA-65"))
@@ -92,11 +99,16 @@ class ProvFIPSMLDSA
 
         final Map<String, String> mldsaKeyGenAttr = new HashMap<String, String>();
 
-        provider.addAlgorithmImplementation("KeyPairGenerator", "MLDSA", MLDSAKeyPairGeneratorImpl.class.getName(), mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, "ML-DSA", provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "MLDSA", MLDSAKeyPairGeneratorImpl.class.getName(),
+
+                mldsaKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, "ML-DSA"));
         provider.addAlias("KeyPairGenerator", "MLDSA", "ML-DSA");
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-44", MLDSAKeyPairGeneratorImpl.class.getName(), mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_44, provider));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-65", MLDSAKeyPairGeneratorImpl.class.getName(), mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_65, provider));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-87", MLDSAKeyPairGeneratorImpl.class.getName(), mldsaKeyGenAttr, (arg) -> new MLDSAKeyPairGeneratorImpl(FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SpecNI, MLDSAParameterSpec.ml_dsa_87, provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-44", MLDSAKeyPairGeneratorImpl.class.getName(),
+                mldsaKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, MLDSAParameterSpec.ml_dsa_44));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-65", MLDSAKeyPairGeneratorImpl.class.getName(),
+                mldsaKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, MLDSAParameterSpec.ml_dsa_65));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-DSA-87", MLDSAKeyPairGeneratorImpl.class.getName(),
+                mldsaKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, MLDSAParameterSpec.ml_dsa_87));
 
 
         final Map<String, String> mldsaSigAttr = new HashMap<>();

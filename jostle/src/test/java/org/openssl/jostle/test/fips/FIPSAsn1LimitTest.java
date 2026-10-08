@@ -16,11 +16,17 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.Asn1TrailingDataException;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLDSAPrivateKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
@@ -601,4 +607,68 @@ public class FIPSAsn1LimitTest
         NullPointerException e = Assertions.assertThrows(NullPointerException.class, action);
         Assertions.assertEquals(message, e.getMessage());
     }
+
+    @Test
+    public void encodePrivateKey_seedOnly_seedlessKeyRefusedTyped() throws Exception
+    {
+        Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("ML-DSA-65"),
+                "the loaded FIPS module implements no ML-DSA (3.1.2)");
+        KeyPair kp = KeyPairGenerator.getInstance("ML-DSA-44", JostleFIPSProvider.PROVIDER_NAME).generateKeyPair();
+        MLDSAPrivateKey key = (MLDSAPrivateKey) KeyFactory.getInstance("ML-DSA-44", JostleFIPSProvider.PROVIDER_NAME)
+                .generatePrivate(new MLDSAPrivateKeySpec(MLDSAParameterSpec.ml_dsa_44,
+                        ((MLDSAPrivateKey) kp.getPrivate()).getPrivateData(),
+                        ((MLDSAPublicKey) kp.getPublic()).getPublicData()));
+        Assertions.assertNull(key.getSeed(), "the import must carry no seed");
+        long ref = ((OSSLKey) key).getSpec().getReference();
+
+        long a = asn1.allocate();
+        try
+        {
+            Assertions.assertEquals(ErrorCode.JO_INVALID_SEED_LEN.getCode(),
+                    asn1.ni_encodePrivateKey(a, ref, PrivateKeyOptions.SEED_ONLY.getValue()));
+            assertIAE("invalid seed length",
+                    () -> asn1.encodePrivateKey(a, ref, PrivateKeyOptions.SEED_ONLY.getValue()));
+        }
+        finally
+        {
+            asn1.dispose(a);
+        }
+
+        // The JCA surface never asks for the seed form of such a key: it falls back to the expanded encoding.
+        Assertions.assertArrayEquals(key.getEncoded(), key.getPrivateKey(true).getEncoded());
+    }
+
+    @Test
+    public void fromKeyInfo_zeroLengthArray_sameCodeOnBothDecodes()
+    {
+        // A zero-length array is not a null one: both decodes reach the decoder and refuse there.
+        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), asn1.ni_fromPrivateKeyInfo(new byte[0], 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), asn1.ni_fromPublicKeyInfo(new byte[0], 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(), asn1.ni_fromPrivateKeyInfo(null, 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(), asn1.ni_fromPublicKeyInfo(null, 0, 0));
+    }
+
+    @Test
+    public void getData_nullOutputGivesLength_andARepeatGivesTheSameBytes()
+    {
+        long a = asn1.allocate();
+        try
+        {
+            int len = asn1.encodePrivateKey(a, ecKeyRef, PrivateKeyOptions.DEFAULT.getValue());
+            Assertions.assertEquals(len, asn1.getData(a, null));
+
+            byte[] first = new byte[len];
+            Assertions.assertEquals(len, asn1.getData(a, first));
+            byte[] second = new byte[len];
+            Assertions.assertEquals(len, asn1.getData(a, second));
+            Assertions.assertArrayEquals(first, second);
+            Assertions.assertArrayEquals(privDer, first, "the class key encodes to the same bytes again");
+            specNI.dispose(asn1.fromPrivateKeyInfo(second, 0, len));
+        }
+        finally
+        {
+            asn1.dispose(a);
+        }
+    }
+
 }

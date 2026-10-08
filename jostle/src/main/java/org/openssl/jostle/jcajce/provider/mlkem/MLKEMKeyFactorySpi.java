@@ -129,7 +129,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
                 }
 
-                return new JOMLKEMPublicKey(mlkemServiceNI, pkeySpec);
+                return new JOMLKEMPublicKey(mlkemServiceNI, asn1NI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -166,7 +166,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                     mlkemServiceNI.decode_publicKey(
                             pkeySpec.getReference(), osslKeyType.getKsType(), encoded, 0, encoded.length,
                             DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-                    return new JOMLKEMPublicKey(mlkemServiceNI, pkeySpec);
+                    return new JOMLKEMPublicKey(mlkemServiceNI, asn1NI, pkeySpec);
                 }
                 catch (RuntimeException e)
                 {
@@ -211,7 +211,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
                 }
 
-                return new JOMLKEMPrivateKey(mlkemServiceNI, pkeySpec);
+                return new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, pkeySpec);
             }
             catch (RuntimeException e)
             {
@@ -280,7 +280,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                                 material, 0, material.length,
                                 DefaultRandSource.replaceWith(null, null, strengthBits));
                     }
-                    return new JOMLKEMPrivateKey(mlkemServiceNI, pkeySpec, spec.isSeed());
+                    return new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, pkeySpec, spec.isSeed());
                 }
                 catch (RuntimeException e)
                 {

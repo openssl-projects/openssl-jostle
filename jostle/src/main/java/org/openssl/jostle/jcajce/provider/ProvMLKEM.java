@@ -116,7 +116,7 @@ class ProvMLKEM
 
     private static MLKEMKeyPairGenerator keyPairGenerator(JostleProvider provider, Object algorithm)
     {
-        return new MLKEMKeyPairGenerator(NISelector.MLKEMServiceNI, NISelector.SpecNI,
+        return new MLKEMKeyPairGenerator(NISelector.MLKEMServiceNI, NISelector.SpecNI, NISelector.Asn1NI,
                 algorithm, provider);
     }
 }

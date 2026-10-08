@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.lang.ref.Reference;
@@ -33,26 +34,28 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
     // interface library created its PKEY - NISelector for JSL, FIPSNISelector
     // for JSLFIPS - so it must not reach for the base provider's NI.
     private final MLKEMServiceNI mlkemServiceNI;
+    private final Asn1Ni asn1NI;
 
     public JOMLKEMPrivateKey(PKEYKeySpec spec)
     {
-        this(NISelector.MLKEMServiceNI, spec, false);
+        this(NISelector.MLKEMServiceNI, NISelector.Asn1NI, spec, false);
     }
 
     public JOMLKEMPrivateKey(PKEYKeySpec spec, boolean seedOnly)
     {
-        this(NISelector.MLKEMServiceNI, spec, seedOnly);
+        this(NISelector.MLKEMServiceNI, NISelector.Asn1NI, spec, seedOnly);
     }
 
-    public JOMLKEMPrivateKey(MLKEMServiceNI mlkemServiceNI, PKEYKeySpec spec)
+    public JOMLKEMPrivateKey(MLKEMServiceNI mlkemServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
     {
-        this(mlkemServiceNI, spec, false);
+        this(mlkemServiceNI, asn1NI, spec, false);
     }
 
-    public JOMLKEMPrivateKey(MLKEMServiceNI mlkemServiceNI, PKEYKeySpec spec, boolean seedOnly)
+    public JOMLKEMPrivateKey(MLKEMServiceNI mlkemServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec, boolean seedOnly)
     {
         super(spec);
         this.mlkemServiceNI = mlkemServiceNI;
+        this.asn1NI = asn1NI;
         this.seedOnly = seedOnly;
     }
 
@@ -80,9 +83,9 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
             // FIPS 203: AlgorithmIdentifier parameters MUST be absent.
             if (seedOnly)
             {
-                return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+                return ASN1Encoder.asCanonicalPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.SEED_ONLY);
             }
-            return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asCanonicalPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.DEFAULT);
         }
         finally
         {
@@ -125,7 +128,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
             {
                 OSSLKeyType type = getType();
                 return new JOMLKEMPrivateKey(
-                        mlkemServiceNI,
+                        mlkemServiceNI, asn1NI,
                         new PKEYKeySpec(
                                 spec.getSpecNI(),
                                 mlkemServiceNI.generateKeyPair(
@@ -143,7 +146,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
             }
         }
 
-        return new JOMLKEMPrivateKey(mlkemServiceNI, spec);
+        return new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, spec);
     }
 
     public byte[] getDirectEncoding()
@@ -169,7 +172,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
     @Override
     public MLKEMPublicKey getPublicKey()
     {
-        return new JOMLKEMPublicKey(this.getSpec());
+        return new JOMLKEMPublicKey(mlkemServiceNI, asn1NI, this.getSpec());
     }
 
     @Override

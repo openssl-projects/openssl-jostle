@@ -91,7 +91,15 @@ public class ASN1Encoder
      */
     public static byte[] asCanonicalSubjectPublicKeyInfo(PKEYKeySpec spec)
     {
-        return KeyInfoCanonicalizer.subjectPublicKeyInfo(asSubjectPublicKeyInfo(spec));
+        return asCanonicalSubjectPublicKeyInfo(NISelector.Asn1NI, spec);
+    }
+
+    /**
+     * Variant bound to a specific NI backend (see asSubjectPublicKeyInfo).
+     */
+    public static byte[] asCanonicalSubjectPublicKeyInfo(Asn1Ni asn1NI, PKEYKeySpec spec)
+    {
+        return KeyInfoCanonicalizer.subjectPublicKeyInfo(asSubjectPublicKeyInfo(asn1NI, spec));
     }
 
     /**
@@ -99,7 +107,15 @@ public class ASN1Encoder
      */
     public static byte[] asCanonicalPrivateKeyInfo(PKEYKeySpec spec, PrivateKeyOptions option)
     {
-        return KeyInfoCanonicalizer.privateKeyInfo(asPrivateKeyInfo(spec, option));
+        return asCanonicalPrivateKeyInfo(NISelector.Asn1NI, spec, option);
+    }
+
+    /**
+     * Variant bound to a specific NI backend (see asSubjectPublicKeyInfo).
+     */
+    public static byte[] asCanonicalPrivateKeyInfo(Asn1Ni asn1NI, PKEYKeySpec spec, PrivateKeyOptions option)
+    {
+        return KeyInfoCanonicalizer.privateKeyInfo(asPrivateKeyInfo(asn1NI, spec, option));
     }
 
     public static PKEYKeySpec fromPrivateKeyInfo(byte[] data, int start, int len)

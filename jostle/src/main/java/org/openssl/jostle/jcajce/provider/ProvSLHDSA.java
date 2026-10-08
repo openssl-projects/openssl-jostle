@@ -149,7 +149,7 @@ class ProvSLHDSA
 
     private static SLHDSAKeyPairGenerator keyPairGenerator(JostleProvider provider, Object algorithm)
     {
-        return new SLHDSAKeyPairGenerator(NISelector.SLHDSAServiceNI, NISelector.SpecNI,
+        return new SLHDSAKeyPairGenerator(NISelector.SLHDSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI,
                 algorithm, provider);
     }
 }

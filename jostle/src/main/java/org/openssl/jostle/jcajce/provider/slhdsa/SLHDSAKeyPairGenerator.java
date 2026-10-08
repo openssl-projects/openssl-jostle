@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.util.JdkSpecs;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Strings;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
@@ -76,10 +77,11 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
     // FIPSNISelector for JSLFIPS).
     private final SLHDSAServiceNI slhdsaServiceNI;
     private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
 
     public SLHDSAKeyPairGenerator(Object algorithm)
     {
-        this(NISelector.SLHDSAServiceNI, NISelector.SpecNI, algorithm);
+        this(NISelector.SLHDSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, algorithm);
     }
 
     /**
@@ -97,17 +99,19 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
      */
     private final java.security.Provider providerInstance;
 
-    public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Object algorithm)
+    public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
     {
-        this(slhdsaServiceNI, specNI, algorithm, null);
+        this(slhdsaServiceNI, specNI, asn1NI, algorithm, null);
     }
 
-    public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Object algorithm, java.security.Provider providerInstance)
+    public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm,
+                                  java.security.Provider providerInstance)
     {
         super(algorithm.toString());
         this.providerInstance = providerInstance;
         this.slhdsaServiceNI = slhdsaServiceNI;
         this.specNI = specNI;
+        this.asn1NI = asn1NI;
         forcedType = paramToTypeMap.get(algorithm);
 
         if (forcedType == null)
@@ -239,8 +243,8 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         long res = slhdsaServiceNI.generateKeyPair(keyType.getKsType(), randSource);
 
         PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType, providerInstance);
-        return new KeyPair(new JOSLHDSAPublicKey(slhdsaServiceNI, spec),
-                new JOSLHDSAPrivateKey(slhdsaServiceNI, spec));
+        return new KeyPair(new JOSLHDSAPublicKey(slhdsaServiceNI, asn1NI, spec),
+                new JOSLHDSAPrivateKey(slhdsaServiceNI, asn1NI, spec));
     }
 
 

@@ -23,6 +23,7 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 
 import java.lang.ref.Reference;
@@ -35,26 +36,28 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
     // interface library created its PKEY - NISelector for JSL, FIPSNISelector
     // for JSLFIPS - so it must not reach for the base provider's NI.
     private final MLDSAServiceNI mldsaServiceNI;
+    private final Asn1Ni asn1NI;
 
     public JOMLDSAPrivateKey(PKEYKeySpec spec)
     {
-        this(NISelector.MLDSAServiceNI, spec, false);
+        this(NISelector.MLDSAServiceNI, NISelector.Asn1NI, spec, false);
     }
 
     public JOMLDSAPrivateKey(PKEYKeySpec spec, boolean seedOnly)
     {
-        this(NISelector.MLDSAServiceNI, spec, seedOnly);
+        this(NISelector.MLDSAServiceNI, NISelector.Asn1NI, spec, seedOnly);
     }
 
-    public JOMLDSAPrivateKey(MLDSAServiceNI mldsaServiceNI, PKEYKeySpec spec)
+    public JOMLDSAPrivateKey(MLDSAServiceNI mldsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec)
     {
-        this(mldsaServiceNI, spec, false);
+        this(mldsaServiceNI, asn1NI, spec, false);
     }
 
-    public JOMLDSAPrivateKey(MLDSAServiceNI mldsaServiceNI, PKEYKeySpec spec, boolean seedOnly)
+    public JOMLDSAPrivateKey(MLDSAServiceNI mldsaServiceNI, Asn1Ni asn1NI, PKEYKeySpec spec, boolean seedOnly)
     {
         super(spec);
         this.mldsaServiceNI = mldsaServiceNI;
+        this.asn1NI = asn1NI;
         this.seedOnly = seedOnly;
     }
 
@@ -82,9 +85,9 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
             // FIPS 204: AlgorithmIdentifier parameters MUST be absent.
             if (seedOnly)
             {
-                return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.SEED_ONLY);
+                return ASN1Encoder.asCanonicalPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.SEED_ONLY);
             }
-            return ASN1Encoder.asCanonicalPrivateKeyInfo(spec, PrivateKeyOptions.DEFAULT);
+            return ASN1Encoder.asCanonicalPrivateKeyInfo(asn1NI, spec, PrivateKeyOptions.DEFAULT);
         }
         finally
         {
@@ -148,7 +151,7 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
                 {
                     OSSLKeyType type = getType();
                     return new JOMLDSAPrivateKey(
-                            mldsaServiceNI,
+                            mldsaServiceNI, asn1NI,
                             new PKEYKeySpec(
                                     spec.getSpecNI(),
                                     mldsaServiceNI.generateKeyPair(type.getKsType(), seed, seed.length,
@@ -168,14 +171,14 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
             }
         }
 
-        return new JOMLDSAPrivateKey(mldsaServiceNI, spec);
+        return new JOMLDSAPrivateKey(mldsaServiceNI, asn1NI, spec);
     }
 
 
     @Override
     public MLDSAPublicKey getPublicKey()
     {
-        return new JOMLDSAPublicKey(mldsaServiceNI, spec);
+        return new JOMLDSAPublicKey(mldsaServiceNI, asn1NI, spec);
     }
 
     public PKEYKeySpec getSpec()

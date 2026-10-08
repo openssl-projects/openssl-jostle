@@ -50,6 +50,13 @@ import java.util.Map;
 class ProvFIPSSLHDSA
 {
 
+    /** A KeyPairGenerator bound to the FIPS interface library AND to {@code provider}. */
+    private static SLHDSAKeyPairGenerator fipsKeyPairGenerator(JostleFIPSProvider provider, Object algorithm)
+    {
+        return new SLHDSAKeyPairGenerator(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI,
+                FIPSNISelector.Asn1NI, algorithm, provider);
+    }
+
     public void configure(final JostleFIPSProvider provider)
     {
         if (!FIPSCapabilities.canFetchKeyMgmt("SLH-DSA-SHA2-128S"))
@@ -81,7 +88,8 @@ class ProvFIPSSLHDSA
 
 
         final Map<String, String> slhdsaKeyGenAttr = new HashMap<String, String>();
-        provider.addAlgorithmImplementation("KeyPairGenerator", "SLHDSA", SLHDSAKeyPairGenerator.class.getName(), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyPairGenerator(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, "SLH-DSA", provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "SLHDSA", SLHDSAKeyPairGenerator.class.getName(),
+                slhdsaKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, "SLH-DSA"));
         provider.addAlias("KeyPairGenerator", "SLHDSA", "SLH-DSA");
 
         provider.addAlgorithmImplementation("KeyFactory", "SLHDSA", SLHDSAKeyFactorySpi.class.getName(), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyFactorySpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.NONE, provider));
@@ -90,7 +98,8 @@ class ProvFIPSSLHDSA
 
         SLHDSAParameterSpec.getParameterNames().forEach(name ->
         {
-            provider.addAlgorithmImplementation("KeyPairGenerator", name, SLHDSAKeyPairGenerator.class.getName(), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyPairGenerator(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, name, provider));
+            provider.addAlgorithmImplementation("KeyPairGenerator", name, SLHDSAKeyPairGenerator.class.getName(),
+                    slhdsaKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, name));
             provider.addAlgorithmImplementation("KeyFactory", name, SLHDSAKeyFactorySpi.class.getName(), slhdsaKeyGenAttr, (arg) -> new SLHDSAKeyFactorySpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, SLHDSAParameterSpec.fromName(name).getKeyType(), provider));
         });
 

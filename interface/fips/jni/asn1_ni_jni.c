@@ -12,6 +12,7 @@
 #include <openssl/x509.h>
 
 #include "bytearrays.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_util_asn1_Asn1NiJNI.h"
 #include "types.h"
 #include "../util/asn1_util.h"
@@ -188,10 +189,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1getData
     }
     int32_t ret_code = JO_FAIL;
 
-    java_bytearray_ctx output;
-    init_bytearray_ctx(&output);
+    // The content may be a private key: our copy is cleansed at release.
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&output, env, _output)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -213,7 +215,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1getData
     ret_code = (int32_t) buf_len;
 
 exit:
-    release_bytearray_ctx(&output);
+    release_secret_bytearray_ctx(&output);
     return ret_code;
 }
 
@@ -224,16 +226,15 @@ exit:
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPrivateKeyInfo
 (JNIEnv *env, jobject jo, jbyteArray _input, jint in_off, jint in_len) {
-    UNUSED(env);
     UNUSED(jo);
     int32_t ret_code = JO_FAIL;
     key_spec *spec = NULL;
 
+    // A private key: our copy is cleansed at release.
+    java_secret_bytearray_ctx input;
+    init_secret_bytearray_ctx(&input);
 
-    java_bytearray_ctx input;
-    init_bytearray_ctx(&input);
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&input, env, _input)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -254,7 +255,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPriv
         goto exit;
     }
 
-    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+    if (!check_secret_in_range(&input, in_off, in_len)) {
         ret_code = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -268,7 +269,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPriv
 
 
 exit:
-    release_bytearray_ctx(&input);
+    release_secret_bytearray_ctx(&input);
     if (spec != NULL) {
         return (jlong) spec;
     }

@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.util.JdkSpecs;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Strings;
+import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
@@ -58,6 +59,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
     // FIPSNISelector for JSLFIPS).
     private final MLDSAServiceNI mldsaServiceNI;
     private final SpecNI specNI;
+    private final Asn1Ni asn1NI;
 
     private static final Map<Object, OSSLKeyType> paramToTypeMap = new HashMap<Object, OSSLKeyType>()
     {
@@ -86,7 +88,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
      */
     public MLDSAKeyPairGeneratorImpl(Object algorithm)
     {
-        this(NISelector.MLDSAServiceNI, NISelector.SpecNI, algorithm);
+        this(NISelector.MLDSAServiceNI, NISelector.SpecNI, NISelector.Asn1NI, algorithm);
     }
 
     /**
@@ -104,17 +106,19 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
      */
     private final java.security.Provider providerInstance;
 
-    public MLDSAKeyPairGeneratorImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Object algorithm)
+    public MLDSAKeyPairGeneratorImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
     {
-        this(mldsaServiceNI, specNI, algorithm, null);
+        this(mldsaServiceNI, specNI, asn1NI, algorithm, null);
     }
 
-    public MLDSAKeyPairGeneratorImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Object algorithm, java.security.Provider providerInstance)
+    public MLDSAKeyPairGeneratorImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm,
+                                     java.security.Provider providerInstance)
     {
         super(algorithm.toString());
         this.providerInstance = providerInstance;
         this.mldsaServiceNI = mldsaServiceNI;
         this.specNI = specNI;
+        this.asn1NI = asn1NI;
         keyType = paramToTypeMap.get(algorithm);
 
         if (keyType == null)
@@ -254,8 +258,8 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 
 
         PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType, providerInstance);
-        return new KeyPair(new JOMLDSAPublicKey(mldsaServiceNI, spec),
-                new JOMLDSAPrivateKey(mldsaServiceNI, spec));
+        return new KeyPair(new JOMLDSAPublicKey(mldsaServiceNI, asn1NI, spec),
+                new JOMLDSAPrivateKey(mldsaServiceNI, asn1NI, spec));
     }
 
 

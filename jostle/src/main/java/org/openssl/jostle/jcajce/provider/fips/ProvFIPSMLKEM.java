@@ -55,6 +55,13 @@ class ProvFIPSMLKEM
     private static final Logger LOG = Logger.getLogger(ProvFIPSMLKEM.class.getName());
 
 
+    /** A KeyPairGenerator bound to the FIPS interface library AND to {@code provider}. */
+    private static MLKEMKeyPairGenerator fipsKeyPairGenerator(JostleFIPSProvider provider, Object algorithm)
+    {
+        return new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI,
+                FIPSNISelector.Asn1NI, algorithm, provider);
+    }
+
     public void configure(final JostleFIPSProvider provider)
     {
         if (!FIPSCapabilities.canFetchKeyMgmt("ML-KEM-768"))
@@ -81,11 +88,16 @@ class ProvFIPSMLKEM
 
         final Map<String, String> MLKEMKeyGenAttr = new HashMap<String, String>();
 
-        provider.addAlgorithmImplementation("KeyPairGenerator", "MLKEM", MLKEMKeyPairGenerator.class.getName(), MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM", provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "MLKEM", MLKEMKeyPairGenerator.class.getName(),
+
+                MLKEMKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, "ML-KEM"));
         provider.addAlias("KeyPairGenerator", "MLKEM", "ML-KEM");
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-512", MLKEMKeyPairGenerator.class.getName(), MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-512", provider));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-768", MLKEMKeyPairGenerator.class.getName(), MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-768", provider));
-        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-1024", MLKEMKeyPairGenerator.class.getName(), MLKEMKeyGenAttr, (arg) -> new MLKEMKeyPairGenerator(FIPSNISelector.MLKEMServiceNI, FIPSNISelector.SpecNI, "ML-KEM-1024", provider));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-512", MLKEMKeyPairGenerator.class.getName(),
+                MLKEMKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, "ML-KEM-512"));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-768", MLKEMKeyPairGenerator.class.getName(),
+                MLKEMKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, "ML-KEM-768"));
+        provider.addAlgorithmImplementation("KeyPairGenerator", "ML-KEM-1024", MLKEMKeyPairGenerator.class.getName(),
+                MLKEMKeyGenAttr, (arg) -> fipsKeyPairGenerator(provider, "ML-KEM-1024"));
 
 
         final Map<String, String> mlkemCipherAttr = new HashMap<>();
