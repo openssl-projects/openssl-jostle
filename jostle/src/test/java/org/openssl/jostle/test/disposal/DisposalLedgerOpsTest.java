@@ -429,6 +429,7 @@ public class DisposalLedgerOpsTest
     @Test
     public void everyCreatePathFaultLeavesTheLedgerBalanced() throws Exception
     {
+        // Exercises: no single site, every create path, ledger balance
         final Provider provider = provider();
 
         // Keys and encodings first, with no flag set, so a row fails at its create and not at keygen;

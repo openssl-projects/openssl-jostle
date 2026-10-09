@@ -158,18 +158,21 @@ public class RSAOpsTest
     @Test
     public void RSA_decodePrivateComponents_failedAccess_n() throws Exception
     {
+        // Exercises interface/nonfips/jni/rsa_ni_jni.c:183
         runDecodePrivateComponentsAccessFailure(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
     }
 
     @Test
     public void RSA_decodePrivateComponents_failedAccess_e() throws Exception
     {
+        // Exercises interface/nonfips/jni/rsa_ni_jni.c:187
         runDecodePrivateComponentsAccessFailure(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
     }
 
     @Test
     public void RSA_decodePrivateComponents_failedAccess_d() throws Exception
     {
+        // Exercises interface/nonfips/jni/rsa_ni_jni.c:191
         runDecodePrivateComponentsAccessFailure(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
     }
 
@@ -202,24 +205,28 @@ public class RSAOpsTest
     @Test
     public void RSA_decodePrivateComponentsCrt_failedAccess_n() throws Exception
     {
+        // Exercises interface/nonfips/jni/rsa_ni_jni.c:263
         runDecodePrivateComponentsCrtAccessFailure(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
     }
 
     @Test
     public void RSA_decodePrivateComponentsCrt_failedAccess_e() throws Exception
     {
+        // Exercises interface/nonfips/jni/rsa_ni_jni.c:267
         runDecodePrivateComponentsCrtAccessFailure(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
     }
 
     @Test
     public void RSA_decodePrivateComponentsCrt_failedAccess_d() throws Exception
     {
+        // Exercises interface/nonfips/jni/rsa_ni_jni.c:271
         runDecodePrivateComponentsCrtAccessFailure(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
     }
 
     @Test
     public void RSA_decodePrivateComponentsCrt_failedAccess_p() throws Exception
     {
+        // Exercises interface/nonfips/jni/rsa_ni_jni.c:275
         runDecodePrivateComponentsCrtAccessFailure(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
     }
 
@@ -1143,6 +1150,7 @@ public class RSAOpsTest
     @Test
     public void RSA_generateKeyPair_keygenInit_failure() throws Exception
     {
+        // Exercises interface/nonfips/util/rsa.c:156
         runGenerateKeyPairOpsCodeAssertion(
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2, -1042);
     }
@@ -1150,6 +1158,7 @@ public class RSAOpsTest
     @Test
     public void RSA_generateKeyPair_setKeygenBits_failure() throws Exception
     {
+        // Exercises interface/nonfips/util/rsa.c:161
         runGenerateKeyPairOpsCodeAssertion(
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3, -1043);
     }
@@ -1157,6 +1166,7 @@ public class RSAOpsTest
     @Test
     public void RSA_generateKeyPair_bnBin2bn_failure() throws Exception
     {
+        // Exercises interface/nonfips/util/rsa.c:167
         runGenerateKeyPairOpsCodeAssertion(
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, -1044);
     }
@@ -1164,6 +1174,7 @@ public class RSAOpsTest
     @Test
     public void RSA_generateKeyPair_set1PubExp_failure() throws Exception
     {
+        // Exercises interface/nonfips/util/rsa.c:173
         runGenerateKeyPairOpsCodeAssertion(
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5, -1045);
     }
@@ -1511,6 +1522,7 @@ public class RSAOpsTest
     @Test
     public void RSA_generateKeyPair_ctxNewFromName_failure() throws Exception
     {
+        // Exercises interface/nonfips/util/rsa.c:151
         runGenerateKeyPairOpsCodeAssertion(
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6, -1046);
     }
@@ -1518,6 +1530,7 @@ public class RSAOpsTest
     @Test
     public void RSA_generateKeyPair_evpKeygen_failure() throws Exception
     {
+        // Exercises interface/nonfips/util/rsa.c:181
         runGenerateKeyPairOpsCodeAssertion(
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7, -1047);
     }

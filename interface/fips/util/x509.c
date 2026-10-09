@@ -141,7 +141,7 @@ int32_t x509_cert_free(x509_handle *h)
     X509_free(cert);
     /* Scrubbed before release as defence in depth; a dispose after dispose is
      * still a caller fault. */
-    h->kind = 0;
+    h->kind = X509_KIND_NONE;
     h->obj = NULL;
     OPENSSL_free(h);
     return JO_SUCCESS;
@@ -1023,7 +1023,7 @@ int32_t x509_crl_free(x509_handle *h)
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_X509_CRL);
     X509_CRL_free(crl);
-    h->kind = 0;
+    h->kind = X509_KIND_NONE;
     h->obj = NULL;
     OPENSSL_free(h);
     return JO_SUCCESS;

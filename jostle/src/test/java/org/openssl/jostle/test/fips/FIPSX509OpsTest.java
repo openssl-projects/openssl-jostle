@@ -144,6 +144,7 @@ public class FIPSX509OpsTest
     @Test
     public void baseFactory_isUnaffectedByAFaultInTheFipsLibrary() throws Exception
     {
+        // Exercises: no single site, proves the base library untouched
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         byte[] der = cert();
         try

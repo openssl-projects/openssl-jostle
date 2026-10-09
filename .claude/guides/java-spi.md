@@ -96,10 +96,6 @@ The rule, in order of preference:
    the default method on the NI it already holds and caches nothing itself.
 3. **Never** hand-write the number. If you find yourself typing `case "SHA-256": return 32;` or `private static final int[] STRENGTHS = {128, 192, 256};`, stop — that is the anti-pattern this rule exists to prevent.
 
-**A stated bound checked against the query is not a transcription.** Where a native-reported length sizes an
-allocation, a per-type table may refuse a reported value that disagrees with the specification, provided the query
-still runs and stays the source of the value, and a mismatch fails loud naming both (`KemSizes`).
-
 Canonical right-way examples in this codebase, all of which replaced a transcribed table:
 
 1. `RandAlgorithm.maxStrengthFor` asks `RandServiceNI.drbgMaxStrength`, which queries `OSSL_RAND_PARAM_STRENGTH`

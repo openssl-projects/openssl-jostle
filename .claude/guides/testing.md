@@ -1087,6 +1087,10 @@ Three rules apply:
 2. **The path is repo-root-relative, and names the tree the test exercises.** The native source is split into `interface/nonfips/` (base) and `interface/fips/` (FIPS) — a base test points at `interface/nonfips/util/rsa.c:589` (or `interface/nonfips/jni/ec_ni_jni.c:42` for a JNI access fault); a FIPS test (`.../test/fips/`) points at `interface/fips/util/rsa.c:589`. The line numbers match across the two trees while the FIPS tree remains a copy, but the prefix must name the tree whose library the test actually drives. The annotate-ops-tests skill auto-selects the tree from the test's path.
 3. **The line number is the if-line, not the return line.** `if (OPS_OPENSSL_ERROR_1 md_ctx == NULL) {` is the line readers care about — it names the EVP function being faulted. The `return JO_OPENSSL_ERROR OPS_OFFSET_*(...)` on the next line is the consequence, not the test target.
 
+A method that sets a flag to drive no single site by design (a ledger sweep, a wiring check) carries
+`// Exercises: no single site, <why in five words>` instead; `OpsCoverageParityTest` credits annotations per method
+and fails any flag-setting method with neither form, and any annotated or marked method that sets no flag.
+
 For `OPS_OPENSSL_ERROR_*` tests, the `.claude/skills/annotate-ops-tests/` skill auto-generates and refreshes the comment from the test's `setFlag` + `assertEquals(-code, ...)` pair — useful after C edits shift line numbers. For `OPS_FAILED_ACCESS_*` and other non-offset OPS families the skill can't auto-link (no `OPS_OFFSET_*` macro to key the index off), so the comment must be added manually when the test is written.
 
 ### Drive per-thread native state from a worker thread

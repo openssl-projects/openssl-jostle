@@ -46,6 +46,7 @@ public class FIPSInstrumentationOpsTest
     @Test
     public void opsInstrumentationIsWired()
     {
+        // Exercises: no single site, proves the instrumentation is wired
         Assumptions.assumeTrue(ops.opsTestAvailable(),
                 "FIPS interface library built without JOSTLE_OPS (shipped build)");
 

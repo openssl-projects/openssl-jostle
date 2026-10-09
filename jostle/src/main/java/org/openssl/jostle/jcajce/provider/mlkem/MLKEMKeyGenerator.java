@@ -288,7 +288,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             KEMExtractSpec extractSpec = (KEMExtractSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) extractSpec.getPrivateKey()).getSpec();
             byte[] wrappedKey = extractSpec.getEncapsulation();
-            int expected = KemSizes.ciphertextLength(spec.getType());
+            int expected = KemSizes.ciphertextLength(spec, randSource);
             if (wrappedKey.length != expected)
             {
                 // The type BouncyCastle's extractor throws for the same input.

@@ -1301,10 +1301,63 @@ public class SpecLimitTest
         Assertions.assertEquals(7, measured);
     }
 
+    /**
+     * ML-KEM: FIPS 203, Table 3. The hybrids add their second share: X25519 32 and X448 56 bytes (RFC 7748,
+     * section 5); P-256 65 and P-384 97 bytes as uncompressed SEC 1 points.
+     */
+    static int specCiphertextLength(OSSLKeyType type)
+    {
+        switch (type)
+        {
+            case ML_KEM_512:
+                return 768;
+            case ML_KEM_768:
+                return 1088;
+            case ML_KEM_1024:
+                return 1568;
+            case X25519MLKEM768:
+                return 1088 + 32;
+            case X448MLKEM1024:
+                return 1568 + 56;
+            case SecP256r1MLKEM768:
+                return 65 + 1088;
+            case SecP384r1MLKEM1024:
+                return 97 + 1568;
+            default:
+                throw new IllegalArgumentException("not a KEM key type: " + type);
+        }
+    }
+
+    /** ML-KEM: FIPS 203, 32 bytes. The hybrids add their ECDH secret: X25519 32, X448 56, P-256 32, P-384 48. */
+    static int specSharedSecretLength(OSSLKeyType type)
+    {
+        switch (type)
+        {
+            case ML_KEM_512:
+            case ML_KEM_768:
+            case ML_KEM_1024:
+                return 32;
+            case X25519MLKEM768:
+            case SecP256r1MLKEM768:
+                return 32 + 32;
+            case X448MLKEM1024:
+                return 32 + 56;
+            case SecP384r1MLKEM1024:
+                return 32 + 48;
+            default:
+                throw new IllegalArgumentException("not a KEM key type: " + type);
+        }
+    }
+
+    /** The specification's sizes, asserted against the cached queries production reads and the raw ones. */
     public static void assertSizes(SpecNI ni, long key, OSSLKeyType type, String op, RandSource rnd)
     {
-        int ct = KemSizes.ciphertextLength(type);
-        int ss = KemSizes.sharedSecretLength(type);
+        int ct = specCiphertextLength(type);
+        int ss = specSharedSecretLength(type);
+        Assertions.assertEquals(ss, KemSizes.checkedSharedSecretLength(type, ni.sharedSecretLength(key, type, rnd)),
+                type + " cached secret");
+        Assertions.assertEquals(ct, KemSizes.checkedCiphertextLength(type, ni.encapsulationLength(key, type, ss, rnd)),
+                type + " cached encapsulation");
         Assertions.assertEquals(ct, ni.encap(key, op, new byte[ss], 0, ss, null, 0, 0, rnd), type + " encap");
         Assertions.assertEquals(ss, ni.encapSecretLength(key, op, rnd), type + " secret");
         byte[] enc = new byte[ct];

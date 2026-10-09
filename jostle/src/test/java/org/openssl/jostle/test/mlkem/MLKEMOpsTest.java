@@ -634,24 +634,28 @@ public class MLKEMOpsTest
     @Test()
     public void MLKEM_generateKeyPair_ctxNew_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/mlkem.c:67
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3, JO_OPENSSL_ERROR - 1100);
     }
 
     @Test()
     public void MLKEM_generateKeyPair_keygenInit_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/mlkem.c:72
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, JO_OPENSSL_ERROR - 1101);
     }
 
     @Test()
     public void MLKEM_generateKeyPair_setParams_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/mlkem.c:77
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5, JO_OPENSSL_ERROR - 1102);
     }
 
     @Test()
     public void MLKEM_generateKeyPair_keygen_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/mlkem.c:88
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6, JO_OPENSSL_ERROR - 1103);
     }
 

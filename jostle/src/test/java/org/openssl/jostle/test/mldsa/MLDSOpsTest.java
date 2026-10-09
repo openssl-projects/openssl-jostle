@@ -1400,72 +1400,84 @@ public class MLDSOpsTest
     @Test()
     public void MLDSA_extract_tr_getOctetFail() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:134
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3, JO_OPENSSL_ERROR - 2000);
     }
 
     @Test()
     public void MLDSA_extract_tr_unexpectedKeyLen() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:139
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_SHORT_SIZE_1, JO_EXTRACTED_KEY_UNEXPECTED_LEN - 2001);
     }
 
     @Test()
     public void MLDSA_extract_tr_shakeCtxNew() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:145
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2, JO_OPENSSL_ERROR - 2002);
     }
 
     @Test()
     public void MLDSA_extract_tr_shakeInit() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:153
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1, JO_OPENSSL_ERROR - 2003);
     }
 
     @Test()
     public void MLDSA_extract_tr_shakeUpdate() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:159
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, JO_OPENSSL_ERROR - 2004);
     }
 
     @Test()
     public void MLDSA_extract_tr_shakeFinalXOF() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:164
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5, JO_OPENSSL_ERROR - 2005);
     }
 
     @Test()
     public void MLDSA_setup_hash_evpMdCtxNew() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:72
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7, JO_OPENSSL_ERROR - 2010);
     }
 
     @Test()
     public void MLDSA_setup_hash_digestInit() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:82
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8, JO_OPENSSL_ERROR - 2011);
     }
 
     @Test()
     public void MLDSA_setup_hash_with_tr_and_context_trUpdate() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:34
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9, JO_OPENSSL_ERROR - 2020);
     }
 
     @Test()
     public void MLDSA_setup_hash_with_tr_and_context_preHashByte() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:41
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10, JO_OPENSSL_ERROR - 2021);
     }
 
     @Test()
     public void MLDSA_setup_hash_with_tr_and_context_lenByte() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:48
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11, JO_OPENSSL_ERROR - 2022);
     }
 
     @Test()
     public void MLDSA_setup_hash_with_tr_and_context_ctxBytes() throws Exception
     {
+        // Exercises interface/nonfips/util/mldsa.c:53
         assertInitSignReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12, JO_OPENSSL_ERROR - 2023);
     }
 

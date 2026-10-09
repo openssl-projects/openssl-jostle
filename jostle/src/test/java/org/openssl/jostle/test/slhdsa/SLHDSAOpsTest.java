@@ -939,24 +939,28 @@ public class SLHDSAOpsTest
     @Test()
     public void SLHDSA_generateKeyPair_ctxNew_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/slhdsa.c:126
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3, JO_OPENSSL_ERROR - 2100);
     }
 
     @Test()
     public void SLHDSA_generateKeyPair_keygenInit_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/slhdsa.c:131
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, JO_OPENSSL_ERROR - 2101);
     }
 
     @Test()
     public void SLHDSA_generateKeyPair_setParams_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/slhdsa.c:136
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5, JO_OPENSSL_ERROR - 2102);
     }
 
     @Test()
     public void SLHDSA_generateKeyPair_keygen_fail() throws Exception
     {
+        // Exercises interface/nonfips/util/slhdsa.c:147
         assertGenerateKeyPairReturns(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6, JO_OPENSSL_ERROR - 2103);
     }
 

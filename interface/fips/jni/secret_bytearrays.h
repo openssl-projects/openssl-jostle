@@ -17,6 +17,7 @@
 // array is never written. A distinct type, so the plain release cannot be applied to one.
 // No critical variant: a critical pointer is the Java array itself, so cleansing it would wipe the caller's array.
 
+#define JO_SECRET_NONE 0     /* a ctx not yet loaded; never a loaded kind */
 #define JO_SECRET_INPUT 1
 #define JO_SECRET_OUTPUT 2
 

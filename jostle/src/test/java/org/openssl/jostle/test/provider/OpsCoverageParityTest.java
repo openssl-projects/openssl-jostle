@@ -64,6 +64,12 @@ import java.util.stream.Stream;
  * direction, so the vacuity floors below are load-bearing rather than
  * decorative.
  *
+ * <p><b>Coverage is credited per METHOD.</b> A {@code // Exercises <path>:<line>} annotation credits its C file
+ * only with the flags the same method sets, so removing one cell's annotation uncovers that cell's pair. A method
+ * that sets a flag carries an annotation, or the marker {@code // Exercises: no single site, <why>} when it drives
+ * no one site by design; a flag-setting method with neither, and an annotation or marker in a method that sets no
+ * flag, each fail naming the method.
+ *
  * <p><b>{@code interface/} is not a Gradle task input</b>, so a re-run after
  * editing C needs {@code --rerun} or this test will not execute at all — which
  * reads exactly like it passing.
@@ -82,18 +88,24 @@ public class OpsCoverageParityTest
 
     private static final Pattern SET_FLAG = Pattern.compile("OpsTestFlag\\.(\\w+)");
 
+    /** The fixed marker for a method that drives no single site by design. */
+    private static final Pattern NO_SITE = Pattern.compile("//\\s*Exercises:\\s*no single site,\\s*\\S");
+
+    private static final Pattern TYPE_DECL = Pattern.compile("\\b(?:class|interface|enum)\\s+(\\w+)");
+
+    private static final Pattern CALL_NAME = Pattern.compile("(\\w+)\\s*\\(");
+
     /** Floors that make a broken matcher fail instead of reporting a clean tree. */
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 121;
+    static final int BASELINE_SIZE = 119;
 
     private static final Set<String> BASELINE = baseline();
 
     private static Set<String> baseline()
     {
         Set<String> s = new LinkedHashSet<String>();
-        add(s, "interface/fips/ffm/mac_ffm.c", "OPS_INT32_OVERFLOW_2");
         add(s, "interface/fips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
         // The FIPS-tree upcall rows (rand_upcall_ffm.c and rand_upcall_jni.c) are unreachable by construction: the FIPS
         // lib ctx installs no bridge RAND, so nothing calls the upcall. The base attach-failure branch
@@ -193,7 +205,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_2");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_3");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_4");
-        add(s, "interface/nonfips/ffm/mac_ffm.c", "OPS_INT32_OVERFLOW_2");
         add(s, "interface/nonfips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/nonfips/jni/block_cipher_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/nonfips/jni/block_cipher_ni_jni.c", "OPS_FAILED_ACCESS_2");
@@ -233,7 +244,9 @@ public class OpsCoverageParityTest
         Assumptions.assumeTrue(root != null, "source tree not available");
 
         Map<String, Set<String>> sites = scanC(root);
-        Map<String, Set<String>> driven = scanTests(root);
+        List<String> unannotated = new ArrayList<String>();
+        List<String> unflagged = new ArrayList<String>();
+        Map<String, Set<String>> driven = scanTests(root, unannotated, unflagged);
 
         int pairs = 0;
         for (Set<String> v : sites.values())
@@ -262,6 +275,13 @@ public class OpsCoverageParityTest
 
         System.out.println("[ops-coverage] pairs=" + pairs + " uncovered=" + uncovered.size()
                 + " baseline=" + BASELINE.size());
+
+        Assertions.assertTrue(unannotated.isEmpty(),
+                "these methods set an OPS flag with no Exercises annotation and no no-single-site marker ("
+                        + unannotated.size() + "):\n  " + String.join("\n  ", unannotated));
+        Assertions.assertTrue(unflagged.isEmpty(),
+                "these methods carry an Exercises annotation or marker and set no OPS flag (" + unflagged.size()
+                        + "):\n  " + String.join("\n  ", unflagged));
 
         List<String> appeared = new ArrayList<String>();
         for (String u : uncovered)
@@ -318,6 +338,60 @@ public class OpsCoverageParityTest
         Assertions.assertEquals(new TreeSet<String>(Arrays.asList("OPS_FAILED_ACCESS_1", "OPS_LEDGER_SKIP_FREE_1")),
                 found);
         Assertions.assertEquals(src.split("\n", -1).length, stripped.split("\n", -1).length, "line breaks kept");
+    }
+
+    /**
+     * Each method keeps its own annotations and flags: a sibling's flag, a nested type's method, a brace in a
+     * literal or a comment, and an annotation above the method all land where they belong.
+     */
+    @Test
+    public void annotationsAndFlagsAreAttributedPerMethod()
+    {
+        String src = "public class SampleOpsTest\n{\n"
+                + "    @Test\n    public void annotated()\n    {\n"
+                + "        // Exercises interface/nonfips/util/a.c:10\n"
+                + "        String s = \"} {\";\n"
+                + "        ops.setFlag(OpsTestFlag.OPS_FAILED_INIT_1);\n    }\n\n"
+                + "    // Exercises interface/nonfips/util/b.c:20\n"
+                + "    @Test\n    public void annotatedAbove()\n    {\n"
+                + "        run(OpsTestFlag.OPS_OPENSSL_ERROR_2, -1001);\n    }\n\n"
+                + "    @Test\n    public void bare()\n    {\n"
+                + "        // a comment with a brace {\n"
+                + "        ops.setFlag(OpsTestFlag.OPS_SHORT_SIZE_1);\n    }\n\n"
+                + "    @Test\n    public void marked()\n    {\n"
+                + "        // Exercises: no single site, a reason here\n"
+                + "        ops.setFlag(OpsTestFlag.OPS_OPENSSL_ERROR_3);\n    }\n\n"
+                + "    static class Inner\n    {\n"
+                + "        void innerCell()\n        {\n"
+                + "            // Exercises interface/nonfips/util/c.c:30\n        }\n    }\n}\n";
+
+        Map<String, Cell> byName = new LinkedHashMap<String, Cell>();
+        for (Cell c : cells(src))
+        {
+            byName.put(c.name, c);
+        }
+        Assertions.assertEquals(Arrays.asList("SampleOpsTest.annotated", "SampleOpsTest.annotatedAbove",
+                "SampleOpsTest.bare", "SampleOpsTest.marked", "SampleOpsTest.Inner.innerCell"),
+                new ArrayList<String>(byName.keySet()));
+
+        Cell annotated = byName.get("SampleOpsTest.annotated");
+        Assertions.assertEquals(Collections.singletonList("interface/nonfips/util/a.c"), annotated.paths);
+        Assertions.assertEquals(Collections.singleton("OPS_FAILED_INIT_1"), annotated.flags);
+
+        Cell above = byName.get("SampleOpsTest.annotatedAbove");
+        Assertions.assertEquals(Collections.singletonList("interface/nonfips/util/b.c"), above.paths);
+        Assertions.assertEquals(Collections.singleton("OPS_OPENSSL_ERROR_2"), above.flags);
+
+        Cell bare = byName.get("SampleOpsTest.bare");
+        Assertions.assertTrue(bare.paths.isEmpty() && !bare.marked);
+        Assertions.assertEquals(Collections.singleton("OPS_SHORT_SIZE_1"), bare.flags);
+
+        Cell marked = byName.get("SampleOpsTest.marked");
+        Assertions.assertTrue(marked.marked && marked.paths.isEmpty());
+
+        Cell inner = byName.get("SampleOpsTest.Inner.innerCell");
+        Assertions.assertEquals(Collections.singletonList("interface/nonfips/util/c.c"), inner.paths);
+        Assertions.assertTrue(inner.flags.isEmpty());
     }
 
     private static Map<String, Set<String>> scanC(Path root) throws IOException
@@ -422,7 +496,8 @@ public class OpsCoverageParityTest
         return out.toString();
     }
 
-    private static Map<String, Set<String>> scanTests(Path root) throws IOException
+    private static Map<String, Set<String>> scanTests(Path root, List<String> unannotated, List<String> unflagged)
+            throws IOException
     {
         Map<String, Set<String>> out = new LinkedHashMap<String, Set<String>>();
         Path base = root.resolve("jostle/src/test");
@@ -436,22 +511,30 @@ public class OpsCoverageParityTest
                     continue;
                 }
                 String body = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
-                Set<String> flags = new TreeSet<String>();
-                Matcher f = SET_FLAG.matcher(body);
-                while (f.find())
+                for (Cell c : cells(body))
                 {
-                    flags.add(f.group(1));
-                }
-                Matcher e = EXERCISES.matcher(body);
-                while (e.find())
-                {
-                    Set<String> s = out.get(e.group(1));
-                    if (s == null)
+                    if (c.flags.isEmpty())
                     {
-                        s = new TreeSet<String>();
-                        out.put(e.group(1), s);
+                        if (!c.paths.isEmpty() || c.marked)
+                        {
+                            unflagged.add(c.name);
+                        }
+                        continue;
                     }
-                    s.addAll(flags);
+                    if (c.paths.isEmpty() && !c.marked)
+                    {
+                        unannotated.add(c.name + " " + c.flags);
+                    }
+                    for (String path : c.paths)
+                    {
+                        Set<String> s = out.get(path);
+                        if (s == null)
+                        {
+                            s = new TreeSet<String>();
+                            out.put(path, s);
+                        }
+                        s.addAll(c.flags);
+                    }
                 }
             }
         }
@@ -460,6 +543,116 @@ public class OpsCoverageParityTest
             walk.close();
         }
         return out;
+    }
+
+    /** One member of a test class: the annotations and marker above and inside it, and the flags its code names. */
+    static final class Cell
+    {
+        final String name;
+        final List<String> paths = new ArrayList<String>();
+        final Set<String> flags = new TreeSet<String>();
+        boolean marked;
+
+        Cell(String name)
+        {
+            this.name = name;
+        }
+    }
+
+    /**
+     * Splits a Java source into its members, nested types walked into, each carrying the comment text from the end
+     * of the previous member to its own closing brace. Braces are matched on the stripped text, so a brace in a
+     * comment or a literal does not move a boundary.
+     */
+    static List<Cell> cells(String src)
+    {
+        List<Cell> out = new ArrayList<Cell>();
+        String code = stripCommentsAndStrings(src);
+        Matcher top = TYPE_DECL.matcher(code);
+        if (!top.find())
+        {
+            return out;
+        }
+        int open = code.indexOf('{', top.end());
+        if (open < 0)
+        {
+            return out;
+        }
+        members(src, code, open + 1, matching(code, open), top.group(1) + ".", out);
+        return out;
+    }
+
+    private static void members(String src, String code, int lo, int hi, String prefix, List<Cell> out)
+    {
+        int start = lo;
+        int i = lo;
+        while (i < hi)
+        {
+            char c = code.charAt(i);
+            if (c == '{')
+            {
+                int close = matching(code, i);
+                String header = code.substring(start, i);
+                Matcher type = TYPE_DECL.matcher(header);
+                if (type.find())
+                {
+                    members(src, code, i + 1, close, prefix + type.group(1) + ".", out);
+                }
+                else
+                {
+                    String name = "<init>";
+                    Matcher call = CALL_NAME.matcher(header);
+                    while (call.find())
+                    {
+                        name = call.group(1);
+                    }
+                    Cell cell = new Cell(prefix + name);
+                    String raw = src.substring(start, close + 1);
+                    Matcher e = EXERCISES.matcher(raw);
+                    while (e.find())
+                    {
+                        cell.paths.add(e.group(1));
+                    }
+                    cell.marked = NO_SITE.matcher(raw).find();
+                    Matcher f = SET_FLAG.matcher(code.substring(start, close + 1));
+                    while (f.find())
+                    {
+                        cell.flags.add(f.group(1));
+                    }
+                    out.add(cell);
+                }
+                i = close + 1;
+                start = i;
+                continue;
+            }
+            if (c == ';' || c == '}')
+            {
+                start = i + 1;
+            }
+            i++;
+        }
+    }
+
+    private static int matching(String code, int open)
+    {
+        int depth = 0;
+        for (int i = open; i < code.length(); i++)
+        {
+            char c = code.charAt(i);
+            if (c == '{')
+            {
+                depth++;
+            }
+            else if (c == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return i;
+                }
+            }
+        }
+        return code.length() - 1;
     }
 
     private static Path repoRoot()

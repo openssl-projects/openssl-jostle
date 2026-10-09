@@ -120,6 +120,7 @@
  */
 #define X509_KIND_CERT 0x58433501u   /* "XC5\1" */
 #define X509_KIND_CRL  0x584C3502u   /* "XL5\2" */
+#define X509_KIND_NONE 0u            /* what a freed handle is left with; never a valid kind */
 
 typedef struct
 {

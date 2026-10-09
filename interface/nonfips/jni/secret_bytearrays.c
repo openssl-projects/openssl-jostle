@@ -21,7 +21,7 @@ void init_secret_bytearray_ctx(java_secret_bytearray_ctx *ctx) {
     ctx->size = 0;
     ctx->env = NULL;
     ctx->array = NULL;
-    ctx->kind = 0;
+    ctx->kind = JO_SECRET_NONE;
     ctx->jvm_copy = JNI_FALSE;
     ctx->cleansed = 0;
 }
