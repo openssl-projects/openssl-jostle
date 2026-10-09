@@ -701,6 +701,9 @@ This is the leg-coverage lesson a third time (after the `*LimitTest`-on-unit-leg
 exclusion and the JNI/FFM bridge dimension) and the first that did NOT come out
 green by luck.
 
+A change to the fields of a key class runs the module legs (`moduleTest*`) on every JDK that has them, because
+serialising a key walks its fields under a named module.
+
 ### Every JDK-level source set carries a CANARY, because wiring cannot be read
 
 **Symptom: a source set is declared, its tests compile, and one leg silently

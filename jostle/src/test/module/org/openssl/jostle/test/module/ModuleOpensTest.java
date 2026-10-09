@@ -88,16 +88,16 @@ public class ModuleOpensTest
      * <p>{@code java.security.Key} extends {@code Serializable}, so writing one
      * makes java.base walk the key's declared fields — reflection INTO the
      * package, which is the only thing a removed {@code opens} could have
-     * broken. It does not break: the walk reaches the NI service field and
+     * broken. It does not break: the walk reaches a native-interface field and
      * refuses because that field's type is not serialisable.
      *
      * <p>Pinning {@code NotSerializableException} is what makes this a witness.
      * An {@code InaccessibleObjectException} is what a genuinely-needed
      * {@code opens} would produce, and it would fail here by type.
      *
-     * <p>The refused class is named per BRIDGE — {@code ...ServiceFFM} or
-     * {@code ...ServiceJNI} by leg — so the assertion pins its PACKAGE, which
-     * is the part under test, and not the bridge, which is not.
+     * <p>The refused class is named per BRIDGE, {@code ...FFM} or
+     * {@code ...JNI} by leg, so the assertion pins its PACKAGE, the key's own
+     * or {@code util.asn1}, and not the bridge, which is not under test.
      */
     @Test
     public void serialisingAPqKeyRefusesOnItsNativeFieldNotOnAccess() throws Exception
@@ -107,6 +107,7 @@ public class ModuleOpensTest
                 "org.openssl.jostle.jcajce.provider.mldsa",
                 "org.openssl.jostle.jcajce.provider.mlkem",
                 "org.openssl.jostle.jcajce.provider.slhdsa"};
+        String asn1Package = "org.openssl.jostle.util.asn1";
         Assertions.assertEquals(algs.length, packages.length, "vacuity: the table must be square");
 
         int driven = 0;
@@ -127,9 +128,11 @@ public class ModuleOpensTest
                     },
                     algs[i] + ": expected the field-level refusal, not an access failure");
 
-            Assertions.assertTrue(thrown.getMessage().startsWith(packages[i] + "."),
-                    algs[i] + ": the refusal must name a class in " + packages[i]
-                            + ", got " + thrown.getMessage());
+            // Serialisation writes fields in name order, so whichever native-interface field sorts first refuses.
+            String named = thrown.getMessage();
+            Assertions.assertTrue(named.startsWith(packages[i] + ".") || named.startsWith(asn1Package + "."),
+                    algs[i] + ": the refusal must name a class in " + packages[i] + " or " + asn1Package
+                            + ", got " + named);
             driven++;
         }
         Assertions.assertEquals(3, driven, "all three packages must have been driven");
