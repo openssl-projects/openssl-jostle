@@ -7,6 +7,7 @@
 
 #ifndef KEY_SPEC_H
 #define KEY_SPEC_H
+#include <stdint.h>
 #include <openssl/types.h>
 
 #define KS_NONE 0
@@ -69,7 +70,15 @@
 #define KS_SECP384R1_MLKEM1024 34
 
 
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as a key_spec.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define KEY_SPEC_KIND 0x4B533501u   /* "KS5\1" */
+#define KEY_SPEC_NONE 0u            /* what a freed spec is left with; never a valid kind */
+
 typedef struct key_spec {
+    uint32_t kind;
     EVP_PKEY *key;
 } key_spec;
 
@@ -81,5 +90,11 @@ key_spec *create_spec(void);
  * this would be normally called by the disposal daemon.
  */
 void free_key_spec(key_spec *spec);
+
+/*
+ * JO_KEY_SPEC_IS_NULL, JO_KEY_SPEC_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ * The spec bridge entries check every handle with it; the family bridges adopt it at their own entries.
+ */
+int32_t key_spec_check(const key_spec *spec);
 
 #endif //KEY_SPEC_H

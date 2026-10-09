@@ -21,7 +21,8 @@
   Clean up and free a PKEY
  */
 void JoSpec_disposeKeySpec(key_spec *ctx) {
-    if (ctx == NULL) {
+    // Frees nothing on a wrong kind: freeing another object as a key_spec corrupts it.
+    if (key_spec_check(ctx) != JO_SUCCESS) {
         return;
     }
     free_key_spec(ctx);
@@ -42,8 +43,9 @@ int32_t JoSpec_Encap(
     uint8_t *output, const size_t output_size, const int32_t out_off, const int32_t out_len,
     void *rand_src
 ) {
-    if (ks == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ks_rc = key_spec_check(ks);
+    if (ks_rc != JO_SUCCESS) {
+        return ks_rc;
     }
 
     if (ks->key == NULL) {
@@ -103,8 +105,9 @@ exit:
  * The shared secret's length for an encapsulation to this key; writes nothing.
  */
 int32_t JoSpec_EncapSecretLength(key_spec *ks, const char *opp, void *rand_src) {
-    if (ks == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ks_rc = key_spec_check(ks);
+    if (ks_rc != JO_SUCCESS) {
+        return ks_rc;
     }
 
     if (ks->key == NULL) {
@@ -122,8 +125,9 @@ int32_t JoSpec_Decap(
     uint8_t *output, const size_t output_size, const int32_t out_off, const int32_t out_len,
     void *rand_src
 ) {
-    if (ks == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ks_rc = key_spec_check(ks);
+    if (ks_rc != JO_SUCCESS) {
+        return ks_rc;
     }
 
     if (ks->key == NULL) {
@@ -180,7 +184,7 @@ exit:
 
 const char *JoSpec_GetName(key_spec *ks, size_t *len) {
     jo_assert(len != NULL);
-    if (ks == NULL || ks->key == NULL) {
+    if (key_spec_check(ks) != JO_SUCCESS || ks->key == NULL) {
         *len = 0;
         return NULL;
     }
@@ -210,7 +214,7 @@ const char *JoSpec_GetName(key_spec *ks, size_t *len) {
  */
 const char *JoSpec_GetKeyProvider(key_spec *ks, size_t *len) {
     jo_assert(len != NULL);
-    if (ks == NULL || ks->key == NULL) {
+    if (key_spec_check(ks) != JO_SUCCESS || ks->key == NULL) {
         *len = 0;
         return NULL;
     }

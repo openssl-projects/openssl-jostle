@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.kts.KemKeyDerivation;
+import org.openssl.jostle.jcajce.provider.kts.KemSizes;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
@@ -287,9 +288,16 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             KEMExtractSpec extractSpec = (KEMExtractSpec) parameterSpec;
             PKEYKeySpec spec = ((OSSLKey) extractSpec.getPrivateKey()).getSpec();
             byte[] wrappedKey = extractSpec.getEncapsulation();
+            int expected = KemSizes.ciphertextLength(spec.getType());
+            if (wrappedKey.length != expected)
+            {
+                // The type BouncyCastle's extractor throws for the same input.
+                throw new IllegalArgumentException("encapsulation wrong length: " + wrappedKey.length
+                        + " bytes, " + spec.getType() + " takes " + expected);
+            }
             long len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0, randSource);
 
-            byte[] out = new byte[(int) len];
+            byte[] out = new byte[KemSizes.checkedSharedSecretLength(spec.getType(), len)];
             byte[] key = null;
             try
             {
@@ -329,7 +337,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             {
                 int encapsulationLen = spec.getSpecNI().encapsulationLength(spec.getReference(), spec.getType(),
                         secret.length, randSource);
-                byte[] wrappedKey = new byte[encapsulationLen];
+                byte[] wrappedKey = new byte[KemSizes.checkedCiphertextLength(spec.getType(), encapsulationLen)];
                 int len = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
 
                 if (len != wrappedKey.length)

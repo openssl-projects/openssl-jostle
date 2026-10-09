@@ -63,7 +63,8 @@ public final class KemKeyDerivation
         }
         // Whole bytes, rounding up, as BouncyCastle does.
         int keyBytes = (keySizeInBits + 7) / 8;
-        int secretBytes = key.getSpecNI().sharedSecretLength(key.getReference(), key.getType(), randSource);
+        int secretBytes = KemSizes.checkedSharedSecretLength(key.getType(),
+                key.getSpecNI().sharedSecretLength(key.getReference(), key.getType(), randSource));
 
         if (kdfAlgorithm == null)
         {

@@ -309,13 +309,10 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
         goto err;
     }
 
-    key_spec *key = OPENSSL_zalloc(sizeof(key_spec));
-    jo_assert(key != NULL);
-
+    key_spec *key = create_spec();
     key->key = new_key;
 
     *ret_code = JO_SUCCESS;
-    JO_LEDGER_CREATED(JO_LEDGER_KEY_SPEC);
     return key;
 
 err:
@@ -379,13 +376,10 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
         }
     }
 
-    key_spec *key = OPENSSL_zalloc(sizeof(key_spec));
-    jo_assert(key != NULL);
-
+    key_spec *key = create_spec();
     key->key = new_key;
 
     *ret_code = JO_SUCCESS;
-    JO_LEDGER_CREATED(JO_LEDGER_KEY_SPEC);
     return key;
 
 err:

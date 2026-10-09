@@ -12,6 +12,7 @@
 #include <openssl/types.h>
 
 #include "bytearrays.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_spec_SpecJNI.h"
 #include "types.h"
 #include "../util/encapdecap.h"
@@ -30,7 +31,8 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1dispose
     UNUSED(env);
     UNUSED(jo);
     key_spec *ks = (key_spec *) ((void *) ref);
-    if (ks == NULL) {
+    // Frees nothing on a wrong kind: freeing another object as a key_spec corrupts it.
+    if (key_spec_check(ks) != JO_SUCCESS) {
         return;
     }
     free_key_spec(ks);
@@ -74,7 +76,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getNam
     UNUSED(jo);
 
     const key_spec *ks = (key_spec *) (void *) ref;
-    if (ks == NULL || ks->key == NULL) {
+    if (key_spec_check(ks) != JO_SUCCESS || ks->key == NULL) {
         return NULL;
     }
 
@@ -108,7 +110,7 @@ JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1getKey
     UNUSED(jo);
 
     const key_spec *ks = (key_spec *) (void *) ref;
-    if (ks == NULL || ks->key == NULL) {
+    if (key_spec_check(ks) != JO_SUCCESS || ks->key == NULL) {
         return NULL;
     }
 
@@ -137,30 +139,33 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
  jint out_off, jint out_len, jobject rand_src) {
     UNUSED(jo);
 
-    // rand_src is null-checked (and the thread-local up-call target bound)
-    // by util's encap() AFTER the handle/array validation below — the same
-    // point the FFM path checks it, so both bridges reject identical inputs
-    // with identical codes in the same order.
+    // One Java array behind both buffers would have one write-back clobber the other's bytes. Checked
+    // first, as on FFM, so both bridges return the same code for the same input.
+    if (_output != NULL && (*env)->IsSameObject(env, _input, _output)) {
+        return JO_INPUT_AND_OUTPUT_ALIASED;
+    }
+
+    // rand_src is null-checked by util after the checks below, as on FFM.
     key_spec *ks = (key_spec *) ((void *) ref);
-    if (ks == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ks_rc = key_spec_check(ks);
+    if (ks_rc != JO_SUCCESS) {
+        return ks_rc;
     }
 
     if (ks->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-
-
-    java_bytearray_ctx input, output;
+    // The shared secret is written into the input window: our copy is cleansed at release.
+    java_secret_bytearray_ctx input;
+    java_bytearray_ctx output;
     int32_t ret = 0;
     char *opp = NULL;
 
-    init_bytearray_ctx(&input);
+    init_secret_bytearray_ctx(&input);
     init_bytearray_ctx(&output);
 
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&input, env, _input)) {
         ret = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -180,7 +185,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
         goto exit;
     }
 
-    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+    if (!check_secret_in_range(&input, in_off, in_len)) {
         ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -209,18 +214,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encap
             goto exit;
         }
         out = (uint8_t *) output.bytearray + out_off;
-    }
-
-    // Reject an aliased call where the same Java array backs both the
-    // shared-secret (input) and the encapsulation (output) buffers: the two
-    // ctxs are released independently with a whole-array copy-back (mode 0),
-    // so one release would clobber the other's written bytes — silent,
-    // platform-dependent corruption. Object identity covers any offset;
-    // skipped when output is null (a size query cannot alias). FFM rejects the
-    // same case by reference equality, so both bridges return identical codes.
-    if (output.bytearray != NULL && (*env)->IsSameObject(env, _input, _output)) {
-        ret = JO_INPUT_AND_OUTPUT_ALIASED;
-        goto exit;
     }
 
 
@@ -242,8 +235,7 @@ exit:
     }
 
     release_bytearray_ctx(&output);
-    release_bytearray_ctx(&input);
-
+    release_secret_bytearray_ctx(&input);
 
     return ret;
 }
@@ -258,28 +250,31 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
  jint out_off, jint out_len, jobject rand_src) {
     UNUSED(jo);
 
-    // rand_src is null-checked (and the thread-local up-call target bound)
-    // by util's decap() AFTER the handle/array validation below — the same
-    // point the FFM path checks it, so both bridges reject identical inputs
-    // with identical codes in the same order.
+    // One Java array behind both buffers would have one write-back clobber the other's bytes. Checked
+    // first, as on FFM, so both bridges return the same code for the same input.
+    if (_output != NULL && (*env)->IsSameObject(env, _input, _output)) {
+        return JO_INPUT_AND_OUTPUT_ALIASED;
+    }
+
+    // rand_src is null-checked by util after the checks below, as on FFM.
     key_spec *ks = (key_spec *) ((void *) ref);
-    if (ks == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ks_rc = key_spec_check(ks);
+    if (ks_rc != JO_SUCCESS) {
+        return ks_rc;
     }
 
     if (ks->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
-
-
-    java_bytearray_ctx input, output;
+    // The shared secret is written into the output window: our copy is cleansed at release.
+    java_bytearray_ctx input;
+    java_secret_bytearray_ctx output;
     int32_t ret = 0;
     char *opp = NULL;
 
     init_bytearray_ctx(&input);
-    init_bytearray_ctx(&output);
-
+    init_secret_bytearray_ctx(&output);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
         ret = JO_FAILED_ACCESS_INPUT;
@@ -307,7 +302,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
     }
 
 
-    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&output, env, _output)) {
+    if (OPS_FAILED_ACCESS_2 !load_secret_output_ctx(&output, env, _output)) {
         ret = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -325,23 +320,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1decap
             goto exit;
         }
 
-        if (!check_bytearray_in_range(&output, out_off, out_len)) {
+        if (!check_secret_in_range(&output, out_off, out_len)) {
             ret = JO_OUTPUT_OUT_OF_RANGE;
             goto exit;
         }
         out = (uint8_t *) output.bytearray + out_off;
-    }
-
-    // Reject an aliased call where the same Java array backs both the
-    // ciphertext (input) and the shared-secret (output) buffers: the two ctxs
-    // are released independently with a whole-array copy-back (mode 0), so one
-    // release would clobber the other's written bytes — silent,
-    // platform-dependent corruption. Object identity covers any offset;
-    // skipped when output is null (a size query cannot alias). FFM rejects the
-    // same case by reference equality, so both bridges return identical codes.
-    if (output.bytearray != NULL && (*env)->IsSameObject(env, _input, _output)) {
-        ret = JO_INPUT_AND_OUTPUT_ALIASED;
-        goto exit;
     }
 
 
@@ -362,7 +345,7 @@ exit:
         (*env)->ReleaseStringUTFChars(env, _opp, opp);
     }
 
-    release_bytearray_ctx(&output);
+    release_secret_bytearray_ctx(&output);
     release_bytearray_ctx(&input);
 
     return ret;
@@ -379,8 +362,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_spec_SpecJNI_ni_1encapSecr
 
     // rand_src is null-checked by util, after the handle checks, as for encap.
     key_spec *ks = (key_spec *) ((void *) ref);
-    if (ks == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ks_rc = key_spec_check(ks);
+    if (ks_rc != JO_SUCCESS) {
+        return ks_rc;
     }
 
     if (ks->key == NULL) {

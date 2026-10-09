@@ -665,6 +665,8 @@
 #define JO_KS_NOT_SECRET_ENTRY -189
 /* A provider name holding a byte below 0x20 or 0x7F. */
 #define JO_PROV_NAME_INVALID -190
+/* A handle that is not a key_spec, or one already freed. */
+#define JO_KEY_SPEC_WRONG_KIND -191
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module

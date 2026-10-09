@@ -355,6 +355,8 @@ public enum ErrorCode
     // The alias names no entry, or an entry that is not a secret key.
     JO_KS_NOT_SECRET_ENTRY(-189),
     JO_PROV_NAME_INVALID(-190),
+    // A handle that is not a key_spec, or one already freed.
+    JO_KEY_SPEC_WRONG_KIND(-191),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

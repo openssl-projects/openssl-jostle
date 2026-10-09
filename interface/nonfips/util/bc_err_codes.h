@@ -666,6 +666,8 @@
 #define JO_KS_NOT_SECRET_ENTRY -189
 /* A provider name holding a byte below 0x20 or 0x7F. */
 #define JO_PROV_NAME_INVALID -190
+/* A handle that is not a key_spec, or one already freed. */
+#define JO_KEY_SPEC_WRONG_KIND -191
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

@@ -120,7 +120,7 @@ public class FIPSASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/fips/util/asn1_util.c:336
+            // Exercises interface/fips/util/asn1_util.c:333
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[10], 0, 10);
             Assertions.fail();
@@ -480,7 +480,7 @@ public class FIPSASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/fips/util/asn1_util.c:356
+            // Exercises interface/fips/util/asn1_util.c:353
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
             keyRef = asn1NI.fromPublicKeyInfo(x509, 0, x509.length);
             Assertions.fail();

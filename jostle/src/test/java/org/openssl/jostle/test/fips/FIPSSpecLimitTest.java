@@ -15,11 +15,15 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.certpath.PkitsCertificates;
+import org.openssl.jostle.test.spec.SpecLimitTest;
 
 /**
  * Input validation at the key-spec NI surface of the FIPS interface library
@@ -521,6 +525,160 @@ public class FIPSSpecLimitTest
                     ni.decap(ref, null, enc, 0, enc.length, recovered, 0, 32, RND) >= 0);
             Assertions.assertArrayEquals(secret, recovered,
                     "decapsulation recovered a different secret");
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    /** An RSA-2048 keypair handle in the FIPS library, for RSASVE, which both modules serve. Caller disposes. */
+    private long rsaKey()
+    {
+        long ref = FIPSNISelector.RSAServiceNI.generateKeyPair(2048, new byte[]{1, 0, 1}, RND);
+        Assertions.assertTrue(ref > 0);
+        return ref;
+    }
+
+    @Test
+    public void aliasedArrays_refusedBeforeTheHandle()
+    {
+        long keyless = ni.allocate();
+        try
+        {
+            for (long handle : new long[]{0, keyless})
+            {
+                byte[] shared = new byte[2048];
+                assertTyped(IllegalArgumentException.class, "input and output must not be the same array",
+                        () -> ni.encap(handle, null, shared, 0, 32, shared, 32, 1024, RND));
+                assertTyped(IllegalArgumentException.class, "input and output must not be the same array",
+                        () -> ni.decap(handle, null, shared, 0, 768, shared, 1024, 32, RND));
+                assertTyped(IllegalArgumentException.class, handle == 0 ? "key spec is null" : "key spec has null key",
+                        () -> ni.encap(handle, null, new byte[32], 0, 32, new byte[1024], 0, 1024, RND));
+            }
+        }
+        finally
+        {
+            ni.dispose(keyless);
+        }
+    }
+
+    @Test
+    public void wrongKindHandle_refused() throws Exception
+    {
+        X509NI x509NI = FIPSNISelector.X509NI;
+        byte[] der = PkitsCertificates.der("GoodCACert.crt");
+        long cert = x509NI.allocate(der, 0, der.length, der.length, new int[1]);
+        Assertions.assertTrue(cert != 0);
+        try
+        {
+            assertTyped(IllegalArgumentException.class, "handle is not a key spec",
+                    () -> ni.encap(cert, null, new byte[32], 0, 32, new byte[1024], 0, 1024, RND));
+            assertTyped(IllegalArgumentException.class, "handle is not a key spec",
+                    () -> ni.decap(cert, null, new byte[768], 0, 768, new byte[32], 0, 32, RND));
+            assertTyped(IllegalArgumentException.class, "handle is not a key spec",
+                    () -> ni.encapSecretLength(cert, null, RND));
+            Assertions.assertNull(ni.getName(cert));
+            Assertions.assertNull(ni.getKeyProvider(cert));
+
+            // Dispose frees nothing on the wrong kind: the certificate still answers afterwards.
+            ni.dispose(cert);
+            Assertions.assertTrue(x509NI.fieldsLen(cert) > 0);
+        }
+        finally
+        {
+            x509NI.dispose(cert);
+        }
+    }
+
+    /** Every KEM key type the module serves; a type it does not serve is recorded, not skipped silently. */
+    @Test
+    public void kemSizeQueries_matchTheSpecification()
+    {
+        int measured = 0;
+        StringBuilder unserved = new StringBuilder();
+        for (OSSLKeyType type : new OSSLKeyType[]{OSSLKeyType.ML_KEM_512, OSSLKeyType.ML_KEM_768,
+                OSSLKeyType.ML_KEM_1024, OSSLKeyType.X25519MLKEM768, OSSLKeyType.X448MLKEM1024,
+                OSSLKeyType.SecP256r1MLKEM768, OSSLKeyType.SecP384r1MLKEM1024})
+        {
+            boolean hybrid = type.name().contains("MLKEM");
+            String keyMgmt = hybrid ? type.name() : type.name().replace('_', '-');
+            if (!FIPSTestUtil.moduleServesKeyMgmt(keyMgmt))
+            {
+                unserved.append(' ').append(keyMgmt);
+                continue;
+            }
+            long key = hybrid
+                    ? FIPSNISelector.MLXKEMServiceNI.generateKeyPair(type.getKsType(), RND)
+                    : FIPSNISelector.MLKEMServiceNI.generateKeyPair(type.getKsType(), RND);
+            try
+            {
+                SpecLimitTest.assertSizes(ni, key, type, null, RND);
+                measured++;
+            }
+            finally
+            {
+                ni.dispose(key);
+            }
+        }
+        System.out.println("[kem sizes] measured=" + measured + " unserved:" + unserved);
+        Assertions.assertEquals(moduleServesMlKem(), measured > 0,
+                "ML-KEM served by the module must be measured here");
+    }
+
+    @Test
+    public void decap_wrongLengthCiphertext_mlKem()
+    {
+        assumeMlKem();
+        long ref = mlKemKey();
+        try
+        {
+            SpecLimitTest.assertWrongLengthRefused(ni, ref, null, 768, 32, RND);
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void decap_wrongLengthCiphertext_rsasve()
+    {
+        long ref = rsaKey();
+        try
+        {
+            SpecLimitTest.assertWrongLengthRefused(ni, ref, "RSASVE", 256, 256, RND);
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void encap_zeroLengthSecretWindow_tooSmall()
+    {
+        long ref = rsaKey();
+        try
+        {
+            assertTyped(IllegalArgumentException.class, "output too small",
+                    () -> ni.encap(ref, "RSASVE", new byte[0], 0, 0, new byte[256], 0, 256, RND));
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void decap_zeroLengthCiphertext_refusedByTheLibrary()
+    {
+        long ref = rsaKey();
+        try
+        {
+            OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
+                    () -> ni.decap(ref, "RSASVE", new byte[0], 0, 0, new byte[256], 0, 256, RND));
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
         }
         finally
         {

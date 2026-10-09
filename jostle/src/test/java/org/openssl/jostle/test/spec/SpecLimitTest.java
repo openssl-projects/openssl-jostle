@@ -16,15 +16,27 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
+import org.openssl.jostle.jcajce.provider.kts.KemSizes;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.certpath.PkitsCertificates;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.Security;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SpecLimitTest
 {
@@ -1188,5 +1200,291 @@ public class SpecLimitTest
         String prov = s.getSpecNI().getKeyProvider(s.getReference());
         Assertions.assertNotNull(prov, "a real key must name its provider");
         Assertions.assertFalse(prov.isEmpty());
+    }
+
+
+    // -----------------------------------------------------------------
+    // Aliasing is refused before the handle is looked at, on both bridges, so the same input gets the same code
+    // whatever else is wrong with it.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void aliasedArrays_refusedBeforeTheHandle()
+    {
+        long keyless = specNI.allocate();
+        try
+        {
+            for (long handle : new long[]{0, keyless})
+            {
+                byte[] shared = new byte[2048];
+                IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                        () -> specNI.encap(handle, null, shared, 0, 32, shared, 32, 1024, TestUtil.RNDSrc));
+                Assertions.assertEquals("input and output must not be the same array", e.getMessage());
+                e = Assertions.assertThrows(IllegalArgumentException.class,
+                        () -> specNI.decap(handle, null, shared, 0, 768, shared, 1024, 32, TestUtil.RNDSrc));
+                Assertions.assertEquals("input and output must not be the same array", e.getMessage());
+                // Control: the same handle with separate arrays reaches the handle check.
+                e = Assertions.assertThrows(IllegalArgumentException.class,
+                        () -> specNI.encap(handle, null, new byte[32], 0, 32, new byte[1024], 0, 1024,
+                                TestUtil.RNDSrc));
+                Assertions.assertEquals(handle == 0 ? "key spec is null" : "key spec has null key", e.getMessage());
+            }
+        }
+        finally
+        {
+            specNI.dispose(keyless);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // A handle to another kind of native object is refused, not used as a key_spec.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void wrongKindHandle_refused() throws Exception
+    {
+        X509NI x509NI = NISelector.X509NI;
+        byte[] der = PkitsCertificates.der("GoodCACert.crt");
+        long cert = x509NI.allocate(der, 0, der.length, der.length, new int[1]);
+        Assertions.assertTrue(cert != 0);
+        try
+        {
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> specNI.encap(cert, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
+            Assertions.assertEquals("handle is not a key spec", e.getMessage());
+            e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> specNI.decap(cert, null, new byte[768], 0, 768, new byte[32], 0, 32, TestUtil.RNDSrc));
+            Assertions.assertEquals("handle is not a key spec", e.getMessage());
+            e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> specNI.encapSecretLength(cert, null, TestUtil.RNDSrc));
+            Assertions.assertEquals("handle is not a key spec", e.getMessage());
+            Assertions.assertNull(specNI.getName(cert));
+            Assertions.assertNull(specNI.getKeyProvider(cert));
+
+            // Dispose frees nothing on the wrong kind: the certificate still answers afterwards.
+            specNI.dispose(cert);
+            Assertions.assertTrue(x509NI.fieldsLen(cert) > 0);
+        }
+        finally
+        {
+            x509NI.dispose(cert);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // The native size queries agree with the specification's sizes for every KEM key type.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void kemSizeQueries_matchTheSpecification()
+    {
+        MLXKEMServiceNI mlxkemServiceNI = TestNISelector.getMLXKEMNI();
+        int measured = 0;
+        for (OSSLKeyType type : new OSSLKeyType[]{OSSLKeyType.ML_KEM_512, OSSLKeyType.ML_KEM_768,
+                OSSLKeyType.ML_KEM_1024, OSSLKeyType.X25519MLKEM768, OSSLKeyType.X448MLKEM1024,
+                OSSLKeyType.SecP256r1MLKEM768, OSSLKeyType.SecP384r1MLKEM1024})
+        {
+            boolean hybrid = type.name().contains("MLKEM");
+            long key = hybrid
+                    ? mlxkemServiceNI.generateKeyPair(type.getKsType(), TestUtil.RNDSrc)
+                    : mlkemServiceNI.generateKeyPair(type.getKsType(), TestUtil.RNDSrc);
+            try
+            {
+                assertSizes(specNI, key, type, null, TestUtil.RNDSrc);
+                measured++;
+            }
+            finally
+            {
+                specNI.dispose(key);
+            }
+        }
+        Assertions.assertEquals(7, measured);
+    }
+
+    public static void assertSizes(SpecNI ni, long key, OSSLKeyType type, String op, RandSource rnd)
+    {
+        int ct = KemSizes.ciphertextLength(type);
+        int ss = KemSizes.sharedSecretLength(type);
+        Assertions.assertEquals(ct, ni.encap(key, op, new byte[ss], 0, ss, null, 0, 0, rnd), type + " encap");
+        Assertions.assertEquals(ss, ni.encapSecretLength(key, op, rnd), type + " secret");
+        byte[] enc = new byte[ct];
+        Assertions.assertEquals(ct, ni.encap(key, op, new byte[ss], 0, ss, enc, 0, ct, rnd), type + " real encap");
+        Assertions.assertEquals(ss, ni.decap(key, op, enc, 0, ct, null, 0, 0, rnd), type + " decap");
+    }
+
+    // -----------------------------------------------------------------
+    // A ciphertext of the wrong length reaches the library, which refuses it.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void decap_wrongLengthCiphertext_mlKem()
+    {
+        long key = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            assertWrongLengthRefused(specNI, key, null, 768, 32, TestUtil.RNDSrc);
+        }
+        finally
+        {
+            specNI.dispose(key);
+        }
+    }
+
+    @Test
+    public void decap_wrongLengthCiphertext_rsasve() throws Exception
+    {
+        KeyPair kp = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME).generateKeyPair();
+        long key = ((OSSLKey) kp.getPrivate()).getSpec().getReference();
+        assertWrongLengthRefused(specNI, key, "RSASVE", 256, 256, TestUtil.RNDSrc);
+        Assertions.assertNotNull(kp.getPrivate());
+    }
+
+    public static void assertWrongLengthRefused(SpecNI ni, long key, String op, int ct, int ss, RandSource rnd)
+    {
+        byte[] enc = new byte[ct + 1];
+        Assertions.assertEquals(ct, ni.encap(key, op, new byte[ss], 0, ss, enc, 0, ct, rnd));
+        for (int len : new int[]{ct - 1, ct + 1})
+        {
+            OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
+                    () -> ni.decap(key, op, enc, 0, len, new byte[ss], 0, ss, rnd), "length " + len);
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        }
+        // Control: the whole encapsulation decapsulates.
+        Assertions.assertEquals(ss, ni.decap(key, op, enc, 0, ct, new byte[ss], 0, ss, rnd));
+    }
+
+    // -----------------------------------------------------------------
+    // Zero-length windows reach util as non-NULL pointers on both bridges.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void encap_zeroLengthSecretWindow_tooSmall()
+    {
+        long key = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> specNI.encap(key, null, new byte[0], 0, 0, new byte[768], 0, 768, TestUtil.RNDSrc));
+            Assertions.assertEquals("output too small", e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(key);
+        }
+    }
+
+    @Test
+    public void decap_zeroLengthCiphertext_refusedByTheLibrary()
+    {
+        long key = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            OpenSSLException e = Assertions.assertThrows(OpenSSLException.class,
+                    () -> specNI.decap(key, null, new byte[0], 0, 0, new byte[32], 0, 32, TestUtil.RNDSrc));
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        }
+        finally
+        {
+            specNI.dispose(key);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // The dispose action runs the native free once, however often it is run.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void disposeAction_runTwice_freesOnce()
+    {
+        AtomicInteger frees = new AtomicInteger();
+        SpecNI counting = new CountingSpecNI(specNI, frees);
+        long key = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        DisposeProbe probe = new DisposeProbe(counting, key);
+        probe.disposeAction().run();
+        probe.disposeAction().run();
+        Assertions.assertEquals(1, frees.get());
+    }
+
+    private static final class DisposeProbe extends PKEYKeySpec
+    {
+        DisposeProbe(SpecNI ni, long ref)
+        {
+            super(ni, ref, OSSLKeyType.ML_KEM_512);
+        }
+
+        Runnable disposeAction()
+        {
+            return ref.getDisposeAction();
+        }
+    }
+
+    /** Delegates to a real SpecNI and counts the native frees. */
+    private static final class CountingSpecNI implements SpecNI
+    {
+        private final SpecNI real;
+        private final AtomicInteger frees;
+
+        CountingSpecNI(SpecNI real, AtomicInteger frees)
+        {
+            this.real = real;
+            this.frees = frees;
+        }
+
+        @Override
+        public void ni_dispose(long reference)
+        {
+            frees.incrementAndGet();
+            real.ni_dispose(reference);
+        }
+
+        @Override
+        public long ni_allocate(int[] err)
+        {
+            return real.ni_allocate(err);
+        }
+
+        @Override
+        public String ni_getName(long keyRef)
+        {
+            return real.ni_getName(keyRef);
+        }
+
+        @Override
+        public String ni_getKeyProvider(long keyRef)
+        {
+            return real.ni_getKeyProvider(keyRef);
+        }
+
+        @Override
+        public int ni_encap(long keyRef, String opt, byte[] secret, int inOff, int inLen, byte[] out, int off,
+                            int len, RandSource randSource)
+        {
+            return real.ni_encap(keyRef, opt, secret, inOff, inLen, out, off, len, randSource);
+        }
+
+        @Override
+        public int ni_decap(long keyRef, String opt, byte[] input, int inOff, int inLen, byte[] out, int off,
+                            int len, RandSource randSource)
+        {
+            return real.ni_decap(keyRef, opt, input, inOff, inLen, out, off, len, randSource);
+        }
+
+        @Override
+        public int ni_encapSecretLength(long keyRef, String opt, RandSource randSource)
+        {
+            return real.ni_encapSecretLength(keyRef, opt, randSource);
+        }
+
+        @Override
+        public NativeLengthCache<OSSLKeyType> lengthCache()
+        {
+            return real.lengthCache();
+        }
+
+        @Override
+        public NativeLengthCache<OSSLKeyType> secretLengthCache()
+        {
+            return real.secretLengthCache();
+        }
     }
 }

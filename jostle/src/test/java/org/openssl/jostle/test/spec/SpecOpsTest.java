@@ -62,7 +62,7 @@ public class SpecOpsTest
 
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:163
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:168
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -85,7 +85,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:189
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:194
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             specNI.encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -108,7 +108,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:229
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:222
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             specNI.encap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -246,7 +246,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:395
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:379
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             Assertions.assertEquals(ErrorCode.JO_FAILED_ACCESS_ENCAP_OPP.getCode(),
                     specNI.ni_encapSecretLength(keyRef, "cats", TestUtil.RNDSrc));
@@ -365,7 +365,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:284
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:279
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -388,7 +388,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:310
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:305
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             specNI.decap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -411,7 +411,7 @@ public class SpecOpsTest
         long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/spec_ni_jni.c:350
+            // Exercises interface/nonfips/jni/spec_ni_jni.c:333
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             specNI.decap(keyRef, "cats", new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc);
             Assertions.fail();
@@ -539,8 +539,38 @@ public class SpecOpsTest
             specNI.dispose(keyRef);
         }
     }
-    
-    
-    
 
+    /**
+     * The shared secret crosses JNI through the cleansing contexts: one load for the encap's secret window and one
+     * for the decap's output. FFM copies into arena segments that it fills with zero before the arena closes, which
+     * the ledger cannot see.
+     */
+    @Test
+    public void sharedSecretCopiesAreCleansed() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        long keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
+        try
+        {
+            byte[] secret = new byte[32];
+            byte[] enc = new byte[768];
+            byte[] back = new byte[32];
+            operationsTestNI.ledgerReset();
+            Assertions.assertEquals(768, specNI.encap(keyRef, null, secret, 0, 32, enc, 0, 768, TestUtil.RNDSrc));
+            Assertions.assertEquals(32, specNI.decap(keyRef, null, enc, 0, 768, back, 0, 32, TestUtil.RNDSrc));
+            Assertions.assertArrayEquals(secret, back);
+
+            int expected = Loader.isFFM() ? 0 : 2;
+            for (OperationsTestNI.LedgerType t : new OperationsTestNI.LedgerType[]{
+                    OperationsTestNI.LedgerType.SECRET_BYTEARRAY, OperationsTestNI.LedgerType.SECRET_CLEANSE})
+            {
+                Assertions.assertEquals(expected, operationsTestNI.ledgerCreated(t), t + " created");
+                Assertions.assertEquals(expected, operationsTestNI.ledgerDestroyed(t), t + " destroyed");
+            }
+        }
+        finally
+        {
+            specNI.dispose(keyRef);
+        }
+    }
 }

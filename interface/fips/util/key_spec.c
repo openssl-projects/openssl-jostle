@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <openssl/evp.h>
 
+#include "bc_err_codes.h"
 #include "jo_assert.h"
 #include "ops.h"
 
@@ -18,8 +19,19 @@
 key_spec *create_spec(void) {
     key_spec *spec = OPENSSL_zalloc(sizeof(key_spec));
     jo_assert(spec != NULL);
+    spec->kind = KEY_SPEC_KIND;
     JO_LEDGER_CREATED(JO_LEDGER_KEY_SPEC);
     return spec;
+}
+
+int32_t key_spec_check(const key_spec *spec) {
+    if (spec == NULL) {
+        return JO_KEY_SPEC_IS_NULL;
+    }
+    if (spec->kind != KEY_SPEC_KIND) {
+        return JO_KEY_SPEC_WRONG_KIND;
+    }
+    return JO_SUCCESS;
 }
 
 /*
@@ -41,5 +53,6 @@ void free_key_spec(key_spec *spec) {
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_KEY_SPEC);
     free_spec(spec);
+    spec->kind = KEY_SPEC_NONE;
     OPENSSL_clear_free(spec, sizeof(*spec));
 }

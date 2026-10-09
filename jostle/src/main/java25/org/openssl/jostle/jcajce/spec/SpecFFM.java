@@ -297,62 +297,74 @@ public class SpecFFM implements SpecNI
             var secretRef = secret != null ? a.allocate(secret.length) : MemorySegment.NULL;
             var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-            // Pre-copy the caller's secret buffer into the arena segment so any
-            // bytes the C side does not overwrite (an over-declared secret
-            // window: inLen larger than the actual shared-secret length) are
-            // preserved on copy-back, matching the JNI bridge's in-place
-            // semantics rather than zero-clobbering the tail.
-            if (secret != null)
+            try
             {
-                MemorySegment.copy(secret, 0, secretRef, ValueLayout.JAVA_BYTE, 0, secret.length);
-            }
-
-            // let encap()'s existing check return
-            // JO_RAND_NO_RAND_UP_CALL — same path JNI takes.
-            MemorySegment getEntropySegment;
-            if (randSource == null)
-            {
-                getEntropySegment = MemorySegment.NULL;
-            }
-            else
-            {
-                // Resolve against the RandSource interface, not the concrete
-                // class: getRandomSegment is a public interface default, and a
-                // findVirtual on an inaccessible concrete implementation would
-                // throw IllegalAccessException. bindTo still binds the actual
-                // instance, so a subclass override dispatches virtually.
-                var gHandle = MethodHandles.lookup().findVirtual(
-                        RandSource.class,
-                        "getRandomSegment",
-                        entropyMt).bindTo(randSource);
-                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
-            }
-
-
-            int r = (int) encapFuncHandle.invokeExact(ref, optRef, secretRef, secretRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len, getEntropySegment);
-
-            // Copy back only the regions the C side wrote, at their original
-            // offsets. A blanket get() would zero caller bytes outside the
-            // written window because the arena segments are zero-filled
-            // (Arena.allocate), not copies of the caller's arrays. A real
-            // encap (out != null, r > 0) wrote both the encapsulation (r bytes
-            // at off) and the shared secret (at inOff). The secret copy-back is
-            // gated on out != null too: on a length probe (out == null) C
-            // returns the ciphertext length as a positive r but writes NOTHING,
-            // so a bare `r > 0` gate would zero the caller's secret buffer with
-            // unwritten arena bytes — the exact JNI/FFM divergence this guards
-            // against. The secret window is pre-copied above, so copying inLen
-            // bytes preserves any tail C did not overwrite.
-            if (out != null && r > 0)
-            {
-                outRef.asByteBuffer().get(off, out, off, r);
+                // Pre-copy the caller's secret buffer into the arena segment so any
+                // bytes the C side does not overwrite (an over-declared secret
+                // window: inLen larger than the actual shared-secret length) are
+                // preserved on copy-back, matching the JNI bridge's in-place
+                // semantics rather than zero-clobbering the tail.
                 if (secret != null)
                 {
-                    secretRef.asByteBuffer().get(inOff, secret, inOff, inLen);
+                    MemorySegment.copy(secret, 0, secretRef, ValueLayout.JAVA_BYTE, 0, secret.length);
+                }
+
+                // let encap()'s existing check return
+                // JO_RAND_NO_RAND_UP_CALL - same path JNI takes.
+                MemorySegment getEntropySegment;
+                if (randSource == null)
+                {
+                    getEntropySegment = MemorySegment.NULL;
+                }
+                else
+                {
+                    // Resolve against the RandSource interface, not the concrete
+                    // class: getRandomSegment is a public interface default, and a
+                    // findVirtual on an inaccessible concrete implementation would
+                    // throw IllegalAccessException. bindTo still binds the actual
+                    // instance, so a subclass override dispatches virtually.
+                    var gHandle = MethodHandles.lookup().findVirtual(
+                            RandSource.class,
+                            "getRandomSegment",
+                            entropyMt).bindTo(randSource);
+                    getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+                }
+
+
+                int r = (int) encapFuncHandle.invokeExact(ref, optRef, secretRef, secretRef.byteSize(), inOff, inLen,
+                        outRef, outRef.byteSize(), off, len, getEntropySegment);
+
+                // Copy back only the regions the C side wrote, at their original
+                // offsets. A blanket get() would zero caller bytes outside the
+                // written window because the arena segments are zero-filled
+                // (Arena.allocate), not copies of the caller's arrays. A real
+                // encap (out != null, r > 0) wrote both the encapsulation (r bytes
+                // at off) and the shared secret (at inOff). The secret copy-back is
+                // gated on out != null too: on a length probe (out == null) C
+                // returns the ciphertext length as a positive r but writes NOTHING,
+                // so a bare `r > 0` gate would zero the caller's secret buffer with
+                // unwritten arena bytes - the exact JNI/FFM divergence this guards
+                // against. The secret window is pre-copied above, so copying inLen
+                // bytes preserves any tail C did not overwrite.
+                if (out != null && r > 0)
+                {
+                    outRef.asByteBuffer().get(off, out, off, r);
+                    if (secret != null)
+                    {
+                        secretRef.asByteBuffer().get(inOff, secret, inOff, inLen);
+                    }
+                }
+
+                return r;
+            }
+            finally
+            {
+                // Arena.close() frees but does not cleanse; the segment held the shared secret.
+                if (secretRef.byteSize() > 0)
+                {
+                    secretRef.fill((byte) 0);
                 }
             }
-
-            return r;
         }
         catch (Throwable t)
         {
@@ -421,41 +433,53 @@ public class SpecFFM implements SpecNI
             var inputRef = input != null ? a.allocateFrom(ValueLayout.JAVA_BYTE, input) : MemorySegment.NULL;
             var outRef = out != null ? a.allocate(out.length) : MemorySegment.NULL;
 
-            // let decap()'s existing check return
-            // JO_RAND_NO_RAND_UP_CALL — same path JNI takes.
-            MemorySegment getEntropySegment;
-            if (randSource == null)
+            try
             {
-                getEntropySegment = MemorySegment.NULL;
+                // let decap()'s existing check return
+                // JO_RAND_NO_RAND_UP_CALL - same path JNI takes.
+                MemorySegment getEntropySegment;
+                if (randSource == null)
+                {
+                    getEntropySegment = MemorySegment.NULL;
+                }
+                else
+                {
+                    // Resolve against the RandSource interface, not the concrete
+                    // class: getRandomSegment is a public interface default, and a
+                    // findVirtual on an inaccessible concrete implementation would
+                    // throw IllegalAccessException. bindTo still binds the actual
+                    // instance, so a subclass override dispatches virtually.
+                    var gHandle = MethodHandles.lookup().findVirtual(
+                            RandSource.class,
+                            "getRandomSegment",
+                            entropyMt).bindTo(randSource);
+                    getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+                }
+
+                int r = (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen,
+                        outRef, outRef.byteSize(), off, len, getEntropySegment);
+
+                // Copy back only the shared-secret bytes the C side wrote, at their
+                // original offset. A blanket get(out) would zero caller bytes
+                // outside [off, off+r) because the arena segment is zero-filled
+                // (Arena.allocate), not a copy of the caller's array. r > 0 means
+                // decap succeeded and wrote r secret bytes at off; the probe
+                // (out == null) and error paths write nothing.
+                if (out != null && r > 0)
+                {
+                    outRef.asByteBuffer().get(off, out, off, r);
+                }
+
+                return r;
             }
-            else
+            finally
             {
-                // Resolve against the RandSource interface, not the concrete
-                // class: getRandomSegment is a public interface default, and a
-                // findVirtual on an inaccessible concrete implementation would
-                // throw IllegalAccessException. bindTo still binds the actual
-                // instance, so a subclass override dispatches virtually.
-                var gHandle = MethodHandles.lookup().findVirtual(
-                        RandSource.class,
-                        "getRandomSegment",
-                        entropyMt).bindTo(randSource);
-                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+                // Arena.close() frees but does not cleanse; the segment held the shared secret.
+                if (outRef.byteSize() > 0)
+                {
+                    outRef.fill((byte) 0);
+                }
             }
-
-            int r = (int) decapFuncHandle.invokeExact(ref, optRef, inputRef, inputRef.byteSize(), inOff, inLen, outRef, outRef.byteSize(), off, len, getEntropySegment);
-
-            // Copy back only the shared-secret bytes the C side wrote, at their
-            // original offset. A blanket get(out) would zero caller bytes
-            // outside [off, off+r) because the arena segment is zero-filled
-            // (Arena.allocate), not a copy of the caller's array. r > 0 means
-            // decap succeeded and wrote r secret bytes at off; the probe
-            // (out == null) and error paths write nothing.
-            if (out != null && r > 0)
-            {
-                outRef.asByteBuffer().get(off, out, off, r);
-            }
-
-            return r;
         }
         catch (Throwable t)
         {

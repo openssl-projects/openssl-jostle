@@ -16,6 +16,7 @@ import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.kts.KemSizes;
 import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
 import org.openssl.jostle.jcajce.provider.kts.KtsWrap;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -591,8 +592,9 @@ public class MLKEMKTSCipherSpi
      */
     private int encapsulationLength()
     {
-        return keySpec.getSpecNI().encapsulationLength(keySpec.getReference(), keySpec.getType(),
-                SHARED_SECRET_LEN, randSource);
+        return KemSizes.checkedCiphertextLength(keySpec.getType(),
+                keySpec.getSpecNI().encapsulationLength(keySpec.getReference(), keySpec.getType(),
+                        SHARED_SECRET_LEN, randSource));
     }
 
 

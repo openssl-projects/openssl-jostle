@@ -73,7 +73,7 @@ public class ASN1UtilOpsTest
 
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:336
+            // Exercises interface/nonfips/util/asn1_util.c:333
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[10], 0, 10);
 
@@ -501,7 +501,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:356
+            // Exercises interface/nonfips/util/asn1_util.c:353
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
             keyRef = asn1NI.fromPublicKeyInfo(x509, 0, x509.length);
             Assertions.fail();

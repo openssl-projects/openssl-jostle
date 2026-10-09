@@ -100,6 +100,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("key spec is null");
             case JO_KEY_SPEC_HAS_NULL_KEY:
                 throw new IllegalArgumentException("key spec has null key");
+            case JO_KEY_SPEC_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not a key spec");
             case JO_FAILED_ACCESS_OUTPUT:
                 throw new AccessException("unable to access output array");
             case JO_FAILED_ACCESS_INPUT:
