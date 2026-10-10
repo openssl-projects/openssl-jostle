@@ -26,6 +26,7 @@ import org.openssl.jostle.util.encoders.Hex;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.GCMParameterSpec;
@@ -3321,28 +3322,38 @@ public class AESAgreementTest
     }
 
     /**
-     * Finding-9 residual: CCM must never route through the generic
-     * streaming BlockCipherSpi. A 3-token transformation with a
-     * non-NoPadding token (e.g. "AES/CCM/PKCS5Padding") IS a valid JCE
-     * format, so without a guard JCE form-4 lookup falls through to the
-     * generic AES SPI — OSSLMode has a CCM entry, so engineSetMode("CCM")
-     * would otherwise succeed — yielding a broken CCM cipher on the
-     * streaming path. The generic SPI must reject CCM (it is only valid via
-     * the dedicated "AES/CCM/NoPadding" one-shot SPI).
+     * A padded CCM transformation is refused at setPadding with NoSuchPaddingException, the type BouncyCastle
+     * raises (measured live below), and never reaches the generic streaming SPI. The old pin asserted
+     * NoSuchAlgorithmException, which was ours alone: "the generic engineSetMode rejects CCM".
      */
     @Test
-    public void aesCCM_genericPathRejected() throws Exception
+    public void ccm_paddedTransformationRefusedAsPaddingLikeBouncyCastle() throws Exception
     {
-        try
+        for (String family : new String[]{"AES", "ARIA", "SM4"})
         {
-            Cipher.getInstance("AES/CCM/PKCS5Padding", JostleProvider.PROVIDER_NAME);
-            Assertions.fail("CCM must not route through the generic block-cipher SPI; " +
-                    "only AES/CCM/NoPadding (dedicated SPI) is valid");
+            String xform = family + "/CCM/PKCS5Padding";
+            NoSuchPaddingException ours = Assertions.assertThrows(NoSuchPaddingException.class,
+                    () -> Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME), xform);
+            Assertions.assertEquals(
+                    "CCM mode is only available via the dedicated <cipher>/CCM/NoPadding transformation",
+                    ours.getMessage(), xform);
+            Assertions.assertThrows(NoSuchPaddingException.class,
+                    () -> Cipher.getInstance(xform, BouncyCastleProvider.PROVIDER_NAME), xform + " on BC");
         }
-        catch (NoSuchAlgorithmException expected)
-        {
-            // expected — the generic engineSetMode rejects CCM.
-        }
+    }
+
+    /** SP 800-38C Appendix C examples 1 to 3 on JSL, with BouncyCastle as the control. */
+    @Test
+    public void ccm_sp80038cExamples() throws Exception
+    {
+        CCMCells.sp80038cExamples(BouncyCastleProvider.PROVIDER_NAME);
+        CCMCells.sp80038cExamples(JostleProvider.PROVIDER_NAME);
+    }
+
+    @Test
+    public void ccm_decryptShorterThanTheTagIsABadTag() throws Exception
+    {
+        CCMCells.decryptShorterThanTheTagIsABadTag(JostleProvider.PROVIDER_NAME);
     }
 
     /**

@@ -99,6 +99,7 @@ ccm_ctx *ccm_ctx_create(uint32_t cipher_id, int32_t *err) {
         *err = JO_FAIL;
         return NULL;
     }
+    ctx->kind = CCM_CTX_KIND;
     ctx->cipher_id = cipher_id;
     ERR_clear_error();
     ctx->evp = EVP_CIPHER_CTX_new();
@@ -115,18 +116,27 @@ ccm_ctx *ccm_ctx_create(uint32_t cipher_id, int32_t *err) {
 }
 
 
-void ccm_ctx_destroy(ccm_ctx *ctx) {
+int32_t ccm_ctx_check(const ccm_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
+    if (ctx->kind != CCM_CTX_KIND) {
+        return JO_CCM_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
+void ccm_ctx_destroy(ccm_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as a ccm_ctx corrupts it.
+    if (ccm_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_CCM_CTX);
-    if (ctx->evp != NULL) {
-        EVP_CIPHER_CTX_free(ctx->evp);
-        ctx->evp = NULL;
-    }
-    OPENSSL_cleanse(ctx->key, sizeof(ctx->key));
-    OPENSSL_cleanse(ctx->iv, sizeof(ctx->iv));
-    OPENSSL_free(ctx);
+    EVP_CIPHER_CTX_free(ctx->evp);
+    ctx->evp = NULL;
+    ctx->kind = CCM_CTX_NONE;
+    OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
 
@@ -135,24 +145,22 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
                      const uint8_t *key, size_t key_len,
                      const uint8_t *iv, size_t iv_len,
                      size_t tag_len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(key != NULL);
     jo_assert(iv != NULL);
 
-    // opp_mode, iv_len and tag_len are range/set validated by the bridge
-    // (ccm_ni_jni.c / ccm_ni_ffm.c) and asserted here as invariants — a
-    // firing assert means the bridge skipped a check (programmer error),
-    // not a user-input error. The exact key_len-vs-cipher check is owned
-    // by ccm_fetch_evp_cipher below (it holds the cipher→key-length
-    // table); the key_len buffer-bound is asserted before the memcpy.
+    // The bridge validates opp_mode, iv_len and tag_len; ccm_fetch_evp_cipher owns key_len.
     jo_assert(opp_mode == ENCRYPT_MODE || opp_mode == DECRYPT_MODE);
     jo_assert(iv_len >= CCM_MIN_NONCE_LEN && iv_len <= CCM_MAX_NONCE_LEN);
     jo_assert(valid_ccm_tag_len(tag_len));
 
-    // A failed (re-)init must not leave a previously-initialised context
-    // usable with stale key/iv/tag: clear the flag before the first
-    // fallible step so a mid-init failure de-initialises the ctx.
+    // A failed (re-)init leaves no usable context and no previous key or nonce.
     ctx->initialized = 0;
+    OPENSSL_cleanse(ctx->key, sizeof(ctx->key));
+    OPENSSL_cleanse(ctx->iv, sizeof(ctx->iv));
 
     // Probe-fetch the cipher to catch cipher_id+key_len mismatches at
     // init-time rather than do_encrypt-time. Discard the result; the
@@ -167,8 +175,7 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
     EVP_CIPHER_free(probe);
 
     ctx->op_mode = opp_mode;
-    // The probe-fetch above validated key_len against the cipher
-    // (∈ {16,24,32}), so it fits the fixed-size key buffer.
+    // The probe fetch admits only 16, 24 or 32.
     jo_assert(key_len <= CCM_MAX_KEY_LEN);
     ctx->key_len = key_len;
     memcpy(ctx->key, key, key_len);
@@ -196,7 +203,10 @@ static int32_t ccm_do_one_shot(ccm_ctx *ctx,
                                const uint8_t *aad, size_t aad_len,
                                const uint8_t *in, size_t in_len,
                                uint8_t *out, size_t out_len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     // The bridge (ccm_ni_jni.c / ccm_ni_ffm.c) rejects a NULL input and a
     // NULL output buffer (JO_INPUT_IS_NULL / JO_OUTPUT_IS_NULL), and rejects
     // a NULL aad only when aad_len != 0 — so aad may be NULL exactly when
@@ -308,6 +318,8 @@ static int32_t ccm_do_one_shot(ccm_ctx *ctx,
             goto exit;
         }
         ret = (int32_t) (pt_len + ctx->tag_len);
+        // SP 800-38C: a nonce encrypts once, so the next encrypt needs a new init.
+        ctx->initialized = 0;
     } else {
         // ---- decrypt: ciphertext || tag (in) -> plaintext (out) ----
         if (ctx->op_mode != DECRYPT_MODE) {
@@ -369,20 +381,9 @@ static int32_t ccm_do_one_shot(ccm_ctx *ctx,
                 goto exit;
             }
         }
-        // Step 7: process payload — in (without trailing tag) -> out.
-        //   The tag verification happens inside DecryptUpdate; OpenSSL
-        //   returns 0 on tag mismatch. Some builds also queue a generic
-        //   EVP error for that case, so a non-empty queue is not a
-        //   reliable "real error vs tag fail" signal. Inputs were already
-        //   validated by the SPI / bridge, so treat any DecryptUpdate
-        //   failure here as a tag-check fail (JO_INVALID_CIPHER_TEXT) and
-        //   let the SPI surface it as AEADBadTagException.
+        // Step 7: payload. Inputs are validated, so any failure here is the tag check.
         if (1 != EVP_DecryptUpdate(ctx->evp, out, &outl, in, (int) pt_len)) {
-            // Tag check failed. OpenSSL's CCM may have written unverified
-            // plaintext into out before detecting the MAC mismatch;
-            // cleanse it best-effort so unverified plaintext is not
-            // released to the caller's buffer (defence in depth — the SPI
-            // also discards its buffer on this path).
+            // No unverified plaintext reaches the caller.
             if (pt_len > 0) {
                 OPENSSL_cleanse(out, pt_len);
             }
@@ -415,15 +416,14 @@ int32_t ccm_ctx_do_decrypt(ccm_ctx *ctx,
 
 
 int32_t ccm_ctx_get_output_size(ccm_ctx *ctx, int32_t op_mode, size_t input_len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
     }
-    // op_mode is validated by the bridge (ccm_ni_jni.c / ccm_ni_ffm.c) and
-    // asserted here; input_len reaches us as a non-negative Java int (the
-    // bridge rejects negatives), so it is in [0, INT32_MAX]. Both branches
-    // cast a value derived from it back to int32_t. A firing assert means
-    // the bridge skipped a check (programmer error).
+    // The bridge validates op_mode and refuses a negative input_len.
     jo_assert(op_mode == ENCRYPT_MODE || op_mode == DECRYPT_MODE);
     jo_assert(input_len <= (size_t) INT32_MAX);
     if (op_mode == ENCRYPT_MODE) {

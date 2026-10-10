@@ -59,7 +59,7 @@ public enum OSSLCipher
     // symmetry with CHACHA20's OSSLMode.STREAM.
     CHACHA20_POLY1305(AEAD, OSSLMode.POLY1305),
     SEED(BLOCK, ECB, CBC, CFB128, OFB),
-    SM4(BLOCK, ECB, CBC, CFB128, OFB, CTR),
+    SM4(BLOCK, ECB, CBC, CFB128, OFB, CTR, CCM),
     DES_EDE3(BLOCK, ECB, CBC); // 3-key Triple DES (24-byte key), default-provider modes only
 
     Set<OSSLMode> modes;

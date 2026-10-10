@@ -671,6 +671,8 @@
 #define JO_BLOCK_CIPHER_CTX_IS_NULL -192
 /* A handle that is not a block_cipher_ctx, or one already freed. */
 #define JO_BLOCK_CIPHER_CTX_WRONG_KIND -193
+/* A handle that is not a ccm_ctx, or one already freed. */
+#define JO_CCM_CTX_WRONG_KIND -194
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module

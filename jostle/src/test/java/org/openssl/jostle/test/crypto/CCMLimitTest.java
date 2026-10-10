@@ -262,10 +262,8 @@ public class CCMLimitTest
     }
 
     /**
-     * NI-surface check for ccm_ctx_init's op-mode validation: anything
-     * other than ENCRYPT/DECRYPT is rejected with JO_INVALID_OP_MODE.
-     * (The bridge does not validate op_mode, so this exercises the util
-     * check directly.)
+     * The bridge refuses an op_mode other than ENCRYPT/DECRYPT with
+     * JO_INVALID_OP_MODE before util, which asserts it.
      */
     @Test
     public void init_invalidOpMode() throws Exception
@@ -881,5 +879,41 @@ public class CCMLimitTest
         {
             ccmCipherNI.ni_dispose(ref);
         }
+    }
+
+    @Test
+    public void wrongKindRefusedBothWays()
+    {
+        CCMCells.wrongKindRefusedBothWays(ccmCipherNI, TestNISelector.getBlockCipher());
+    }
+
+    @Test
+    public void reinitWithAShorterNonceAgreesWithAFreshInstance()
+    {
+        CCMCells.reinitWithAShorterNonceAgreesWithAFreshInstance(ccmCipherNI);
+    }
+
+    @Test
+    public void failedTagClearsTheWindowOnly()
+    {
+        CCMCells.failedTagClearsTheWindowOnly(ccmCipherNI);
+    }
+
+    @Test
+    public void inPlaceSameArray()
+    {
+        CCMCells.inPlaceSameArray(ccmCipherNI);
+    }
+
+    @Test
+    public void encryptIsSingleUseDecryptIsNot()
+    {
+        CCMCells.encryptIsSingleUseDecryptIsNot(ccmCipherNI);
+    }
+
+    @Test
+    public void boundaryRefusals()
+    {
+        CCMCells.boundaryRefusals(ccmCipherNI);
     }
 }

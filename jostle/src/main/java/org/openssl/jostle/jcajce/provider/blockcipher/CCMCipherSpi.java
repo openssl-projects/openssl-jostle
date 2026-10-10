@@ -258,11 +258,8 @@ public class CCMCipherSpi extends CipherSpi
     @Override
     protected AlgorithmParameters engineGetParameters()
     {
-        // Return the session nonce + ICV length as "CCM" AlgorithmParameters
-        // (RFC 5084 CCMParameters codec — CCMAlgorithmParameters here, or BC's
-        // equivalent if it resolves first) so params-driven receivers can
-        // recover them, mirroring the GCM/OCB path in BlockCipherSpi. Null
-        // before init, per the JCE convention.
+        // The session nonce and ICV length as "CCM" AlgorithmParameters from this
+        // cipher's own provider (resolveParameters); null before init, per the JCE.
         if (iv == null)
         {
             return null;

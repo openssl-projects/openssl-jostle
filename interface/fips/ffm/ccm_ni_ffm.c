@@ -26,9 +26,7 @@ ccm_ctx *JoCCM_makeInstance(int32_t cipher_id, int32_t *err) {
 
 
 void JoCCM_dispose(ccm_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
+    // ccm_ctx_destroy frees nothing on a wrong kind.
     ccm_ctx_destroy(ctx);
 }
 
@@ -41,11 +39,11 @@ int32_t JoCCM_init(ccm_ctx *ctx, int32_t op_mode,
                    uint8_t *key, size_t key_len,
                    uint8_t *iv, size_t iv_len,
                    int32_t tag_len) {
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
-    // op_mode is a user-supplied int; range-check it in the bridge so util
-    // can assert it as an invariant (ccm_ctx_init).
+    // Validated here so util can assert it.
     if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
         return JO_INVALID_OP_MODE;
     }
@@ -58,13 +56,11 @@ int32_t JoCCM_init(ccm_ctx *ctx, int32_t op_mode,
     if (tag_len < 0) {
         return JO_INVALID_TAG_LEN;
     }
-    // CCM tag-length set membership ({4,6,8,10,12,14,16}). Validated in
-    // the bridge so util can assert it as an invariant.
+    // Set membership {4,6,...,16}, validated here so util can assert it.
     if (!valid_ccm_tag_len((size_t) tag_len)) {
         return JO_INVALID_TAG_LEN;
     }
-    // CCM nonce length range [7,13] (NIST SP 800-38C §6.1). Validated in
-    // the bridge so util can assert it as an invariant.
+    // Nonce length 7..13 (SP 800-38C), validated here so util can assert it.
     if (iv_len < CCM_MIN_NONCE_LEN || iv_len > CCM_MAX_NONCE_LEN) {
         return JO_INVALID_IV_LEN;
     }
@@ -82,12 +78,11 @@ int32_t JoCCM_doFinal(ccm_ctx *ctx,
                      int32_t in_off, int32_t in_len,
                      uint8_t *output, size_t output_size,
                      int32_t out_off) {
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
-    // All null / negative scalar checks first, then the range checks —
-    // same order as the JNI bridge (ni_doFinal) so both layers return
-    // identical codes even for inputs with more than one fault.
+    // Same check order as the JNI bridge, so a multi-fault input gets the same code.
     if (aad_len < 0) {
         return JO_INPUT_LEN_IS_NEGATIVE;
     }
@@ -144,11 +139,11 @@ int32_t JoCCM_doFinal(ccm_ctx *ctx,
 // =============================================================
 
 int32_t JoCCM_getOutputSize(ccm_ctx *ctx, int32_t op_mode, int32_t input_len) {
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
-    // op_mode is user-supplied; range-check it in the bridge so
-    // ccm_ctx_get_output_size can assert it as an invariant.
+    // Validated here so util can assert it.
     if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
         return JO_INVALID_OP_MODE;
     }

@@ -672,6 +672,8 @@
 #define JO_BLOCK_CIPHER_CTX_IS_NULL -192
 /* A handle that is not a block_cipher_ctx, or one already freed. */
 #define JO_BLOCK_CIPHER_CTX_WRONG_KIND -193
+/* A handle that is not a ccm_ctx, or one already freed. */
+#define JO_CCM_CTX_WRONG_KIND -194
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

@@ -47,6 +47,9 @@ class BlockCipherSpi extends CipherSpi
 
     OSSLCipher osslCipher;
     OSSLMode osslMode;
+
+    // CCM asked for through setMode: setPadding then refuses, and init refuses until another mode is set.
+    private boolean ccmRequested;
     int padding;
     OSSLBlockCipherRefWrapper refWrapper;
     int opMode;
@@ -224,17 +227,12 @@ class BlockCipherSpi extends CipherSpi
             throw new NoSuchAlgorithmException("cipher mode " + mode + " not supported");
         }
 
-        if (osslMode == OSSLMode.CCM)
+        // CCM runs only through its dedicated <cipher>/CCM/NoPadding transformation. The refusal waits for
+        // setPadding, so a padded CCM name fails with NoSuchPaddingException, the type BouncyCastle raises.
+        ccmRequested = osslMode == OSSLMode.CCM;
+        if (ccmRequested)
         {
-            // CCM is one-shot (total length up-front, single AAD/payload
-            // update) and does not fit this streaming SPI. It is only valid
-            // via its dedicated transformation, e.g. "AES/CCM/NoPadding"
-            // (AESCCMCipherSpi). Reject it here so a valid-format but
-            // unregistered transformation (e.g. "AES/CCM/PKCS5Padding")
-            // cannot fall through to this generic SPI and run CCM on the
-            // wrong code path.
-            throw new NoSuchAlgorithmException(
-                    "CCM mode is only available via the dedicated <cipher>/CCM/NoPadding transformation");
+            return;
         }
 
         if (mandatedMode != null && mandatedMode != osslMode)
@@ -243,6 +241,17 @@ class BlockCipherSpi extends CipherSpi
         }
 
         requireModeFetchable(osslMode);
+    }
+
+    private static final String CCM_REFUSAL =
+            "CCM mode is only available via the dedicated <cipher>/CCM/NoPadding transformation";
+
+    private void refusePendingCcm() throws InvalidKeyException
+    {
+        if (ccmRequested)
+        {
+            throw new InvalidKeyException(CCM_REFUSAL);
+        }
     }
 
     private static final Map<BlockCipherNI, Map<Integer, Boolean>> FETCHABLE_CACHE = new ConcurrentHashMap<>();
@@ -312,6 +321,10 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineSetPadding(String padding) throws NoSuchPaddingException
     {
+        if (ccmRequested)
+        {
+            throw new NoSuchPaddingException(CCM_REFUSAL);
+        }
         padding = Strings.toUpperCase(padding).trim();
         if (padding.equals("NOPADDING"))
         {
@@ -581,6 +594,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
+        refusePendingCcm();
         validateKeyAlg(key);
         synchronized (this)
         {
@@ -755,7 +769,7 @@ class BlockCipherSpi extends CipherSpi
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random) throws InvalidKeyException, InvalidAlgorithmParameterException
     {
-
+        refusePendingCcm();
         validateKeyAlg(key);
         AlgorithmParameterSpec paramSpec = null;
 

@@ -361,6 +361,8 @@ public enum ErrorCode
     JO_BLOCK_CIPHER_CTX_IS_NULL(-192),
     // A handle that is not a block cipher context, or one already freed.
     JO_BLOCK_CIPHER_CTX_WRONG_KIND(-193),
+    // A handle that is not a CCM context, or one already freed.
+    JO_CCM_CTX_WRONG_KIND(-194),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

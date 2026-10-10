@@ -18,6 +18,7 @@ import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.crypto.CCMCells;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import javax.crypto.AEADBadTagException;
@@ -551,5 +552,18 @@ public class FIPSAESTest
                 () -> Cipher.getInstance("AES/OCB/NoPadding", JostleFIPSProvider.PROVIDER_NAME),
                 "AES-OCB must be refused typed at getInstance under JSLFIPS, not resolve and fail at init");
         Assertions.assertNotNull(ex);
+    }
+
+    /** SP 800-38C Appendix C examples 1 to 3 on JSLFIPS. */
+    @Test
+    public void ccmSp80038cExamples() throws Exception
+    {
+        CCMCells.sp80038cExamples(JostleFIPSProvider.PROVIDER_NAME);
+    }
+
+    @Test
+    public void ccmDecryptShorterThanTheTagIsABadTag() throws Exception
+    {
+        CCMCells.decryptShorterThanTheTagIsABadTag(JostleFIPSProvider.PROVIDER_NAME);
     }
 }

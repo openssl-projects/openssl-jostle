@@ -30,14 +30,14 @@
 #define CCM_MIN_NONCE_LEN 7
 #define CCM_MAX_NONCE_LEN 13
 
-// CCM tag length valid set per NIST SP 800-38C §6.1: {4,6,8,10,12,14,16}.
-#define CCM_MIN_TAG_LEN 4
-#define CCM_MAX_TAG_LEN 16
-
 // Max CCM key size we admit: 32 bytes for AES-256 / ARIA-256.
 #define CCM_MAX_KEY_LEN 32
 
+#define CCM_CTX_KIND 0x43434D01u   /* "CCM\1" */
+#define CCM_CTX_NONE 0u            /* what a freed ctx is left with; never a valid kind */
+
 typedef struct ccm_ctx {
+    uint32_t kind;
     EVP_CIPHER_CTX *evp;
     uint32_t cipher_id;
     int32_t op_mode;
@@ -63,6 +63,14 @@ int valid_ccm_tag_len(size_t tag_len);
  */
 ccm_ctx *ccm_ctx_create(uint32_t cipher_id, int32_t *err);
 
+/**
+ * JO_CIPHER_CTX_IS_NULL, JO_CCM_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t ccm_ctx_check(const ccm_ctx *ctx);
+
+/**
+ * Frees nothing unless ccm_ctx_check passes.
+ */
 void ccm_ctx_destroy(ccm_ctx *ctx);
 
 /**
@@ -74,9 +82,8 @@ void ccm_ctx_destroy(ccm_ctx *ctx);
  *
  * op_mode, iv_len and tag_len are validated by the bridge and asserted
  * here as invariants; key_len is validated against the cipher by the
- * probe-fetch and surfaces as JO_INVALID_KEY_LEN on mismatch. A failed
- * (re-)init clears the initialized flag so a stale key/iv/tag can never
- * be reused.
+ * probe-fetch and surfaces as JO_INVALID_KEY_LEN on mismatch. Every init
+ * first clears the initialized flag and cleanses the stored key and nonce.
  */
 int32_t ccm_ctx_init(ccm_ctx *ctx,
                      int32_t opp_mode,
@@ -93,7 +100,8 @@ int32_t ccm_ctx_init(ccm_ctx *ctx,
  * be zero-length when pt_len == 0.
  *
  * Returns the number of bytes written (pt_len + tag_len) on success,
- * negative JO_* error code on failure.
+ * negative JO_* error code on failure. A successful encrypt leaves the ctx
+ * uninitialised: a nonce encrypts once.
  */
 int32_t ccm_ctx_do_encrypt(ccm_ctx *ctx,
                            const uint8_t *aad, size_t aad_len,

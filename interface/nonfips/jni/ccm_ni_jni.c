@@ -16,7 +16,8 @@
 
 #include <string.h>
 
-#include "bytearrays.h"
+#include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_blockcipher_CCMCipherJNI.h"
 #include "types.h"
 #include "../util/jo_assert.h"
@@ -34,6 +35,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMC
 (JNIEnv *env, jobject jo, jint cipher_id, jintArray err_arr) {
     UNUSED(jo);
     jo_assert(err_arr != NULL);
+    jo_assert((*env)->GetArrayLength(env, err_arr) >= 1);
 
     int32_t err = JO_FAIL;
     ccm_ctx *ctx = ccm_ctx_create((uint32_t) cipher_id, &err);
@@ -51,6 +53,7 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
 (JNIEnv *env, jobject jo, jlong ref) {
     UNUSED(env);
     UNUSED(jo);
+    // ccm_ctx_destroy frees nothing on a wrong kind.
     ccm_ctx_destroy((ccm_ctx *) ref);
 }
 
@@ -66,11 +69,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     UNUSED(jo);
 
     ccm_ctx *ctx = (ccm_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
-    // op_mode is a user-supplied jint; range-check it in the bridge so util
-    // can assert it as an invariant (ccm_ctx_init).
+    // Validated here so util can assert it.
     if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
         return JO_INVALID_OP_MODE;
     }
@@ -83,28 +86,27 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     if (tag_len < 0) {
         return JO_INVALID_TAG_LEN;
     }
-    // CCM tag-length set membership ({4,6,8,10,12,14,16}). Validated in
-    // the bridge so util can assert it as an invariant.
+    // Set membership {4,6,...,16}, validated here so util can assert it.
     if (!valid_ccm_tag_len((size_t) tag_len)) {
         return JO_INVALID_TAG_LEN;
     }
 
-    java_bytearray_ctx key_ctx;
-    java_bytearray_ctx iv_ctx;
-    init_bytearray_ctx(&key_ctx);
-    init_bytearray_ctx(&iv_ctx);
+    // Key and nonce copies are cleansed at release.
+    java_secret_bytearray_ctx key_ctx;
+    java_secret_bytearray_ctx iv_ctx;
+    init_secret_bytearray_ctx(&key_ctx);
+    init_secret_bytearray_ctx(&iv_ctx);
     int32_t ret = JO_FAIL;
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&key_ctx, env, _key)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&key_ctx, env, _key)) {
         ret = JO_FAILED_ACCESS_KEY;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&iv_ctx, env, _iv)) {
+    if (OPS_FAILED_ACCESS_2 !load_secret_input_ctx(&iv_ctx, env, _iv)) {
         ret = JO_FAILED_ACCESS_IV;
         goto exit;
     }
-    // CCM nonce length range [7,13] (NIST SP 800-38C §6.1). Validated in
-    // the bridge so util can assert it as an invariant.
+    // Nonce length 7..13 (SP 800-38C), validated here so util can assert it.
     if (iv_ctx.size < CCM_MIN_NONCE_LEN || iv_ctx.size > CCM_MAX_NONCE_LEN) {
         ret = JO_INVALID_IV_LEN;
         goto exit;
@@ -116,8 +118,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
                        (size_t) tag_len);
 
 exit:
-    release_bytearray_ctx(&key_ctx);
-    release_bytearray_ctx(&iv_ctx);
+    release_secret_bytearray_ctx(&key_ctx);
+    release_secret_bytearray_ctx(&iv_ctx);
     return ret;
 }
 
@@ -151,8 +153,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     UNUSED(jo);
 
     ccm_ctx *ctx = (ccm_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t ret = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret)) {
+        return ret;
     }
 
     // _aad may be null when aad_len == 0; aad_len must not be negative.
@@ -178,34 +181,20 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
         return JO_OUTPUT_OFFSET_IS_NEGATIVE;
     }
 
-    java_bytearray_ctx aad_ctx;
-    java_bytearray_ctx in_ctx;
-    java_bytearray_ctx out_ctx;
-    init_bytearray_ctx(&aad_ctx);
-    init_bytearray_ctx(&in_ctx);
-    init_bytearray_ctx(&out_ctx);
-    int32_t ret = JO_FAIL;
+    // The Java arrays are addressed directly: no plaintext copy outside them.
+    critical_bytearray_ctx aad_ctx;
+    critical_bytearray_ctx in_ctx;
+    critical_bytearray_ctx out_ctx;
+    init_critical_ctx(&aad_ctx, env, _aad);
+    init_critical_ctx(&in_ctx, env, _input);
+    init_critical_ctx(&out_ctx, env, _output);
 
-    if (_aad != NULL) {
-        if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&aad_ctx, env, _aad)) {
-            ret = JO_FAILED_ACCESS_INPUT;
-            goto exit;
-        }
-        if (!check_bytearray_in_range(&aad_ctx, 0, (size_t) aad_len)) {
-            ret = JO_INPUT_OUT_OF_RANGE;
-            goto exit;
-        }
-    }
-    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&in_ctx, env, _input)) {
-        ret = JO_FAILED_ACCESS_INPUT;
-        goto exit;
-    }
-    if (!check_bytearray_in_range(&in_ctx, (size_t) in_off, (size_t) in_len)) {
+    if (_aad != NULL && !check_critical_in_range(&aad_ctx, 0, (size_t) aad_len)) {
         ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&out_ctx, env, _output)) {
-        ret = JO_FAILED_ACCESS_OUTPUT;
+    if (!check_critical_in_range(&in_ctx, (size_t) in_off, (size_t) in_len)) {
+        ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
     if ((size_t) out_off > out_ctx.size) {
@@ -213,9 +202,22 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
         goto exit;
     }
 
-    const uint8_t *aad_bytes = (_aad != NULL) ? aad_ctx.bytearray : NULL;
-    const uint8_t *in_bytes  = in_ctx.bytearray + (size_t) in_off;
-    uint8_t *out_bytes       = out_ctx.bytearray + (size_t) out_off;
+    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&aad_ctx)) {
+        ret = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+    if (OPS_FAILED_ACCESS_2 !load_critical_ctx(&in_ctx)) {
+        ret = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+    if (OPS_FAILED_ACCESS_3 !load_critical_ctx(&out_ctx)) {
+        ret = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+
+    const uint8_t *aad_bytes = (_aad != NULL) ? aad_ctx.critical : NULL;
+    const uint8_t *in_bytes  = in_ctx.critical + (size_t) in_off;
+    uint8_t *out_bytes       = out_ctx.critical + (size_t) out_off;
     size_t out_avail         = out_ctx.size - (size_t) out_off;
 
     if (ctx->op_mode == ENCRYPT_MODE) {
@@ -233,9 +235,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     }
 
 exit:
-    release_bytearray_ctx(&aad_ctx);
-    release_bytearray_ctx(&in_ctx);
-    release_bytearray_ctx(&out_ctx);
+    release_critical_ctx(&out_ctx);
+    release_critical_ctx(&in_ctx);
+    release_critical_ctx(&aad_ctx);
     return ret;
 }
 
@@ -250,11 +252,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_CCMCi
     UNUSED(env);
     UNUSED(jo);
     ccm_ctx *ctx = (ccm_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t check_rc = ccm_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
-    // op_mode is user-supplied; range-check it in the bridge so
-    // ccm_ctx_get_output_size can assert it as an invariant.
+    // Validated here so util can assert it.
     if (op_mode != ENCRYPT_MODE && op_mode != DECRYPT_MODE) {
         return JO_INVALID_OP_MODE;
     }

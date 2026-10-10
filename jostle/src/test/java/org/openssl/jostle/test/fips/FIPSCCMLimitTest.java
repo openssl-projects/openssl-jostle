@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.blockcipher.CCMCipherNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.crypto.CCMCells;
 
 import java.util.Arrays;
 
@@ -244,5 +245,41 @@ public class FIPSCCMLimitTest
         {
             ni.ni_dispose(ref);
         }
+    }
+
+    @Test
+    public void wrongKindRefusedBothWays()
+    {
+        CCMCells.wrongKindRefusedBothWays(ni, FIPSNISelector.BlockCipherNI);
+    }
+
+    @Test
+    public void reinitWithAShorterNonceAgreesWithAFreshInstance()
+    {
+        CCMCells.reinitWithAShorterNonceAgreesWithAFreshInstance(ni);
+    }
+
+    @Test
+    public void failedTagClearsTheWindowOnly()
+    {
+        CCMCells.failedTagClearsTheWindowOnly(ni);
+    }
+
+    @Test
+    public void inPlaceSameArray()
+    {
+        CCMCells.inPlaceSameArray(ni);
+    }
+
+    @Test
+    public void encryptIsSingleUseDecryptIsNot()
+    {
+        CCMCells.encryptIsSingleUseDecryptIsNot(ni);
+    }
+
+    @Test
+    public void boundaryRefusals()
+    {
+        CCMCells.boundaryRefusals(ni);
     }
 }

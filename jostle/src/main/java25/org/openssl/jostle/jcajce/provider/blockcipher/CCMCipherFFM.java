@@ -82,7 +82,8 @@ public class CCMCipherFFM implements CCMCipherNI
                         ValueLayout.JAVA_LONG,  // key_len (size_t)
                         ValueLayout.ADDRESS,    // iv
                         ValueLayout.JAVA_LONG,  // iv_len (size_t)
-                        ValueLayout.JAVA_INT)); // tag_len
+                        ValueLayout.JAVA_INT),  // tag_len
+                Linker.Option.critical(true));
 
         // JoCCM_doFinal(ctx, aad*, aad_size, aad_len,
         //               input*, input_size, in_off, in_len,
@@ -101,7 +102,8 @@ public class CCMCipherFFM implements CCMCipherNI
                         ValueLayout.JAVA_INT,   // in_len
                         ValueLayout.ADDRESS,    // output
                         ValueLayout.JAVA_LONG,  // output_size
-                        ValueLayout.JAVA_INT)); // out_off
+                        ValueLayout.JAVA_INT),  // out_off
+                Linker.Option.critical(true));
 
         getOutputSizeH = linker.downcallHandle(
                 lookup.find(symPrefix + "JoCCM_getOutputSize").orElseThrow(),
@@ -116,6 +118,8 @@ public class CCMCipherFFM implements CCMCipherNI
     @Override
     public long ni_makeInstance(int cipherId, int[] err)
     {
+        // Fails on an unusable err array before a context exists.
+        err[0] = 0;
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
@@ -147,16 +151,13 @@ public class CCMCipherFFM implements CCMCipherNI
     @Override
     public int ni_init(long ref, int opMode, byte[] key, byte[] iv, int tagLen)
     {
-        try (Arena a = Arena.ofConfined())
+        try
         {
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            MemorySegment keySeg = nativeCopy(a, key);
-            MemorySegment ivSeg  = nativeCopy(a, iv);
-            long keyLen = (key == null) ? 0L : key.length;
-            long ivLen  = (iv == null)  ? 0L : iv.length;
-            return (int) initH.invokeExact(ctx, opMode,
-                    keySeg, keyLen,
-                    ivSeg, ivLen,
+            MemorySegment keySeg = segment(key);
+            MemorySegment ivSeg = segment(iv);
+            return (int) initH.invokeExact(MemorySegment.ofAddress(ref), opMode,
+                    keySeg, keySeg.byteSize(),
+                    ivSeg, ivSeg.byteSize(),
                     tagLen);
         }
         catch (Throwable t)
@@ -172,44 +173,15 @@ public class CCMCipherFFM implements CCMCipherNI
                           byte[] input, int inOff, int inLen,
                           byte[] output, int outOff)
     {
-        try (Arena a = Arena.ofConfined())
+        try
         {
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            MemorySegment aadSeg = nativeCopy(a, aad);
-            long aadSize = (aad == null) ? 0L : aad.length;
-
-            MemorySegment inSeg = nativeCopy(a, input);
-            long inSize = (input == null) ? 0L : input.length;
-
-            // Output buffer: caller-provided heap byte[]. Allocate a
-            // native copy, invoke, then copy back only the bytes the
-            // C side wrote.
-            MemorySegment outSeg;
-            long outSize;
-            if (output == null)
-            {
-                outSeg = MemorySegment.NULL;
-                outSize = 0L;
-            }
-            else
-            {
-                outSeg = a.allocate(output.length);
-                outSize = output.length;
-            }
-
-            int rc = (int) doFinalH.invokeExact(ctx,
-                    aadSeg, aadSize, aadLen,
-                    inSeg, inSize, inOff, inLen,
-                    outSeg, outSize, outOff);
-
-            // Mirror the RSAOAEPCipherFFM convention: copy back only the
-            // bytes the C side actually wrote, starting at outOff, to
-            // preserve caller-provided bytes preceding outOff.
-            if (output != null && rc > 0)
-            {
-                outSeg.asByteBuffer().get(outOff, output, outOff, rc);
-            }
-            return rc;
+            MemorySegment aadSeg = segment(aad);
+            MemorySegment inSeg = segment(input);
+            MemorySegment outSeg = segment(output);
+            return (int) doFinalH.invokeExact(MemorySegment.ofAddress(ref),
+                    aadSeg, aadSeg.byteSize(), aadLen,
+                    inSeg, inSeg.byteSize(), inOff, inLen,
+                    outSeg, outSeg.byteSize(), outOff);
         }
         catch (Throwable t)
         {
@@ -233,22 +205,9 @@ public class CCMCipherFFM implements CCMCipherNI
     }
 
 
-    /**
-     * Allocate a native segment, copy the byte[] into it, return it.
-     * Returns MemorySegment.NULL for a null input. Allocations are
-     * tied to {@code arena}'s scope.
-     */
-    private static MemorySegment nativeCopy(Arena arena, byte[] src)
+    /** The heap array itself, or NULL; the critical downcall reads and writes it in place. */
+    private static MemorySegment segment(byte[] array)
     {
-        if (src == null)
-        {
-            return MemorySegment.NULL;
-        }
-        MemorySegment seg = arena.allocate(src.length == 0 ? 1 : src.length);
-        if (src.length > 0)
-        {
-            seg.asByteBuffer().put(src);
-        }
-        return seg;
+        return array == null ? MemorySegment.NULL : MemorySegment.ofArray(array);
     }
 }
