@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.BadPaddingException;
@@ -30,7 +31,10 @@ public interface BlockCipherNI extends DefaultServiceNI
 
     int ni_init(long ref, int oppmode, byte[] keyBytes, byte[] iv, int tag_len);
 
-    int ni_getBlockSize(long ref);
+    /**
+     * The cipher's block size as this NI's library reports it; no context needed.
+     */
+    int ni_getBlockSize(int cipher);
 
     int ni_update(long ref, byte[] output, int outputOffset, byte[] input, int inputOffset, int inputLen);
 
@@ -47,9 +51,13 @@ public interface BlockCipherNI extends DefaultServiceNI
     /**
      * Whether this NI's bound lib ctx can fetch the {@code EVP_CIPHER} for
      * {@code (cipher, mode)} at all. 1 fetchable (or unprobed, for a pair
-     * with no OpenSSL name), 0 not fetchable.
+     * with no OpenSSL name), 0 not fetchable, negative for an ordinal outside
+     * the native range.
      */
     int ni_cipherFetchable(int cipher, int mode);
+
+    /** This implementation's memo of block sizes; one per instance, so a size belongs to its library. */
+    NativeLengthCache<Integer> lengthCache();
 
 
     //
@@ -85,20 +93,28 @@ public interface BlockCipherNI extends DefaultServiceNI
 
     }
 
-    default int getBlockSize(long ref)
+    /**
+     * The cipher's block size in bytes, asked of this library once per cipher. A stream cipher answers 1.
+     */
+    default int blockSize(OSSLCipher cipher)
     {
-
-        try
+        Integer key = Integer.valueOf(cipher.ordinal());
+        int size = lengthCache().get(key);
+        if (size == NativeLengthCache.UNKNOWN)
         {
-            return (int) handleError(ni_getBlockSize(ref));
+            try
+            {
+                size = (int) handleError(ni_getBlockSize(cipher.ordinal()));
+            }
+            catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException |
+                   IllegalBlockSizeException | BadPaddingException others)
+            {
+                throw new IllegalStateException(
+                        "a block-size query cannot report a key, parameter or data fault", others);
+            }
+            lengthCache().cache(key, size);
         }
-        catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException |
-               IllegalBlockSizeException | BadPaddingException others)
-        {
-            throw new IllegalStateException(
-                    "a block-size query cannot report a key, parameter or data fault", others);
-        }
-
+        return size;
     }
 
     default int update(long ref, byte[] output, int outputOffset, byte[] input, int inputOffset, int inputLen) throws ShortBufferException, IllegalBlockSizeException
@@ -199,13 +215,19 @@ public interface BlockCipherNI extends DefaultServiceNI
 
     /**
      * Whether this NI's bound lib ctx can fetch the {@code EVP_CIPHER} for
-     * {@code (cipher, mode)}. A cheap, side-effect-free probe — no context
-     * is created. Native always answers 0 or 1 for this call, so there is
-     * no error code to translate.
+     * {@code (cipher, mode)}. A cheap, side-effect-free probe; no context
+     * is created. The ordinals are jostle's own enums, so a negative answer
+     * is a jostle fault and throws rather than reading as "not fetchable".
      */
     default boolean cipherFetchable(int cipher, int mode)
     {
-        return ni_cipherFetchable(cipher, mode) == 1;
+        int code = ni_cipherFetchable(cipher, mode);
+        if (code < 0)
+        {
+            throw new IllegalStateException("cipher fetch probe refused the ordinals: "
+                    + ErrorCode.forCode(code) + " (" + code + ")");
+        }
+        return code == 1;
     }
 
 

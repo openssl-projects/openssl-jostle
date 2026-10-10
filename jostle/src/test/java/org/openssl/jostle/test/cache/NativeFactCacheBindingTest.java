@@ -17,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
@@ -59,7 +61,8 @@ public class NativeFactCacheBindingTest
      * One row per cached fact, in the order the table prints them. SpecNI caches two facts, the encapsulation
      * length (SPEC) and the shared-secret length (SPEC_SECRET), each in its own cache.
      */
-    static final String[] INTERFACES = {"MD", "MAC", "ED", "MLDSA", "SLHDSA", "SPEC", "SPEC_SECRET", "RAND"};
+    static final String[] INTERFACES = {"MD", "MAC", "ED", "MLDSA", "SLHDSA", "SPEC", "SPEC_SECRET", "RAND",
+            "BLOCK"};
 
     private static final String P = "org.openssl.jostle.jcajce.";
 
@@ -80,6 +83,8 @@ public class NativeFactCacheBindingTest
         BASE.put("SPEC", new String[]{P + "spec.SpecJNI", P + "spec.SpecFFM"});
         BASE.put("SPEC_SECRET", new String[]{P + "spec.SpecJNI", P + "spec.SpecFFM"});
         BASE.put("RAND", new String[]{P + "provider.rand.RandServiceJNI", P + "provider.rand.RandServiceFFM"});
+        BASE.put("BLOCK", new String[]{P + "provider.blockcipher.BlockCipherJNI",
+                P + "provider.blockcipher.BlockCipherFFM"});
 
         String f = P + "provider.fips.";
         FIPS.put("MD", new String[]{f + "MDServiceFIPSJNI", f + "MDServiceFIPSFFM"});
@@ -90,6 +95,7 @@ public class NativeFactCacheBindingTest
         FIPS.put("SPEC", new String[]{f + "SpecFIPSJNI", f + "SpecFIPSFFM"});
         FIPS.put("SPEC_SECRET", new String[]{f + "SpecFIPSJNI", f + "SpecFIPSFFM"});
         FIPS.put("RAND", new String[]{f + "RandServiceFIPSJNI", f + "RandServiceFIPSFFM"});
+        FIPS.put("BLOCK", new String[]{f + "BlockCipherFIPSJNI", f + "BlockCipherFIPSFFM"});
     }
 
     /** The key algorithm each signature or KEM row needs; the rest need none. */
@@ -172,6 +178,10 @@ public class NativeFactCacheBindingTest
         if ("RAND".equals(iface))
         {
             return ((RandServiceNI) ni).drbgMaxStrength("CTR-DRBG", "AES-256-CTR");
+        }
+        if ("BLOCK".equals(iface))
+        {
+            return ((BlockCipherNI) ni).blockSize(OSSLCipher.AES256);
         }
 
         KeyPair kp = KeyPairGenerator.getInstance(KEY_ALG.get(iface), provider).generateKeyPair();

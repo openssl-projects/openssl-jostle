@@ -353,6 +353,24 @@ static int32_t classify_tdes_encrypt_init_failure(EVP_CIPHER *evp_cipher, uint8_
 }
 
 
+/* EVP_CIPHER_get_block_size of a correct fetch for this ctx's mode, given the arm's cipher_block_size. */
+static int expected_fetch_block_size(const block_cipher_ctx *ctx) {
+    switch (ctx->mode_id) {
+        case ECB:
+        case CBC:
+        case CTS:
+        case OCB:
+            return (int) ctx->cipher_block_size;
+        case WRAP:
+        case WRAP_PAD:
+        case WRAP_INV:
+            return 8;
+        default:
+            return 1;
+    }
+}
+
+
 static inline int valid_for_ctr(size_t iv_len, size_t block_len) {
 
     if (iv_len > block_len) {
@@ -395,6 +413,7 @@ block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, 
         goto failed;
     }
 
+    ctx->kind = BLOCK_CIPHER_KIND;
     ctx->cipher_id = cipher_Id;
     ctx->mode_id = mode_Id;
     ctx->padding = padding;
@@ -702,6 +721,11 @@ int32_t block_cipher_ctx_init(
     int32_t tag_len) {
     EVP_CIPHER *evp_cipher = NULL;
 
+    int32_t check_rc = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
+
     if (ctx->poisoned) {
         return JO_CTX_POISONED;
     }
@@ -718,6 +742,11 @@ int32_t block_cipher_ctx_init(
     }
 
     if (tag_len < 0 || tag_len > MAX_TAG_LEN) {
+        return JO_INVALID_TAG_LEN;
+    }
+
+    // SP 800-38D 5.2.1.2: no GCM tag below 32 bits; OCB takes the same floor.
+    if ((ctx->mode_id == GCM || ctx->mode_id == OCB) && tag_len < 4) {
         return JO_INVALID_TAG_LEN;
     }
 
@@ -1406,6 +1435,13 @@ int32_t block_cipher_ctx_init(
         return JO_OPENSSL_ERROR;
     }
 
+    // Did the provider serve the cipher asked for: block modes report the cipher block, wraps the 8-byte
+    // semiblock, stream modes 1.
+    if (EVP_CIPHER_get_block_size(evp_cipher) != expected_fetch_block_size(ctx)) {
+        EVP_CIPHER_free(evp_cipher);
+        return JO_OPENSSL_ERROR;
+    }
+
     int32_t ret_code = JO_SUCCESS;
 
 
@@ -1631,7 +1667,10 @@ int32_t block_cipher_ctx_updateAAD(
     block_cipher_ctx *ctx,
     uint8_t *input,
     size_t in_len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
 
     if (ctx->poisoned) {
         return JO_CTX_POISONED;
@@ -1670,18 +1709,18 @@ int32_t block_cipher_ctx_updateAAD(
 
     ERR_clear_error();
 
+    // init sets op_mode on every path that leaves the ctx initialised.
+    jo_assert(ctx->op_mode == ENCRYPT_MODE || ctx->op_mode == DECRYPT_MODE);
     if (ctx->op_mode == ENCRYPT_MODE) {
         if (OPS_OPENSSL_ERROR_2 1 != EVP_EncryptUpdate(ctx->evp, NULL, &written, input, (int) in_len)) {
             ctx->poisoned = 1;
             return JO_OPENSSL_ERROR;
         }
-    } else if (ctx->op_mode == DECRYPT_MODE) {
+    } else {
         if (OPS_OPENSSL_ERROR_2 1 != EVP_DecryptUpdate(ctx->evp, NULL, &written, input, (int) in_len)) {
             ctx->poisoned = 1;
             return JO_OPENSSL_ERROR;
         }
-    } else {
-        return JO_INVALID_OP_MODE;
     }
     ctx->processed += in_len;
     return written;
@@ -1708,14 +1747,10 @@ int32_t block_cipher_ctx_updateAAD(
  * processed = 0 is the whole reset; WRAP_ALLOW is a ctx flag and survives.
  */
 /*
- * The ERR mark/pop discipline below is UNGUARDED BY TESTS since 2026-08-31.
- * Its only observable was the OpenSSL queue text reaching Java in the unwrap
- * failure message; that message is now the typed "invalid cipher text", so no
- * Java-side or OPS-side assertion can see a scrubbed queue any more. The two
- * ways to break it are dropping the mark/pop pair, and calling
- * block_cipher_ctx_init here (it opens with ERR_clear_error). Both are
- * review-visible and neither is caught by the suite: reviewer attention
- * required on any edit to this function.
+ * The mark/pop is pinned by BlockCipherLimitTest.BlockCipher_failedUnwrapKeepsTheUnwrapErrorOnTheQueue, which reads
+ * the queue after a failed unwrap: dropping the pair, or re-initialising through block_cipher_ctx_init (it opens
+ * with ERR_clear_error), empties it. The re-init failure below has no input that reaches it: the stored key was
+ * accepted by the init that the failed operation followed.
  */
 static int32_t wrap_recover_after_failure(block_cipher_ctx *ctx) {
     int ok;
@@ -1745,7 +1780,10 @@ int32_t block_cipher_ctx_update(
     size_t in_len,
     uint8_t *output,
     size_t out_len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
 
     if (ctx->poisoned) {
         return JO_CTX_POISONED;
@@ -1913,6 +1951,8 @@ int32_t block_cipher_ctx_update(
 
     ERR_clear_error();
 
+    // init sets op_mode on every path that leaves the ctx initialised.
+    jo_assert(ctx->op_mode == ENCRYPT_MODE || ctx->op_mode == DECRYPT_MODE);
     if (ctx->op_mode == ENCRYPT_MODE) {
         if (OPS_OPENSSL_ERROR_3 1 != EVP_EncryptUpdate(ctx->evp, output, &written, input, (int) in_len)) {
             // No wrap arm here: wrap modes accumulate and never reach this
@@ -1920,7 +1960,7 @@ int32_t block_cipher_ctx_update(
             ctx->poisoned = 1;
             return JO_OPENSSL_ERROR;
         }
-    } else if (ctx->op_mode == DECRYPT_MODE) {
+    } else {
         if (is_aead_mode(ctx->mode_id)) {
             //
             // Fill tag buffer
@@ -1994,8 +2034,6 @@ int32_t block_cipher_ctx_update(
                 return JO_OPENSSL_ERROR;
             }
         }
-    } else {
-        return JO_INVALID_OP_MODE;
     }
 
     // OCB keeps whatever did not complete a block buffered inside EVP; track
@@ -2147,7 +2185,7 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
         }
         return (int32_t) out;
     }
-    if (OPS_INT32_OVERFLOW_1 len > INT_MAX) {
+    if (OPS_INT32_OVERFLOW_1 len > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -2208,7 +2246,11 @@ int32_t block_cipher_ctx_final(
     block_cipher_ctx *ctx,
     uint8_t *output,
     size_t out_len) {
-    int32_t written = 0;
+    int32_t written = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(written)) {
+        return written;
+    }
+    written = 0;
 
     if (ctx->poisoned) {
         written = JO_CTX_POISONED;
@@ -2233,6 +2275,9 @@ int32_t block_cipher_ctx_final(
     /* out_len asserted less than int32 max */
 
     ERR_clear_error();
+
+    // init sets op_mode on every path that leaves the ctx initialised.
+    jo_assert(ctx->op_mode == ENCRYPT_MODE || ctx->op_mode == DECRYPT_MODE);
 
     // Accumulating modes run here, not in update: the buffered message goes
     // to EVP in ONE call, which is the only form its primitive accepts.
@@ -2310,12 +2355,9 @@ int32_t block_cipher_ctx_final(
         if (ctx->op_mode == ENCRYPT_MODE) {
             ok = EVP_EncryptUpdate(ctx->evp, output, &evp_written,
                                    accum_data, (int) accum_len(ctx));
-        } else if (ctx->op_mode == DECRYPT_MODE) {
+        } else {
             ok = EVP_DecryptUpdate(ctx->evp, output, &evp_written,
                                    accum_data, (int) accum_len(ctx));
-        } else {
-            written = JO_INVALID_OP_MODE;
-            goto failed;
         }
 
         // Cleanse the plaintext unit as soon as OpenSSL has consumed it,
@@ -2420,7 +2462,7 @@ int32_t block_cipher_ctx_final(
 
             written += ctx->tag_len;
         }
-    } else if (ctx->op_mode == DECRYPT_MODE) {
+    } else {
         int32_t min_out_len = internal_final_size(ctx);
         if (min_out_len < 0) {
             written = min_out_len;
@@ -2455,8 +2497,6 @@ int32_t block_cipher_ctx_final(
                 OPENSSL_cleanse(output, out_len);
             }
         }
-    } else {
-        written = JO_INVALID_OP_MODE;
     }
 
 
@@ -2479,22 +2519,43 @@ failed:
 }
 
 
-int32_t block_cipher_ctx_get_block_size(block_cipher_ctx *ctx) {
-
-    if (!ctx->initialized) {
-        return JO_NOT_INITIALIZED;
+int32_t block_cipher_block_size(int32_t cipher_id) {
+    if (cipher_id < RC4 || cipher_id > DES_EDE3) {
+        return JO_INVALID_CIPHER;
     }
 
-    if (ctx->cipher_block_size > INT_MAX) {
-        return JO_VALUE_EXCEEDS_INT_MAX;
+    // The cipher's own block size: ECB is the mode that reports it; the ChaCha20 ciphers have one mode each.
+    int32_t mode_id = ECB;
+    if (cipher_id == CHACHA20) {
+        mode_id = STREAM;
+    } else if (cipher_id == CHACHA20_POLY1305) {
+        mode_id = POLY1305;
     }
 
-    return (int32_t) ctx->cipher_block_size;
+    const char *name = block_cipher_fetch_name(cipher_id, mode_id);
+    if (name == NULL) {
+        return JO_INVALID_CIPHER;
+    }
+
+    ERR_clear_error();
+    EVP_CIPHER *c = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), name, NULL);
+    if (c == NULL) {
+        return JO_OPENSSL_ERROR;
+    }
+    int bs = EVP_CIPHER_get_block_size(c);
+    EVP_CIPHER_free(c);
+    if (bs <= 0) {
+        return JO_OPENSSL_ERROR;
+    }
+    return (int32_t) bs;
 }
 
 
 int32_t block_cipher_get_final_size(block_cipher_ctx *ctx, size_t len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
 
     // final_size reads ctx->cipher_block_size in the PADDED branch; on a
     // never-init'd ctx that's 0 and the modulo / division are UB.
@@ -2506,7 +2567,10 @@ int32_t block_cipher_get_final_size(block_cipher_ctx *ctx, size_t len) {
 }
 
 int32_t block_cipher_get_update_size(block_cipher_ctx *ctx, size_t len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
 
 
     if (!ctx->initialized) {
@@ -2612,7 +2676,18 @@ static void block_cipher_ctx_release(block_cipher_ctx *ctx) {
     // Clear-frees the whole capacity, not just the used prefix.
     BUF_MEM_free(ctx->accum);
 
+    ctx->kind = BLOCK_CIPHER_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
+}
+
+int32_t block_cipher_ctx_check(const block_cipher_ctx *ctx) {
+    if (ctx == NULL) {
+        return JO_BLOCK_CIPHER_CTX_IS_NULL;
+    }
+    if (ctx->kind != BLOCK_CIPHER_KIND) {
+        return JO_BLOCK_CIPHER_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
 }
 
 void block_cipher_ctx_destroy(block_cipher_ctx *ctx) {

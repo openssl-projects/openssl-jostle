@@ -668,6 +668,10 @@
 #define JO_PROV_NAME_INVALID -190
 /* A handle that is not a key_spec, or one already freed. */
 #define JO_KEY_SPEC_WRONG_KIND -191
+/* The block cipher handle a caller passed is 0. */
+#define JO_BLOCK_CIPHER_CTX_IS_NULL -192
+/* A handle that is not a block_cipher_ctx, or one already freed. */
+#define JO_BLOCK_CIPHER_CTX_WRONG_KIND -193
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

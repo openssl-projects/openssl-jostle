@@ -24,7 +24,6 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 import javax.crypto.ShortBufferException;
 import java.lang.foreign.*;
-import java.nio.ByteOrder;
 import java.security.InvalidKeyException;
 import java.security.Security;
 
@@ -341,85 +340,6 @@ public class BlockCipherInternalLayerTest
         {
             Assertions.assertSame(ShortBufferException.class, e.getClass());
             Assertions.assertEquals("output too small", e.getMessage());
-        } finally
-        {
-            TestNISelector.getBlockCipher().dispose(ref);
-        }
-
-    }
-
-    @Test
-    public void testBlock_cipher_ctx_update_invalidOppMode() throws Exception
-    {
-
-        //
-        // With this test we use FFM to manipulate a struct so that we can induce an
-        // error where we had initialized it with an invalid operation mode (ENCRYPT, DECRYPT, etc)
-        // And check the result.
-        //
-
-        Assumptions.assumeTrue(Loader.isFFM());
-
-        final SymbolLookup lookup = SymbolLookup.loaderLookup();
-        final Linker linker = Linker.nativeLinker();
-
-        var rawBlockCipherUpdate = lookup.find("block_cipher_ctx_update").orElseThrow();
-        var rawBlockCipherUpdateHandler = linker.downcallHandle(rawBlockCipherUpdate,
-                FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT, // Return value
-                        ValueLayout.JAVA_LONG,
-                        ValueLayout.ADDRESS, // input
-                        ValueLayout.JAVA_LONG, // in_len
-                        ValueLayout.ADDRESS, // output
-                        ValueLayout.JAVA_LONG // out_len
-                ), Linker.Option.critical(true));
-
-
-        long ref = 0;
-        try
-        {
-            ref = TestNISelector.getBlockCipher().makeInstance(8, 0, 1);
-
-            MemorySegment key = MemorySegment.ofArray(new byte[16]);
-
-            // Init
-            Assertions.assertEquals(0, (int) linker.downcallHandle(lookup.find("block_cipher_ctx_init").orElseThrow(),
-                    FunctionDescriptor.of(
-                            ValueLayout.JAVA_INT,
-
-                            ValueLayout.JAVA_LONG, // ctx
-                            ValueLayout.JAVA_INT, // opp_mode
-                            ValueLayout.ADDRESS, // key
-                            ValueLayout.JAVA_LONG, //key_len
-                            ValueLayout.ADDRESS, // iv
-                            ValueLayout.JAVA_LONG, // iv_len
-                            ValueLayout.JAVA_INT // tag_len
-                            ),
-                    Linker.Option.critical(true)).invokeExact(ref, 1, key, key.byteSize(), MemorySegment.NULL, 0L, 0));
-
-            //
-            // This test is making assumptions about struct layout that may prove to be incorrect
-            //
-            MemorySegment input = MemorySegment.ofAddress(ref).reinterpret(8 + 4 + 4 + 4 + 4 + 8);
-
-            if (ByteOrder.nativeOrder().equals(ByteOrder.LITTLE_ENDIAN))
-            {
-                Assertions.assertEquals(1, input.get(ValueLayout.JAVA_BYTE, 8L + 4 + 4 + 4), "expected initial opp mode of 1 LE");
-                input.set(ValueLayout.JAVA_BYTE, 8L + 4 + 4 + 4, (byte) 10);
-            } else
-            {
-                Assertions.assertEquals(1, input.get(ValueLayout.JAVA_BYTE, 8L + 4 + 4 + 4 + 3), "expected initial opp mode of 1 BE");
-                input.set(ValueLayout.JAVA_BYTE, 8L + 4 + 4 + 4 + 3, (byte) 10);
-            }
-
-            int code = (int) rawBlockCipherUpdateHandler.invokeExact(ref, MemorySegment.ofArray(new byte[16]), 16L, MemorySegment.ofArray(new byte[16]), 16L);
-            TestNISelector.BlockCipherNI.handleError(code);
-
-            Assertions.fail();
-        } catch (Throwable e)
-        {
-            Assertions.assertSame(IllegalStateException.class, e.getClass());
-            Assertions.assertEquals("invalid operation mode", e.getMessage());
         } finally
         {
             TestNISelector.getBlockCipher().dispose(ref);

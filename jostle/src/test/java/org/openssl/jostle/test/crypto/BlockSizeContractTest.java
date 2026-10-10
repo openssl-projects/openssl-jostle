@@ -50,14 +50,12 @@ import java.util.Map;
  *   <li>{@link #blockSizeIsAnswerableBeforeInit} witnesses the TRANSLATION:
  *       EVP's 1 becomes the JCE's 0, and the answer does not depend on init.</li>
  *   <li>{@link #blockSizeAgreesWithIndependentImplementations} witnesses the
- *       TABLE, against implementations that do not share our source.</li>
+ *       VALUE, against implementations that do not share our source.</li>
  * </ul>
  *
- * <p>The second exists because the value is TRANSCRIBED in two places - the
- * {@code OSSLCipher} enum and the C tree's {@code BLOCK_SIZE_*} defines - and
- * {@code EVP_CIPHER_get_block_size} is called nowhere on the cipher path. So
- * asking our own native layer would compare two transcriptions of one fact and
- * witness neither. BouncyCastle and the JDK are independent of both.
+ * <p>The value is asked of the library ({@code EVP_CIPHER_get_block_size} on the
+ * cipher's ECB fetch), so the witness is BouncyCastle and the JDK, which share
+ * none of our source.
  */
 public class BlockSizeContractTest
 {
@@ -226,14 +224,11 @@ public class BlockSizeContractTest
     }
 
     /**
-     * The TABLE, witnessed against implementations that do not share our source.
+     * The VALUE, witnessed against implementations that do not share our source.
      *
-     * <p>Our block size is transcribed twice - the {@code OSSLCipher} enum and
-     * the C tree's {@code BLOCK_SIZE_*} defines - and nothing on the cipher path
-     * calls {@code EVP_CIPHER_get_block_size}. Comparing those two to each other
-     * would witness a transcription against its own copy. BouncyCastle and the
-     * JDK are genuinely independent, so agreement with BOTH is evidence about
-     * the value rather than about our internal consistency.
+     * <p>Our block size is the library's answer; comparing it with our own C
+     * would witness one source against itself. BouncyCastle and the JDK are
+     * independent, so agreement with BOTH is evidence about the value.
      */
     @Test
     public void blockSizeAgreesWithIndependentImplementations() throws Exception
@@ -289,6 +284,91 @@ public class BlockSizeContractTest
         Assertions.assertTrue(compared >= 9,
                 "only " + compared + " transformations had an independent comparator");
         Assertions.assertTrue(failures.isEmpty(), "block size disagrees with an independent implementation: " + failures);
+    }
+
+    /**
+     * Every registered Cipher BouncyCastle also serves reports the block size BouncyCastle reports, uninitialised.
+     * The value is the library's, asked by cipher; this is the sweep that would see a cipher whose answer drifted.
+     */
+    @Test
+    public void everyRegisteredCipherAgreesWithBouncyCastle()
+    {
+        List<String> rows = new ArrayList<String>();
+        List<String> failures = new ArrayList<String>();
+        int compared = 0;
+        for (Provider.Service sv : jsl.getServices())
+        {
+            if (!"Cipher".equals(sv.getType()))
+            {
+                continue;
+            }
+            String name = sv.getAlgorithm();
+            Integer ours = sizeFrom(jsl, name);
+            Integer theirs = sizeFrom(bc, name);
+            if (ours == null || theirs == null || theirs.intValue() < 0)
+            {
+                continue;
+            }
+            compared++;
+            rows.add(String.format("  %-40s ours=%-3d bc=%d", name, ours, theirs));
+            if (!ours.equals(theirs))
+            {
+                failures.add(name + ": ours " + ours + " vs BouncyCastle " + theirs);
+            }
+        }
+        System.out.println("\n=== block size, every registered Cipher ===\n" + String.join("\n", rows));
+        Assertions.assertTrue(compared >= 20, "only " + compared + " Ciphers had a BouncyCastle comparator");
+        Assertions.assertTrue(failures.isEmpty(), "block size disagrees with BouncyCastle: " + failures);
+    }
+
+    /** Every registered key wrap, measured: the AES wrap modes, their NIST OIDs and the RFC 3211 wraps. */
+    static final java.util.Set<String> WRAP_NAMES = new java.util.TreeSet<String>(java.util.Arrays.asList(
+            "2.16.840.1.101.3.4.1.5", "2.16.840.1.101.3.4.1.8", "2.16.840.1.101.3.4.1.25",
+            "2.16.840.1.101.3.4.1.28", "2.16.840.1.101.3.4.1.45", "2.16.840.1.101.3.4.1.48",
+            "AESWRAP", "AESWRAPPAD", "AESWRAPINV", "AESRFC3211WRAP", "CAMELLIARFC3211WRAP", "DESEDERFC3211WRAP"));
+
+    /** Whether a registered name is a key wrap: a WRAP name or one of the NIST wrap OIDs. */
+    static boolean isWrap(String name)
+    {
+        String upper = name.toUpperCase(java.util.Locale.ROOT);
+        return upper.contains("WRAP") || WRAP_NAMES.contains(upper);
+    }
+
+    /**
+     * Every key wrap reports 0 uninitialised and initialised, as BouncyCastle does wherever it serves the name.
+     * The registered wraps must be exactly the measured set, so a new one is driven rather than missed.
+     */
+    @Test
+    public void everyKeyWrapReportsZero() throws Exception
+    {
+        java.util.Set<String> seen = new java.util.TreeSet<String>();
+        List<String> failures = new ArrayList<String>();
+        for (Provider.Service sv : jsl.getServices())
+        {
+            if (!"Cipher".equals(sv.getType()) || !isWrap(sv.getAlgorithm()))
+            {
+                continue;
+            }
+            String name = sv.getAlgorithm();
+            seen.add(name.toUpperCase(java.util.Locale.ROOT));
+            Integer ours = sizeFrom(jsl, name);
+            Integer theirs = sizeFrom(bc, name);
+            if (ours == null || ours.intValue() != 0)
+            {
+                failures.add(name + ": ours " + ours);
+            }
+            if (theirs != null && theirs.intValue() != 0)
+            {
+                failures.add(name + ": BouncyCastle " + theirs);
+            }
+        }
+        Cipher kw = Cipher.getInstance("AESWrap", jsl);
+        byte[] kek = new byte[16];
+        SR.nextBytes(kek);
+        kw.init(Cipher.WRAP_MODE, new SecretKeySpec(kek, "AES"));
+        Assertions.assertEquals(0, kw.getBlockSize(), "initialised key wrap");
+        Assertions.assertEquals(WRAP_NAMES, seen, "the registered key wraps are not the measured set");
+        Assertions.assertTrue(failures.isEmpty(), "key wraps not reporting 0: " + failures);
     }
 
     private static Integer sizeFrom(Provider p, String xform)

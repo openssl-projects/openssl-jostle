@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.AESBlockCipherSpi;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 
 import javax.crypto.Cipher;
 import javax.crypto.ShortBufferException;
@@ -137,9 +138,9 @@ public class BlockCipherInternalSizingTest
         }
 
         @Override
-        public int ni_getBlockSize(long ref)
+        public int ni_getBlockSize(int cipher)
         {
-            return real.ni_getBlockSize(ref);
+            return real.ni_getBlockSize(cipher);
         }
 
         @Override
@@ -183,6 +184,12 @@ public class BlockCipherInternalSizingTest
         public int ni_cipherFetchable(int cipher, int mode)
         {
             return real.ni_cipherFetchable(cipher, mode);
+        }
+
+        @Override
+        public NativeLengthCache<Integer> lengthCache()
+        {
+            return real.lengthCache();
         }
     }
 
@@ -327,7 +334,7 @@ public class BlockCipherInternalSizingTest
         }
 
         @Override
-        public int ni_getBlockSize(long ref)
+        public int ni_getBlockSize(int cipher)
         {
             throw notUsed();
         }
@@ -371,6 +378,12 @@ public class BlockCipherInternalSizingTest
 
         @Override
         public int ni_cipherFetchable(int cipher, int mode)
+        {
+            throw notUsed();
+        }
+
+        @Override
+        public NativeLengthCache<Integer> lengthCache()
         {
             throw notUsed();
         }

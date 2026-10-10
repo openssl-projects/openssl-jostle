@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+
 /**
  * JNI version of this class
  */
@@ -22,7 +24,7 @@ public class BlockCipherJNI implements BlockCipherNI
     public native int ni_init(long ref, int oppmode, byte[] keyBytes, byte[] iv, int tag_len);
 
     @Override
-    public native int ni_getBlockSize(long ref);
+    public native int ni_getBlockSize(int cipher);
 
     @Override
     public native int ni_update(long ref, byte[] output, int outputOffset, byte[] input, int inputOffset, int inputLen);
@@ -44,5 +46,13 @@ public class BlockCipherJNI implements BlockCipherNI
 
     @Override
     public native int ni_cipherFetchable(int cipher, int mode);
+
+    private final NativeLengthCache<Integer> lengthCache = new NativeLengthCache<Integer>();
+
+    @Override
+    public NativeLengthCache<Integer> lengthCache()
+    {
+        return lengthCache;
+    }
 
 }

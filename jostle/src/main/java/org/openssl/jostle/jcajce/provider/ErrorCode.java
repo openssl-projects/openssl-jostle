@@ -357,6 +357,10 @@ public enum ErrorCode
     JO_PROV_NAME_INVALID(-190),
     // A handle that is not a key_spec, or one already freed.
     JO_KEY_SPEC_WRONG_KIND(-191),
+    // The block cipher handle passed was 0.
+    JO_BLOCK_CIPHER_CTX_IS_NULL(-192),
+    // A handle that is not a block cipher context, or one already freed.
+    JO_BLOCK_CIPHER_CTX_WRONG_KIND(-193),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

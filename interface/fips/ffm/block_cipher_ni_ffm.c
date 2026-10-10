@@ -12,13 +12,6 @@
 #include "../util/block_cipher_ctx.h"
 #include "../util/jo_assert.h"
 
-/*
- * Check that nominates offset and len are within the "size" of the array we re accessing.
-*/
-inline bool range_check(const size_t size, const size_t len, const size_t offset) {
-    return (len <= size) && (offset <= size - len);
-}
-
 /**
  *
  * @param cipherId Ordinal from OSSLCipher enum
@@ -50,9 +43,10 @@ int32_t JoBlockCipher_init(
     size_t iv_size,
     int32_t tag_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     if (key == NULL) {
         return_code = JO_KEY_IS_NULL;
@@ -79,14 +73,12 @@ exit:
 
 
 /**
- * Return the block size of the underlying cipher
- * @param ref pointer to block_cipher_ctx
- * @return block size
+ * The cipher's block size, no context needed.
+ * @param cipherId Ordinal from OSSLCipher enum
+ * @return block size or a negative error code
  */
-int32_t JoBlockCipher_getBlockSize(uint64_t ref) {
-    block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-    return block_cipher_ctx_get_block_size(ctx);
+int32_t JoBlockCipher_getBlockSize(int32_t cipherId) {
+    return block_cipher_block_size(cipherId);
 }
 
 
@@ -107,8 +99,10 @@ int32_t JoBlockCipher_updateAAD
     int32_t in_off,
     int32_t in_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     if (input == NULL) {
         return_code = JO_INPUT_IS_NULL;
@@ -125,7 +119,7 @@ int32_t JoBlockCipher_updateAAD
         goto exit;
     }
 
-    if (!range_check(input_size, in_len, in_off)) {
+    if (!check_in_range(input_size, (size_t) in_off, (size_t) in_len)) {
         return_code = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -168,8 +162,10 @@ int32_t JoBlockCipher_update
     int32_t in_off,
     int32_t in_len) {
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     if (input == NULL) {
         return_code = JO_INPUT_IS_NULL;
@@ -198,7 +194,7 @@ int32_t JoBlockCipher_update
         goto exit;
     }
 
-    if (!range_check(input_size, in_len, in_off)) {
+    if (!check_in_range(input_size, (size_t) in_off, (size_t) in_len)) {
         return_code = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -206,7 +202,7 @@ int32_t JoBlockCipher_update
     /* out_off asserted as non-negative by this point */
     const size_t out_len = output_size - (size_t) out_off;
 
-    if (!range_check(output_size, out_len, out_off)) {
+    if (!check_in_range(output_size, (size_t) out_off, (size_t) out_len)) {
         return_code = JO_OUTPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -233,9 +229,10 @@ exit:
  * @return number of bytes written to output array
  */
 int32_t JoBlockCipher_doFinal(block_cipher_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off) {
-    jo_assert(ctx != NULL);
-
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
 
     if (output == NULL) {
@@ -251,7 +248,7 @@ int32_t JoBlockCipher_doFinal(block_cipher_ctx *ctx, uint8_t *output, size_t out
     /* out_off asserted as non-negative by this point */
     const size_t out_len = output_size - (size_t) out_off;
 
-    if (!range_check(output_size, out_len, out_off)) {
+    if (!check_in_range(output_size, (size_t) out_off, (size_t) out_len)) {
         return_code = JO_OUTPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -264,8 +261,10 @@ exit:
 }
 
 int32_t JoBlockCipher_getUpdateSize(block_cipher_ctx *ctx, int32_t len) {
-    jo_assert(ctx != NULL);
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     if (len < 0) {
         return_code = JO_FINAL_SIZE_LEN_IS_NEGATIVE;
@@ -280,8 +279,10 @@ exit:
 
 
 int32_t JoBlockCipher_getFinalSize(block_cipher_ctx *ctx, int32_t len) {
-    jo_assert(ctx != NULL);
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     if (len < 0) {
         return_code = JO_FINAL_SIZE_LEN_IS_NEGATIVE;
@@ -301,7 +302,8 @@ exit:
  */
 void JoBlockCipher_dispose
 (block_cipher_ctx *ctx) {
-    if (ctx == NULL) {
+    // Frees nothing on a wrong kind: freeing another object as a block_cipher_ctx corrupts it.
+    if (block_cipher_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     block_cipher_ctx_destroy(ctx);

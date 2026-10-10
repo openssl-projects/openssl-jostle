@@ -13,6 +13,7 @@
 #include "types.h"
 #include "../util/block_cipher_ctx.h"
 #include "bytearrays.h"
+#include "secret_bytearrays.h"
 #include "../util/jo_assert.h"
 #include "../util/ops.h"
 
@@ -41,31 +42,34 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-    jint return_code = JO_FAIL;
-    java_bytearray_ctx key;
-    java_bytearray_ctx iv;
-    init_bytearray_ctx(&key);
-    init_bytearray_ctx(&iv);
+    jint return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&key, env, _key)) {
+    // Key and IV copies are cleansed at release.
+    java_secret_bytearray_ctx key;
+    java_secret_bytearray_ctx iv;
+    init_secret_bytearray_ctx(&key);
+    init_secret_bytearray_ctx(&iv);
+
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&key, env, _key)) {
         return_code = JO_FAILED_ACCESS_KEY;
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&iv, env, _iv)) {
-        release_bytearray_ctx(&key);
+    if (OPS_FAILED_ACCESS_2 !load_secret_input_ctx(&iv, env, _iv)) {
         return_code = JO_FAILED_ACCESS_IV;
-        goto exit;
-    }
-
-    if (tag_len < 0) {
-        return_code = JO_INVALID_TAG_LEN;
         goto exit;
     }
 
     if (key.bytearray == NULL) {
         return_code = JO_KEY_IS_NULL;
+        goto exit;
+    }
+
+    if (tag_len < 0) {
+        return_code = JO_INVALID_TAG_LEN;
         goto exit;
     }
 
@@ -78,8 +82,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
         iv.size, tag_len);
 
 exit:
-    release_bytearray_ctx(&key);
-    release_bytearray_ctx(&iv);
+    release_secret_bytearray_ctx(&key);
+    release_secret_bytearray_ctx(&iv);
     return return_code;
 }
 
@@ -87,16 +91,13 @@ exit:
 /*
  * Class:     org_openssl_jostle_jcajce_provider_BlockCipherJNI
  * Method:    getBlockSize
- * Signature: (J)I
+ * Signature: (I)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_ni_1getBlockSize
-(JNIEnv *env, jobject cl, jlong ref) {
+(JNIEnv *env, jobject cl, jint cipherId) {
     UNUSED(env);
     UNUSED(cl);
-
-    block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-    return block_cipher_ctx_get_block_size(ctx);
+    return block_cipher_block_size(cipherId);
 }
 
 /*
@@ -112,8 +113,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-    jint return_code = JO_FAIL;
+    jint return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     critical_bytearray_ctx input;
 
@@ -179,8 +182,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-    jint return_code = JO_FAIL;
+    jint return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
     size_t out_len;
 
     critical_bytearray_ctx input;
@@ -265,9 +270,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
 (JNIEnv *env, jobject cl, jlong ref, jbyteArray _output, jint out_off) {
     UNUSED(cl);
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-
-    jint return_code = JO_FAIL;
+    jint return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
     size_t out_len;
     critical_bytearray_ctx output;
     init_critical_ctx(&output, env, _output);
@@ -314,9 +320,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(obj);
     UNUSED(env);
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     if (len < 0) {
         return_code = JO_FINAL_SIZE_LEN_IS_NEGATIVE;
@@ -340,9 +347,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(obj);
 
     block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
-    jo_assert(ctx != NULL);
-
-    int32_t return_code = JO_FAIL;
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
 
     if (len < 0) {
         return_code = JO_FINAL_SIZE_LEN_IS_NEGATIVE;
@@ -366,7 +374,8 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_Block
     UNUSED(cl);
     UNUSED(env);
     block_cipher_ctx *ctx = (block_cipher_ctx *) ref;
-    if (ctx == NULL) {
+    // Frees nothing on a wrong kind: freeing another object as a block_cipher_ctx corrupts it.
+    if (block_cipher_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     block_cipher_ctx_destroy(ctx);

@@ -78,7 +78,8 @@ public class RFC3211WrapCipherSpi
     @Override
     protected int engineGetBlockSize()
     {
-        return blockSize;
+        // A key wrap reports 0, as BouncyCastle does; blockSize still sizes the IV and the padding.
+        return 0;
     }
 
     @Override

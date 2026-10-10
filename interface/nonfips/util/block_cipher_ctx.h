@@ -20,7 +20,15 @@
 #define MAX_KEY_LEN 64
 #define MAX_TAG_LEN 16
 
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as a block_cipher_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define BLOCK_CIPHER_KIND 0x42433501u   /* "BC5\1" */
+#define BLOCK_CIPHER_NONE 0u            /* what a freed ctx is left with; never a valid kind */
+
 typedef struct block_cipher_ctx {
+    uint32_t kind;
     EVP_CIPHER_CTX *evp;
     uint32_t cipher_id;
     uint32_t mode_id;
@@ -76,6 +84,11 @@ typedef struct block_cipher_ctx {
 block_cipher_ctx *block_cipher_ctx_create(uint32_t cipher_Id, uint32_t mode_Id, uint32_t padding, int32_t *err);
 
 /*
+ * JO_BLOCK_CIPHER_CTX_IS_NULL, JO_BLOCK_CIPHER_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t block_cipher_ctx_check(const block_cipher_ctx *ctx);
+
+/*
  * Destroy the block_cipher_context releasing any internal state.
  */
 void block_cipher_ctx_destroy(block_cipher_ctx *ctx);
@@ -123,9 +136,10 @@ int32_t block_cipher_ctx_final(
     size_t out_len);
 
 /*
- * Return the actual size of the block cipher.
+ * The cipher's block size as the bound lib ctx reports it, no context needed. JO_INVALID_CIPHER for an ordinal
+ * out of range or a cipher with no fetch name, JO_OPENSSL_ERROR when the fetch fails.
  */
-int32_t block_cipher_ctx_get_block_size(block_cipher_ctx *ctx);
+int32_t block_cipher_block_size(int32_t cipher_id);
 
 /*
  * Calculate the minimum byte length for a safe finalisation

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
@@ -87,7 +89,7 @@ public class BlockCipherOpsTest
             // Force the next EVP_*Init_ex inside _init to look failed.
             // The auto-reset inside doFinal calls _init, so this hits the
             // reset path specifically.
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1493
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1529
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             // doFinal: EVP_EncryptFinal_ex runs OK, but the auto-reset's
@@ -167,7 +169,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1402
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1431
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
 
             try
@@ -207,7 +209,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1475
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1511
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             try
@@ -244,7 +246,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1674
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1715
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
             try
@@ -281,7 +283,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1917
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1957
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -324,7 +326,7 @@ public class BlockCipherOpsTest
             // Update one block so final has work to do.
             blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16);
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:2394
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:2436
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
             try
@@ -378,7 +380,7 @@ public class BlockCipherOpsTest
 
             blockCipherNI.update(ref, new byte[16], 0, new byte[16], 0, 16);
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:2412
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:2454
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
 
             try
@@ -432,7 +434,7 @@ public class BlockCipherOpsTest
             byte[] ct = new byte[32];
             blockCipherNI.update(ref, new byte[32], 0, ct, 0, ct.length);
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:2438
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:2480
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
 
             try
@@ -489,7 +491,7 @@ public class BlockCipherOpsTest
             byte[] ct = new byte[32];
             blockCipherNI.update(ref, new byte[32], 0, ct, 0, ct.length);
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:2394
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:2436
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
 
             try
@@ -533,7 +535,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1488
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1524
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
             try
@@ -573,7 +575,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 10, 0); // AES128, OCB, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1488
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1524
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
             try
@@ -609,7 +611,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1917
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1957
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -666,7 +668,7 @@ public class BlockCipherOpsTest
             // so neither inner branch fires and tag_index ends at tag_len.
             blockCipherNI.update(ref, new byte[16], 0, new byte[16], 0, 16);
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1917
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1957
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -717,7 +719,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1917
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1957
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
 
             try
@@ -767,7 +769,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.DECRYPT_MODE, sequentialKey(16), sequentialIv(12), 16));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1674
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1715
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
 
             try
@@ -816,7 +818,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1471
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1507
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
 
             try
@@ -856,7 +858,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1471
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1507
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_2);
 
             try
@@ -898,7 +900,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1493
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1529
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -937,7 +939,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0);
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1475
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1511
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
 
             try
@@ -972,7 +974,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 8, 0);
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1493
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1529
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -1008,7 +1010,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1493
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1529
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -1046,7 +1048,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1558
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1594
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7);
 
             try
@@ -1094,7 +1096,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE,
                     sequentialKey(16), sequentialIv(16), 0));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1654
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1693
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
 
             try
@@ -1141,7 +1143,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE,
                     sequentialKey(16), sequentialIv(16), 0));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1770
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1808
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
 
             try
@@ -1238,7 +1240,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
             Assertions.assertEquals(0, blockCipherNI.update(ref, new byte[32], 0, new byte[32], 0, 32));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1530
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1566
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
 
             try
@@ -1279,7 +1281,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(
                     org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.DES_EDE3.ordinal(),
                     1, 0); // DES_EDE3, CBC, NO_PADDING
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1493
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1529
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
 
             try
@@ -1323,7 +1325,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(
                     org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
                     org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1600
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1636
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
 
             try
@@ -1359,7 +1361,7 @@ public class BlockCipherOpsTest
             ref = blockCipherNI.makeInstance(
                     org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
                     org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:1610
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:1646
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
 
             try
@@ -1423,4 +1425,206 @@ public class BlockCipherOpsTest
     }
 
 
+
+    /** JNI copies the key and the IV through the cleansing contexts; FFM reads the Java arrays and copies nothing. */
+    @Test
+    public void keyAndIvCopiesAreCleansed() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        long ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
+        try
+        {
+            operationsTestNI.ledgerReset();
+            Assertions.assertEquals(0,
+                    blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
+            int expected = Loader.isFFM() ? 0 : 2;
+            for (OperationsTestNI.LedgerType t : new OperationsTestNI.LedgerType[]{
+                    OperationsTestNI.LedgerType.SECRET_BYTEARRAY, OperationsTestNI.LedgerType.SECRET_CLEANSE})
+            {
+                Assertions.assertEquals(expected, operationsTestNI.ledgerCreated(t), t + " created");
+                Assertions.assertEquals(expected, operationsTestNI.ledgerDestroyed(t), t + " destroyed");
+            }
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    /** Re-initialising one instance with another key size frees the old context at once, one destroy per create. */
+    @Test
+    public void reinitWithAnotherKeySizeReplacesTheContext() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding", JostleProvider.PROVIDER_NAME);
+        operationsTestNI.ledgerReset();
+        int[] sizes = {16, 32, 24};
+        for (int size : sizes)
+        {
+            c.init(Cipher.ENCRYPT_MODE, new javax.crypto.spec.SecretKeySpec(sequentialKey(size), "AES"),
+                    new javax.crypto.spec.IvParameterSpec(sequentialIv(16)));
+            c.doFinal(new byte[17]);
+        }
+        Assertions.assertEquals(sizes.length,
+                operationsTestNI.ledgerCreated(OperationsTestNI.LedgerType.BLOCK_CIPHER_CTX), "created");
+        Assertions.assertEquals(sizes.length - 1,
+                operationsTestNI.ledgerDestroyed(OperationsTestNI.LedgerType.BLOCK_CIPHER_CTX), "destroyed");
+        // Keeps the instance reachable past the counts, so its context is not collected early.
+        Assertions.assertEquals(16, c.getBlockSize());
+    }
+
+    private static void expectFailure(java.util.concurrent.Callable<Object> call,
+                                      Class<? extends Exception> type, String message)
+    {
+        Exception ex = Assertions.assertThrows(Exception.class, call::call);
+        Assertions.assertEquals(type, ex.getClass());
+        Assertions.assertEquals(message, ex.getMessage());
+    }
+
+    private long initedGcm() throws Exception
+    {
+        long ref = blockCipherNI.makeInstance(8, 8, 0); // AES128, GCM
+        blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(12), 16);
+        return ref;
+    }
+
+    @Test
+    public void jniInit_keyAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = blockCipherNI.makeInstance(8, 1, 0);
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:56
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            expectFailure(() -> blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0),
+                    IllegalStateException.class, "native layer was unable to access key");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void jniInit_ivAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = blockCipherNI.makeInstance(8, 1, 0);
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:61
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            expectFailure(() -> blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0),
+                    IllegalStateException.class, "native layer was unable to access iv");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void jniUpdateAAD_inputAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = initedGcm();
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:148
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            expectFailure(() -> blockCipherNI.updateAAD(ref, new byte[16], 0, 16),
+                    AccessException.class, "unable to access input array");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void jniUpdate_inputAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = initedGcm();
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:238
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            expectFailure(() -> blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16),
+                    AccessException.class, "unable to access input array");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void jniUpdate_outputAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = initedGcm();
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:243
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            expectFailure(() -> blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16),
+                    AccessException.class, "unable to access output array");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void jniDoFinal_outputRangeFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = initedGcm();
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:294
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            expectFailure(() -> blockCipherNI.doFinal(ref, new byte[32], 0),
+                    IllegalArgumentException.class, "output offset + length is out of range");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void jniDoFinal_outputAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = initedGcm();
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:299
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            expectFailure(() -> blockCipherNI.doFinal(ref, new byte[32], 0),
+                    AccessException.class, "unable to access output array");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
 }

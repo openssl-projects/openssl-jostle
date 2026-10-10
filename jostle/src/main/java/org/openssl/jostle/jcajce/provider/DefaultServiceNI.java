@@ -102,6 +102,10 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("key spec has null key");
             case JO_KEY_SPEC_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not a key spec");
+            case JO_BLOCK_CIPHER_CTX_IS_NULL:
+                throw new IllegalArgumentException("block cipher context is null");
+            case JO_BLOCK_CIPHER_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not a block cipher context");
             case JO_FAILED_ACCESS_OUTPUT:
                 throw new AccessException("unable to access output array");
             case JO_FAILED_ACCESS_INPUT:

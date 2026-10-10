@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.util.logging.Level;
@@ -47,6 +49,8 @@ public class BlockCipherFFM implements BlockCipherNI
     private final MethodHandle disposeFuncHandle;
 
     private final MethodHandle cipherFetchableFuncHandle;
+
+    private final NativeLengthCache<Integer> lengthCache = new NativeLengthCache<Integer>();
 
     public BlockCipherFFM()
     {
@@ -98,8 +102,8 @@ public class BlockCipherFFM implements BlockCipherNI
         MemorySegment getBlockSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getBlockSize").orElseThrow();
         getBlockSizeFuncHandle = linker.downcallHandle(getBlockSizeFunc,
                 FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_LONG
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_INT // cipher_id
                 ));
 
 
@@ -224,12 +228,12 @@ public class BlockCipherFFM implements BlockCipherNI
     }
 
     @Override
-    public int ni_getBlockSize(long ref)
+    public int ni_getBlockSize(int cipher)
     {
         int code = 0;
         try
         {
-            code = (int) getBlockSizeFuncHandle.invokeExact(ref);
+            code = (int) getBlockSizeFuncHandle.invokeExact(cipher);
         }
         catch (Throwable t)
         {
@@ -399,4 +403,10 @@ public class BlockCipherFFM implements BlockCipherNI
         return code;
     }
 
+
+    @Override
+    public NativeLengthCache<Integer> lengthCache()
+    {
+        return lengthCache;
+    }
 }

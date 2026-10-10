@@ -383,10 +383,9 @@ class BlockCipherSpi extends CipherSpi
      * key arrives, since AES128 and AES256 are distinct values. A subclass
      * names one here so {@link #engineGetBlockSize()} can answer without a key.
      *
-     * <p>Nothing is transcribed: the NUMBER still comes from
-     * {@link OSSLCipher}, and only the choice of which member to ask is ours.
-     * {@code blockSizeTableMatchesNative} witnesses that table against OpenSSL
-     * itself.
+     * <p>Nothing is transcribed: the NUMBER comes from the library through
+     * {@link BlockCipherNI#blockSize}, and only the choice of which member to
+     * ask is ours.
      *
      * <p>Null by default so a new subclass cannot fail to compile - the guard
      * against one forgetting is behavioural, not a compiler error: every
@@ -417,10 +416,13 @@ class BlockCipherSpi extends CipherSpi
             // only thing standing between a caller and a NullPointerException.
             // Hence the three-step resolution below.
             //
-            // The NI-level gate is a DIFFERENT question and stays:
-            // BlockCipherNI.getBlockSize reads a cached native value that can
-            // be stale after a failed init, and BlockCipherLimitTest pins its
-            // refusal. This method never consults it.
+            // The size itself is the library's answer for that cipher,
+            // asked without a context and cached per NI.
+            // A key wrap reports 0, as BouncyCastle does; the mode, not the cipher, decides it.
+            if (osslMode == OSSLMode.WRAP || osslMode == OSSLMode.WRAP_PAD || osslMode == OSSLMode.WRAP_INV)
+            {
+                return 0;
+            }
             OSSLCipher c = mandatedCipher != null ? mandatedCipher
                     : (osslCipher != null ? osslCipher : blockSizeReference());
             if (c == null)
@@ -439,7 +441,7 @@ class BlockCipherSpi extends CipherSpi
             // ChaCha20, initialised as well as not. Same shape as
             // MDServiceSPI.engineDigest translating a native
             // IllegalArgumentException into the declared DigestException.
-            int bs = c.getBlockSize();
+            int bs = blockCipherNi.blockSize(c);
             return bs == 1 ? 0 : bs;
         }
         finally
@@ -1276,10 +1278,17 @@ class BlockCipherSpi extends CipherSpi
     {
         try
         {
+            // A context is bound to its cipher at create, so a key of another size needs a new one. The early
+            // run frees it now; the disposer's guard makes the daemon's later run a no-op.
+            if (refWrapper != null && refWrapper.cipher != osslCipher)
+            {
+                refWrapper.getDisposeAction().run();
+                refWrapper = null;
+            }
             if (refWrapper == null)
             {
                 long ref = blockCipherNi.makeInstance(osslCipher.ordinal(), osslMode.ordinal(), padding);
-                refWrapper = new OSSLBlockCipherRefWrapper(blockCipherNi, ref, osslCipher.name());
+                refWrapper = new OSSLBlockCipherRefWrapper(blockCipherNi, ref, osslCipher);
             }
         }
         finally
@@ -1312,15 +1321,13 @@ class BlockCipherSpi extends CipherSpi
     protected static class OSSLBlockCipherRefWrapper
             extends NativeReference
     {
+        /** The cipher the native context was created for. */
+        final OSSLCipher cipher;
 
-        public OSSLBlockCipherRefWrapper(BlockCipherNI blockCipherNi, long reference)
+        public OSSLBlockCipherRefWrapper(BlockCipherNI blockCipherNi, long reference, OSSLCipher cipher)
         {
-            super(reference, "", new BlockCipherSpi.Disposer(blockCipherNi, reference));
-        }
-
-        public OSSLBlockCipherRefWrapper(BlockCipherNI blockCipherNi, long reference, String name)
-        {
-            super(reference, name, new BlockCipherSpi.Disposer(blockCipherNi, reference));
+            super(reference, cipher.name(), new BlockCipherSpi.Disposer(blockCipherNi, reference));
+            this.cipher = cipher;
         }
 
     }

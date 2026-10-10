@@ -14,11 +14,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.crypto.BlockCipherHandleCells;
 
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -1118,12 +1121,13 @@ public class FIPSBlockCipherLimitTest
         }
     }
 
-    /** A negative cipher ordinal must be rejected at the FIPS NI too, not crash. */
+    /** A negative cipher ordinal is a jostle fault at the FIPS NI too: it throws, never reads as unfetchable. */
     @Test
     public void BlockCipher_cipherFetchable_badCipherOrdinalRejectedTyped()
     {
-        Assertions.assertFalse(ni.cipherFetchable(-1, OSSLMode.GCM.ordinal()),
-                "a negative cipher ordinal must not report fetchable");
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> ni.cipherFetchable(-1, OSSLMode.GCM.ordinal()));
+        Assertions.assertEquals("cipher fetch probe refused the ordinals: JO_INVALID_CIPHER (-6)", ex.getMessage());
     }
 
     /** The typed code itself, straight off the ni_ entry point, for a bad cipher ordinal. */
@@ -1169,5 +1173,79 @@ public class FIPSBlockCipherLimitTest
             Assertions.assertFalse(ni.cipherFetchable(cipher.ordinal(), OSSLMode.OCB.ordinal()),
                     cipher + "-OCB must NOT be fetchable under the FIPS lib ctx");
         }
+    }
+
+    @Test
+    public void init_nullKeyRefusedBeforeTagLen()
+    {
+        BlockCipherHandleCells.nullKeyRefusedBeforeTagLen(ni);
+    }
+
+    @Test
+    public void nullHandleRefusedTypedAtEveryEntry()
+    {
+        BlockCipherHandleCells.nullHandleRefusedAtEveryEntry(ni);
+    }
+
+    @Test
+    public void keySpecHandleRefusedAsWrongKindAtEveryEntry()
+    {
+        BlockCipherHandleCells.wrongKindRefusedAtEveryEntry(ni, FIPSNISelector.SpecNI);
+    }
+
+    /** OCB is not served by the module, so only GCM's floor is driven here. */
+    @Test
+    public void gcmTagBelowFourBytesRefusedAtInit()
+    {
+        BlockCipherHandleCells.aeadTagFloor(ni, OSSLMode.GCM);
+    }
+
+    /**
+     * A module configured with tdes-encrypt-disabled refuses the encrypt init typed and still decrypts; one that
+     * encrypts must actually do so. A module without Triple-DES refuses the fetch.
+     */
+    @Test
+    public void desEde3EncryptRefusalIsTypedWhereTheModuleGatesIt() throws Exception
+    {
+        byte[] key = new byte[24];
+        byte[] iv = new byte[8];
+        RANDOM.nextBytes(key);
+        RANDOM.nextBytes(iv);
+        long ref = ni.makeInstance(DES_EDE3, CBC, NO_PADDING);
+        try
+        {
+            if (!ni.cipherFetchable(DES_EDE3, CBC))
+            {
+                Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(),
+                        ni.ni_init(ref, Cipher.ENCRYPT_MODE, key, iv, 0));
+                return;
+            }
+            int code = ni.ni_init(ref, Cipher.ENCRYPT_MODE, key, iv, 0);
+            if (code == ErrorCode.JO_TDES_ENCRYPT_UNAVAILABLE.getCode())
+            {
+                ProviderCapabilityException ex = Assertions.assertThrows(ProviderCapabilityException.class,
+                        () -> ni.init(ref, Cipher.ENCRYPT_MODE, key, iv, 0));
+                Assertions.assertEquals("Triple-DES encryption is not supported by the loaded provider; "
+                        + "Triple-DES decryption remains available", ex.getMessage());
+                Assertions.assertEquals(0, ni.ni_init(ref, Cipher.DECRYPT_MODE, key, iv, 0));
+                return;
+            }
+            Assertions.assertEquals(0, code, "encrypt init neither refused typed nor accepted");
+            byte[] pt = new byte[16];
+            RANDOM.nextBytes(pt);
+            byte[] ct = new byte[16];
+            Assertions.assertEquals(16, ni.update(ref, ct, 0, pt, 0, 16) + ni.doFinal(ref, ct, 16));
+            Assertions.assertFalse(org.openssl.jostle.util.Arrays.areEqual(pt, ct));
+        }
+        finally
+        {
+            ni.dispose(ref);
+        }
+    }
+
+    @Test
+    public void wrapInitsPassTheSemiblockGuard()
+    {
+        BlockCipherHandleCells.wrapInitsPassTheSemiblockGuard(ni, false);
     }
 }

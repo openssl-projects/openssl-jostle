@@ -14,9 +14,12 @@ package org.openssl.jostle.test.crypto;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -1715,25 +1718,26 @@ public class BlockCipherLimitTest
     }
 
     @Test
-    public void testGetBlockSize_notInitialized() throws Exception
+    public void testGetBlockSize_answersWithoutAContext() throws Exception
     {
-        // get_block_size now gates on initialized; pre-init the cached
-        // cipher_block_size may carry stale values from a failed init.
-        long ref = 0;
-        try
-        {
-            ref = blockCipherNI.makeInstance(8, 1, 0); // AES128, CBC, NO_PADDING
-            blockCipherNI.getBlockSize(ref);
-            Assertions.fail("expected !initialized to fail");
-        }
-        catch (IllegalStateException ex)
-        {
-            Assertions.assertEquals("not initialized", ex.getMessage());
-        }
-        finally
-        {
-            blockCipherNI.dispose(ref);
-        }
+        Assertions.assertEquals(16, blockCipherNI.ni_getBlockSize(OSSLCipher.AES128.ordinal()));
+        Assertions.assertEquals(8, blockCipherNI.ni_getBlockSize(OSSLCipher.DES_EDE3.ordinal()));
+        Assertions.assertEquals(1, blockCipherNI.ni_getBlockSize(OSSLCipher.CHACHA20.ordinal()));
+        Assertions.assertEquals(16, blockCipherNI.blockSize(OSSLCipher.CAMELLIA256));
+    }
+
+    @Test
+    public void testGetBlockSize_badOrdinalRejectedTyped() throws Exception
+    {
+        Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER.getCode(), blockCipherNI.ni_getBlockSize(-1));
+        Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER.getCode(),
+                blockCipherNI.ni_getBlockSize(OSSLCipher.values().length));
+        // A cipher with no fetch name is refused typed, never answered 0.
+        Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER.getCode(),
+                blockCipherNI.ni_getBlockSize(OSSLCipher.RC4.ordinal()));
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> blockCipherNI.blockSize(OSSLCipher.RC4));
+        Assertions.assertEquals("cipher not supported", ex.getMessage());
     }
 
     @Test
@@ -2942,8 +2946,12 @@ public class BlockCipherLimitTest
     public void BlockCipher_cipherFetchable_badCipherOrdinalRejectedTyped()
     {
         int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
-        Assertions.assertFalse(blockCipherNI.cipherFetchable(-1, gcmMode),
-                "a negative cipher ordinal must not report fetchable");
+        IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> blockCipherNI.cipherFetchable(-1, gcmMode));
+        Assertions.assertEquals("cipher fetch probe refused the ordinals: JO_INVALID_CIPHER (-6)", ex.getMessage());
+        ex = Assertions.assertThrows(IllegalStateException.class,
+                () -> blockCipherNI.cipherFetchable(AES_256, 9999));
+        Assertions.assertEquals("cipher fetch probe refused the ordinals: JO_INVALID_MODE (-7)", ex.getMessage());
     }
 
     /** The typed code itself, straight off the ni_ entry point, for a bad cipher ordinal. */
@@ -2974,5 +2982,224 @@ public class BlockCipherLimitTest
         int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
         Assertions.assertTrue(blockCipherNI.cipherFetchable(AES_256, gcmMode),
                 "AES-256-GCM must be fetchable on the base interface library");
+    }
+
+    @Test
+    public void BlockCipher_init_nullKeyRefusedBeforeTagLen()
+    {
+        BlockCipherHandleCells.nullKeyRefusedBeforeTagLen(blockCipherNI);
+    }
+
+    @Test
+    public void BlockCipher_nullHandleRefusedTypedAtEveryEntry()
+    {
+        BlockCipherHandleCells.nullHandleRefusedAtEveryEntry(blockCipherNI);
+    }
+
+    @Test
+    public void BlockCipher_keySpecHandleRefusedAsWrongKindAtEveryEntry()
+    {
+        BlockCipherHandleCells.wrongKindRefusedAtEveryEntry(blockCipherNI, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void BlockCipher_gcmTagBelowFourBytesRefusedAtInit()
+    {
+        BlockCipherHandleCells.aeadTagFloor(blockCipherNI, OSSLMode.GCM);
+    }
+
+    @Test
+    public void BlockCipher_ocbTagBelowFourBytesRefusedAtInit()
+    {
+        BlockCipherHandleCells.aeadTagFloor(blockCipherNI, OSSLMode.OCB);
+    }
+
+    private static final SecureRandom CELL_RANDOM = new SecureRandom();
+
+    private static byte[] randomBytes(int len)
+    {
+        byte[] b = new byte[len];
+        CELL_RANDOM.nextBytes(b);
+        return b;
+    }
+
+    /** Encrypt, flip one tag byte, decrypt: AEADBadTagException and the final window cleansed. */
+    private void badTagRefused(OSSLCipher cipher, OSSLMode mode, int keyLen, int ivLen) throws Exception
+    {
+        byte[] key = randomBytes(keyLen);
+        byte[] iv = randomBytes(ivLen);
+        byte[] pt = randomBytes(1 + CELL_RANDOM.nextInt(64));
+        long enc = 0;
+        long dec = 0;
+        try
+        {
+            enc = blockCipherNI.makeInstance(cipher.ordinal(), mode.ordinal(), 0);
+            blockCipherNI.init(enc, Cipher.ENCRYPT_MODE, key, iv, 16);
+            byte[] ct = new byte[pt.length + 32];
+            int n = blockCipherNI.update(enc, ct, 0, pt, 0, pt.length);
+            n += blockCipherNI.doFinal(enc, ct, n);
+            Assertions.assertEquals(pt.length + 16, n);
+            ct[n - 1 - CELL_RANDOM.nextInt(16)] ^= (byte) (1 + CELL_RANDOM.nextInt(255));
+
+            dec = blockCipherNI.makeInstance(cipher.ordinal(), mode.ordinal(), 0);
+            blockCipherNI.init(dec, Cipher.DECRYPT_MODE, key, iv, 16);
+            byte[] out = new byte[pt.length + 32];
+            int m = blockCipherNI.update(dec, out, 0, ct, 0, n);
+            java.util.Arrays.fill(out, m, out.length, (byte) 0x5A);
+            int from = m;
+            long decRef = dec;
+            javax.crypto.AEADBadTagException ex = Assertions.assertThrows(javax.crypto.AEADBadTagException.class,
+                    () -> blockCipherNI.doFinal(decRef, out, from));
+            Assertions.assertEquals("bad tag", ex.getMessage());
+            for (int i = from; i < out.length; i++)
+            {
+                Assertions.assertEquals(0, out[i], cipher + "/" + mode + " final window not cleansed at " + i);
+            }
+        }
+        finally
+        {
+            blockCipherNI.dispose(enc);
+            blockCipherNI.dispose(dec);
+        }
+    }
+
+    @Test
+    public void BlockCipher_ocbBadTagRefused() throws Exception
+    {
+        badTagRefused(OSSLCipher.AES128, OSSLMode.OCB, 16, 12);
+    }
+
+    @Test
+    public void BlockCipher_chacha20Poly1305BadTagRefused() throws Exception
+    {
+        badTagRefused(OSSLCipher.CHACHA20_POLY1305, OSSLMode.POLY1305, 32, 12);
+    }
+
+    /** One NI operation, update then doFinal, from in at inOff to out at outOff. */
+    private int operate(long ref, byte[] out, int outOff, byte[] in, int inOff, int len) throws Exception
+    {
+        int n = blockCipherNI.update(ref, out, outOff, in, inOff, len);
+        return n + blockCipherNI.doFinal(ref, out, outOff + n);
+    }
+
+    /**
+     * Same-offset in-place encrypt and decrypt against the separate-buffer result, with every byte outside the
+     * written region, prefix and an over-long suffix, asserted untouched.
+     */
+    private void inPlaceSameOffset(OSSLMode mode, int ivLen, int tagLen, int ptLen) throws Exception
+    {
+        byte[] key = randomBytes(16);
+        byte[] iv = ivLen == 0 ? null : randomBytes(ivLen);
+        byte[] pt = randomBytes(ptLen);
+        long ref = blockCipherNI.makeInstance(OSSLCipher.AES128.ordinal(), mode.ordinal(), 0);
+        try
+        {
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, tagLen);
+            byte[] reference = new byte[ptLen + 32];
+            int refLen = operate(ref, reference, 0, pt, 0, ptLen);
+
+            int off = 1 + CELL_RANDOM.nextInt(15);
+            byte[] buf = randomBytes(off + ptLen + 48);
+            System.arraycopy(pt, 0, buf, off, ptLen);
+            byte[] before = buf.clone();
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, tagLen);
+            Assertions.assertEquals(refLen, operate(ref, buf, off, buf, off, ptLen), mode + " encrypt length");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOf(reference, refLen),
+                    java.util.Arrays.copyOfRange(buf, off, off + refLen), mode + " in-place ciphertext");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOf(before, off),
+                    java.util.Arrays.copyOf(buf, off), mode + " prefix");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(before, off + refLen, before.length),
+                    java.util.Arrays.copyOfRange(buf, off + refLen, buf.length), mode + " suffix");
+
+            byte[] afterEnc = buf.clone();
+            blockCipherNI.init(ref, Cipher.DECRYPT_MODE, key, iv, tagLen);
+            Assertions.assertEquals(ptLen, operate(ref, buf, off, buf, off, refLen), mode + " decrypt length");
+            Assertions.assertArrayEquals(pt, java.util.Arrays.copyOfRange(buf, off, off + ptLen), mode + " round trip");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOf(afterEnc, off),
+                    java.util.Arrays.copyOf(buf, off), mode + " decrypt prefix");
+            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(afterEnc, off + refLen, afterEnc.length),
+                    java.util.Arrays.copyOfRange(buf, off + refLen, buf.length), mode + " decrypt suffix");
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void BlockCipher_inPlaceSameOffset_cbc() throws Exception
+    {
+        inPlaceSameOffset(OSSLMode.CBC, 16, 0, 16 * (1 + CELL_RANDOM.nextInt(4)));
+    }
+
+    @Test
+    public void BlockCipher_inPlaceSameOffset_ecb() throws Exception
+    {
+        inPlaceSameOffset(OSSLMode.ECB, 0, 0, 16 * (1 + CELL_RANDOM.nextInt(4)));
+    }
+
+    @Test
+    public void BlockCipher_inPlaceSameOffset_gcm() throws Exception
+    {
+        inPlaceSameOffset(OSSLMode.GCM, 12, 16, 1 + CELL_RANDOM.nextInt(64));
+    }
+
+    @Test
+    public void BlockCipher_inPlaceSameOffset_ctr() throws Exception
+    {
+        inPlaceSameOffset(OSSLMode.CTR, 16, 0, 1 + CELL_RANDOM.nextInt(64));
+    }
+
+    /**
+     * A failed unwrap leaves OpenSSL's own error on the queue and the cipher reusable: the recovery re-init runs
+     * inside a mark and pops only its own entries. Clearing the queue there, or re-initialising through the path
+     * that does, empties it.
+     */
+    @Test
+    public void BlockCipher_failedUnwrapKeepsTheUnwrapErrorOnTheQueue() throws Exception
+    {
+        byte[] kek = randomBytes(16);
+        byte[] keyData = randomBytes(32);
+        long wrap = 0;
+        long unwrap = 0;
+        try
+        {
+            wrap = blockCipherNI.makeInstance(OSSLCipher.AES128.ordinal(), OSSLMode.WRAP.ordinal(), 0);
+            blockCipherNI.init(wrap, Cipher.ENCRYPT_MODE, kek, null, 0);
+            byte[] blob = new byte[40];
+            Assertions.assertEquals(40, operate(wrap, blob, 0, keyData, 0, 32));
+            blob[CELL_RANDOM.nextInt(40)] ^= (byte) (1 + CELL_RANDOM.nextInt(255));
+
+            unwrap = blockCipherNI.makeInstance(OSSLCipher.AES128.ordinal(), OSSLMode.WRAP.ordinal(), 0);
+            blockCipherNI.init(unwrap, Cipher.DECRYPT_MODE, kek, null, 0);
+            Assertions.assertEquals(0, blockCipherNI.update(unwrap, new byte[40], 0, blob, 0, 40));
+            Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER_TEXT.getCode(),
+                    blockCipherNI.ni_doFinal(unwrap, new byte[40], 0));
+            String queued = org.openssl.jostle.jcajce.provider.OpenSSL.getOpenSSLErrors();
+            Assertions.assertNotNull(queued, "the unwrap failure must still be on the queue");
+            Assertions.assertTrue(queued.contains(UNWRAP_FAILURE_REASON), queued);
+
+            // Recovered, not poisoned: the same handle unwraps the intact blob.
+            byte[] good = new byte[40];
+            blockCipherNI.init(wrap, Cipher.ENCRYPT_MODE, kek, null, 0);
+            operate(wrap, good, 0, keyData, 0, 32);
+            Assertions.assertEquals(0, blockCipherNI.update(unwrap, new byte[40], 0, good, 0, 40));
+            byte[] recovered = new byte[40];
+            Assertions.assertEquals(32, blockCipherNI.doFinal(unwrap, recovered, 0));
+            Assertions.assertArrayEquals(keyData, java.util.Arrays.copyOf(recovered, 32));
+        }
+        finally
+        {
+            blockCipherNI.dispose(wrap);
+            blockCipherNI.dispose(unwrap);
+        }
+    }
+
+    private static final String UNWRAP_FAILURE_REASON = "cipher operation failed";
+
+    @Test
+    public void BlockCipher_wrapInitsPassTheSemiblockGuard()
+    {
+        BlockCipherHandleCells.wrapInitsPassTheSemiblockGuard(blockCipherNI, true);
     }
 }

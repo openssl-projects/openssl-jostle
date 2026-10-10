@@ -108,11 +108,17 @@ public final class Rfc3211WrapFamilies
         return out;
     }
 
-    /** Asked of the SPI, never tabulated. */
+    /**
+     * The base cipher's block size, asked of its CBC cipher, never tabulated. The wrap itself reports 0, as
+     * BouncyCastle does.
+     */
     public static int blockOf(String name) throws Exception
     {
-        int block = Cipher.getInstance(name, JostleProvider.PROVIDER_NAME).getBlockSize();
-        Assertions.assertTrue(block > 0, name + ": the SPI reports no block size");
+        String upper = name.toUpperCase(Locale.ROOT);
+        Assertions.assertTrue(upper.endsWith("RFC3211WRAP"), name + ": not an RFC 3211 wrap name");
+        String base = name.substring(0, name.length() - "RFC3211WRAP".length());
+        int block = Cipher.getInstance(base + "/CBC/NoPadding", JostleProvider.PROVIDER_NAME).getBlockSize();
+        Assertions.assertTrue(block > 0, name + ": the base cipher reports no block size");
         return block;
     }
 
