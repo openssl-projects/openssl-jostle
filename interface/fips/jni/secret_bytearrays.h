@@ -61,4 +61,10 @@ bool check_secret_in_range(java_secret_bytearray_ctx *ctx, size_t offset, size_t
  */
 void release_secret_bytearray_ctx(java_secret_bytearray_ctx *ctx);
 
+/**
+ * As release_secret_bytearray_ctx with no write-back: for an output a failed call must leave as it was. The
+ * output buffer is C's own, so the Java array is not written whether or not the JVM copies.
+ */
+void discard_secret_bytearray_ctx(java_secret_bytearray_ctx *ctx);
+
 #endif //SECRET_BYTEARRAYS_H

@@ -111,13 +111,13 @@ bool check_secret_in_range(java_secret_bytearray_ctx *ctx, size_t offset, size_t
     return (len <= ctx->size) && (offset <= ctx->size - len);
 }
 
-void release_secret_bytearray_ctx(java_secret_bytearray_ctx *ctx) {
+static void release_secret(java_secret_bytearray_ctx *ctx, bool write_back) {
     if (ctx == NULL || ctx->bytearray == NULL || ctx->env == NULL) {
         return;
     }
     JNIEnv *env = ctx->env;
 
-    if (ctx->kind == JO_SECRET_OUTPUT && !(*env)->ExceptionCheck(env)) {
+    if (write_back && ctx->kind == JO_SECRET_OUTPUT && !(*env)->ExceptionCheck(env)) {
         (*env)->SetByteArrayRegion(env, ctx->array, 0, (jsize) ctx->size, (jbyte *) ctx->bytearray);
     }
 
@@ -142,4 +142,12 @@ void release_secret_bytearray_ctx(java_secret_bytearray_ctx *ctx) {
     ctx->bytearray = NULL;
     ctx->jvm_copy = JNI_FALSE;
     JO_LEDGER_DESTROYED(JO_LEDGER_SECRET_BYTEARRAY);
+}
+
+void release_secret_bytearray_ctx(java_secret_bytearray_ctx *ctx) {
+    release_secret(ctx, true);
+}
+
+void discard_secret_bytearray_ctx(java_secret_bytearray_ctx *ctx) {
+    release_secret(ctx, false);
 }

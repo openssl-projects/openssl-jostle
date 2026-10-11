@@ -12,6 +12,7 @@
 
 #include <openssl/core_names.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
 #include <openssl/params.h>
 #include <openssl/types.h>
 
@@ -19,6 +20,29 @@
 #include "jo_assert.h"
 #include "ops.h"
 #include "rand/jostle_lib_ctx.h"
+
+#include <string.h>
+
+
+/*
+ * The digest is fetched and sized before the KDF: an unknown name, or a digest of size 0 (on which SSHKDF never
+ * returns), is JO_KDF_PBE_UNKNOWN_DIGEST. Both bridges pass the name NUL-terminated at digest_len.
+ */
+static int32_t kdf_digest_check(OSSL_LIB_CTX *libctx, const uint8_t *digest, size_t digest_len) {
+    jo_assert(digest != NULL);
+    jo_assert(strnlen((const char *) digest, digest_len + 1) == digest_len);
+
+    int32_t ret = JO_KDF_PBE_UNKNOWN_DIGEST;
+    EVP_MD *md = EVP_MD_fetch(libctx, (const char *) digest, NULL);
+    if (OPS_OPENSSL_ERROR_4 md == NULL || EVP_MD_get_size(md) <= 0) {
+        goto exit;
+    }
+
+    ret = JO_SUCCESS;
+exit:
+    EVP_MD_free(md);
+    return ret;
+}
 
 
 int32_t jo_pbkdf2(
@@ -38,10 +62,16 @@ int32_t jo_pbkdf2(
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
 
     ERR_clear_error();
 
-    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "PBKDF2", NULL);
+    ret = kdf_digest_check(libctx, digest, digest_len);
+    if (UNSUCCESSFUL(ret)) {
+        goto exit;
+    }
+
+    kdf = EVP_KDF_fetch(libctx, "PBKDF2", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(2002);
         goto exit;
@@ -93,10 +123,16 @@ int32_t jo_hkdf(
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
 
     ERR_clear_error();
 
-    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "HKDF", NULL);
+    ret = kdf_digest_check(libctx, digest, digest_len);
+    if (UNSUCCESSFUL(ret)) {
+        goto exit;
+    }
+
+    kdf = EVP_KDF_fetch(libctx, "HKDF", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(3002);
         goto exit;
@@ -191,10 +227,19 @@ int32_t jo_kbkdf(
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
 
     ERR_clear_error();
 
-    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "KBKDF", NULL);
+    // A CMAC takes a cipher and no digest.
+    if (digest != NULL) {
+        ret = kdf_digest_check(libctx, digest, digest_len);
+        if (UNSUCCESSFUL(ret)) {
+            goto exit;
+        }
+    }
+
+    kdf = EVP_KDF_fetch(libctx, "KBKDF", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(4002);
         goto exit;
@@ -277,10 +322,16 @@ int32_t jo_sskdf(
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
 
     ERR_clear_error();
 
-    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "SSKDF", NULL);
+    ret = kdf_digest_check(libctx, digest, digest_len);
+    if (UNSUCCESSFUL(ret)) {
+        goto exit;
+    }
+
+    kdf = EVP_KDF_fetch(libctx, "SSKDF", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(5002);
         goto exit;
@@ -345,10 +396,16 @@ int32_t jo_sshkdf(
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
+    OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
 
     ERR_clear_error();
 
-    kdf = EVP_KDF_fetch(get_global_jostle_ossl_lib_ctx(), "SSHKDF", NULL);
+    ret = kdf_digest_check(libctx, digest, digest_len);
+    if (UNSUCCESSFUL(ret)) {
+        goto exit;
+    }
+
+    kdf = EVP_KDF_fetch(libctx, "SSHKDF", NULL);
     if (OPS_OPENSSL_ERROR_1 kdf == NULL) {
         ret = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(6002);
         goto exit;

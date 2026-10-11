@@ -11,6 +11,9 @@ package org.openssl.jostle.jcajce.provider.kdf;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
+import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.spec.KBKDFParameterSpec;
 import org.openssl.jostle.jcajce.util.DigestUtil;
 import org.openssl.jostle.util.Arrays;
@@ -30,14 +33,8 @@ import java.security.spec.KeySpec;
  * {@code HKDF-SHA256} precedent; the {@link KBKDFParameterSpec} supplies the
  * key-derivation key, Label, Context, mode, counter width and output length.
  *
- * <p>No Java-side output ceiling is imposed. OpenSSL's counter mode enforces
- * its own bound (a request whose block count reaches 2<sup>r</sup> is refused
- * with "invalid key length"), reports it identically on every supported build,
- * and does not repeat keying material below it — so a transcribed
- * {@code 255 * macLen} limit here would be a second source of truth that
- * disagrees with the first. This is the deliberate difference from
- * {@link HKDFSecretKeyFactory}, whose RFC 5869 ceiling OpenSSL does NOT
- * enforce.</p>
+ * <p>A request needing more than 2<sup>r</sup> - 1 blocks is refused here, in either mode; the block size is the
+ * HMAC digest's or the CMAC cipher's, asked of the interface library at construction.</p>
  */
 public class KBKDFSecretKeyFactory extends SecretKeyFactorySpi
 {
@@ -48,6 +45,7 @@ public class KBKDFSecretKeyFactory extends SecretKeyFactorySpi
     public static final String CMAC = "CMAC";
 
     private final KdfNI kdfNI;
+    private final int blockLength;
     private final String macName;
     private final String digestAlgorithm;
     private final String cipherAlgorithm;
@@ -56,13 +54,17 @@ public class KBKDFSecretKeyFactory extends SecretKeyFactorySpi
      * @param macName         {@link #HMAC} or {@link #CMAC}.
      * @param digestAlgorithm the JCE digest name for an HMAC PRF, else null.
      * @param cipherAlgorithm the OpenSSL cipher name for a CMAC PRF, else null.
+     * @param cmacCipher      the cipher {@code cipherAlgorithm} names, for its block size; null for an HMAC PRF.
      */
-    public KBKDFSecretKeyFactory(String macName, String digestAlgorithm, String cipherAlgorithm)
+    public KBKDFSecretKeyFactory(String macName, String digestAlgorithm, String cipherAlgorithm,
+                                 OSSLCipher cmacCipher)
     {
-        this(NISelector.KdfNI, macName, digestAlgorithm, cipherAlgorithm);
+        this(NISelector.KdfNI, NISelector.MDServiceNI, NISelector.BlockCipherNI, macName, digestAlgorithm,
+                cipherAlgorithm, cmacCipher);
     }
 
-    public KBKDFSecretKeyFactory(KdfNI kdfNI, String macName, String digestAlgorithm, String cipherAlgorithm)
+    public KBKDFSecretKeyFactory(KdfNI kdfNI, MDServiceNI mdServiceNI, BlockCipherNI blockCipherNI, String macName,
+                                 String digestAlgorithm, String cipherAlgorithm, OSSLCipher cmacCipher)
     {
         if (digestAlgorithm == null && cipherAlgorithm == null)
         {
@@ -73,6 +75,10 @@ public class KBKDFSecretKeyFactory extends SecretKeyFactorySpi
         this.digestAlgorithm = digestAlgorithm == null
                 ? null : DigestUtil.getCanonicalDigestName(digestAlgorithm);
         this.cipherAlgorithm = cipherAlgorithm;
+        // The PRF output size, as OpenSSL's KBKDF takes it from the MAC: the digest's for HMAC, the cipher's
+        // block for CMAC.
+        this.blockLength = this.digestAlgorithm != null
+                ? mdServiceNI.digestOutputLength(this.digestAlgorithm) : blockCipherNI.blockSize(cmacCipher);
     }
 
     @Override
@@ -85,6 +91,14 @@ public class KBKDFSecretKeyFactory extends SecretKeyFactorySpi
         }
 
         KBKDFParameterSpec spec = (KBKDFParameterSpec) keySpec;
+
+        long blocks = (spec.getOutputLength() + (long) blockLength - 1) / blockLength;
+        long maxBlocks = (1L << spec.getR()) - 1;
+        if (blocks > maxBlocks)
+        {
+            throw new InvalidKeySpecException("output length " + spec.getOutputLength() + " needs " + blocks
+                    + " blocks of " + blockLength + " bytes; r = " + spec.getR() + " allows " + maxBlocks);
+        }
 
         byte[] ki = spec.getKI();
         byte[] rawKey = new byte[spec.getOutputLength()];

@@ -448,4 +448,57 @@ public class SP800KdfLimitTest
         Assertions.assertFalse(Arrays.areEqual(reference, shifted),
                 what + " appears to have written at outOffset - 1");
     }
+
+    @Test
+    public void embeddedNulNamesAreRefused()
+    {
+        KdfCells.embeddedNulNamesAreRefused(kdfNI);
+    }
+
+    @Test
+    public void unusableDigestsAreRefused()
+    {
+        KdfCells.unusableDigestsAreRefused(kdfNI);
+    }
+
+    @Test
+    public void zeroLengthOutputIsRefused()
+    {
+        KdfCells.zeroLengthOutputIsRefused(kdfNI);
+    }
+
+    @Test
+    public void sshkdfRefusesInParameterOrder()
+    {
+        KdfCells.sshkdfRefusesInParameterOrder(kdfNI);
+    }
+
+    @Test
+    public void sshkdfDerivesWithAnEmptyExchangeHash()
+    {
+        KdfCells.sshkdfDerivesWithAnEmptyExchangeHash(kdfNI);
+    }
+
+    @Test
+    public void outputIsWrittenOnlyOnSuccess()
+    {
+        KdfCells.outputIsWrittenOnlyOnSuccess(kdfNI);
+    }
+
+    @Test
+    public void kbkdfBlockBound() throws Exception
+    {
+        KdfCells.kbkdfBlockBound(JostleProvider.PROVIDER_NAME, KDFAgreementTest::derive);
+    }
+
+    /** The base library derives SSHKDF from an empty shared secret; the FIPS key floor is the twin's contract. */
+    @Test
+    public void sshkdfDerivesWithAnEmptyKeyOnTheBaseLibrary()
+    {
+        byte[] a = new byte[32];
+        byte[] b = new byte[32];
+        Assertions.assertEquals(0, kdfNI.sshkdf("SHA2-256", new byte[0], new byte[32], new byte[32], "A", a, 0, 32));
+        Assertions.assertEquals(0, kdfNI.sshkdf("SHA2-256", new byte[1], new byte[32], new byte[32], "A", b, 0, 32));
+        Assertions.assertFalse(Arrays.areEqual(a, b));
+    }
 }

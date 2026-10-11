@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider;
 
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.kdf.KBKDFSecretKeyFactory;
 
 import java.util.HashMap;
@@ -51,22 +52,22 @@ class ProvKBKDF
         addHmac(provider, "SHA384", "SHA-384");
         addHmac(provider, "SHA512", "SHA-512");
 
-        addCmac(provider, "AES128", "AES-128-CBC");
-        addCmac(provider, "AES192", "AES-192-CBC");
-        addCmac(provider, "AES256", "AES-256-CBC");
+        addCmac(provider, "AES128", "AES-128-CBC", OSSLCipher.AES128);
+        addCmac(provider, "AES192", "AES-192-CBC", OSSLCipher.AES192);
+        addCmac(provider, "AES256", "AES-256-CBC", OSSLCipher.AES256);
     }
 
     private static void addHmac(JostleProvider provider, String suffix, String digest)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-HMAC-" + suffix,
                 KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
-                (arg) -> new KBKDFSecretKeyFactory(KBKDFSecretKeyFactory.HMAC, digest, null));
+                (arg) -> new KBKDFSecretKeyFactory(KBKDFSecretKeyFactory.HMAC, digest, null, null));
     }
 
-    private static void addCmac(JostleProvider provider, String suffix, String cipher)
+    private static void addCmac(JostleProvider provider, String suffix, String cipher, OSSLCipher block)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-CMAC-" + suffix,
                 KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
-                (arg) -> new KBKDFSecretKeyFactory(KBKDFSecretKeyFactory.CMAC, null, cipher));
+                (arg) -> new KBKDFSecretKeyFactory(KBKDFSecretKeyFactory.CMAC, null, cipher, block));
     }
 }

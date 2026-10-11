@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.kdf.KdfCells;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 /**
@@ -96,7 +97,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:335
+            // Exercises interface/fips/jni/kdf_jni.c:321
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_5);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -117,7 +118,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:352
+            // Exercises interface/fips/jni/kdf_jni.c:343
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_6);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -138,7 +139,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:363
+            // Exercises interface/fips/jni/kdf_jni.c:359
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_7);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -181,7 +182,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:386
+            // Exercises interface/fips/jni/kdf_jni.c:390
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -202,7 +203,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:397
+            // Exercises interface/fips/jni/kdf_jni.c:401
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -223,7 +224,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:403
+            // Exercises interface/fips/jni/kdf_jni.c:407
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -244,7 +245,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:409
+            // Exercises interface/fips/jni/kdf_jni.c:413
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_9);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -265,7 +266,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:414
+            // Exercises interface/fips/jni/kdf_jni.c:418
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             kdfNI.handleErrorCodes(kbkdf());
             Assertions.fail();
@@ -288,7 +289,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:494
+            // Exercises interface/fips/jni/kdf_jni.c:498
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(sskdf());
             Assertions.fail();
@@ -309,7 +310,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:499
+            // Exercises interface/fips/jni/kdf_jni.c:508
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(sskdf());
             Assertions.fail();
@@ -330,7 +331,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:510
+            // Exercises interface/fips/jni/kdf_jni.c:519
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(sskdf());
             Assertions.fail();
@@ -351,7 +352,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:515
+            // Exercises interface/fips/jni/kdf_jni.c:524
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             kdfNI.handleErrorCodes(sskdf());
             Assertions.fail();
@@ -374,7 +375,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:582
+            // Exercises interface/fips/jni/kdf_jni.c:593
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_5);
             kdfNI.handleErrorCodes(sshkdf());
             Assertions.fail();
@@ -395,7 +396,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:599
+            // Exercises interface/fips/jni/kdf_jni.c:645
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_6);
             kdfNI.handleErrorCodes(sshkdf());
             Assertions.fail();
@@ -416,7 +417,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:604
+            // Exercises interface/fips/jni/kdf_jni.c:603
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(sshkdf());
             Assertions.fail();
@@ -437,7 +438,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:614
+            // Exercises interface/fips/jni/kdf_jni.c:613
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(sshkdf());
             Assertions.fail();
@@ -458,7 +459,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:624
+            // Exercises interface/fips/jni/kdf_jni.c:623
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(sshkdf());
             Assertions.fail();
@@ -479,7 +480,7 @@ public class FIPSSP800KdfOpsTest
         assumeJniOps();
         try
         {
-            // Exercises interface/fips/jni/kdf_jni.c:634
+            // Exercises interface/fips/jni/kdf_jni.c:655
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             kdfNI.handleErrorCodes(sshkdf());
             Assertions.fail();
@@ -502,7 +503,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:198
+            // Exercises interface/fips/util/kdf.c:243
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // -2 + (-4002) = -4004.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 4002, kbkdf());
@@ -519,7 +520,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:204
+            // Exercises interface/fips/util/kdf.c:249
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // -2 + (-4000) = -4002.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 4000, kbkdf());
@@ -536,7 +537,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:240
+            // Exercises interface/fips/util/kdf.c:285
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             // -2 + (-4001) = -4003.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 4001, kbkdf());
@@ -553,7 +554,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:284
+            // Exercises interface/fips/util/kdf.c:335
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // -2 + (-5002) = -5004.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 5002, sskdf());
@@ -570,7 +571,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:290
+            // Exercises interface/fips/util/kdf.c:341
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // -2 + (-5000) = -5002.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 5000, sskdf());
@@ -587,7 +588,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:304
+            // Exercises interface/fips/util/kdf.c:355
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             // -2 + (-5001) = -5003.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 5001, sskdf());
@@ -604,7 +605,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:352
+            // Exercises interface/fips/util/kdf.c:409
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // -2 + (-6002) = -6004.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 6002, sshkdf());
@@ -621,7 +622,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:358
+            // Exercises interface/fips/util/kdf.c:415
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // -2 + (-6000) = -6002.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 6000, sshkdf());
@@ -638,7 +639,7 @@ public class FIPSSP800KdfOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/fips/util/kdf.c:373
+            // Exercises interface/fips/util/kdf.c:430
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             // -2 + (-6001) = -6003.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 6001, sshkdf());
@@ -647,5 +648,47 @@ public class FIPSSP800KdfOpsTest
         {
             operationsTestNI.resetFlags();
         }
+    }
+
+    /**
+     * A digest fetch the library fails is the typed digest refusal on all five KDFs; with the flag off each call
+     * derives, so the code is the injection's.
+     */
+    @Test
+    public void digestFetchFailureIsUnknownDigest()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        int[] expected = {0, ErrorCode.JO_KDF_PBE_UNKNOWN_DIGEST.getCode()};
+        for (int pass = 0; pass != 2; pass++)
+        {
+            try
+            {
+                if (pass == 1)
+                {
+                    // Exercises interface/fips/util/kdf.c:37
+                    operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+                }
+                int want = expected[pass];
+                Assertions.assertEquals(want, kdfNI.pbkdf2(KI, KI, 1000, "SHA2-256", new byte[32], 0, 32), "pbkdf2");
+                Assertions.assertEquals(want, kdfNI.hkdf(KI, null, null, "SHA2-256", new byte[32], 0, 32), "hkdf");
+                Assertions.assertEquals(want, kdfNI.kbkdf(COUNTER, HMAC, "SHA2-256", null, KI, null, null, null,
+                        32, 0, 0, new byte[32], 0, 32), "kbkdf");
+                Assertions.assertEquals(want, kdfNI.sskdf("SHA2-256", KI, null, new byte[32], 0, 32), "sskdf");
+                Assertions.assertEquals(want, kdfNI.sshkdf("SHA2-256", KI, H20, H20, "A", new byte[32], 0, 32),
+                        "sshkdf");
+            }
+            finally
+            {
+                operationsTestNI.resetFlags();
+            }
+        }
+    }
+
+    /** JNI cleanses its copy of every secret input and of the output; FFM takes no ledgered copy. */
+    @Test
+    public void secretCopiesAreCleansed()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        KdfCells.secretCopiesAreCleansed(kdfNI, operationsTestNI);
     }
 }

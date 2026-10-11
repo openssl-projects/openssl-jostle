@@ -14,8 +14,8 @@ package org.openssl.jostle.test.kdf;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
@@ -188,19 +188,12 @@ public class PBKdf2LimitTest
     @Test
     public void testPBKDF2_unknown_digest() throws Exception
     {
-        // Real-failure path: "!" is not a valid digest. OPS_OFFSET_*(x) only
-        // applies an offset when its matching flag is set, so caller sees
-        // plain OpenSSLException in both OPS and non-OPS builds.
-        try
-        {
-            int code = kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10);
-            kdfNI.handleErrorCodes(code);
-            Assertions.fail();
-        } catch (OpenSSLException osex)
-        {
-            String message = osex.getMessage();
-            Assertions.assertTrue(message.contains("unsupported") && message.contains("! : 0"));
-        }
+        // A digest the library cannot fetch is refused before the KDF runs.
+        int code = kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10);
+        Assertions.assertEquals(ErrorCode.JO_KDF_PBE_UNKNOWN_DIGEST.getCode(), code);
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> kdfNI.handleErrorCodes(code));
+        Assertions.assertEquals("unknown digest", ex.getMessage());
     }
 
     @Test

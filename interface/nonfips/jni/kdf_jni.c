@@ -9,6 +9,8 @@
 #include <string.h>
 
 #include "bytearrays.h"
+#include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI.h"
 #include "types.h"
 #include "../util/kdf.h"
@@ -16,9 +18,51 @@
 
 
 /*
+ * Output checks shared by every entry point, mirroring kdf_check_output in kdf_ffm.c one for one: the two bridges
+ * return identical codes for identical inputs. The output is derived key material, so it crosses through the
+ * secret helper and is written back only on success.
+ */
+static int32_t kdf_check_output_jni(java_secret_bytearray_ctx *output,
+                                    jint out_offset, jint out_len)
+{
+    if (output->array == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+
+    if (out_offset < 0) {
+        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
+    }
+
+    if (out_len < 0) {
+        return JO_OUTPUT_LEN_IS_NEGATIVE;
+    }
+
+    if (out_len == 0) {
+        return JO_OUTPUT_LEN_IS_ZERO;
+    }
+
+    if (!check_secret_in_range(output, (size_t) out_offset, (size_t) out_len)) {
+        return JO_OUTPUT_OUT_OF_RANGE;
+    }
+
+    return JO_SUCCESS;
+}
+
+/* The caller's output array is written only when the derive succeeded. */
+static void kdf_release_output_jni(java_secret_bytearray_ctx *output, int32_t ret_code)
+{
+    if (ret_code == JO_SUCCESS) {
+        release_secret_bytearray_ctx(output);
+    } else {
+        discard_secret_bytearray_ctx(output);
+    }
+}
+
+
+/*
  * Class:     org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI
- * Method:    pbe2
- * Signature: ([B[BILjava/lang/String;[BI)I
+ * Method:    pbkdf2
+ * Signature: ([B[BILjava/lang/String;[BII)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkdf2
 (JNIEnv *env, jobject jo, jbyteArray _password, jbyteArray _salt, jint iter, jstring digest, jbyteArray _out,
@@ -29,15 +73,15 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
     const char *digest_str = NULL;
     jsize digest_str_len = 0;
 
-    java_bytearray_ctx password;
+    java_secret_bytearray_ctx password;
     java_bytearray_ctx salt;
-    java_bytearray_ctx output;
+    java_secret_bytearray_ctx output;
 
-    init_bytearray_ctx(&password);
+    init_secret_bytearray_ctx(&password);
     init_bytearray_ctx(&salt);
-    init_bytearray_ctx(&output);
+    init_secret_bytearray_ctx(&output);
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&password, env, _password)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&password, env, _password)) {
         ret_code = JO_KDF_PASSWORD_FAILED_ACCESS;
         goto exit;
     }
@@ -69,28 +113,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
     }
 
 
-    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&output, env, _out)) {
+    if (OPS_FAILED_ACCESS_3 !load_secret_output_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
 
-    if (output.array == NULL) {
-        ret_code = JO_OUTPUT_IS_NULL;
-        goto exit;
-    }
-
-    if (out_offset < 0) {
-        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (out_len < 0) {
-        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (!check_bytearray_in_range(&output, out_offset, out_len)) {
-        ret_code = JO_OUTPUT_OUT_OF_RANGE;
+    ret_code = kdf_check_output_jni(&output, out_offset, out_len);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
@@ -111,8 +140,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
         goto exit;
     }
 
-    // out_offset is not negative by this point
-    uint8_t *out = output.bytearray + out_offset;
+    // An embedded NUL names nothing, as the FFM bridge's length check finds.
+    if (modified_utf8_names_nothing(digest_str)) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
 
     ret_code = jo_pbkdf2(
         password.bytearray, password.size,
@@ -120,13 +152,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_pbkd
         iter,
         (uint8_t *) digest_str,
         digest_str_len,
-        out, out_len);
+        output.bytearray + out_offset, out_len);
 
 
 exit:
     release_bytearray_ctx(&salt);
-    release_bytearray_ctx(&password);
-    release_bytearray_ctx(&output);
+    release_secret_bytearray_ctx(&password);
+    kdf_release_output_jni(&output, ret_code);
 
     if (digest_str != NULL) {
         (*env)->ReleaseStringUTFChars(env, digest, digest_str);
@@ -150,17 +182,17 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
     const char *digest_str = NULL;
     jsize digest_str_len = 0;
 
-    java_bytearray_ctx ikm;
+    java_secret_bytearray_ctx ikm;
     java_bytearray_ctx salt;
     java_bytearray_ctx info;
-    java_bytearray_ctx output;
+    java_secret_bytearray_ctx output;
 
-    init_bytearray_ctx(&ikm);
+    init_secret_bytearray_ctx(&ikm);
     init_bytearray_ctx(&salt);
     init_bytearray_ctx(&info);
-    init_bytearray_ctx(&output);
+    init_secret_bytearray_ctx(&output);
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&ikm, env, _ikm)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&ikm, env, _ikm)) {
         ret_code = JO_KDF_HKDF_IKM_FAILED_ACCESS;
         goto exit;
     }
@@ -185,28 +217,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
     }
 
 
-    if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&output, env, _out)) {
+    if (OPS_FAILED_ACCESS_4 !load_secret_output_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
 
-    if (output.array == NULL) {
-        ret_code = JO_OUTPUT_IS_NULL;
-        goto exit;
-    }
-
-    if (out_offset < 0) {
-        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (out_len < 0) {
-        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (!check_bytearray_in_range(&output, out_offset, out_len)) {
-        ret_code = JO_OUTPUT_OUT_OF_RANGE;
+    ret_code = kdf_check_output_jni(&output, out_offset, out_len);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
@@ -227,8 +244,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
         goto exit;
     }
 
-    // out_offset is not negative by this point
-    uint8_t *out = output.bytearray + out_offset;
+    if (modified_utf8_names_nothing(digest_str)) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
 
     ret_code = jo_hkdf(
         ikm.bytearray, ikm.size,
@@ -236,53 +255,20 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_hkdf
         info.bytearray, info.size,
         (uint8_t *) digest_str,
         digest_str_len,
-        out, out_len);
+        output.bytearray + out_offset, out_len);
 
 
 exit:
-    release_bytearray_ctx(&ikm);
+    release_secret_bytearray_ctx(&ikm);
     release_bytearray_ctx(&salt);
     release_bytearray_ctx(&info);
-    release_bytearray_ctx(&output);
+    kdf_release_output_jni(&output, ret_code);
 
     if (digest_str != NULL) {
         (*env)->ReleaseStringUTFChars(env, digest, digest_str);
     }
 
     return ret_code;
-}
-
-
-/*
- * Output-buffer checks shared by the three WI-4 KDF entry points, mirroring
- * kdf_check_output in kdf_ffm.c one for one. The two bridges MUST return
- * identical codes for identical inputs; keeping each side's checks in one
- * function is what makes that reviewable.
- */
-static int32_t kdf_check_output_jni(java_bytearray_ctx *output,
-                                    jint out_offset, jint out_len)
-{
-    if (output->array == NULL) {
-        return JO_OUTPUT_IS_NULL;
-    }
-
-    if (out_offset < 0) {
-        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
-    }
-
-    if (out_len < 0) {
-        return JO_OUTPUT_LEN_IS_NEGATIVE;
-    }
-
-    if (out_len == 0) {
-        return JO_OUTPUT_LEN_IS_ZERO;
-    }
-
-    if (!check_bytearray_in_range(output, out_offset, out_len)) {
-        return JO_OUTPUT_OUT_OF_RANGE;
-    }
-
-    return JO_SUCCESS;
 }
 
 
@@ -308,17 +294,17 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
     jsize digest_str_len = 0;
     jsize cipher_str_len = 0;
 
-    java_bytearray_ctx key;
+    java_secret_bytearray_ctx key;
     java_bytearray_ctx label;
     java_bytearray_ctx context;
     java_bytearray_ctx seed;
-    java_bytearray_ctx output;
+    java_secret_bytearray_ctx output;
 
-    init_bytearray_ctx(&key);
+    init_secret_bytearray_ctx(&key);
     init_bytearray_ctx(&label);
     init_bytearray_ctx(&context);
     init_bytearray_ctx(&seed);
-    init_bytearray_ctx(&output);
+    init_secret_bytearray_ctx(&output);
 
     if (mode == NULL) {
         ret_code = JO_KDF_UNKNOWN_MODE;
@@ -334,6 +320,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
     mode_str = (*env)->GetStringUTFChars(env, mode, NULL);
     if (OPS_FAILED_ACCESS_5 mode_str == NULL) {
         ret_code = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    if (modified_utf8_names_nothing(mode_str)) {
+        ret_code = JO_KDF_UNKNOWN_MODE;
         goto exit;
     }
 
@@ -354,6 +345,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
         goto exit;
     }
 
+    if (modified_utf8_names_nothing(mac_str)) {
+        ret_code = JO_KDF_UNKNOWN_MAC;
+        goto exit;
+    }
+
     // digest and cipher are alternatives selected by the MAC, so each is
     // optional on its own - but neither being supplied can never be right.
     if (digest != NULL) {
@@ -362,6 +358,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
             digest_str = (*env)->GetStringUTFChars(env, digest, NULL);
             if (OPS_FAILED_ACCESS_7 digest_str == NULL) {
                 ret_code = JO_UNABLE_TO_ACCESS_NAME;
+                goto exit;
+            }
+            if (modified_utf8_names_nothing(digest_str)) {
+                ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
                 goto exit;
             }
         }
@@ -375,6 +375,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
                 ret_code = JO_UNABLE_TO_ACCESS_NAME;
                 goto exit;
             }
+            if (modified_utf8_names_nothing(cipher_str)) {
+                ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+                goto exit;
+            }
         }
     }
 
@@ -383,7 +387,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&key, env, _key)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&key, env, _key)) {
         ret_code = JO_KDF_SECRET_FAILED_ACCESS;
         goto exit;
     }
@@ -411,7 +415,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&output, env, _out)) {
+    if (OPS_FAILED_ACCESS_4 !load_secret_output_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -434,11 +438,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_kbkd
         output.bytearray + out_offset, out_len);
 
 exit:
-    release_bytearray_ctx(&key);
+    release_secret_bytearray_ctx(&key);
     release_bytearray_ctx(&label);
     release_bytearray_ctx(&context);
     release_bytearray_ctx(&seed);
-    release_bytearray_ctx(&output);
+    kdf_release_output_jni(&output, ret_code);
 
     if (mode_str != NULL) {
         (*env)->ReleaseStringUTFChars(env, mode, mode_str);
@@ -471,13 +475,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sskd
     const char *digest_str = NULL;
     jsize digest_str_len = 0;
 
-    java_bytearray_ctx secret;
+    java_secret_bytearray_ctx secret;
     java_bytearray_ctx info;
-    java_bytearray_ctx output;
+    java_secret_bytearray_ctx output;
 
-    init_bytearray_ctx(&secret);
+    init_secret_bytearray_ctx(&secret);
     init_bytearray_ctx(&info);
-    init_bytearray_ctx(&output);
+    init_secret_bytearray_ctx(&output);
 
     if (digest == NULL) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
@@ -496,7 +500,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sskd
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&secret, env, _secret)) {
+    if (modified_utf8_names_nothing(digest_str)) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_2 !load_secret_input_ctx(&secret, env, _secret)) {
         ret_code = JO_KDF_SECRET_FAILED_ACCESS;
         goto exit;
     }
@@ -512,7 +521,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sskd
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&output, env, _out)) {
+    if (OPS_FAILED_ACCESS_4 !load_secret_output_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -529,9 +538,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sskd
         output.bytearray + out_offset, out_len);
 
 exit:
-    release_bytearray_ctx(&secret);
+    release_secret_bytearray_ctx(&secret);
     release_bytearray_ctx(&info);
-    release_bytearray_ctx(&output);
+    kdf_release_output_jni(&output, ret_code);
 
     if (digest_str != NULL) {
         (*env)->ReleaseStringUTFChars(env, digest, digest_str);
@@ -545,6 +554,8 @@ exit:
  * Class:     org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI
  * Method:    sshkdf
  * Signature: (Ljava/lang/String;[B[B[BLjava/lang/String;[BII)I
+ *
+ * Checked in jo_sshkdf's parameter order, as the FFM bridge checks: digest, key, xcghash, session id, type, output.
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sshkdf
 (JNIEnv *env, jobject jo, jstring digest, jbyteArray _key, jbyteArray _xcghash,
@@ -557,15 +568,15 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sshk
     jsize digest_str_len = 0;
     jsize type_str_len = 0;
 
-    java_bytearray_ctx key;
+    java_secret_bytearray_ctx key;
     java_bytearray_ctx xcghash;
     java_bytearray_ctx session_id;
-    java_bytearray_ctx output;
+    java_secret_bytearray_ctx output;
 
-    init_bytearray_ctx(&key);
+    init_secret_bytearray_ctx(&key);
     init_bytearray_ctx(&xcghash);
     init_bytearray_ctx(&session_id);
-    init_bytearray_ctx(&output);
+    init_secret_bytearray_ctx(&output);
 
     if (digest == NULL) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
@@ -584,24 +595,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sshk
         goto exit;
     }
 
-    if (type == NULL) {
-        ret_code = JO_KDF_SSHKDF_TYPE_INVALID;
+    if (modified_utf8_names_nothing(digest_str)) {
+        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
         goto exit;
     }
 
-    type_str_len = (*env)->GetStringUTFLength(env, type);
-    if (type_str_len <= 0) {
-        ret_code = JO_KDF_SSHKDF_TYPE_INVALID;
-        goto exit;
-    }
-
-    type_str = (*env)->GetStringUTFChars(env, type, NULL);
-    if (OPS_FAILED_ACCESS_6 type_str == NULL) {
-        ret_code = JO_UNABLE_TO_ACCESS_NAME;
-        goto exit;
-    }
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&key, env, _key)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&key, env, _key)) {
         ret_code = JO_KDF_SECRET_FAILED_ACCESS;
         goto exit;
     }
@@ -631,7 +630,29 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sshk
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&output, env, _out)) {
+    if (type == NULL) {
+        ret_code = JO_KDF_SSHKDF_TYPE_INVALID;
+        goto exit;
+    }
+
+    type_str_len = (*env)->GetStringUTFLength(env, type);
+    if (type_str_len <= 0) {
+        ret_code = JO_KDF_SSHKDF_TYPE_INVALID;
+        goto exit;
+    }
+
+    type_str = (*env)->GetStringUTFChars(env, type, NULL);
+    if (OPS_FAILED_ACCESS_6 type_str == NULL) {
+        ret_code = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    if (modified_utf8_names_nothing(type_str)) {
+        ret_code = JO_KDF_SSHKDF_TYPE_INVALID;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_4 !load_secret_output_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -650,10 +671,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_kdf_KdfNIJNI_sshk
         output.bytearray + out_offset, out_len);
 
 exit:
-    release_bytearray_ctx(&key);
+    release_secret_bytearray_ctx(&key);
     release_bytearray_ctx(&xcghash);
     release_bytearray_ctx(&session_id);
-    release_bytearray_ctx(&output);
+    kdf_release_output_jni(&output, ret_code);
 
     if (digest_str != NULL) {
         (*env)->ReleaseStringUTFChars(env, digest, digest_str);

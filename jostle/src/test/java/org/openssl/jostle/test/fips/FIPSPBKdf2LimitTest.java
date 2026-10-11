@@ -164,12 +164,10 @@ public class FIPSPBKdf2LimitTest
     @Test
     public void testPBKDF2_unknown_digest()
     {
-        // Real-failure path: "!" is not a valid digest; EVP_KDF_derive fails
-        // with the real OpenSSL queue content, so prefix-match the message.
-        OpenSSLException osex = Assertions.assertThrows(OpenSSLException.class,
+        // A digest the library cannot fetch is refused before the KDF runs.
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
                 () -> kdfNI.handleErrorCodes(kdfNI.pbkdf2(new byte[1], new byte[1], 100, "!", new byte[10], 0, 10)));
-        Assertions.assertTrue(osex.getMessage().startsWith("OpenSSL Error:"),
-                "unexpected message: " + osex.getMessage());
+        Assertions.assertEquals("unknown digest", ex.getMessage());
     }
 
     /**

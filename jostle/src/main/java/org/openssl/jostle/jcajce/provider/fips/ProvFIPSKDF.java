@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.kdf.HKDFSecretKeyFactory;
 import org.openssl.jostle.jcajce.provider.kdf.KBKDFSecretKeyFactory;
 import org.openssl.jostle.jcajce.provider.kdf.PBKDF2SecretKeyFactory;
@@ -80,9 +81,9 @@ class ProvFIPSKDF
         registerKbkdfHmac(provider, "SHA256", "SHA-256");
         registerKbkdfHmac(provider, "SHA384", "SHA-384");
         registerKbkdfHmac(provider, "SHA512", "SHA-512");
-        registerKbkdfCmac(provider, "AES128", "AES-128-CBC");
-        registerKbkdfCmac(provider, "AES192", "AES-192-CBC");
-        registerKbkdfCmac(provider, "AES256", "AES-256-CBC");
+        registerKbkdfCmac(provider, "AES128", "AES-128-CBC", OSSLCipher.AES128);
+        registerKbkdfCmac(provider, "AES192", "AES-192-CBC", OSSLCipher.AES192);
+        registerKbkdfCmac(provider, "AES256", "AES-256-CBC", OSSLCipher.AES256);
 
         registerSskdf(provider, "SHA1", "SHA-1");
         registerSskdf(provider, "SHA224", "SHA-224");
@@ -101,16 +102,17 @@ class ProvFIPSKDF
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-HMAC-" + suffix,
                 KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
-                (arg) -> new KBKDFSecretKeyFactory(FIPSNISelector.KdfNI,
-                        KBKDFSecretKeyFactory.HMAC, digest, null));
+                (arg) -> new KBKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI,
+                        FIPSNISelector.BlockCipherNI, KBKDFSecretKeyFactory.HMAC, digest, null, null));
     }
 
-    private static void registerKbkdfCmac(JostleFIPSProvider provider, String suffix, String cipher)
+    private static void registerKbkdfCmac(JostleFIPSProvider provider, String suffix, String cipher,
+                                          OSSLCipher block)
     {
         provider.addAlgorithmImplementation("SecretKeyFactory", "KBKDF-CMAC-" + suffix,
                 KBKDFSecretKeyFactory.class.getName(), generalKDFAttributes,
-                (arg) -> new KBKDFSecretKeyFactory(FIPSNISelector.KdfNI,
-                        KBKDFSecretKeyFactory.CMAC, null, cipher));
+                (arg) -> new KBKDFSecretKeyFactory(FIPSNISelector.KdfNI, FIPSNISelector.MDServiceNI,
+                        FIPSNISelector.BlockCipherNI, KBKDFSecretKeyFactory.CMAC, null, cipher, block));
     }
 
     private static void registerSskdf(JostleFIPSProvider provider, String suffix, String digest)

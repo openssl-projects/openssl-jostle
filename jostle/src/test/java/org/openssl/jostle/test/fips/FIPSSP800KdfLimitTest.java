@@ -16,8 +16,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
+import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.kdf.KDFAgreementTest;
+import org.openssl.jostle.test.kdf.KdfCells;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.SecureRandom;
@@ -294,5 +297,47 @@ public class FIPSSP800KdfLimitTest
             return sskdf(key, out, 0, out.length);
         }
         return sshkdf(key, out, 0, out.length);
+    }
+
+    @Test
+    public void embeddedNulNamesAreRefused()
+    {
+        KdfCells.embeddedNulNamesAreRefused(kdfNI);
+    }
+
+    @Test
+    public void unusableDigestsAreRefused()
+    {
+        KdfCells.unusableDigestsAreRefused(kdfNI);
+    }
+
+    @Test
+    public void zeroLengthOutputIsRefused()
+    {
+        KdfCells.zeroLengthOutputIsRefused(kdfNI);
+    }
+
+    @Test
+    public void sshkdfRefusesInParameterOrder()
+    {
+        KdfCells.sshkdfRefusesInParameterOrder(kdfNI);
+    }
+
+    @Test
+    public void sshkdfDerivesWithAnEmptyExchangeHash()
+    {
+        KdfCells.sshkdfDerivesWithAnEmptyExchangeHash(kdfNI);
+    }
+
+    @Test
+    public void outputIsWrittenOnlyOnSuccess()
+    {
+        KdfCells.outputIsWrittenOnlyOnSuccess(kdfNI);
+    }
+
+    @Test
+    public void kbkdfBlockBound() throws Exception
+    {
+        KdfCells.kbkdfBlockBound(JostleFIPSProvider.PROVIDER_NAME, KDFAgreementTest::derive);
     }
 }

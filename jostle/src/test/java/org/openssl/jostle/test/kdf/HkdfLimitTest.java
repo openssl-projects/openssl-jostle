@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Arrays;
@@ -204,17 +203,11 @@ public class HkdfLimitTest
     @Test
     public void testHKDF_unknown_digest() throws Exception
     {
-        // Real-failure path: "!" is not a valid digest; EVP_KDF_derive fails
-        // with the real OpenSSL queue content, so prefix-match the message.
-        try
-        {
-            kdfNI.handleErrorCodes(kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "!", new byte[10], 0, 10));
-            Assertions.fail();
-        } catch (OpenSSLException osex)
-        {
-            Assertions.assertTrue(osex.getMessage().startsWith("OpenSSL Error:"),
-                    "unexpected message: " + osex.getMessage());
-        }
+        // A digest the library cannot fetch is refused before the KDF runs.
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> kdfNI.handleErrorCodes(
+                        kdfNI.hkdf(new byte[1], new byte[1], new byte[1], "!", new byte[10], 0, 10)));
+        Assertions.assertEquals("unknown digest", ex.getMessage());
     }
 
     /**

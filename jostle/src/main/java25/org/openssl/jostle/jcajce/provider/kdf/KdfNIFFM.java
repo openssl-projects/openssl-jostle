@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.kdf;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -25,6 +27,7 @@ import java.util.logging.Logger;
 // and PBKDF2 runs for a caller-controlled duration (a high iteration count
 // takes seconds by design), which is the worst case for pinning.
 // The copies cost a memcpy per array, negligible next to the derive itself.
+// Every copy and the output segment hold secret material, so each is filled with zero before the arena closes.
 public class KdfNIFFM implements KdfNI
 {
     //KDF_PBKDF2
@@ -215,31 +218,63 @@ public class KdfNIFFM implements KdfNI
         return a == null ? 0L : a.length;
     }
 
+    /**
+     * A name as its UTF-8 bytes, or null for a null name; the C takes a NUL-terminated copy of these bytes plus
+     * their count, and refuses a count that strnlen does not match.
+     */
+    private static byte[] utf8(String name)
+    {
+        return name == null ? null : name.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static MemorySegment nameSeg(Arena a, byte[] utf8)
+    {
+        return utf8 == null ? MemorySegment.NULL
+                : a.allocateFrom(ValueLayout.JAVA_BYTE, Arrays.copyOf(utf8, utf8.length + 1));
+    }
+
+    /** Fills each non-NULL segment with zero. */
+    private static void zero(MemorySegment... segs)
+    {
+        for (MemorySegment seg : segs)
+        {
+            if (seg.address() != 0)
+            {
+                seg.fill((byte) 0);
+            }
+        }
+    }
 
     @Override
     public int pbkdf2(byte[] password, byte[] salt, int iter, String digest, byte[] out, int outOffset, int outLen)
     {
+        byte[] digestBytes = utf8(digest);
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment pwSeg = copyIn(a, password);
             MemorySegment saltSeg = copyIn(a, salt);
-            MemorySegment digestName = (digest == null) ? MemorySegment.NULL : a.allocateFrom(digest);
+            MemorySegment digestName = nameSeg(a, digestBytes);
             MemorySegment output = outSeg(a, out);
+            try
+            {
+                int ret = (int) pbkdf2FuncHandle.invokeExact(
+                        pwSeg, len(password),
+                        saltSeg, len(salt),
+                        iter,
+                        digestName, len(digestBytes),
+                        output,
+                        len(out),
+                        outOffset,
+                        outLen
+                );
 
-            int ret = (int) pbkdf2FuncHandle.invokeExact(
-                    pwSeg, len(password),
-                    saltSeg, len(salt),
-                    iter,
-                    digestName,
-                    digest == null ? 0L : digestName.byteSize() - 1, // less null terminus
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
-
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
+                copyOutBack(ret, output, out, outOffset, outLen);
+                return ret;
+            }
+            finally
+            {
+                zero(pwSeg, saltSeg, output);
+            }
         }
         catch (Throwable t)
         {
@@ -252,28 +287,34 @@ public class KdfNIFFM implements KdfNI
     @Override
     public int hkdf(byte[] ikm, byte[] salt, byte[] info, String digest, byte[] out, int outOffset, int outLen)
     {
+        byte[] digestBytes = utf8(digest);
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment ikmSeg = copyIn(a, ikm);
             MemorySegment saltSeg = copyIn(a, salt);
             MemorySegment infoSeg = copyIn(a, info);
-            MemorySegment digestName = (digest == null) ? MemorySegment.NULL : a.allocateFrom(digest);
+            MemorySegment digestName = nameSeg(a, digestBytes);
             MemorySegment output = outSeg(a, out);
+            try
+            {
+                int ret = (int) hkdfFuncHandle.invokeExact(
+                        ikmSeg, len(ikm),
+                        saltSeg, len(salt),
+                        infoSeg, len(info),
+                        digestName, len(digestBytes),
+                        output,
+                        len(out),
+                        outOffset,
+                        outLen
+                );
 
-            int ret = (int) hkdfFuncHandle.invokeExact(
-                    ikmSeg, len(ikm),
-                    saltSeg, len(salt),
-                    infoSeg, len(info),
-                    digestName,
-                    digest == null ? 0L : digestName.byteSize() - 1, // less null terminus
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
-
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
+                copyOutBack(ret, output, out, outOffset, outLen);
+                return ret;
+            }
+            finally
+            {
+                zero(ikmSeg, saltSeg, infoSeg, output);
+            }
         }
         catch (Throwable t)
         {
@@ -283,61 +324,52 @@ public class KdfNIFFM implements KdfNI
         }
     }
 
-    /**
-     * Marshal a name into the arena, or {@code MemorySegment.NULL} when absent
-     * so the bridge's null checks fire. Paired with {@link #nameLen}, which
-     * must be applied to the SAME segment.
-     */
-    private static MemorySegment nameSeg(Arena a, String name)
-    {
-        return (name == null) ? MemorySegment.NULL : a.allocateFrom(name);
-    }
-
-    /**
-     * Byte length of a name segment excluding its NUL terminus, matching what
-     * the JNI bridge gets from {@code GetStringUTFLength}.
-     */
-    private static long nameLen(String name, MemorySegment seg)
-    {
-        return (name == null) ? 0L : seg.byteSize() - 1;
-    }
-
     @Override
     public int kbkdf(String mode, String mac, String digest, String cipher,
                      byte[] key, byte[] label, byte[] context, byte[] seed,
                      int r, int useL, int useSeparator,
                      byte[] out, int outOffset, int outLen)
     {
+        byte[] modeBytes = utf8(mode);
+        byte[] macBytes = utf8(mac);
+        byte[] digestBytes = utf8(digest);
+        byte[] cipherBytes = utf8(cipher);
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment modeName = nameSeg(a, mode);
-            MemorySegment macName = nameSeg(a, mac);
-            MemorySegment digestName = nameSeg(a, digest);
-            MemorySegment cipherName = nameSeg(a, cipher);
+            MemorySegment modeName = nameSeg(a, modeBytes);
+            MemorySegment macName = nameSeg(a, macBytes);
+            MemorySegment digestName = nameSeg(a, digestBytes);
+            MemorySegment cipherName = nameSeg(a, cipherBytes);
             MemorySegment keySeg = copyIn(a, key);
             MemorySegment labelSeg = copyIn(a, label);
             MemorySegment contextSeg = copyIn(a, context);
             MemorySegment seedSeg = copyIn(a, seed);
             MemorySegment output = outSeg(a, out);
+            try
+            {
+                int ret = (int) kbkdfFuncHandle.invokeExact(
+                        modeName, len(modeBytes),
+                        macName, len(macBytes),
+                        digestName, len(digestBytes),
+                        cipherName, len(cipherBytes),
+                        keySeg, len(key),
+                        labelSeg, len(label),
+                        contextSeg, len(context),
+                        seedSeg, len(seed),
+                        r, useL, useSeparator,
+                        output,
+                        len(out),
+                        outOffset,
+                        outLen
+                );
 
-            int ret = (int) kbkdfFuncHandle.invokeExact(
-                    modeName, nameLen(mode, modeName),
-                    macName, nameLen(mac, macName),
-                    digestName, nameLen(digest, digestName),
-                    cipherName, nameLen(cipher, cipherName),
-                    keySeg, len(key),
-                    labelSeg, len(label),
-                    contextSeg, len(context),
-                    seedSeg, len(seed),
-                    r, useL, useSeparator,
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
-
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
+                copyOutBack(ret, output, out, outOffset, outLen);
+                return ret;
+            }
+            finally
+            {
+                zero(keySeg, labelSeg, contextSeg, seedSeg, output);
+            }
         }
         catch (Throwable t)
         {
@@ -350,25 +382,32 @@ public class KdfNIFFM implements KdfNI
     @Override
     public int sskdf(String digest, byte[] secret, byte[] info, byte[] out, int outOffset, int outLen)
     {
+        byte[] digestBytes = utf8(digest);
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment digestName = nameSeg(a, digest);
+            MemorySegment digestName = nameSeg(a, digestBytes);
             MemorySegment secretSeg = copyIn(a, secret);
             MemorySegment infoSeg = copyIn(a, info);
             MemorySegment output = outSeg(a, out);
+            try
+            {
+                int ret = (int) sskdfFuncHandle.invokeExact(
+                        digestName, len(digestBytes),
+                        secretSeg, len(secret),
+                        infoSeg, len(info),
+                        output,
+                        len(out),
+                        outOffset,
+                        outLen
+                );
 
-            int ret = (int) sskdfFuncHandle.invokeExact(
-                    digestName, nameLen(digest, digestName),
-                    secretSeg, len(secret),
-                    infoSeg, len(info),
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
-
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
+                copyOutBack(ret, output, out, outOffset, outLen);
+                return ret;
+            }
+            finally
+            {
+                zero(secretSeg, infoSeg, output);
+            }
         }
         catch (Throwable t)
         {
@@ -382,29 +421,37 @@ public class KdfNIFFM implements KdfNI
     public int sshkdf(String digest, byte[] key, byte[] xcghash, byte[] sessionId, String type,
                       byte[] out, int outOffset, int outLen)
     {
+        byte[] digestBytes = utf8(digest);
+        byte[] typeBytes = utf8(type);
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment digestName = nameSeg(a, digest);
+            MemorySegment digestName = nameSeg(a, digestBytes);
             MemorySegment keySeg = copyIn(a, key);
             MemorySegment xcghashSeg = copyIn(a, xcghash);
             MemorySegment sessionSeg = copyIn(a, sessionId);
-            MemorySegment typeName = nameSeg(a, type);
+            MemorySegment typeName = nameSeg(a, typeBytes);
             MemorySegment output = outSeg(a, out);
+            try
+            {
+                int ret = (int) sshkdfFuncHandle.invokeExact(
+                        digestName, len(digestBytes),
+                        keySeg, len(key),
+                        xcghashSeg, len(xcghash),
+                        sessionSeg, len(sessionId),
+                        typeName, len(typeBytes),
+                        output,
+                        len(out),
+                        outOffset,
+                        outLen
+                );
 
-            int ret = (int) sshkdfFuncHandle.invokeExact(
-                    digestName, nameLen(digest, digestName),
-                    keySeg, len(key),
-                    xcghashSeg, len(xcghash),
-                    sessionSeg, len(sessionId),
-                    typeName, nameLen(type, typeName),
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
-
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
+                copyOutBack(ret, output, out, outOffset, outLen);
+                return ret;
+            }
+            finally
+            {
+                zero(keySeg, xcghashSeg, sessionSeg, output);
+            }
         }
         catch (Throwable t)
         {

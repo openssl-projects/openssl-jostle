@@ -8,9 +8,48 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include "types.h"
 #include "../util/kdf.h"
 #include "../util/bc_err_codes.h"
+
+
+/*
+ * Output checks shared by every entry point, mirroring kdf_check_output_jni one for one. out_len 0 is refused here,
+ * not left to OpenSSL, whose answer differs by KDF and by module.
+ */
+static int32_t kdf_check_output(uint8_t *output, size_t out_size,
+                                int32_t out_offset, int32_t out_len)
+{
+    if (output == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+
+    if (out_offset < 0) {
+        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
+    }
+
+    if (out_len < 0) {
+        return JO_OUTPUT_LEN_IS_NEGATIVE;
+    }
+
+    if (out_len == 0) {
+        return JO_OUTPUT_LEN_IS_ZERO;
+    }
+
+    if (!check_in_range(out_size, out_offset, out_len)) {
+        return JO_OUTPUT_OUT_OF_RANGE;
+    }
+
+    return JO_SUCCESS;
+}
+
+
+/* Each name arrives NUL-terminated with its UTF-8 byte count: an empty name or an embedded NUL names nothing. */
+static int kdf_name_unusable(const uint8_t *name, size_t name_len)
+{
+    return name == NULL || name_len == 0 || strnlen((const char *) name, name_len) != name_len;
+}
 
 
 int32_t JoKDF_PBKDF2(
@@ -46,33 +85,12 @@ int32_t JoKDF_PBKDF2(
         goto exit;
     }
 
-    if (output == NULL) {
-        ret_code = JO_OUTPUT_IS_NULL;
+    ret_code = kdf_check_output(output, out_size, out_offset, out_len);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
-    if (out_offset < 0) {
-        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (out_len < 0) {
-        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (!check_in_range(out_size, out_offset, out_len)) {
-        ret_code = JO_OUTPUT_OUT_OF_RANGE;
-        goto exit;
-    }
-
-    if (digest_name == NULL) {
-        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
-        goto exit;
-    }
-
-
-    if (digest_name_len == 0) {
+    if (kdf_name_unusable(digest_name, digest_name_len)) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
         goto exit;
     }
@@ -114,32 +132,12 @@ int32_t JoKDF_HKDF(
 
     // salt and info are optional (NULL accepted); no null-check here.
 
-    if (output == NULL) {
-        ret_code = JO_OUTPUT_IS_NULL;
+    ret_code = kdf_check_output(output, out_size, out_offset, out_len);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
-    if (out_offset < 0) {
-        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (out_len < 0) {
-        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (!check_in_range(out_size, out_offset, out_len)) {
-        ret_code = JO_OUTPUT_OUT_OF_RANGE;
-        goto exit;
-    }
-
-    if (digest_name == NULL) {
-        ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
-        goto exit;
-    }
-
-    if (digest_name_len == 0) {
+    if (kdf_name_unusable(digest_name, digest_name_len)) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
         goto exit;
     }
@@ -156,44 +154,6 @@ int32_t JoKDF_HKDF(
 
 exit:
     return ret_code;
-}
-
-
-/*
- * Output-buffer checks shared by the three WI-4 KDF entry points. Kept as one
- * helper because all three take an identical (output, out_size, out_offset,
- * out_len) tail and must reject identically - a divergence between them would
- * be a bug the JNI/FFM parity tests could not see, since both bridges would
- * carry the same drift.
- *
- * out_len == 0 is refused here and not left to OpenSSL: SSHKDF accepts a
- * zero-length request on every supported environment and emits a zero-length
- * key (see kdf_probe.c conclusion 3).
- */
-static int32_t kdf_check_output(uint8_t *output, size_t out_size,
-                                int32_t out_offset, int32_t out_len)
-{
-    if (output == NULL) {
-        return JO_OUTPUT_IS_NULL;
-    }
-
-    if (out_offset < 0) {
-        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
-    }
-
-    if (out_len < 0) {
-        return JO_OUTPUT_LEN_IS_NEGATIVE;
-    }
-
-    if (out_len == 0) {
-        return JO_OUTPUT_LEN_IS_ZERO;
-    }
-
-    if (!check_in_range(out_size, out_offset, out_len)) {
-        return JO_OUTPUT_OUT_OF_RANGE;
-    }
-
-    return JO_SUCCESS;
 }
 
 
@@ -215,12 +175,12 @@ int32_t JoKDF_KBKDF(
 ) {
     int32_t ret_code = JO_FAIL;
 
-    if (mode_name == NULL || mode_name_len == 0) {
+    if (kdf_name_unusable(mode_name, mode_name_len)) {
         ret_code = JO_KDF_UNKNOWN_MODE;
         goto exit;
     }
 
-    if (mac_name == NULL || mac_name_len == 0) {
+    if (kdf_name_unusable(mac_name, mac_name_len)) {
         ret_code = JO_KDF_UNKNOWN_MAC;
         goto exit;
     }
@@ -228,8 +188,12 @@ int32_t JoKDF_KBKDF(
     // Exactly which of digest/cipher is required depends on the MAC, and that
     // is the MAC implementation's question - but neither being supplied can
     // never be right, so it is caught here rather than as an opaque EVP error.
-    if ((digest_name == NULL || digest_name_len == 0)
-            && (cipher_name == NULL || cipher_name_len == 0)) {
+    // A supplied name holding a NUL names nothing.
+    int has_digest = digest_name != NULL && digest_name_len != 0;
+    int has_cipher = cipher_name != NULL && cipher_name_len != 0;
+    if ((has_digest && kdf_name_unusable(digest_name, digest_name_len))
+            || (has_cipher && kdf_name_unusable(cipher_name, cipher_name_len))
+            || (!has_digest && !has_cipher)) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
         goto exit;
     }
@@ -249,8 +213,8 @@ int32_t JoKDF_KBKDF(
     ret_code = jo_kbkdf(
         mode_name, mode_name_len,
         mac_name, mac_name_len,
-        (digest_name_len == 0) ? NULL : digest_name, digest_name_len,
-        (cipher_name_len == 0) ? NULL : cipher_name, cipher_name_len,
+        has_digest ? digest_name : NULL, digest_name_len,
+        has_cipher ? cipher_name : NULL, cipher_name_len,
         key, key_len,
         label, label_len,
         context, context_len,
@@ -273,7 +237,7 @@ int32_t JoKDF_SSKDF(
 ) {
     int32_t ret_code = JO_FAIL;
 
-    if (digest_name == NULL || digest_name_len == 0) {
+    if (kdf_name_unusable(digest_name, digest_name_len)) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
         goto exit;
     }
@@ -313,7 +277,7 @@ int32_t JoKDF_SSHKDF(
 ) {
     int32_t ret_code = JO_FAIL;
 
-    if (digest_name == NULL || digest_name_len == 0) {
+    if (kdf_name_unusable(digest_name, digest_name_len)) {
         ret_code = JO_KDF_PBE_UNKNOWN_DIGEST;
         goto exit;
     }
@@ -335,7 +299,7 @@ int32_t JoKDF_SSHKDF(
         goto exit;
     }
 
-    if (type_name == NULL || type_name_len == 0) {
+    if (kdf_name_unusable(type_name, type_name_len)) {
         ret_code = JO_KDF_SSHKDF_TYPE_INVALID;
         goto exit;
     }

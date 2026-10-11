@@ -204,7 +204,7 @@ public class KDFAgreementTest
         return bytes;
     }
 
-    private static byte[] derive(String provider, String alg, KeySpec spec) throws Exception
+    public static byte[] derive(String provider, String alg, KeySpec spec) throws Exception
     {
         return SecretKeyFactory.getInstance(alg, provider).generateSecret(spec).getEncoded();
     }
