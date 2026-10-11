@@ -495,14 +495,11 @@ public class GMACAgreementTest
     }
 
     /**
-     * Reset and reuse. GMAC is deterministic, so the same instance driven twice
-     * over the same input must give byte-identical tags, and over different
-     * inputs must give the right tag each time — the auto-reset that
-     * {@code Mac.doFinal} performs has to restore the IV as well as the key,
-     * which a reset that re-inited from the key alone would not.
+     * One tag per init, as on BouncyCastle: the first tag agrees, a second doFinal and use after a reset are
+     * refused, the same nonce is refused on re-init, and a re-init with a new nonce agrees again.
      */
     @Test
-    public void resetAndReuse() throws Exception
+    public void resetAndReuseFollowBouncyCastle() throws Exception
     {
         SecureRandom sr = seededRandom("resetAndReuse");
         SecretKey key = randomKey(sr);
@@ -514,32 +511,32 @@ public class GMACAgreementTest
         sr.nextBytes(msgA);
         sr.nextBytes(msgB);
 
-        byte[] refA = oneShot("AESGMAC", BC, key, spec, msgA);
-        byte[] refB = oneShot("AESGMAC", BC, key, spec, msgB);
+        for (String provider : new String[]{JSL, BC})
+        {
+            Mac mac = Mac.getInstance("AESGMAC", provider);
+            mac.init(key, spec);
+            Assertions.assertArrayEquals(oneShot("AESGMAC", BC, key, spec, msgA), mac.doFinal(msgA),
+                    provider + " first message");
+            Assertions.assertThrows(IllegalStateException.class, () -> mac.doFinal(msgB),
+                    provider + " second tag under one nonce");
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () -> mac.init(key, spec),
+                    provider + " re-init with the same nonce");
 
-        Mac mac = Mac.getInstance("AESGMAC", JSL);
-        mac.init(key, spec);
+            byte[] iv2 = Arrays.clone(iv);
+            iv2[0] ^= (byte) 0xff;
+            mac.init(key, new IvParameterSpec(iv2));
+            mac.update(msgB);
+            mac.reset();
+            Assertions.assertThrows(IllegalStateException.class, () -> mac.update(msgA),
+                    provider + " use after reset");
 
-        // Two different inputs through one instance.
-        Assertions.assertArrayEquals(refA, mac.doFinal(msgA), "first message");
-        Assertions.assertArrayEquals(refB, mac.doFinal(msgB), "second message after auto-reset");
-
-        // Deterministic: the same input twice must repeat exactly.
-        Assertions.assertArrayEquals(refA, mac.doFinal(msgA), "repeat of the first message");
-        Assertions.assertArrayEquals(refA, mac.doFinal(msgA), "second repeat");
-
-        // An explicit reset mid-message must discard the partial absorption.
-        mac.update(msgB);
-        mac.reset();
-        Assertions.assertArrayEquals(refA, mac.doFinal(msgA), "after an explicit mid-message reset");
-
-        // Re-init with a different IV on the same instance must take effect.
-        byte[] iv2 = Arrays.clone(iv);
-        iv2[0] ^= (byte) 0xff;
-        mac.init(key, new IvParameterSpec(iv2));
-        Assertions.assertArrayEquals(
-                oneShot("AESGMAC", BC, key, new IvParameterSpec(iv2), msgA),
-                mac.doFinal(msgA), "after re-init with a different IV");
+            // The nonce may be one byte, so the third nonce differs in byte 0 from both earlier ones.
+            byte[] iv3 = Arrays.clone(iv2);
+            iv3[0] ^= (byte) 0x0f;
+            mac.init(key, new IvParameterSpec(iv3));
+            Assertions.assertArrayEquals(oneShot("AESGMAC", BC, key, new IvParameterSpec(iv3), msgA),
+                    mac.doFinal(msgA), provider + " after re-init with a new nonce");
+        }
     }
 
     /**

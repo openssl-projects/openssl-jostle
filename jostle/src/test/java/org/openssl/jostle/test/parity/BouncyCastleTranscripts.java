@@ -47,8 +47,8 @@ public final class BouncyCastleTranscripts
     public static final Class<? extends Exception> KWP_UNWRAP_TYPE = BadPaddingException.class;
 
     /**
-     * The type BouncyCastle raises when an AESGMAC instance is reused after
-     * {@code doFinal} — a refusal we deliberately do NOT make (MT-44).
+     * The type BouncyCastle raises when an AESGMAC instance is used again after
+     * {@code doFinal}; ours raises the same.
      *
      * <p>Transcribed rather than re-measured inside the pin: a pin that read
      * BouncyCastle live would follow it wherever it went, which is the opposite

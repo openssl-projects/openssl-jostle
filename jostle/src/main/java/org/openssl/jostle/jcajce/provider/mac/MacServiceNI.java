@@ -161,6 +161,11 @@ public interface MacServiceNI extends DefaultServiceNI
                 throw new IllegalStateException("native layer was unable to access customisation string");
             case JO_OUTPUT_LEN_IS_NEGATIVE:
                 throw new InvalidAlgorithmParameterException("output length is negative");
+            case JO_MAC_OUTPUT_LEN_INVALID:
+                throw new InvalidAlgorithmParameterException("output length is too large");
+            // GMAC gives one tag per key and nonce, as BouncyCastle's does.
+            case JO_MAC_NONCE_REUSED:
+                throw new InvalidAlgorithmParameterException("nonce reused under the same key");
 
             default:
 
@@ -180,6 +185,8 @@ public interface MacServiceNI extends DefaultServiceNI
         {
             case JO_MAC_FUNCTION_IS_NULL:
                 throw new NullPointerException("mac function name is null");
+            case JO_MAC_FUNCTION_NOT_FOUND:
+                throw new IllegalArgumentException("mac function name not found");
             case JO_UNABLE_TO_ACCESS_FUNCTION:
                 throw new IllegalStateException("unable to access function");
             case JO_OUTPUT_OUT_OF_RANGE:

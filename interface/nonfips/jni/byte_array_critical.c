@@ -71,3 +71,15 @@ void release_critical_ctx(critical_bytearray_ctx *ctx) {
 bool check_critical_in_range(critical_bytearray_ctx *ctx, size_t offset, size_t len) {
     return (len <= ctx->size) && (offset <= ctx->size - len);
 }
+
+bool modified_utf8_names_nothing(const char *s) {
+    if (s[0] == '\0') {
+        return true;
+    }
+    for (const unsigned char *p = (const unsigned char *) s; p[0] != '\0'; p++) {
+        if (p[0] == 0xC0 && p[1] == 0x80) {
+            return true;
+        }
+    }
+    return false;
+}

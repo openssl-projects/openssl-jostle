@@ -12,35 +12,25 @@
 #include <stdint.h>
 #include <openssl/types.h>
 
+#define MAC_CTX_KIND 0x4D414301u   /* "MAC\1" */
+#define MAC_CTX_NONE 0u            /* what a freed ctx is left with; never a valid kind */
+
 typedef struct jo_mac_ctx
 {
+    uint32_t kind;
     EVP_MAC *mac;
     EVP_MAC_CTX *ctx;
     char *mac_name;
     char *function_name;
     uint8_t *key;
     size_t key_len;
-    // GMAC's nonce; NULL for every other arm. Retained for the lifetime of the
-    // ctx because mac_reset re-inits from held state, and a GMAC ctx cannot be
-    // restored by a NULL-key/NULL-param re-init - measured, see
-    // fips-c-review/probes/gmac_probe.c Q8.
+    // GMAC's nonce, NULL otherwise; held because mac_reset re-inits from held state.
     uint8_t *iv;
     size_t iv_len;
-    // KMAC's customisation string S; NULL for every other arm. Retained for
-    // the same reason as the IV - mac_reset re-inits from held state. A NULL S
-    // is not distinguishable from an empty one by KMAC itself (measured, see
-    // fips-c-review/probes/kmac_probe.c Q8), so no separate "was it set"
-    // flag is needed.
+    // KMAC's customisation string, NULL otherwise; held for mac_reset. KMAC treats NULL and empty alike.
     uint8_t *custom;
     size_t custom_len;
-    // KMAC's requested output length in bytes. 0 means "the caller did not ask
-    // for a length", in which case OSSL_MAC_PARAM_SIZE is NOT set and the
-    // module's own default (32 for KMAC-128, 64 for KMAC-256) applies.
-    //
-    // 0 can never be forwarded to OpenSSL as a real request: three of the four
-    // measured environments ACCEPT size=0 and then produce a ZERO-LENGTH MAC -
-    // a tag equal to every other zero-length tag (kmac_probe.c Q5). Leaving the
-    // param unset is what makes the sentinel safe.
+    // KMAC's output length in bytes; 0 leaves OpenSSL's default, which a forwarded 0 would replace with no output.
     size_t out_len;
     int initialized;
 } mac_ctx;
@@ -49,14 +39,13 @@ typedef struct jo_mac_ctx
 mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err);
 mac_ctx *mac_copy(const mac_ctx *src, int32_t *err);
 
-// iv/iv_len carry GMAC's nonce; custom/custom_len and out_len carry KMAC's
-// customisation string and requested output length. Every other MAC passes
-// NULL/0 for all of them.
-//
-// A NULL iv or custom is legitimate here rather than a bridge-level rejection,
-// because only the per-MAC arm in init_mac_ctx knows whether this MAC needs
-// one - and conversely, supplying one to an arm that takes none is rejected
-// there (JO_MODE_TAKES_NO_IV / JO_MAC_TAKES_NO_CUSTOM) rather than ignored.
+/*
+ * JO_MAC_CTX_IS_NULL, JO_MAC_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t mac_ctx_check(const mac_ctx *ctx);
+
+// iv carries GMAC's nonce; custom and out_len carry KMAC's customisation string and output length. Each is NULL
+// or 0 for a MAC that takes none; init_mac_ctx refuses one supplied to a MAC that does not take it.
 int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
                  const uint8_t *iv, size_t iv_len,
                  const uint8_t *custom, size_t custom_len, size_t out_len);
@@ -66,6 +55,10 @@ int32_t mac_len(mac_ctx *ctx);
 int32_t mac_len_for(mac_ctx *ctx);
 
 int32_t mac_reset(mac_ctx *ctx);
+
+/*
+ * Frees nothing unless mac_ctx_check passes.
+ */
 void mac_free(mac_ctx *ctx);
 
 #endif

@@ -364,6 +364,14 @@ public enum ErrorCode
     JO_CCM_CTX_WRONG_KIND(-194),
     // A handle that is not a digest context, or one already freed.
     JO_MD_CTX_WRONG_KIND(-195),
+    // A handle that is not a MAC context, or one already freed.
+    JO_MAC_CTX_WRONG_KIND(-196),
+    // An empty MAC function name, or one with an embedded NUL.
+    JO_MAC_FUNCTION_NOT_FOUND(-197),
+    // A KMAC output length above the ceiling a context is sized for.
+    JO_MAC_OUTPUT_LEN_INVALID(-198),
+    // A GMAC init repeating the key and nonce of the previous one.
+    JO_MAC_NONCE_REUSED(-199),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

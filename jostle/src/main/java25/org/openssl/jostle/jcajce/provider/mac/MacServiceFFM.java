@@ -3,6 +3,8 @@ package org.openssl.jostle.jcajce.provider.mac;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -59,19 +61,23 @@ public class MacServiceFFM implements MacServiceNI
         MH_new = LINKER.downcallHandle(
                 lookup.find(symPrefix + "JoMAC_allocate").orElseThrow(),
                 FunctionDescriptor.of(
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS
-                ));
+                        ValueLayout.ADDRESS, // returned ctx
+                        ValueLayout.ADDRESS, // *mac name
+                        ValueLayout.JAVA_LONG, // mac name byte length
+                        ValueLayout.ADDRESS, // *function name
+                        ValueLayout.JAVA_LONG, // function name byte length
+                        ValueLayout.ADDRESS, // *err
+                        ValueLayout.JAVA_INT // err length
+                ), Linker.Option.critical(true));
 
         MH_copy = LINKER.downcallHandle(
                 lookup.find(symPrefix + "JoMAC_copy").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // returned ctx
                         ValueLayout.ADDRESS, // *ctx to copy
-                        ValueLayout.ADDRESS  // *err
-                ));
+                        ValueLayout.ADDRESS, // *err
+                        ValueLayout.JAVA_INT // err length
+                ), Linker.Option.critical(true));
 
         MH_init = LINKER.downcallHandle(
                 lookup.find(symPrefix + "JoMAC_init").orElseThrow(),
@@ -143,16 +149,26 @@ public class MacServiceFFM implements MacServiceNI
 
     }
 
+    // A name crosses as its UTF-8 bytes plus a terminator, with the byte count beside it; C checks it.
+    private static MemorySegment name(Arena arena, byte[] bytes)
+    {
+        return bytes == null ? MemorySegment.NULL
+                : arena.allocateFrom(ValueLayout.JAVA_BYTE, Arrays.copyOf(bytes, bytes.length + 1));
+    }
+
     @Override
     public long ni_allocateMac(String macName, String functionName, int[] err)
     {
+        // Fails on an unusable err array before a context exists.
+        err[0] = 0;
         try (Arena arena = Arena.ofConfined())
         {
-            MemorySegment typeSeg = macName == null ? MemorySegment.NULL : arena.allocateFrom(macName);
-            MemorySegment functionSeg = functionName == null ? MemorySegment.NULL : arena.allocateFrom(functionName);
-            MemorySegment errSeg = arena.allocate(ValueLayout.JAVA_INT);
-            MemorySegment outPtr = (MemorySegment) MH_new.invokeExact(typeSeg, functionSeg, errSeg);
-            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+            byte[] macBytes = macName == null ? null : macName.getBytes(StandardCharsets.UTF_8);
+            byte[] functionBytes = functionName == null ? null : functionName.getBytes(StandardCharsets.UTF_8);
+            MemorySegment outPtr = (MemorySegment) MH_new.invokeExact(
+                    name(arena, macBytes), macBytes == null ? 0L : macBytes.length,
+                    name(arena, functionBytes), functionBytes == null ? 0L : functionBytes.length,
+                    MemorySegment.ofArray(err), err.length);
             return outPtr.address();
         }
         catch (Throwable t)
@@ -165,15 +181,12 @@ public class MacServiceFFM implements MacServiceNI
     @Override
     public long ni_copyMac(long ref, int[] err)
     {
-        // NOT critical: mac_copy allocates and calls into OpenSSL, and the err
-        // out-parameter is read back after the call, so the confined-arena copy
-        // is the correct marshalling (mirrors ni_allocateMac).
-        try (Arena arena = Arena.ofConfined())
+        // Fails on an unusable err array before a context exists.
+        err[0] = 0;
+        try
         {
-            MemorySegment errSeg = arena.allocate(ValueLayout.JAVA_INT);
             MemorySegment outPtr = (MemorySegment) MH_copy.invokeExact(
-                    MemorySegment.ofAddress(ref), errSeg);
-            err[0] = errSeg.getAtIndex(ValueLayout.JAVA_INT, 0);
+                    MemorySegment.ofAddress(ref), MemorySegment.ofArray(err), err.length);
             return outPtr.address();
         }
         catch (Throwable t)

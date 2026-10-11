@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "types.h"
 #include "../util/mac.h"
 #include "../util/ops.h"
@@ -25,11 +26,8 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
 
     UNUSED(self);
 
-    //
-    // err needs to be defined and accessible
-    //
-    jo_assert(_err != NULL);
     // err is ours; a zero-length array would write out of bounds.
+    jo_assert(_err != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
@@ -58,11 +56,17 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
         goto exit;
     }
 
-    mac_ctx = allocate_mac(mac_name, function, err);
-    if (UNSUCCESSFUL(*err)) {
+    if (modified_utf8_names_nothing(mac_name)) {
+        *err = JO_NAME_NOT_FOUND;
         goto exit;
     }
-    *err = JO_SUCCESS;
+
+    if (modified_utf8_names_nothing(function)) {
+        *err = JO_MAC_FUNCTION_NOT_FOUND;
+        goto exit;
+    }
+
+    mac_ctx = allocate_mac(mac_name, function, err);
 
 exit:
 
@@ -91,21 +95,14 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
     int32_t *err = NULL;
     mac_ctx *new_ctx = NULL;
 
-    jo_assert(_err != NULL);
     // err is ours; a zero-length array would write out of bounds.
+    jo_assert(_err != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
     jo_assert(err != NULL);
 
-    // Caller-derived handle: typed code, never jo_assert.
-    mac_ctx *ctx = (mac_ctx *) ref;
-    if (ctx == NULL) {
-        err[0] = JO_MAC_CTX_IS_NULL;
-        (*env)->ReleaseIntArrayElements(env, _err, err, 0);
-        return (jlong) NULL;
-    }
-
-    new_ctx = mac_copy(ctx, err);
+    // mac_copy refuses a NULL or foreign handle with a typed code.
+    new_ctx = mac_copy((mac_ctx *) ref, err);
 
     (*env)->ReleaseIntArrayElements(env, _err, err, 0);
 
@@ -114,19 +111,9 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJN
 
 
 /*
- * ivBytes carries GMAC's nonce; customBytes carries KMAC's customisation
- * string S and outLen its requested output length.
- *
- * ivBytes and customBytes are both LEGITIMATELY null - every MAC but GMAC is
- * initialised without an iv, and S is optional even for KMAC - so a null array
- * is passed through as NULL/0 rather than rejected here. init_mac_ctx returns
- * JO_IV_IS_NULL / JO_MAC_TAKES_NO_CUSTOM from the arm that knows which
- * parameters its MAC actually takes.
- *
- * outLen is a jint so a negative value is REJECTABLE before the (size_t) cast;
- * 0 means "unspecified" (see mac.h on why that sentinel is safe). All three
- * ctxs are init'd before any goto so the shared cleanup label can release them
- * unconditionally (the ccm pattern).
+ * ivBytes carries GMAC's nonce and customBytes KMAC's customisation string; either may be null, and the MAC's arm
+ * in init_mac_ctx decides whether it needs one. outLen 0 means unspecified. The key is copied and cleansed at
+ * release; iv and custom are not secret.
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1init
 (JNIEnv *env, jobject self, jlong ref, jbyteArray keyBytes, jbyteArray ivBytes,
@@ -134,20 +121,20 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    if (mac_ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t ret = mac_ctx_check(mac_ctx);
+    if (UNSUCCESSFUL(ret)) {
+        return ret;
     }
 
-    critical_bytearray_ctx key;
+    java_secret_bytearray_ctx key;
     critical_bytearray_ctx iv;
     critical_bytearray_ctx custom;
-    int32_t ret;
 
-    init_critical_ctx(&key, env, keyBytes);
+    init_secret_bytearray_ctx(&key);
     init_critical_ctx(&iv, env, ivBytes);
     init_critical_ctx(&custom, env, customBytes);
 
-    if (key.array == NULL) {
+    if (keyBytes == NULL) {
         ret = JO_KEY_IS_NULL;
         goto exit;
     }
@@ -157,7 +144,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&key)) {
+    if (OPS_FAILED_ACCESS_3 !load_secret_input_ctx(&key, env, keyBytes)) {
         ret = JO_FAILED_ACCESS_KEY;
         goto exit;
     }
@@ -172,7 +159,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
         goto exit;
     }
 
-    ret = mac_init(mac_ctx, key.critical, key.size,
+    ret = mac_init(mac_ctx, key.bytearray, key.size,
                    iv.array == NULL ? NULL : iv.critical, iv.size,
                    custom.array == NULL ? NULL : custom.critical, custom.size,
                    (size_t) outLen);
@@ -180,7 +167,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
 exit:
     release_critical_ctx(&custom);
     release_critical_ctx(&iv);
-    release_critical_ctx(&key);
+    release_secret_bytearray_ctx(&key);
     return ret;
 }
 
@@ -190,11 +177,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    if (mac_ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t ret = mac_ctx_check(mac_ctx);
+    if (UNSUCCESSFUL(ret)) {
+        return ret;
     }
 
-    int32_t ret;
     uint8_t b;
 
     if (!mac_ctx->initialized) {
@@ -211,12 +198,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    if (mac_ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t ret = mac_ctx_check(mac_ctx);
+    if (UNSUCCESSFUL(ret)) {
+        return ret;
     }
 
     critical_bytearray_ctx input;
-    int32_t ret;
 
     if (!mac_ctx->initialized) {
         return JO_NOT_INITIALIZED;
@@ -240,7 +227,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&input)) {
+    if (OPS_FAILED_ACCESS_4 !load_critical_ctx(&input)) {
         ret = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -257,8 +244,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *mac_ctx = (void *) ref;
-    if (mac_ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(mac_ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (!mac_ctx->initialized) {
@@ -293,7 +281,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&output)) {
+    if (OPS_FAILED_ACCESS_7 !load_critical_ctx(&output)) {
         ret = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -311,8 +299,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *ctx = (void *) ref;
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (!ctx->initialized) {
@@ -328,12 +317,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(self);
 
     mac_ctx *ctx = (void *) ref;
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
-    // Keyless metadata query — answers the MAC length before init, so no
-    // ctx->initialized check here (unlike ni_getMacLength).
+    // Keyless: answers before init.
     return mac_len_for(ctx);
 }
 
@@ -342,17 +331,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(env);
     UNUSED(self);
 
-    mac_ctx *ctx = (void *) ref;
-    if (ctx == NULL) {
-        // Observed spurious resets from within the JVMs provider logic in the past.
-        return JO_SUCCESS;
-    }
-
-    if (!ctx->initialized) {
-        return JO_NOT_INITIALIZED;
-    }
-
-   return  mac_reset(ctx);
+    // mac_reset refuses a NULL or foreign handle, and an uninitialised one.
+    return mac_reset((mac_ctx *) ref);
 }
 
 JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI_ni_1dispose
@@ -360,9 +340,6 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_mac_MacServiceJNI
     UNUSED(env);
     UNUSED(self);
 
-    mac_ctx *ctx = (void *) ref;
-    if (ctx == NULL) {
-        return;
-    }
-    mac_free(ctx);
+    // mac_free frees nothing on a NULL or wrong kind.
+    mac_free((mac_ctx *) ref);
 }

@@ -353,7 +353,8 @@ public class MacAgreementTest
     /**
      * Reset and reuse across the whole surface: one instance driven twice must
      * give the right tag each time, and repeating an input must repeat the tag
-     * exactly (every registered MAC is deterministic).
+     * exactly (every registered MAC is deterministic). GMAC gives one tag per
+     * init, so its second doFinal is refused, as BouncyCastle refuses it.
      */
     @Test
     public void resetAndReuseAgreesForEveryMac() throws Exception
@@ -376,6 +377,12 @@ public class MacAgreementTest
             mac.init(key, spec);
 
             Assertions.assertArrayEquals(refA, mac.doFinal(msgA), name + ": first message");
+            if (spec instanceof IvParameterSpec)
+            {
+                Assertions.assertThrows(IllegalStateException.class, () -> mac.doFinal(msgB),
+                        name + ": second tag under one nonce");
+                continue;
+            }
             Assertions.assertArrayEquals(refB, mac.doFinal(msgB),
                     name + ": second message after auto-reset");
             Assertions.assertArrayEquals(refA, mac.doFinal(msgA), name + ": repeat is deterministic");

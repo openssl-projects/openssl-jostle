@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "types.h"
 #include "../util/mac.h"
@@ -14,10 +15,11 @@
 #include "../util/jo_assert.h"
 #include "../util/ops.h"
 
-mac_ctx *JoMAC_allocate(const char *mac_name, const char *function_name, int32_t *err) {
-    mac_ctx *out_ctx = NULL;
-
+mac_ctx *JoMAC_allocate(const char *mac_name, size_t mac_name_len, const char *function_name,
+                        size_t function_name_len, int32_t *err, int32_t err_len) {
+    /* err is jostle's own: a null or empty one is a broken invariant, so it aborts. */
     jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
 
     if (mac_name == NULL) {
         *err = JO_NAME_IS_NULL;
@@ -29,44 +31,39 @@ mac_ctx *JoMAC_allocate(const char *mac_name, const char *function_name, int32_t
         return NULL;
     }
 
-    out_ctx = allocate_mac(mac_name, function_name, err);
-    return out_ctx;
-}
-
-mac_ctx *JoMAC_copy(mac_ctx *ctx, int32_t *err) {
-    jo_assert(err != NULL);
-
-    // Caller-derived handle: typed code, never jo_assert.
-    if (ctx == NULL) {
-        *err = JO_MAC_CTX_IS_NULL;
+    // Each length is the name's UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI.
+    if (mac_name_len == 0 || strnlen(mac_name, mac_name_len) != mac_name_len) {
+        *err = JO_NAME_NOT_FOUND;
         return NULL;
     }
 
+    if (function_name_len == 0 || strnlen(function_name, function_name_len) != function_name_len) {
+        *err = JO_MAC_FUNCTION_NOT_FOUND;
+        return NULL;
+    }
+
+    return allocate_mac(mac_name, function_name, err);
+}
+
+mac_ctx *JoMAC_copy(mac_ctx *ctx, int32_t *err, int32_t err_len) {
+    jo_assert(err != NULL);
+    jo_assert(err_len >= 1);
+
+    // mac_copy refuses a NULL or foreign handle with a typed code.
     return mac_copy(ctx, err);
 }
 
 /*
- * iv/iv_len carry GMAC's nonce; custom/custom_len and out_len carry KMAC's
- * customisation string and requested output length.
- *
- * A NULL iv or custom is LEGITIMATE - every MAC but GMAC is initialised
- * without an iv, and S is optional even for KMAC - so neither is rejected
- * here; init_mac_ctx returns JO_IV_IS_NULL / JO_MAC_TAKES_NO_CUSTOM from the
- * arm that knows which parameters its MAC actually takes. What IS rejected is
- * an inconsistent pair, which no Java caller can produce (a null array
- * marshals to NULL/0) but which would otherwise hand OpenSSL a length with no
- * buffer.
- *
- * out_len is int32_t rather than size_t so a negative value is REJECTABLE: as
- * a size_t it would arrive as a huge positive and drive an enormous
- * allocation inside the provider. 0 means "unspecified" and is passed through
- * as such - see mac.h on why that sentinel is safe.
+ * iv carries GMAC's nonce and custom KMAC's customisation string; either may be NULL with a zero length, and the
+ * MAC's arm in init_mac_ctx decides whether it needs one. out_len is signed so a negative is refusable; 0 means
+ * unspecified.
  */
 int32_t JoMAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len, uint8_t *iv, size_t iv_len,
                    uint8_t *custom, size_t custom_len, int32_t out_len) {
 
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (key == NULL) {
@@ -90,8 +87,9 @@ int32_t JoMAC_init(mac_ctx * ctx, uint8_t *key, size_t key_len, uint8_t *iv, siz
 
 int32_t JoMAC_updateByte(mac_ctx *ctx, uint8_t b) {
 
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (!ctx->initialized) {
@@ -103,8 +101,9 @@ int32_t JoMAC_updateByte(mac_ctx *ctx, uint8_t b) {
 
 int32_t JoMAC_update(mac_ctx *ctx, uint8_t *input, size_t input_size, int32_t input_offset, int32_t input_len) {
 
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (!ctx->initialized) {
@@ -131,8 +130,9 @@ int32_t JoMAC_update(mac_ctx *ctx, uint8_t *input, size_t input_size, int32_t in
 
 int32_t JoMAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t output_offset) {
 
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (!ctx->initialized) {
@@ -147,7 +147,7 @@ int32_t JoMAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t o
         return JO_OUTPUT_OFFSET_IS_NEGATIVE;
     }
 
-    if (OPS_INT32_OVERFLOW_2 output_size > INT32_MAX) {
+    if (OPS_INT32_OVERFLOW_3 output_size > INT32_MAX) {
         return JO_OUTPUT_SIZE_INT_OVERFLOW;
     }
 
@@ -165,8 +165,9 @@ int32_t JoMAC_final(mac_ctx *ctx, uint8_t *output, size_t output_size, int32_t o
 }
 
 int32_t JoMAC_len(mac_ctx *ctx) {
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (!ctx->initialized) {
@@ -177,26 +178,21 @@ int32_t JoMAC_len(mac_ctx *ctx) {
 }
 
 int32_t JoMAC_lenMeta(mac_ctx *ctx) {
-    if (ctx == NULL) {
-        return JO_MAC_CTX_IS_NULL;
+    int32_t check_rc = mac_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
-    // Keyless metadata query — answers the MAC length before init, so no
-    // ctx->initialized check here (unlike JoMAC_len).
+    // Keyless: answers before init.
     return mac_len_for(ctx);
 }
 
 int32_t JoMAC_reset(mac_ctx *ctx) {
-    if (ctx == NULL) {
-        // Observed spurious resets from within the JVMs provider logic in the past.
-        return JO_SUCCESS;
-    }
+    // mac_reset refuses a NULL or foreign handle, and an uninitialised one.
     return mac_reset(ctx);
 }
 
 void JoMAC_free(mac_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
+    // mac_free frees nothing on a NULL or wrong kind.
     mac_free(ctx);
 }

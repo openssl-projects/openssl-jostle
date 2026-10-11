@@ -25,14 +25,20 @@
 static void mac_release(mac_ctx *mctx);
 
 /*
- * KMAC-128 and KMAC-256 differ only in the underlying cSHAKE and their default
- * output length, both of which OpenSSL derives from the fetched name - so
- * every KMAC decision in this file is shared, and asking "is this a KMAC?" is
- * the only distinction the code needs.
+ * Largest KMAC output a context is sized for, in bytes. Ours to choose, below OpenSSL's own limit; it sizes caller
+ * allocations.
  */
+#define MAC_MAX_KMAC_OUTPUT_BYTES (1024 * 1024)
+
+// KMAC-128 and KMAC-256 differ only in what OpenSSL derives from the fetched name.
 static int is_kmac(const char *mac_name) {
     return 0 == strncmp(mac_name, "KMAC-128", sizeof("KMAC-128"))
            || 0 == strncmp(mac_name, "KMAC-256", sizeof("KMAC-256"));
+}
+
+// GMAC gives one tag per init: finalize and reset spend it, and a re-init may not repeat the key and nonce.
+static int is_gmac(const char *mac_name) {
+    return 0 == strncmp(mac_name, "GMAC", sizeof("GMAC"));
 }
 
 static int32_t init_mac_ctx(mac_ctx *mctx) {
@@ -46,12 +52,7 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
 
     mctx->initialized = 0;
 
-    // KMAC is the only variable-length MAC here, and the only one that takes a
-    // customisation string. Same fail-loud reasoning as the IV check below:
-    // the other arms would not read either value, and silently dropping one
-    // yields a tag that is wrong-but-self-consistent. Unreachable from the SPI
-    // (which refuses the spec for every other MAC), so these guard the NI
-    // surface - see the MacLimitTest probes.
+    // A value no arm reads would be dropped silently, so a MAC that takes none refuses it.
     if (!is_kmac(mctx->mac_name)) {
         if (mctx->custom != NULL) {
             return JO_MAC_TAKES_NO_CUSTOM;
@@ -61,12 +62,6 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
         }
     }
 
-    // GMAC is the only MAC here that takes a nonce, and the other arms would
-    // simply not read mctx->iv. Rejecting rather than ignoring is the fail-loud
-    // answer: a caller who supplied an IV believes it was mixed in, and a
-    // silently-dropped one produces a tag that is wrong-but-self-consistent.
-    // Unreachable from the SPI (which refuses the spec for every other MAC), so
-    // this guards the NI surface - see the MacLimitTest probe.
     if (mctx->iv != NULL && 0 != strncmp(mctx->mac_name, "GMAC", sizeof("GMAC"))) {
         return JO_MODE_TAKES_NO_IV;
     }
@@ -99,31 +94,12 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
         }
         params[0] = OSSL_PARAM_construct_utf8_string(OSSL_MAC_PARAM_DIGEST, mctx->function_name, 0);
     } else if (OPS_ALTERNATE_3 0 == strncmp(mctx->mac_name, "POLY1305", sizeof("POLY1305"))) {
-        // Poly1305 (RFC 8439): a one-time 32-byte key, no cipher/digest param.
-        // The registration's function_name is a placeholder and intentionally
-        // ignored (unlike CMAC's "aes-cbc" or HMAC's digest). RFC 8439 requires
-        // each Poly1305 key be used exactly once — that is the caller's
-        // contract; the provider cannot enforce it and only checks the length.
-        // params stays {OSSL_PARAM_END, OSSL_PARAM_END}.
+        // Poly1305: a 32-byte one-time key, no params; function_name is a placeholder.
         if (mctx->key_len != 32) {
             return JO_UNKNOWN_KEY_LEN;
         }
     } else if (OPS_ALTERNATE_4 0 == strncmp(mctx->mac_name, "GMAC", sizeof("GMAC"))) {
-        // GMAC (NIST SP 800-38D): GCM with no plaintext, so every input byte is
-        // absorbed as AAD. Needs a cipher AND a nonce; the AES variant follows
-        // the key length exactly as CMAC's does, so "aes-gcm" is the same kind
-        // of placeholder "aes-cbc" is there.
-        //
-        // The IV is a CALLER input, so a missing one is a typed rejection, not
-        // an assert - and it is checked here rather than at the bridge because
-        // only this arm knows that GMAC is the MAC that needs one (every other
-        // arm is initialised with iv == NULL).
-        //
-        // The IV LENGTH is deliberately not checked. GMAC inherits GCM's
-        // variable-length nonce: 1, 8, 11, 12, 13, 16 and 32 bytes are all
-        // accepted by mainline and by both FIPS modules, and only 0 is refused
-        // - by the provider itself, with "invalid iv length". Per the
-        // classify-don't-pre-check rule, OpenSSL owns that legality.
+        // GMAC: the cipher follows the key length and a nonce is required; OpenSSL decides the nonce length.
         if (mctx->function_name == NULL ||
             0 != strncmp(mctx->function_name, "aes-gcm", sizeof("aes-gcm"))) {
             return JO_UNEXPECTED_STATE; // we control this
@@ -149,34 +125,20 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
 
         params[1] = OSSL_PARAM_construct_octet_string(OSSL_MAC_PARAM_IV, mctx->iv, mctx->iv_len);
     } else if (OPS_ALTERNATE_5 is_kmac(mctx->mac_name)) {
-        // KMAC-128 / KMAC-256 (NIST SP 800-185). No cipher and no digest: the
-        // fetched name selects the underlying cSHAKE, so function_name is a
-        // placeholder as it is for Poly1305.
-        //
-        // Neither parameter is required. An ABSENT customisation string is
-        // indistinguishable from an empty one, and an unset size means the
-        // module's own default (32 / 64) - so both are set only when the
-        // caller actually supplied them.
-        //
-        // Key and output-length LEGALITY are deliberately not checked here.
-        // Both bounds move with the module's fipsinstall config, not with our
-        // code: the key floor is 4 bytes by default and 14 under
-        // kmac-key-check, and the output floor is 1 by default and 4 under
-        // no-short-mac (measured across four environments, see
-        // fips-c-review/probes/kmac_probe.c Q5/Q10). Per the
-        // classify-don't-pre-check rule, a hard-coded range here would be
-        // wrong on whichever module it did not match.
+        // KMAC: function_name is a placeholder. The key and output floors move with the module's config, so
+        // OpenSSL decides them; the output ceiling is ours, since it sizes caller allocations.
         int n = 0;
+
+        if (mctx->out_len > MAC_MAX_KMAC_OUTPUT_BYTES) {
+            return JO_MAC_OUTPUT_LEN_INVALID;
+        }
 
         if (mctx->custom != NULL) {
             params[n++] = OSSL_PARAM_construct_octet_string(
                     OSSL_MAC_PARAM_CUSTOM, mctx->custom, mctx->custom_len);
         }
 
-        // Never forward a zero: OpenSSL accepts size=0 on three of the four
-        // measured environments and then produces a ZERO-LENGTH MAC. 0 is our
-        // "unspecified" sentinel precisely because leaving the param unset is
-        // the only safe reading of it.
+        // 0 means unspecified: forwarded, OpenSSL would produce no output.
         if (mctx->out_len != 0) {
             params[n++] = OSSL_PARAM_construct_size_t(
                     OSSL_MAC_PARAM_SIZE, &mctx->out_len);
@@ -187,12 +149,26 @@ static int32_t init_mac_ctx(mac_ctx *mctx) {
 
 
     ERR_clear_error();
-    if (OPS_OPENSSL_ERROR_2 EVP_MAC_init(mctx->ctx, mctx->key, mctx->key_len, params) != 1) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1001);
+    if (OPS_FAILED_INIT_1 EVP_MAC_init(mctx->ctx, mctx->key, mctx->key_len, params) != 1) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_1(1001);
     }
 
     mctx->initialized = 1;
     return JO_SUCCESS;
+}
+
+// Drops the held key, nonce, customisation string and length after a failed init, so nothing outlives it.
+static void mac_drop_held(mac_ctx *mctx) {
+    OPENSSL_clear_free(mctx->key, mctx->key_len);
+    mctx->key = NULL;
+    mctx->key_len = 0;
+    OPENSSL_free(mctx->iv);
+    mctx->iv = NULL;
+    mctx->iv_len = 0;
+    OPENSSL_free(mctx->custom);
+    mctx->custom = NULL;
+    mctx->custom_len = 0;
+    mctx->out_len = 0;
 }
 
 mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err) {
@@ -206,6 +182,7 @@ mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err) 
 
     mctx = OPENSSL_zalloc(sizeof(*mctx));
     jo_assert(mctx != NULL);
+    mctx->kind = MAC_CTX_KIND;
 
     size_t len = strlen(mac_name) + 1;
     mctx->mac_name = OPENSSL_malloc(len);
@@ -221,14 +198,14 @@ mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err) 
 
     ERR_clear_error();
     mctx->mac = EVP_MAC_fetch(get_global_jostle_fips_ossl_lib_ctx(), mctx->mac_name, NULL);
-    if (OPS_OPENSSL_ERROR_1 mctx->mac == NULL) {
-        *err = JO_OPENSSL_ERROR;
+    if (OPS_FAILED_CREATE_1 mctx->mac == NULL) {
+        *err = JO_NAME_NOT_FOUND;
         goto exit;
     }
 
     mctx->ctx = EVP_MAC_CTX_new(mctx->mac);
-    if (OPS_OPENSSL_ERROR_2 mctx->ctx == NULL) {
-        *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
+    if (OPS_FAILED_CREATE_2 mctx->ctx == NULL) {
+        *err = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_CREATE_2(1000);
         goto exit;
     }
 
@@ -237,41 +214,21 @@ mac_ctx *allocate_mac(const char *mac_name, const char *function, int32_t *err) 
     return mctx;
 
 exit:
-
-    if (mctx->ctx != NULL) {
-        EVP_MAC_CTX_free(mctx->ctx);
-    }
-    if (mctx->mac != NULL) {
-        EVP_MAC_free(mctx->mac);
-    }
-    if (mctx->function_name != NULL) {
-        OPENSSL_free(mctx->function_name);
-    }
-    if (mctx->mac_name != NULL) {
-        OPENSSL_free(mctx->mac_name);
-    }
-    OPENSSL_free(mctx);
-
-
+    mac_release(mctx);
     return NULL;
 }
 
 /*
- * Deep-copy a MAC context, running state included, for Mac.clone().
- *
- * EVP_MAC_CTX_dup snapshots the absorbed bytes: the provider's dupctx
- * (hmac_dup and its siblings) copies the inner HMAC_CTX and digest state and
- * re-allocates the key into secure memory rather than sharing the pointer, so
- * the clone is independent of the source in both directions.
- *
- * The copy takes its own reference on the EVP_MAC and its own copies of the
- * name strings and key, because mac_free releases all of them unconditionally
- * and must be balanced for each ctx.
+ * Deep copy, absorbed state included, for Mac.clone(). The copy owns its own EVP_MAC reference, names and held
+ * parameters, since mac_free releases each.
  */
 mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
-    // Bridge-validated: the source handle is checked there, asserted here.
     jo_assert(err != NULL);
-    jo_assert(src != NULL);
+    int32_t check_rc = mac_ctx_check(src);
+    if (UNSUCCESSFUL(check_rc)) {
+        *err = check_rc;
+        return NULL;
+    }
     jo_assert(src->ctx != NULL);
     jo_assert(src->mac != NULL);
     jo_assert(src->mac_name != NULL);
@@ -281,6 +238,7 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
 
     mac_ctx *mctx = OPENSSL_zalloc(sizeof(*mctx));
     jo_assert(mctx != NULL);
+    mctx->kind = MAC_CTX_KIND;
 
     size_t len = strlen(src->mac_name) + 1;
     mctx->mac_name = OPENSSL_malloc(len);
@@ -292,8 +250,7 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
     jo_assert(mctx->function_name != NULL);
     memcpy(mctx->function_name, src->function_name, len);
 
-    // Cast away const: up_ref mutates only the refcount (mirrors
-    // md_ctx_copy's EVP_MD_up_ref cast).
+    // up_ref changes only the reference count.
     if (OPS_OPENSSL_ERROR_8 1 != EVP_MAC_up_ref((EVP_MAC *) src->mac)) {
         *err = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_8(1015);
         goto exit;
@@ -306,8 +263,7 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
         goto exit;
     }
 
-    // The key is retained so the clone can be reset like any other ctx
-    // (mac_reset re-inits from it). Secret material, so clear_free on release.
+    // The held parameters travel so the clone's mac_reset re-inits as the same MAC.
     if (src->key != NULL) {
         mctx->key = OPENSSL_malloc(src->key_len == 0 ? 1 : src->key_len);
         jo_assert(mctx->key != NULL);
@@ -317,9 +273,6 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
         mctx->key_len = src->key_len;
     }
 
-    // GMAC's nonce travels with the key for the same reason: without it the
-    // clone's mac_reset would re-init a GMAC ctx with no IV and fail. Not
-    // secret, but freed on the same paths as the key.
     if (src->iv != NULL) {
         mctx->iv = OPENSSL_malloc(src->iv_len == 0 ? 1 : src->iv_len);
         jo_assert(mctx->iv != NULL);
@@ -329,10 +282,6 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
         mctx->iv_len = src->iv_len;
     }
 
-    // KMAC's customisation string and requested output length travel for the
-    // same reason: mac_reset re-inits from held state, so a clone that lost
-    // them would silently re-init as a DIFFERENT MAC - different S, or the
-    // default length instead of the caller's - after its first doFinal.
     if (src->custom != NULL) {
         mctx->custom = OPENSSL_malloc(src->custom_len == 0 ? 1 : src->custom_len);
         jo_assert(mctx->custom != NULL);
@@ -349,9 +298,6 @@ mac_ctx *mac_copy(const mac_ctx *src, int32_t *err) {
     return mctx;
 
 exit:
-
-    // mac_free is NULL-tolerant per field and clear_frees the key, so it is the
-    // right cleanup for a partially-built ctx.
     mac_release(mctx);
     return NULL;
 }
@@ -366,14 +312,23 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
     int32_t ret;
 
 
-    jo_assert(mctx != NULL);
+    int32_t check_rc = mac_ctx_check(mctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(key != NULL);
-    // iv is legitimately NULL for every MAC but GMAC, so it is NOT asserted -
-    // init_mac_ctx's GMAC arm returns JO_IV_IS_NULL when it needs one.
-    // custom is optional even for KMAC, so it is not asserted either; supplying
-    // one to an arm that takes none is init_mac_ctx's JO_MAC_TAKES_NO_CUSTOM.
 
-    // non-NULL even for empty key: EVP_MAC_init treats NULL as "reuse previous"
+    // Same key and nonce as the held ones: refused, and the ctx left as it was. Constant time over the bytes.
+    if (is_gmac(mctx->mac_name) && mctx->key != NULL && mctx->iv != NULL && iv != NULL
+        && key_len == mctx->key_len && iv_len == mctx->iv_len) {
+        int key_diff = CRYPTO_memcmp(key, mctx->key, key_len);
+        int iv_diff = CRYPTO_memcmp(iv, mctx->iv, iv_len);
+        if ((key_diff | iv_diff) == 0) {
+            return JO_MAC_NONCE_REUSED;
+        }
+    }
+
+    // Non-NULL even for an empty key: EVP_MAC_init reads NULL as "reuse the previous key".
     new_key = OPENSSL_malloc(key_len == 0 ? 1 : key_len);
     jo_assert(new_key != NULL);
 
@@ -417,20 +372,7 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
 
     ret = init_mac_ctx(mctx);
     if (ret < 0) {
-        // Drop ALL of it on failure: a half-configured ctx whose key was
-        // cleared but whose IV, S or length survived would let a later
-        // mac_reset see JO_NOT_INITIALIZED (key == NULL) while still holding
-        // the caller's parameters.
-        OPENSSL_clear_free(mctx->key, mctx->key_len);
-        mctx->key = NULL;
-        mctx->key_len = 0;
-        OPENSSL_free(mctx->iv);
-        mctx->iv = NULL;
-        mctx->iv_len = 0;
-        OPENSSL_free(mctx->custom);
-        mctx->custom = NULL;
-        mctx->custom_len = 0;
-        mctx->out_len = 0;
+        mac_drop_held(mctx);
         return ret;
     }
 
@@ -438,7 +380,10 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
 }
 
 int32_t mac_update(mac_ctx *mctx, const uint8_t *in, int32_t off, int32_t len) {
-    jo_assert(mctx != NULL);
+    int32_t check_rc = mac_ctx_check(mctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(off >= 0);
     jo_assert(len >= 0);
 
@@ -460,7 +405,10 @@ int32_t mac_update(mac_ctx *mctx, const uint8_t *in, int32_t off, int32_t len) {
 int32_t mac_final(mac_ctx *mctx, uint8_t *out, int32_t off, int32_t out_len) {
     size_t written = 0;
 
-    jo_assert(mctx != NULL);
+    int32_t check_rc = mac_ctx_check(mctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(out != NULL);
     jo_assert(off >= 0);
     jo_assert(out_len >= 0);
@@ -468,12 +416,19 @@ int32_t mac_final(mac_ctx *mctx, uint8_t *out, int32_t off, int32_t out_len) {
     jo_assert(mctx->initialized != 0);
 
 
+    int32_t ret = JO_SUCCESS;
     ERR_clear_error();
     if (OPS_OPENSSL_ERROR_2 EVP_MAC_final(
             mctx->ctx,
             out + off,
             &written, (size_t) (out_len - off)) != 1) {
-        return JO_OPENSSL_ERROR;
+        ret = JO_OPENSSL_ERROR;
+    }
+    if (is_gmac(mctx->mac_name)) {
+        mctx->initialized = 0;
+    }
+    if (UNSUCCESSFUL(ret)) {
+        return ret;
     }
 
     if (written > (size_t) INT32_MAX) {
@@ -484,13 +439,16 @@ int32_t mac_final(mac_ctx *mctx, uint8_t *out, int32_t off, int32_t out_len) {
 }
 
 int32_t mac_len(mac_ctx *mctx) {
-    jo_assert(mctx != NULL);
+    int32_t check_rc = mac_ctx_check(mctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(mctx->initialized != 0);
 
     ERR_clear_error();
     size_t ret = EVP_MAC_CTX_get_mac_size(mctx->ctx);
-    if (OPS_OPENSSL_ERROR_1 ret == 0) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1003);
+    if (OPS_OPENSSL_ERROR_12 ret == 0) {
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(1003);
     }
 
     if (OPS_INT32_OVERFLOW_1 ret > INT32_MAX) {
@@ -501,23 +459,23 @@ int32_t mac_len(mac_ctx *mctx) {
 }
 
 int32_t mac_len_for(mac_ctx *mctx) {
-    jo_assert(mctx != NULL);
+    int32_t check_rc = mac_ctx_check(mctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(mctx->mac_name != NULL);
     jo_assert(mctx->function_name != NULL);
 
     OSSL_LIB_CTX *libctx = get_global_jostle_fips_ossl_lib_ctx();
     EVP_MD *md = NULL;
     EVP_CIPHER *cipher = NULL;
-    // Declared here, not in the KMAC arm, so the shared cleanup label can free
-    // it on EVERY path. In an OPS build the injected failure below fires with a
-    // live ctx in hand, and a block-scoped local would leak it.
+    // Function scope so the cleanup label frees it on every path.
     EVP_MAC_CTX *fresh = NULL;
     int32_t ret;
 
     ERR_clear_error();
 
-    // HMAC: output length == the underlying digest's output size, read from
-    // OpenSSL metadata (no key, no EVP_MAC_init required).
+    // HMAC: the digest's output size.
     if (0 == strncmp(mctx->mac_name, "HMAC", sizeof("HMAC"))) {
         md = EVP_MD_fetch(libctx, mctx->function_name, NULL);
         if (OPS_OPENSSL_ERROR_3 md == NULL) {
@@ -533,8 +491,7 @@ int32_t mac_len_for(mac_ctx *mctx) {
         goto exit;
     }
 
-    // CMAC: output length == the cipher's block size. Identical across the
-    // AES key-length variants, so any AES-CBC variant answers it.
+    // CMAC: the cipher's block size, the same for every AES key length.
     if (0 == strncmp(mctx->mac_name, "CMAC", sizeof("CMAC"))) {
         if (0 != strncmp(mctx->function_name, "aes-cbc", sizeof("aes-cbc"))) {
             ret = JO_UNEXPECTED_STATE;
@@ -554,14 +511,7 @@ int32_t mac_len_for(mac_ctx *mctx) {
         goto exit;
     }
 
-    // Poly1305 and GMAC: both answer EVP_MAC_CTX_get_mac_size on the (unkeyed)
-    // ctx allocated in allocate_mac, so ask it rather than transcribe the
-    // constant (OpenSSL is the single source of truth for fixed lengths).
-    //
-    // For GMAC this is the ONLY correct source: the tag length is the GCM block
-    // size and there is no "size" in EVP_MAC_CTX_settable_params, so it can be
-    // neither shortened nor configured - measured across mainline 3.6.2, FIPS
-    // 3.1.2 and FIPS 3.5.7 (fips-c-review/probes/gmac_probe.c Q3/Q5).
+    // Poly1305 and GMAC: the unkeyed ctx reports the fixed tag length.
     if (0 == strncmp(mctx->mac_name, "POLY1305", sizeof("POLY1305")) ||
         0 == strncmp(mctx->mac_name, "GMAC", sizeof("GMAC"))) {
         size_t size = EVP_MAC_CTX_get_mac_size(mctx->ctx);
@@ -577,14 +527,8 @@ int32_t mac_len_for(mac_ctx *mctx) {
         goto exit;
     }
 
-    // KMAC: the DEFAULT output length (32 for KMAC-128, 64 for KMAC-256),
-    // queried rather than transcribed.
-    //
-    // Deliberately asked of a FRESH ctx, not of mctx->ctx: this is the
-    // algorithm-level metadata query, and the Java side memoizes it per
-    // algorithm name. mctx->ctx's mac size FOLLOWS a caller-requested size
-    // once mac_init has run (measured, kmac_probe.c Q5), so asking it here
-    // would poison that cache with one instance's chosen length.
+    // KMAC: the default length, asked of a fresh ctx; mctx->ctx follows a requested length, and Java caches this
+    // per algorithm.
     if (is_kmac(mctx->mac_name)) {
         size_t size;
 
@@ -609,23 +553,46 @@ int32_t mac_len_for(mac_ctx *mctx) {
     ret = JO_UNEXPECTED_STATE;
 
 exit:
-    // NULL-tolerant: in an OPS build the fetch above succeeds and the injected
-    // failure still reaches here with a live md/cipher to free; on a real
-    // failure the pointer is NULL and the free is a no-op.
     EVP_MD_free(md);
     EVP_CIPHER_free(cipher);
     EVP_MAC_CTX_free(fresh);
     return ret;
 }
 
-int32_t mac_reset(mac_ctx *mctx) {
-   jo_assert(mctx != NULL);
+int32_t mac_ctx_check(const mac_ctx *ctx) {
+    if (ctx == NULL) {
+        return JO_MAC_CTX_IS_NULL;
+    }
+    if (ctx->kind != MAC_CTX_KIND) {
+        return JO_MAC_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
 
-    if (mctx->key == NULL) {
+int32_t mac_reset(mac_ctx *mctx) {
+    int32_t check_rc = mac_ctx_check(mctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
+
+    // A GMAC ctx is spent, not restored; it needs only a held key.
+    if (is_gmac(mctx->mac_name)) {
+        if (mctx->key == NULL) {
+            return JO_NOT_INITIALIZED;
+        }
+        mctx->initialized = 0;
+        return JO_SUCCESS;
+    }
+
+    if (mctx->initialized == 0) {
         return JO_NOT_INITIALIZED;
     }
 
-    return init_mac_ctx(mctx);
+    int32_t ret = init_mac_ctx(mctx);
+    if (ret < 0) {
+        mac_drop_held(mctx);
+    }
+    return ret;
 }
 
 static void mac_release(mac_ctx *mctx) {
@@ -647,19 +614,20 @@ static void mac_release(mac_ctx *mctx) {
     if (mctx->key != NULL) {
         OPENSSL_clear_free(mctx->key, mctx->key_len);
     }
+    // Neither the nonce nor the customisation string is secret.
     if (mctx->iv != NULL) {
-        // Not secret material, so a plain free - unlike the key.
         OPENSSL_free(mctx->iv);
     }
     if (mctx->custom != NULL) {
-        // A customisation string is a domain separator, not a secret.
         OPENSSL_free(mctx->custom);
     }
-    OPENSSL_free(mctx);
+    mctx->kind = MAC_CTX_NONE;
+    OPENSSL_clear_free(mctx, sizeof(*mctx));
 }
 
 void mac_free(mac_ctx *mctx) {
-    if (mctx == NULL) {
+    // Frees nothing on a wrong kind: freeing another object as a mac_ctx corrupts it.
+    if (mac_ctx_check(mctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_MAC_CTX);

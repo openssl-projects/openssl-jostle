@@ -55,4 +55,10 @@ void release_critical_ctx(critical_bytearray_ctx *ctx);
  */
 bool check_critical_in_range(critical_bytearray_ctx *ctx, size_t offset, size_t len);
 
+/**
+ * True for an empty string from GetStringUTFChars, or one holding NUL, which modified UTF-8 encodes as 0xC0 0x80.
+ * Either names nothing, as the FFM bridge's length check finds.
+ */
+bool modified_utf8_names_nothing(const char *s);
+
 #endif //BYTEARRAYCRITICAL_H

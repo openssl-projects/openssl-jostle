@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.mac.MacServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
@@ -453,27 +454,59 @@ public class MacLimitTest
 
 
     @Test
-    public void reset_nullRef()
+    public void resetOnANullHandleIsTyped()
     {
-        // Both backends silently return JO_SUCCESS for the spurious-reset case;
-        // no exception expected.
-        macNI.reset(0L);
+        MacCells.resetOnANullHandleIsTyped(macNI);
     }
 
 
     @Test
-    public void makeInstance_unknownAlgorithm()
+    public void unknownMacNameIsNotFound()
     {
-        try
-        {
-            macNI.allocateMac("ZZZZZZZ", "SHA-256");
-            Assertions.fail();
-        }
-        catch (OpenSSLException ignored)
-        {
-            // EVP_MAC_fetch fails -> JO_OPENSSL_ERROR -> OpenSSLException.
-            // Message text is OpenSSL-version-dependent so we don't assert on it.
-        }
+        MacCells.unknownMacNameIsNotFound(macNI);
+    }
+
+    @Test
+    public void wrongKindRefusedBothWays()
+    {
+        MacCells.wrongKindRefusedBothWays(macNI, NISelector.MDServiceNI, NISelector.BlockCipherNI,
+                NISelector.CCMCipherNI);
+    }
+
+    @Test
+    public void embeddedNulNamesAreRefused()
+    {
+        MacCells.embeddedNulNamesAreRefused(macNI);
+    }
+
+    @Test
+    public void nulScanSeesOnlyTheNulEncoding()
+    {
+        MacCells.nulScanSeesOnlyTheNulEncoding(macNI);
+    }
+
+    @Test
+    public void kmacOutputAtTheBoundAndBeyond() throws Exception
+    {
+        MacCells.kmacOutputAtTheBoundAndBeyond(macNI, JostleProvider.PROVIDER_NAME);
+    }
+
+    @Test
+    public void finalThenUpdateWithoutResetFails()
+    {
+        MacCells.finalThenUpdateWithoutResetFails(macNI);
+    }
+
+    @Test
+    public void copyOfAnUninitialisedContextIsNotInitialised()
+    {
+        MacCells.copyOfAnUninitialisedContextIsNotInitialised(macNI);
+    }
+
+    @Test
+    public void gmacFinalSpendsTheContext()
+    {
+        MacCells.gmacFinalSpendsTheContext(macNI);
     }
 
 
@@ -557,63 +590,10 @@ public class MacLimitTest
     }
 
 
-    // ---------------------------------------------------------------------
-    // Null (0) mac_ctx handle: every dereferencing entry point must return a
-    // typed JO_MAC_CTX_IS_NULL rejection (IllegalArgumentException "mac
-    // context is null"), NOT a jo_assert that aborts the JVM. dispose/reset
-    // deliberately no-op on a null handle (see reset_nullRef) and are exempt.
-    // Runs on both JNI and FFM via integrationTest25{JNI,FFM} — both bridges
-    // must return the same code.
-    // ---------------------------------------------------------------------
-
     @Test
-    public void init_nullCtx_rejectedTyped()
+    public void nullHandleRefusedEverywhere()
     {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineInit(0L, new byte[16], null, null, 0));
-        Assertions.assertEquals("mac context is null", e.getMessage());
-    }
-
-    @Test
-    public void updateByte_nullCtx_rejectedTyped()
-    {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineUpdate(0L, (byte) 1));
-        Assertions.assertEquals("mac context is null", e.getMessage());
-    }
-
-    @Test
-    public void updateBytes_nullCtx_rejectedTyped()
-    {
-        // ctx is checked before the input/range checks, so a non-null input
-        // with a null handle still surfaces the handle rejection.
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.engineUpdate(0L, new byte[4], 0, 4));
-        Assertions.assertEquals("mac context is null", e.getMessage());
-    }
-
-    @Test
-    public void doFinal_nullCtx_rejectedTyped()
-    {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.doFinal(0L, new byte[32], 0));
-        Assertions.assertEquals("mac context is null", e.getMessage());
-    }
-
-    @Test
-    public void getMacLength_nullCtx_rejectedTyped()
-    {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.getMacLength(0L));
-        Assertions.assertEquals("mac context is null", e.getMessage());
-    }
-
-    @Test
-    public void macLengthMeta_nullCtx_rejectedTyped()
-    {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> macNI.macLengthMeta(0L));
-        Assertions.assertEquals("mac context is null", e.getMessage());
+        MacCells.nullHandleRefusedEverywhere(macNI);
     }
 
 

@@ -672,6 +672,14 @@
 #define JO_CCM_CTX_WRONG_KIND -194
 /* A handle that is not an md_ctx, or one already freed. */
 #define JO_MD_CTX_WRONG_KIND -195
+/* A handle that is not a mac_ctx, or one already freed. */
+#define JO_MAC_CTX_WRONG_KIND -196
+/* An empty MAC function name, or one with an embedded NUL. */
+#define JO_MAC_FUNCTION_NOT_FOUND -197
+/* A KMAC output length above the ceiling a context is sized for. */
+#define JO_MAC_OUTPUT_LEN_INVALID -198
+/* A GMAC init repeating the key and nonce of the previous one. */
+#define JO_MAC_NONCE_REUSED -199
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

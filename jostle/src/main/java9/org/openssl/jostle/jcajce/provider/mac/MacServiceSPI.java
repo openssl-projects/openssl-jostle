@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.mac;
 
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.KMACParameterSpec;
@@ -31,29 +32,9 @@ import java.security.spec.AlgorithmParameterSpec;
 /**
  * Shared SPI for every registered Mac.
  *
- * <h2>GMAC: reusing an instance reuses the NONCE — that is the caller's to prevent</h2>
- *
- * <p>{@link javax.crypto.Mac#doFinal()} is specified to reset the Mac "to its
- * initial state", and this SPI honours that: after {@code doFinal} the instance
- * is ready for the next message without re-initialisation, and produces exactly
- * what a freshly-initialised instance would.
- *
- * <p><b>For AESGMAC that means the second message is authenticated under the
- * same (key, nonce) pair as the first.</b> Repeating a nonce under GMAC is a
- * real break, not a hygiene preference: two tags under one nonce expose the
- * GHASH subkey relationship and permit forgery. The JCA reset contract and
- * GMAC's nonce requirement genuinely conflict, and this provider resolves the
- * conflict in favour of the contract.
- *
- * <p>So a caller authenticating more than one message with GMAC must
- * re-{@code init} with a FRESH IV for each. Do not rely on {@code doFinal}
- * leaving the instance safe to reuse — it leaves it usable, which is not the
- * same thing.
- *
- * <p>BouncyCastle takes the other side and refuses the reuse with
- * {@code IllegalStateException}; the JDK registers no GMAC. The divergence is
- * deliberate (Megan, 2026-09-02) and pinned by
- * {@code GmacNonceReuseContractTest}.
+ * <p>AESGMAC gives one tag per init, as BouncyCastle's does: after {@code doFinal} or {@code reset} the instance
+ * refuses until a new init, and an init repeating the previous key and nonce is refused. Every other MAC returns to
+ * its initialised state after {@code doFinal}, as the JCA contract specifies.
  */
 public class MacServiceSPI extends MacSpi implements Cloneable
 {
@@ -79,16 +60,41 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         return KMAC_128.equals(name) || KMAC_256.equals(name);
     }
 
+    // A spent GMAC context answers not-initialised; BouncyCastle's GMAC refuses with IllegalStateException.
+    private void refuseIfSpent(int code)
+    {
+        if (code == ErrorCode.JO_NOT_INITIALIZED.getCode() && GMAC.equals(macName))
+        {
+            throw new IllegalStateException("GMAC needs a new init with a new nonce");
+        }
+    }
+
     private final MacReference ref;
     private final String cacheKey;
     private final String macName;
 
-    // KMAC's per-init parameters. Instance state rather than cached per
-    // algorithm, because unlike every other MAC here KMAC's output length is
-    // chosen by the caller at init. Both are reset to their defaults by every
-    // engineInit, so a re-init without a spec restores SP 800-185's defaults.
+    // KMAC's parameters from the last accepted init; a KMAC output length belongs to the instance. Each init
+    // replaces them only once the native init accepts it, and a refused native init clears them, as native does.
     private byte[] custom;
     private int requestedLen;
+
+    // True after an init the native layer accepted, false after one it refused.
+    private boolean initialised;
+
+    // One init's parameters, committed to the fields only once the native init accepts them.
+    private static final class InitParams
+    {
+        private final byte[] iv;
+        private final byte[] custom;
+        private final int requestedLen;
+
+        InitParams(byte[] iv, byte[] custom, int requestedLen)
+        {
+            this.iv = iv;
+            this.custom = custom;
+            this.requestedLen = requestedLen;
+        }
+    }
 
     public MacServiceSPI(String macName, String function)
     {
@@ -100,7 +106,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     // verbatim so the clone shares the memoized MAC length of its source.
     //
     private MacServiceSPI(MacServiceNI macServiceNI, String macName, String cacheKey, MacReference ref,
-                          byte[] custom, int requestedLen)
+                          byte[] custom, int requestedLen, boolean initialised)
     {
         this.macServiceNI = macServiceNI;
         this.macName = macName;
@@ -112,6 +118,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         // buffer wrongly.
         this.custom = Arrays.clone(custom);
         this.requestedLen = requestedLen;
+        this.initialised = initialised;
     }
 
     public MacServiceSPI(MacServiceNI macServiceNI, String macName, String function)
@@ -125,8 +132,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     }
 
     /**
-     * Validate this init's parameter spec, record the per-init KMAC state, and
-     * return the IV — or null when this MAC takes none.
+     * Validate this init's parameter spec and return its IV and KMAC parameters, changing no field.
      *
      * <p>GMAC inherits GCM's variable-length nonce — 1, 8, 11, 12, 13, 16 and 32
      * bytes are all accepted by mainline and by both FIPS modules, and only 0 is
@@ -146,7 +152,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
      * algorithm's own length — which is also what BouncyCastle's KMAC does
      * with a null spec, so the two agree by default as well as by parameter.
      */
-    private byte[] resolveParams(AlgorithmParameterSpec params)
+    private InitParams resolveParams(AlgorithmParameterSpec params)
             throws InvalidAlgorithmParameterException
     {
         if (isKmac(macName))
@@ -170,15 +176,8 @@ public class MacServiceSPI extends MacSpi implements Cloneable
                 bits = kmacSpec.getMacSizeInBits();
             }
 
-            // Assigned only once nothing above can throw, so a rejected spec
-            // leaves the previous init's parameters untouched.
-            custom = s;
-            requestedLen = bits / 8;
-            return null;
+            return new InitParams(null, s, bits / 8);
         }
-
-        custom = null;
-        requestedLen = 0;
 
         if (!GMAC.equals(macName))
         {
@@ -186,7 +185,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
             {
                 throw new InvalidAlgorithmParameterException("params not supported");
             }
-            return null;
+            return new InitParams(null, null, 0);
         }
 
         if (params == null)
@@ -197,7 +196,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
 
         if (params instanceof IvParameterSpec)
         {
-            return ((IvParameterSpec) params).getIV();
+            return new InitParams(((IvParameterSpec) params).getIV(), null, 0);
         }
 
         if (params instanceof GCMParameterSpec)
@@ -209,7 +208,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
                 throw new InvalidAlgorithmParameterException(
                         macName + " tag length is fixed at " + tagBits + " bits, got " + gcmSpec.getTLen());
             }
-            return gcmSpec.getIV();
+            return new InitParams(gcmSpec.getIV(), null, 0);
         }
 
         throw new InvalidAlgorithmParameterException(
@@ -265,7 +264,7 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         // Spec first: java-spi.md requires getEncoded() to come AFTER any
         // validation that can throw, so a rejected init never leaves an
         // uncleared copy of the key on the heap.
-        byte[] iv = resolveParams(params);
+        InitParams p = resolveParams(params);
 
         if (key == null)
         {
@@ -283,9 +282,15 @@ public class MacServiceSPI extends MacSpi implements Cloneable
             throw new InvalidKeyException("key encoding is null");
         }
 
+        boolean accepted = false;
+        boolean kept = false;
         try
         {
-            macServiceNI.engineInit(ref.getReference(), keyBytes, iv, custom, requestedLen);
+            int rc = macServiceNI.ni_init(ref.getReference(), keyBytes, p.iv, p.custom, p.requestedLen);
+            // A reused GMAC nonce is refused before native changes anything, so this instance keeps its state too.
+            kept = rc == ErrorCode.JO_MAC_NONCE_REUSED.getCode();
+            macServiceNI.handleInitErrors(rc);
+            accepted = true;
         }
         catch (OpenSSLException e)
         {
@@ -295,11 +300,14 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         }
         finally
         {
-            // Scrub the plaintext key once OpenSSL has copied it into the
-            // EVP_MAC ctx (java-spi.md "Zeroize the byte[] from
-            // key.getEncoded()"). keyBytes is a fresh SecretKeySpec copy and is
-            // non-null (guarded above). Matters most for Poly1305's one-time key.
+            // keyBytes is a fresh copy, so clearing it cannot change the caller's key.
             Arrays.clear(keyBytes);
+            if (!kept)
+            {
+                custom = accepted ? p.custom : null;
+                requestedLen = accepted ? p.requestedLen : 0;
+                initialised = accepted;
+            }
             Reference.reachabilityFence(this);
         }
     }
@@ -309,7 +317,9 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     {
         try
         {
-            macServiceNI.engineUpdate(ref.getReference(), input);
+            int rc = macServiceNI.ni_updateByte(ref.getReference(), input);
+        refuseIfSpent(rc);
+        macServiceNI.handleErrors(rc);
         }
         finally
         {
@@ -322,7 +332,9 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     {
         try
         {
-            macServiceNI.engineUpdate(ref.getReference(), input, offset, len);
+            int rc = macServiceNI.ni_updateBytes(ref.getReference(), input, offset, len);
+        refuseIfSpent(rc);
+        macServiceNI.handleErrors(rc);
         }
         finally
         {
@@ -342,7 +354,9 @@ public class MacServiceSPI extends MacSpi implements Cloneable
             // next update absorb into finalized state (wrong-but-consistent).
             try
             {
-                written = macServiceNI.doFinal(ref.getReference(), out, 0);
+                int rc = macServiceNI.ni_doFinal(ref.getReference(), out, 0);
+            refuseIfSpent(rc);
+            written = (int) macServiceNI.handleErrors(rc);
             }
             finally
             {
@@ -366,7 +380,11 @@ public class MacServiceSPI extends MacSpi implements Cloneable
     {
         try
         {
-            macServiceNI.reset(ref.getReference());
+            // Nothing to reset before an accepted init; BC and SunJCE accept the call too.
+            if (initialised)
+            {
+                macServiceNI.reset(ref.getReference());
+            }
         }
         finally
         {
@@ -386,7 +404,8 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         {
             long clonedRef = macServiceNI.copyMac(ref.getReference());
             return new MacServiceSPI(macServiceNI, macName, cacheKey,
-                    new MacReference(macServiceNI, clonedRef, cacheKey), custom, requestedLen);
+                    new MacReference(macServiceNI, clonedRef, cacheKey), custom, requestedLen,
+                    initialised);
         }
         catch (RuntimeException e)
         {
