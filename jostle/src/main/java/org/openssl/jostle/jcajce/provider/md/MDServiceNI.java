@@ -105,8 +105,6 @@ public interface MDServiceNI extends DefaultServiceNI
                 throw new IllegalStateException("md init failed");
             case JO_MD_DIGEST_LEN_INT_OVERFLOW:
                 throw new IllegalStateException("digest len overflow");
-            case JO_MD_SET_PARAM_FAIL:
-                throw new IllegalStateException("md unable to set param");
             case JO_MD_XOF_LEN_INVALID:
                 throw new IllegalArgumentException("xof length inconsistent with algorithm");
             case JO_MD_COPY_FAILED:
@@ -123,8 +121,8 @@ public interface MDServiceNI extends DefaultServiceNI
 
     /**
      * The digest's output length in bytes, asked of this library once per name.
-     * A digest the library cannot fetch throws as {@link #allocateDigest} does; a
-     * non-positive answer (an XOF) is returned and not cached.
+     * A digest the library cannot fetch, or an XOF (which needs an output length), throws as
+     * {@link #allocateDigest} does, and nothing is cached.
      */
     default int digestOutputLength(String opensslDigestName)
     {

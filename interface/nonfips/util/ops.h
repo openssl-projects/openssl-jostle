@@ -102,8 +102,11 @@ typedef enum jo_ledger_type {
 #define OPS_FAILED_ACCESS_8 is_ops_set(37) ||
 #define OPS_FAILED_ACCESS_9 is_ops_set(38) ||
 #define OPS_LEDGER_SKIP_FREE_1 is_ops_set(39) ||
+#define OPS_INT32_OVERFLOW_3 is_ops_set(40) ||
+#define OPS_INT32_OVERFLOW_4 is_ops_set(41) ||
+#define OPS_INT32_OVERFLOW_5 is_ops_set(42) ||
 
-#define OPS_MAX_TEST 40
+#define OPS_MAX_TEST 43
 
 // Per-flag offset macros. Pairs with OPS_OPENSSL_ERROR_N (same suffix).
 // Expansion includes the leading "+" so non-OPS builds drop entirely.
@@ -211,6 +214,9 @@ int ledger_get_destroyed(int type);
 #define OPS_FAILED_ACCESS_8
 #define OPS_FAILED_ACCESS_9
 #define OPS_LEDGER_SKIP_FREE_1
+#define OPS_INT32_OVERFLOW_3
+#define OPS_INT32_OVERFLOW_4
+#define OPS_INT32_OVERFLOW_5
 
 // Non-OPS: the ledger vanishes; the enum stays so call sites compile.
 #define JO_LEDGER_CREATED(t) ((void) 0)

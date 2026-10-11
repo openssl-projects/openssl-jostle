@@ -99,14 +99,13 @@ public class OpsCoverageParityTest
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 110;
+    static final int BASELINE_SIZE = 108;
 
     private static final Set<String> BASELINE = baseline();
 
     private static Set<String> baseline()
     {
         Set<String> s = new LinkedHashSet<String>();
-        add(s, "interface/fips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
         // The FIPS-tree upcall rows (rand_upcall_ffm.c and rand_upcall_jni.c) are unreachable by construction: the FIPS
         // lib ctx installs no bridge RAND, so nothing calls the upcall. The base attach-failure branch
         // (rand_upcall_jni.c, OPS_THREAD_ATTACH_1 on the detached path) is unreachable too, every draw running on an
@@ -198,7 +197,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_2");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_3");
         add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_4");
-        add(s, "interface/nonfips/ffm/md_ffm.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/nonfips/jni/dh_ni_jni.c", "OPS_FAILED_ACCESS_4");
         add(s, "interface/nonfips/jni/ec_ni_jni.c", "OPS_FAILED_ACCESS_3");
         add(s, "interface/nonfips/jni/ec_ni_jni.c", "OPS_FAILED_ACCESS_4");

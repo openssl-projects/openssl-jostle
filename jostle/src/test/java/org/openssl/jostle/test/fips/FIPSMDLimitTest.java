@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.md.MDCells;
 
 import java.security.SecureRandom;
 import java.util.Arrays;
@@ -343,59 +344,45 @@ public class FIPSMDLimitTest
     }
 
     @Test
-    public void reset_nullRef_isNoOp()
+    public void wrongKindRefusedBothWays()
     {
-        // The default reset(long) routes a null ref through ni_reset which
-        // returns JO_SUCCESS; no exception escapes.
-        mdNI.reset(0);
-    }
-
-    // ---------------------------------------------------------------------
-    // Null (0) md_ctx handle: every dereferencing entry point must return a
-    // typed JO_MD_CTX_IS_NULL rejection, not jo_assert-abort the JVM.
-    // dispose/reset deliberately no-op on null (see reset_nullRef_isNoOp).
-    // ---------------------------------------------------------------------
-
-    @Test
-    public void copyDigest_nullHandle_rejectedTyped()
-    {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> mdNI.copyDigest(0));
-        Assertions.assertEquals("md context is null", e.getMessage());
+        MDCells.wrongKindRefusedBothWays(mdNI, FIPSNISelector.BlockCipherNI, FIPSNISelector.CCMCipherNI);
     }
 
     @Test
-    public void updateByte_nullHandle_rejectedTyped()
+    public void nullHandleRefusedEverywhere()
     {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> mdNI.engineUpdate(0, (byte) 0x01));
-        Assertions.assertEquals("md context is null", e.getMessage());
+        MDCells.nullHandleRefusedEverywhere(mdNI);
     }
 
     @Test
-    public void updateBytes_nullHandle_rejectedTyped()
+    public void embeddedNulNameIsNotFound()
     {
-        // ctx is checked before the input/range checks, so a non-null input
-        // with a null handle still surfaces the handle rejection.
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> mdNI.engineUpdate(0, new byte[4], 0, 4));
-        Assertions.assertEquals("md context is null", e.getMessage());
+        MDCells.embeddedNulNameIsNotFound(mdNI);
     }
 
     @Test
-    public void getDigestOutputLen_nullHandle_rejectedTyped()
+    public void digestOutputLengthThrowsOnAnXofName()
     {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> mdNI.getDigestOutputLen(0));
-        Assertions.assertEquals("md context is null", e.getMessage());
+        MDCells.digestOutputLengthThrowsOnAnXofName(mdNI);
     }
 
     @Test
-    public void digest_nullHandle_rejectedTyped()
+    public void outputLongerThanTheDigestKeepsTheTail()
     {
-        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> mdNI.digest(0, new byte[32], 0, 32));
-        Assertions.assertEquals("md context is null", e.getMessage());
+        MDCells.outputLongerThanTheDigestKeepsTheTail(mdNI);
+    }
+
+    @Test
+    public void digestOrUpdateAfterDigestWithoutResetFails()
+    {
+        MDCells.digestOrUpdateAfterDigestWithoutResetFails(mdNI);
+    }
+
+    @Test
+    public void resetThenDigestGivesTheEmptyInputValue()
+    {
+        MDCells.resetThenDigestGivesTheEmptyInputValue(mdNI);
     }
 
     private void dispose(long ref)

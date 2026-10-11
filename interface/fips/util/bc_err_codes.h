@@ -120,7 +120,6 @@
 #define JO_MD_CREATE_FAILED -90
 #define JO_MD_INIT_FAILED -91
 #define JO_MD_DIGEST_LEN_INT_OVERFLOW -92
-#define JO_MD_SET_PARAM_FAIL -93
 #define JO_MAC_FUNCTION_IS_NULL -94
 #define JO_UNABLE_TO_ACCESS_FUNCTION -95
 
@@ -275,10 +274,7 @@
 
 /*
  * A caller-derived message-digest context handle (md_ctx) was null.
- * Returned typed by the md bridge entry points (copy / update /
- * digest / getDigestOutputLen) instead of asserting a value the NI
- * caller controls (a jo_assert reachable from the NI surface is a JVM
- * abort, not an error).
+ * Returned by every md bridge entry point that takes a handle.
  */
 #define JO_MD_CTX_IS_NULL -141
 
@@ -673,6 +669,8 @@
 #define JO_BLOCK_CIPHER_CTX_WRONG_KIND -193
 /* A handle that is not a ccm_ctx, or one already freed. */
 #define JO_CCM_CTX_WRONG_KIND -194
+/* A handle that is not an md_ctx, or one already freed. */
+#define JO_MD_CTX_WRONG_KIND -195
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module

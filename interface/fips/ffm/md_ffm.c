@@ -9,6 +9,7 @@
 
 #include "../util/md.h"
 #include <stdlib.h>
+#include <string.h>
 #include <openssl/evp.h>
 
 #include "types.h"
@@ -16,13 +17,17 @@
 #include "../util/ops.h"
 #include "../util/jo_assert.h"
 
-md_ctx *JoMD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err, int32_t err_len) {
-    /* err is jostle's own: a null or empty one is a broken invariant, so it
-     * aborts rather than being reported through the channel that is missing. */
+md_ctx *JoMD_Allocate(const char *digest_name, size_t name_len, int32_t xof_len, int32_t *err, int32_t err_len) {
+    /* err is jostle's own: a null or empty one is a broken invariant, so it aborts. */
     jo_assert(err != NULL);
     jo_assert(err_len >= 1);
     if (digest_name == NULL) {
         *err = JO_NAME_IS_NULL;
+        return NULL;
+    }
+    // name_len is the name's UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI.
+    if (name_len == 0 || strnlen(digest_name, name_len) != name_len) {
+        *err = JO_NAME_NOT_FOUND;
         return NULL;
     }
 
@@ -34,8 +39,9 @@ md_ctx *JoMD_Allocate(const char *digest_name, int32_t xof_len, int32_t *err, in
 md_ctx *JoMD_Copy(md_ctx *src, int32_t *err, int32_t err_len) {
     jo_assert(err != NULL);
     jo_assert(err_len >= 1);
-    if (src == NULL) {
-        *err = JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(src);
+    if (UNSUCCESSFUL(check_rc)) {
+        *err = check_rc;
         return NULL;
     }
 
@@ -43,22 +49,22 @@ md_ctx *JoMD_Copy(md_ctx *src, int32_t *err, int32_t err_len) {
 }
 
 void JoMD_Dispose(md_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
+    // md_ctx_destroy frees nothing on a NULL or wrong kind.
     md_ctx_destroy(ctx);
 }
 
 int32_t JoMD_UpdateByte(md_ctx *ctx, uint8_t data) {
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     return md_ctx_update(ctx, (uint8_t *) &data, 1);
 }
 
 int32_t JoMD_UpdateBytes(md_ctx *ctx, uint8_t *input, const size_t input_size, const int32_t in_off, const int32_t in_len) {
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     int32_t ret_code = JO_FAIL;
 
@@ -91,14 +97,15 @@ exit:
 }
 
 int32_t JoMD_GetDigestLen(md_ctx *ctx) {
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (ctx->digest_byte_length <= 0) {
         return JO_NOT_INITIALIZED;
     }
 
-    if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
+    if (OPS_INT32_OVERFLOW_4 ctx->digest_byte_length > INT32_MAX) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 
@@ -106,8 +113,9 @@ int32_t JoMD_GetDigestLen(md_ctx *ctx) {
 }
 
 int32_t JoMD_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off, int32_t out_len) {
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (output == NULL) {
@@ -115,7 +123,7 @@ int32_t JoMD_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t ou
         if (ctx->digest_byte_length <= 0) {
             return JO_NOT_INITIALIZED;
         }
-        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
+        if (OPS_INT32_OVERFLOW_5 ctx->digest_byte_length > INT32_MAX) {
             return JO_MD_DIGEST_LEN_INT_OVERFLOW;
         }
         return ctx->digest_byte_length;
@@ -153,9 +161,9 @@ int32_t JoMD_Digest(md_ctx *ctx, uint8_t *output, size_t output_size, int32_t ou
 
 
 int32_t JoMD_Reset(md_ctx *ctx) {
-    if (ctx == NULL) {
-        // Observed spurious resets from within the JVMs provider logic in the past.
-        return JO_SUCCESS;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     return md_ctx_reset(ctx);

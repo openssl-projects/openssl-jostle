@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
@@ -394,97 +395,46 @@ public void updateBytes_inputNull() throws Exception {
     }
 
 
-    //
-    // ni_reset / MD_Reset gracefully no-op on a null ref to tolerate spurious
-    // resets emitted by the JCE provider lifecycle. Pin that contract.
-    //
     @Test
-    public void reset_nullRef_isNoOp() throws Exception
+    public void wrongKindRefusedBothWays()
     {
-        // No exception should escape; the default reset(long) routes a null
-        // ref through ni_reset which returns JO_SUCCESS.
-        mdNI.reset(0);
-    }
-
-
-    //
-    // Every entry point that dereferences a caller-supplied md_ctx handle must
-    // reject a null (0) handle with a typed JO_MD_CTX_IS_NULL rejection
-    // (IllegalArgumentException "md context is null"), NOT a jo_assert that
-    // aborts the JVM. dispose/reset deliberately no-op on a null handle (see
-    // reset_nullRef_isNoOp) and are exempt. Runs on both JNI and FFM via the
-    // integrationTest25{JNI,FFM} tasks — both bridges must return the same code.
-    //
-    @Test
-    public void copyDigest_nullHandle_rejectedTyped() throws Exception
-    {
-        try
-        {
-            mdNI.copyDigest(0);
-            Assertions.fail("expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("md context is null", e.getMessage());
-        }
+        MDCells.wrongKindRefusedBothWays(mdNI, NISelector.BlockCipherNI, NISelector.CCMCipherNI);
     }
 
     @Test
-    public void updateByte_nullHandle_rejectedTyped() throws Exception
+    public void nullHandleRefusedEverywhere()
     {
-        try
-        {
-            mdNI.engineUpdate(0, (byte) 0x01);
-            Assertions.fail("expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("md context is null", e.getMessage());
-        }
+        MDCells.nullHandleRefusedEverywhere(mdNI);
     }
 
     @Test
-    public void updateBytes_nullHandle_rejectedTyped() throws Exception
+    public void embeddedNulNameIsNotFound()
     {
-        // ctx is checked before the input/range checks, so a non-null input
-        // with a null handle still surfaces the handle rejection.
-        try
-        {
-            mdNI.engineUpdate(0, new byte[4], 0, 4);
-            Assertions.fail("expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("md context is null", e.getMessage());
-        }
+        MDCells.embeddedNulNameIsNotFound(mdNI);
     }
 
     @Test
-    public void getDigestOutputLen_nullHandle_rejectedTyped() throws Exception
+    public void digestOutputLengthThrowsOnAnXofName()
     {
-        try
-        {
-            mdNI.getDigestOutputLen(0);
-            Assertions.fail("expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("md context is null", e.getMessage());
-        }
+        MDCells.digestOutputLengthThrowsOnAnXofName(mdNI);
     }
 
     @Test
-    public void digest_nullHandle_rejectedTyped() throws Exception
+    public void outputLongerThanTheDigestKeepsTheTail()
     {
-        try
-        {
-            mdNI.digest(0, new byte[32], 0, 32);
-            Assertions.fail("expected IllegalArgumentException");
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("md context is null", e.getMessage());
-        }
+        MDCells.outputLongerThanTheDigestKeepsTheTail(mdNI);
+    }
+
+    @Test
+    public void digestOrUpdateAfterDigestWithoutResetFails()
+    {
+        MDCells.digestOrUpdateAfterDigestWithoutResetFails(mdNI);
+    }
+
+    @Test
+    public void resetThenDigestGivesTheEmptyInputValue()
+    {
+        MDCells.resetThenDigestGivesTheEmptyInputValue(mdNI);
     }
 
 

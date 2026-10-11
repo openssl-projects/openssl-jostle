@@ -22,12 +22,9 @@
 #include "jo_assert.h"
 #include "rand/jostle_lib_ctx.h"
 
-/**
- * Largest XOF output this library will size a context for, in bytes.
- *
- * <p>Ours to choose: OpenSSL imposes no limit on XOF output length, so this is
- * an input we state rather than a fact we query. See md_ctx_create for why the
- * bound exists at all.
+/*
+ * Largest XOF output a context is sized for, in bytes. Ours to choose, OpenSSL imposes none; it sizes caller
+ * allocations.
  */
 #define MD_MAX_XOF_BYTES (16 * 1024 * 1024)
 
@@ -40,32 +37,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
         return NULL;
     }
 
-    // Reject mismatched xof_len up front so the NI surface can't enter a
-    // broken state where xof=0 but the algorithm is XOF (or vice versa).
-    //
-    // Two tightenings, 2026-09-02, both from the Java-8 NI-reachability review:
-    //
-    // 1. A NON-XOF digest now accepts ONLY 0. The old test was `xof_len > 0`,
-    //    so a NEGATIVE value slipped through as "not set" and was silently
-    //    ignored - measured: SHA2-256 with xof_len -1 returned a usable ctx. A
-    //    parameter that means nothing for this algorithm must be exactly its
-    //    null value; silently accepting a nonsense one is the acceptance smell.
-    //
-    // 2. An XOF's xof_len now has an UPPER BOUND. It becomes
-    //    digest_byte_length below and sizes every downstream output; measured,
-    //    SHAKE-256 accepted INT32_MAX and reported it from
-    //    ni_getDigestOutputLen. The C itself writes into the caller's buffer so
-    //    it allocates nothing, but any caller that sizes an allocation from
-    //    that number inherits it - including our own MDServiceSPI.engineDigest,
-    //    which does `new byte[getDigestOutputLen(...)]`. An allocation sized by
-    //    an untrusted length needs a stated bound, so here it is stated.
-    //
-    //    MD_MAX_XOF_BYTES is a value WE choose, not one OpenSSL defines - EVP
-    //    imposes no XOF output limit - so it is hard-coded deliberately rather
-    //    than queried. 16 MiB is far above any real use (the largest standard
-    //    XOF output in use is measured in hundreds of bytes) and far below a
-    //    length that turns a caller's buffer allocation into a denial of
-    //    service.
+    // A non-XOF digest takes exactly 0; an XOF takes 1..MD_MAX_XOF_BYTES.
     const int is_xof = EVP_MD_xof(md);
     if (is_xof) {
         if (xof_len <= 0 || xof_len > MD_MAX_XOF_BYTES) {
@@ -114,6 +86,7 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
 
     md_ctx *ctx = OPENSSL_zalloc(sizeof(md_ctx));
     jo_assert(ctx != NULL);
+    ctx->kind = MD_CTX_KIND;
     ctx->md_type = md;
     ctx->mdctx = mdctx;
 
@@ -132,8 +105,11 @@ md_ctx *md_ctx_create(const char *name, int xof_len, int *err) {
 }
 
 md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
-    // The bridge validates the source handle; util asserts it as an invariant.
-    jo_assert(src != NULL);
+    int32_t check_rc = md_ctx_check(src);
+    if (UNSUCCESSFUL(check_rc)) {
+        *err = check_rc;
+        return NULL;
+    }
     jo_assert(src->mdctx != NULL);
     jo_assert(src->md_type != NULL);
     ERR_clear_error();
@@ -162,6 +138,7 @@ md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
 
     md_ctx *ctx = OPENSSL_zalloc(sizeof(md_ctx));
     jo_assert(ctx != NULL);
+    ctx->kind = MD_CTX_KIND;
     ctx->md_type = src->md_type;
     ctx->mdctx = new_mdctx;
     ctx->digest_byte_length = src->digest_byte_length;
@@ -172,8 +149,19 @@ md_ctx *md_ctx_copy(const md_ctx *src, int *err) {
     return ctx;
 }
 
-void md_ctx_destroy(md_ctx *ctx) {
+int32_t md_ctx_check(const md_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_MD_CTX_IS_NULL;
+    }
+    if (ctx->kind != MD_CTX_KIND) {
+        return JO_MD_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+void md_ctx_destroy(md_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as an md_ctx corrupts it.
+    if (md_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     // Operations test only: skip the free so the ledger shows one md_ctx
@@ -189,13 +177,15 @@ void md_ctx_destroy(md_ctx *ctx) {
     if (ctx->md_type != NULL) {
         EVP_MD_free((EVP_MD *) ctx->md_type);
     }
+    ctx->kind = MD_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
-//     CRYPTO_THREAD_LOCAL local = CRYPTO_THREAD_get_current_id()
-
 int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(ctx->mdctx != NULL);
 
     // Bridges constrain `len` to int32, but md_ctx_update is exported. Guard
@@ -212,14 +202,17 @@ int32_t md_ctx_update(md_ctx *ctx, uint8_t *data, size_t len) {
 }
 
 int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(ctx->mdctx != NULL);
     ERR_clear_error();
 
     uint32_t ret_len = 0;
 
     if (ctx->xof != 0) {
-        if (OPS_OPENSSL_ERROR_1 1 != EVP_DigestFinalXOF(ctx->mdctx, digest, ctx->digest_byte_length)) {
+        if (OPS_OPENSSL_ERROR_4 1 != EVP_DigestFinalXOF(ctx->mdctx, digest, ctx->digest_byte_length)) {
             return JO_OPENSSL_ERROR;
         }
         ret_len = ctx->digest_byte_length;
@@ -237,7 +230,10 @@ int32_t md_ctx_finalize(md_ctx *ctx, uint8_t *digest) {
 }
 
 int32_t md_ctx_reset(md_ctx *ctx) {
-    jo_assert(ctx != NULL);
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
     jo_assert(ctx->mdctx != NULL);
     ERR_clear_error();
 

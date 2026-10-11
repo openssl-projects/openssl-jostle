@@ -214,6 +214,9 @@ public interface OperationsTestNI
         OPS_FAILED_ACCESS_8,
         OPS_FAILED_ACCESS_9,
         OPS_LEDGER_SKIP_FREE_1,
+        OPS_INT32_OVERFLOW_3,
+        OPS_INT32_OVERFLOW_4,
+        OPS_INT32_OVERFLOW_5,
     }
 
     /**

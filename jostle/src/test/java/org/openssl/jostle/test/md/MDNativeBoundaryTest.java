@@ -110,20 +110,11 @@ public class MDNativeBoundaryTest
         Assertions.assertTrue(failures.isEmpty(), "entry points not returning JO_MD_CTX_IS_NULL: " + failures);
     }
 
-    /**
-     * {@code ni_reset(0)} returns SUCCESS, and that asymmetry is DELIBERATE.
-     *
-     * <p>Quoting the reason from {@code md_jni.c} so it survives the next
-     * consistency sweep: <i>"Observed spurious resets from within the JVMs
-     * provider logic in the past."</i> Every sibling returns
-     * {@code JO_MD_CTX_IS_NULL} for a null context; this one must not, and I
-     * nearly "fixed" it into line before reading the comment.
-     */
+    /** Reset refuses a null context like every other entry; dispose of 0 frees nothing and returns. */
     @Test
-    public void resetOnANullContextDeliberatelySucceeds()
+    public void resetOnANullContextIsTyped()
     {
-        Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), NI.ni_reset(0L),
-                "ni_reset(0) is deliberately tolerant - see the rationale in md_jni.c");
+        Assertions.assertEquals(ErrorCode.JO_MD_CTX_IS_NULL.getCode(), NI.ni_reset(0L));
         NI.ni_dispose(0L);
     }
 

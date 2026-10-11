@@ -108,6 +108,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("handle is not a block cipher context");
             case JO_CCM_CTX_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not a CCM context");
+            case JO_MD_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not a digest context");
             case JO_FAILED_ACCESS_OUTPUT:
                 throw new AccessException("unable to access output array");
             case JO_FAILED_ACCESS_INPUT:

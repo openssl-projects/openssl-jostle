@@ -111,7 +111,6 @@ public enum ErrorCode
     JO_MD_CREATE_FAILED(-90),
     JO_MD_INIT_FAILED(-91),
     JO_MD_DIGEST_LEN_INT_OVERFLOW(-92),
-    JO_MD_SET_PARAM_FAIL(-93),
 
     JO_MAC_FUNCTION_IS_NULL(-94),
     JO_UNABLE_TO_ACCESS_FUNCTION(-95),
@@ -363,6 +362,8 @@ public enum ErrorCode
     JO_BLOCK_CIPHER_CTX_WRONG_KIND(-193),
     // A handle that is not a CCM context, or one already freed.
     JO_CCM_CTX_WRONG_KIND(-194),
+    // A handle that is not a digest context, or one already freed.
+    JO_MD_CTX_WRONG_KIND(-195),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

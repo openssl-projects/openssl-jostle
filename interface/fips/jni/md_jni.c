@@ -21,7 +21,7 @@
 /*
  * Class:     org_openssl_jostle_jcajce_provider_md_MDServiceJNI
  * Method:    ni_allocateDigest
- * Signature: (Ljava/lang/String;[I)J
+ * Signature: (Ljava/lang/String;I[I)J
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1allocateDigest
 (JNIEnv *env, jobject jo, jstring _digest, jint xof_len, jintArray _err) {
@@ -31,20 +31,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     md_ctx *md_ctx = NULL;
     const char *name = NULL;
 
-    //
-    // err is jostle's own: a null or empty one is a broken invariant, not
-    // caller data, so it aborts. The length is checked BEFORE the pointer is
-    // taken, because GetIntArrayElements on a zero-length array returns a
-    // valid pointer and the following store would corrupt memory.
-    //
+    // err is jostle's own: aborts if null or empty, checked before the pointer is taken.
     jo_assert(_err != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
-    //
-    // Different CAUSE - a JVM access or allocation failure, not caller data -
-    // but the identical consequence and the identical fix: the thing that
-    // failed IS the return channel, so JO_FAILED_ACCESS_* has nowhere to go.
-    //
+    // A JVM access failure: the return channel itself is missing.
     if (err == NULL) {
         return 0;
     }
@@ -84,27 +75,19 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_
     int32_t *err = NULL;
     md_ctx *new_ctx = NULL;
 
-    //
-    // err is jostle's own: a null or empty one is a broken invariant, not
-    // caller data, so it aborts. The length is checked BEFORE the pointer is
-    // taken, because GetIntArrayElements on a zero-length array returns a
-    // valid pointer and the following store would corrupt memory.
-    //
+    // err is jostle's own: aborts if null or empty, checked before the pointer is taken.
     jo_assert(_err != NULL);
     jo_assert((*env)->GetArrayLength(env, _err) >= 1);
     err = (*env)->GetIntArrayElements(env, _err, NULL);
-    //
-    // Different CAUSE - a JVM access or allocation failure, not caller data -
-    // but the identical consequence and the identical fix: the thing that
-    // failed IS the return channel, so JO_FAILED_ACCESS_* has nowhere to go.
-    //
+    // A JVM access failure: the return channel itself is missing.
     if (err == NULL) {
         return 0;
     }
 
     md_ctx *ctx = (md_ctx *) ref;
-    if (ctx == NULL) {
-        err[0] = JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        err[0] = check_rc;
         (*env)->ReleaseIntArrayElements(env, _err, err, 0);
         return (jlong) NULL;
     }
@@ -127,8 +110,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     int32_t ret_code = md_ctx_update(ctx, (uint8_t *) &data, 1);
@@ -146,8 +130,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     int32_t ret_code = JO_FAIL;
@@ -176,7 +161,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&input)) {
+    if (OPS_FAILED_ACCESS_2 !load_critical_ctx(&input)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -199,11 +184,8 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(env);
     UNUSED(o);
 
-    md_ctx *ctx = (md_ctx *) ref;
-    if (ctx == NULL) {
-        return;
-    }
-    md_ctx_destroy(ctx);
+    // md_ctx_destroy frees nothing on a NULL or wrong kind.
+    md_ctx_destroy((md_ctx *) ref);
 }
 
 /*
@@ -217,15 +199,16 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (ctx->digest_byte_length <= 0) {
         return JO_NOT_INITIALIZED;
     }
 
-    if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
+    if (OPS_INT32_OVERFLOW_2 ctx->digest_byte_length > INT32_MAX) {
         return JO_MD_DIGEST_LEN_INT_OVERFLOW;
     }
 
@@ -235,7 +218,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
 /*
  * Class:     org_openssl_jostle_jcajce_provider_md_MDServiceJNI
  * Method:    ni_digest
- * Signature: (J[B)I
+ * Signature: (J[BII)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_ni_1digest
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _output, jint out_off, jint out_len) {
@@ -243,8 +226,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_MD_CTX_IS_NULL;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (_output == NULL) {
@@ -252,7 +236,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
         if (ctx->digest_byte_length <= 0) {
             return JO_NOT_INITIALIZED;
         }
-        if (OPS_INT32_OVERFLOW_1 ctx->digest_byte_length > INT32_MAX) {
+        if (OPS_INT32_OVERFLOW_3 ctx->digest_byte_length > INT32_MAX) {
             return JO_MD_DIGEST_LEN_INT_OVERFLOW;
         }
         return (jint) ctx->digest_byte_length;
@@ -287,7 +271,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_critical_ctx(&output)) {
+    if (OPS_FAILED_ACCESS_3 !load_critical_ctx(&output)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -312,9 +296,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_md_MDServiceJNI_n
     UNUSED(jo);
 
     md_ctx *ctx = (md_ctx *) ref;
-    if (ctx == NULL) {
-        // Observed spurious resets from within the JVMs provider logic in the past.
-        return JO_SUCCESS;
+    int32_t check_rc = md_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     return md_ctx_reset(ctx);

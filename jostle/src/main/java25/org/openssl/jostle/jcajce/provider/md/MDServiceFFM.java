@@ -14,6 +14,8 @@ package org.openssl.jostle.jcajce.provider.md;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -76,6 +78,7 @@ public class MDServiceFFM implements MDServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS, // *md_dtx
                         ValueLayout.ADDRESS, // const char *name
+                        ValueLayout.JAVA_LONG, // size_t name_len
                         ValueLayout.JAVA_INT,// xof_len
                         ValueLayout.ADDRESS, // int *err
                         ValueLayout.JAVA_INT // err_len
@@ -147,11 +150,15 @@ public class MDServiceFFM implements MDServiceNI
     {
         try (var a = Arena.ofConfined())
         {
-            var nameSeg = name == null ? MemorySegment.NULL : a.allocateFrom(name);
+            // The name crosses as its UTF-8 bytes plus a terminator, with the byte count beside it; C checks it.
+            byte[] nameBytes = name == null ? null : name.getBytes(StandardCharsets.UTF_8);
+            var nameSeg = nameBytes == null ? MemorySegment.NULL
+                    : a.allocateFrom(ValueLayout.JAVA_BYTE, Arrays.copyOf(nameBytes, nameBytes.length + 1));
+            long nameLen = nameBytes == null ? 0 : nameBytes.length;
             // err is jostle's own: its null-ness and length travel down and C
             // asserts them, so nothing is checked here.
             var errSeg = err == null ? MemorySegment.NULL : MemorySegment.ofArray(err);
-            var ctxSeg = (MemorySegment) allocateDigestFuncHandle.invokeExact(nameSeg, xofLen, errSeg,
+            var ctxSeg = (MemorySegment) allocateDigestFuncHandle.invokeExact(nameSeg, nameLen, xofLen, errSeg,
                     err == null ? 0 : err.length);
             return ctxSeg.address();
         }
