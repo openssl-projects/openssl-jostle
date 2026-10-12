@@ -771,6 +771,12 @@ int32_t ec_make_private_from_components(key_spec *spec,
         goto exit;
     }
 
+    // A private scalar lies in [1, n-1]; leading zero bytes in the encoding are accepted.
+    if (BN_is_zero(scalar_bn) || BN_cmp(scalar_bn, EC_GROUP_get0_order(group)) >= 0) {
+        ret_code = JO_EC_SCALAR_OUT_OF_RANGE;
+        goto exit;
+    }
+
     pub_point = EC_POINT_new(group);
     bn_ctx = BN_CTX_new_ex(get_global_jostle_fips_ossl_lib_ctx());
     if (OPS_OPENSSL_ERROR_4 pub_point == NULL || bn_ctx == NULL) {
@@ -1004,20 +1010,34 @@ ec_ctx *ec_ctx_create(int32_t *err) {
     ec_ctx *ctx = (ec_ctx *) OPENSSL_zalloc(sizeof(ec_ctx));
     jo_assert(ctx != NULL);
 
+    ctx->kind = EC_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_EC_CTX);
     return ctx;
 }
 
 
+int32_t ec_ctx_check(const ec_ctx *ctx) {
+    if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (ctx->kind != EC_CTX_KIND) {
+        return JO_EC_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
 static void ec_ctx_clear_session(ec_ctx *ctx);
 
 void ec_ctx_destroy(ec_ctx *ctx) {
-    if (ctx == NULL) {
+    // Frees nothing on a wrong kind: freeing another object as an ec_ctx corrupts it.
+    if (ec_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_EC_CTX);
     ec_ctx_clear_session(ctx);
+    ctx->kind = EC_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -1113,6 +1133,19 @@ static int32_t ec_raw_append(ec_ctx *ctx, const uint8_t *in, size_t in_len) {
 }
 
 
+/* 1 when the lib ctx can fetch the digest; the failed fetch leaves nothing on the ERR queue. */
+static int ec_digest_fetchable(OSSL_LIB_CTX *libctx, const char *digest_name) {
+    ERR_set_mark();
+    EVP_MD *md = EVP_MD_fetch(libctx, digest_name, NULL);
+    ERR_pop_to_mark();
+    if (md == NULL) {
+        return 0;
+    }
+    EVP_MD_free(md);
+    return 1;
+}
+
+
 int32_t ec_ctx_init_sign(ec_ctx *ctx, const key_spec *key,
                          const char *digest_name,
                          void *rnd_src) {
@@ -1148,6 +1181,11 @@ int32_t ec_ctx_init_sign(ec_ctx *ctx, const key_spec *key,
         int32_t raw_ret = ec_raw_init(ctx, libctx, key->key, EC_OP_SIGN);
         rand_clear_java_srand_call();
         return raw_ret;
+    }
+
+    if (!ec_digest_fetchable(libctx, digest_name)) {
+        rand_clear_java_srand_call();
+        return JO_EC_DIGEST_NOT_SUPPORTED;
     }
 
     // Reuses OPS_OPENSSL_ERROR_3 / _4. Each test drives only one path.
@@ -1206,6 +1244,10 @@ int32_t ec_ctx_init_verify(ec_ctx *ctx, const key_spec *key,
     // Raw ECDSA ("NoneWithECDSA") verify path — buffer + EVP_PKEY_verify.
     if (strcmp(digest_name, "NONE") == 0) {
         return ec_raw_init(ctx, libctx, key->key, EC_OP_VERIFY);
+    }
+
+    if (!ec_digest_fetchable(libctx, digest_name)) {
+        return JO_EC_DIGEST_NOT_SUPPORTED;
     }
 
     // Reuses OPS_OPENSSL_ERROR_5 / _6. Each test drives only one path.
@@ -1477,20 +1519,34 @@ ec_kex_ctx *ec_kex_create(int32_t *err) {
     ec_kex_ctx *ctx = (ec_kex_ctx *) OPENSSL_zalloc(sizeof(ec_kex_ctx));
     jo_assert(ctx != NULL);
 
+    ctx->kind = EC_KEX_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_EC_KEX_CTX);
     return ctx;
 }
 
 
-void ec_kex_destroy(ec_kex_ctx *ctx) {
+int32_t ec_kex_check(const ec_kex_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
+    if (ctx->kind != EC_KEX_CTX_KIND) {
+        return JO_EC_KEX_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
+void ec_kex_destroy(ec_kex_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as an ec_kex_ctx corrupts it.
+    if (ec_kex_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_EC_KEX_CTX);
     if (ctx->pctx != NULL) {
         EVP_PKEY_CTX_free(ctx->pctx);
     }
+    ctx->kind = EC_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -1676,6 +1732,9 @@ int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
         return classify_ecdh_derive_failure(ctx->pctx,
                 JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(3091));
     }
+
+    // The secret is written: the next derive needs a fresh ec_kex_set_peer.
+    ctx->peer_set = 0;
 
     if (OPS_INT32_OVERFLOW_2 written > (size_t) INT32_MAX) {
         rand_clear_java_srand_call();

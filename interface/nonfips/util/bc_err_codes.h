@@ -686,6 +686,14 @@
 #define JO_KDF_ARGON2_OUTPUT_TOO_SHORT -201
 /* An Argon2 memory cost above the ceiling in kdf_memhard.h. */
 #define JO_KDF_ARGON2_MEMORY_TOO_LARGE -202
+/* An empty EC digest name, one with an embedded NUL, or one the library cannot fetch. */
+#define JO_EC_DIGEST_NOT_SUPPORTED -203
+/* A handle passed as an EC signer context that is not one. */
+#define JO_EC_CTX_WRONG_KIND -204
+/* A handle passed as an EC key-agreement context that is not one. */
+#define JO_EC_KEX_CTX_WRONG_KIND -205
+/* An EC private scalar of zero or at or above the group order. */
+#define JO_EC_SCALAR_OUT_OF_RANGE -206
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

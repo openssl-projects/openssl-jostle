@@ -236,7 +236,12 @@ int32_t ec_make_public_from_components(key_spec *spec,
 // Sign / verify session
 // =============================================================
 
+#define EC_CTX_KIND 0x45435301u       /* "ECS\1" */
+#define EC_KEX_CTX_KIND 0x45434B01u   /* "ECK\1" */
+#define EC_CTX_NONE 0u                /* what a freed ctx is left with; never a valid kind */
+
 typedef struct ec_ctx {
+    uint32_t kind;
     EVP_MD_CTX *digest_ctx;
     int opp;            // EC_OP_SIGN | EC_OP_VERIFY
     // Raw ECDSA ("NoneWithECDSA", digest name "NONE") session state: the
@@ -253,6 +258,14 @@ typedef struct ec_ctx {
 
 ec_ctx *ec_ctx_create(int32_t *err);
 
+/*
+ * JO_SIGNER_CTX_IS_NULL, JO_EC_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t ec_ctx_check(const ec_ctx *ctx);
+
+/*
+ * Frees nothing unless ec_ctx_check passes.
+ */
 void ec_ctx_destroy(ec_ctx *ctx);
 
 /*
@@ -309,6 +322,7 @@ int32_t ec_ctx_verify(ec_ctx *ctx, const uint8_t *sig, size_t sig_len,
  * public key is bound via ec_kex_set_peer before ec_kex_derive can run.
  */
 typedef struct ec_kex_ctx {
+    uint32_t kind;
     EVP_PKEY_CTX *pctx;     // owned
     int peer_set;           // 0 until ec_kex_set_peer succeeds
 } ec_kex_ctx;
@@ -320,6 +334,14 @@ typedef struct ec_kex_ctx {
  */
 ec_kex_ctx *ec_kex_create(int32_t *err);
 
+/*
+ * JO_KEX_CTX_IS_NULL, JO_EC_KEX_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t ec_kex_check(const ec_kex_ctx *ctx);
+
+/*
+ * Frees nothing unless ec_kex_check passes.
+ */
 void ec_kex_destroy(ec_kex_ctx *ctx);
 
 /*
@@ -362,6 +384,8 @@ int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
  *
  *   rnd_src: RandSource for the same point-blinding entropy that
  *            ec_ctx_verify needs. Must be non-NULL.
+ *
+ * A derive that writes the secret clears the peer: the next derive needs ec_kex_set_peer again.
  */
 int32_t ec_kex_derive(ec_kex_ctx *ctx, uint8_t *out, size_t out_len,
                       void *rnd_src);

@@ -24,6 +24,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -86,18 +87,20 @@ public class ECServiceFFM implements ECServiceNI
      */
     public ECServiceFFM(SymbolLookup lookup, String symPrefix)
     {
+        // Every name crosses as a NUL-terminated copy plus its UTF-8 byte count (see nameSeg).
         curveSupportedH = bind(lookup, symPrefix + "JoEC_curveSupported",
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
-        // JoEC_generateKeyPair(const char* curve_name, int32_t* err, void* rnd_src) -> key_spec*
+        // JoEC_generateKeyPair(const char* curve_name, size_t name_len, int32_t* err, void* rnd_src) -> key_spec*
         generateKeyPairH = bind(lookup, symPrefix + "JoEC_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // curve_name
+                        ValueLayout.JAVA_LONG,  // name_len
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        // JoEC_makePrivateFromComponents(curve_name, scalar, scalar_size,
+        // JoEC_makePrivateFromComponents(curve_name, name_len, scalar, scalar_size,
         //                                err_out, rnd_src) -> key_spec*
         // NON-critical: OpenSSL's public-key re-derivation makes a Java
         // RAND upcall during EVP_PKEY_fromdata, same rationale as verify
@@ -106,12 +109,13 @@ public class ECServiceFFM implements ECServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // curve_name
+                        ValueLayout.JAVA_LONG,  // name_len
                         ValueLayout.ADDRESS,    // scalar bytes
                         ValueLayout.JAVA_LONG,  // scalar_size
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
-        // JoEC_makePublicFromComponents(curve_name, point, point_size,
+        // JoEC_makePublicFromComponents(curve_name, name_len, point, point_size,
         //                               err_out, rnd_src) -> key_spec*
         // NON-critical: EVP_PKEY_public_check makes a Java RAND upcall
         // during its point-blinded scalar mul, same rationale as the
@@ -120,6 +124,7 @@ public class ECServiceFFM implements ECServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // curve_name
+                        ValueLayout.JAVA_LONG,  // name_len
                         ValueLayout.ADDRESS,    // point bytes
                         ValueLayout.JAVA_LONG,  // point_size
                         ValueLayout.ADDRESS,    // err out
@@ -135,7 +140,7 @@ public class ECServiceFFM implements ECServiceNI
                         ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        // JoEC_getCurveComponent(const char* name, int32_t comp, uint8_t* out, size_t out_len) -> int
+        // JoEC_getCurveComponent(const char* name, size_t name_len, int32_t comp, uint8_t* out, size_t out_len)
         // NOT critical: the name crosses as an arena segment and the output is
         // copied back, so there is no heap segment to pin. These are cached
         // per curve, so the copy is paid once.
@@ -143,6 +148,7 @@ public class ECServiceFFM implements ECServiceNI
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG));
@@ -169,21 +175,24 @@ public class ECServiceFFM implements ECServiceNI
                 lookup.find(symPrefix + "JoEC_disposeSigner").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
-        // JoEC_initSign(ec_ctx*, key_spec*, const char* digest, void* rnd_src) -> int
+        // JoEC_initSign(ec_ctx*, key_spec*, const char* digest, size_t digest_len, void* rnd_src) -> int
         initSignH = bind(lookup, symPrefix + "JoEC_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
                         ValueLayout.ADDRESS));
 
+        // JoEC_initVerify(ec_ctx*, key_spec*, const char* digest, size_t digest_len) -> int
         initVerifyH = bind(lookup, symPrefix + "JoEC_initVerify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS));
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG));
 
         // JoEC_update(ec_ctx*, uint8_t* in, size_t in_size, int32_t off, int32_t len) -> int
         updateH = bind(lookup, symPrefix + "JoEC_update",
@@ -296,18 +305,73 @@ public class ECServiceFFM implements ECServiceNI
         }
     }
 
-    /** Allocate a NUL-terminated UTF-8 C string in the arena, or NULL. */
-    private static MemorySegment nativeString(Arena a, String s)
+    /**
+     * Copy an input array into the confined arena: NULL for a null array, at least one byte for an empty one so
+     * the C can tell null from empty. The true length crosses separately (see {@link #len(byte[])}).
+     */
+    private static MemorySegment copyIn(Arena a, byte[] src)
     {
-        if (s == null)
+        if (src == null)
         {
             return MemorySegment.NULL;
         }
-        byte[] utf8 = s.getBytes(StandardCharsets.UTF_8);
-        MemorySegment seg = a.allocate(utf8.length + 1);
-        seg.asByteBuffer().put(utf8);
-        seg.set(ValueLayout.JAVA_BYTE, utf8.length, (byte) 0);
+        MemorySegment seg = a.allocate(src.length == 0 ? 1L : src.length);
+        if (src.length > 0)
+        {
+            MemorySegment.copy(src, 0, seg, ValueLayout.JAVA_BYTE, 0L, src.length);
+        }
         return seg;
+    }
+
+    /** Zero-filled output segment, at least one byte so a non-null caller buffer has a non-NULL address. */
+    private static MemorySegment outSeg(Arena a, byte[] out)
+    {
+        if (out == null)
+        {
+            return MemorySegment.NULL;
+        }
+        return a.allocate(out.length == 0 ? 1L : out.length);
+    }
+
+    private static long len(byte[] a)
+    {
+        return a == null ? 0L : a.length;
+    }
+
+    /** A name as its UTF-8 bytes, or null; the C takes a NUL-terminated copy plus this count. */
+    private static byte[] utf8(String name)
+    {
+        return name == null ? null : name.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static MemorySegment nameSeg(Arena a, byte[] utf8)
+    {
+        return utf8 == null ? MemorySegment.NULL
+                : a.allocateFrom(ValueLayout.JAVA_BYTE, Arrays.copyOf(utf8, utf8.length + 1));
+    }
+
+    /** Fills each non-NULL segment with zero. */
+    private static void zero(MemorySegment... segs)
+    {
+        for (MemorySegment seg : segs)
+        {
+            if (seg.address() != 0)
+            {
+                seg.fill((byte) 0);
+            }
+        }
+    }
+
+    /**
+     * Copy rc bytes written at off back to the caller. A positive rc with no room at off is a size query, not a
+     * write, so nothing is copied then; a negative rc wrote nothing.
+     */
+    private static void copyOutBack(int rc, MemorySegment output, byte[] out, int off)
+    {
+        if (out != null && rc > 0 && off >= 0 && off < out.length && rc <= out.length - off)
+        {
+            MemorySegment.copy(output, ValueLayout.JAVA_BYTE, off, out, off, rc);
+        }
     }
 
 
@@ -316,7 +380,8 @@ public class ECServiceFFM implements ECServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            return (int) curveSupportedH.invokeExact(nativeString(a, curveName));
+            byte[] name = utf8(curveName);
+            return (int) curveSupportedH.invokeExact(nameSeg(a, name), len(name));
         }
         catch (Throwable t)
         {
@@ -331,8 +396,9 @@ public class ECServiceFFM implements ECServiceNI
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            byte[] name = utf8(curveName);
             MemorySegment ref = (MemorySegment) generateKeyPairH.invokeExact(
-                    nativeString(a, curveName), errSeg, entropyStub(a, rndSource));
+                    nameSeg(a, name), len(name), errSeg, entropyStub(a, rndSource));
             err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
             return ref.address();
         }
@@ -350,39 +416,21 @@ public class ECServiceFFM implements ECServiceNI
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
-            // The handle is non-critical (entropy upcall must run)
-            // so heap segments aren't legal — copy the scalar into a
-            // confined-arena native segment.
-            MemorySegment scalarSeg;
-            long scalarSize;
-            if (scalarBE == null)
-            {
-                scalarSeg = MemorySegment.NULL;
-                scalarSize = 0L;
-            }
-            else
-            {
-                scalarSeg = a.allocate(scalarBE.length);
-                scalarSeg.asByteBuffer().put(scalarBE);
-                scalarSize = scalarBE.length;
-            }
+            byte[] name = utf8(curveName);
+            // Non-critical handle (the entropy upcall must run), so the scalar is copied into the arena.
+            MemorySegment scalarSeg = copyIn(a, scalarBE);
             try
             {
                 MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
-                        nativeString(a, curveName), scalarSeg, scalarSize,
+                        nameSeg(a, name), len(name), scalarSeg, len(scalarBE),
                         errSeg, entropyStub(a, rndSource));
                 err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
                 return ref.address();
             }
             finally
             {
-                // Arena.close() frees but does NOT cleanse — scrub the private
-                // scalar from the off-heap segment before release (KSServiceFFM
-                // precedent).
-                if (scalarSeg.byteSize() > 0)
-                {
-                    scalarSeg.fill((byte) 0);
-                }
+                // Arena.close() frees but does not cleanse: scrub the private scalar first.
+                zero(scalarSeg);
             }
         }
         catch (Throwable t)
@@ -399,26 +447,11 @@ public class ECServiceFFM implements ECServiceNI
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
-            // The handle is non-critical (entropy upcall must run)
-            // so heap segments aren't legal — copy the point into a
-            // confined-arena native segment.
-            MemorySegment pointSeg;
-            long pointSize;
-            if (pointUncompressed == null)
-            {
-                pointSeg = MemorySegment.NULL;
-                pointSize = 0L;
-            }
-            else
-            {
-                pointSeg = a.allocate(pointUncompressed.length);
-                pointSeg.asByteBuffer().put(pointUncompressed);
-                pointSize = pointUncompressed.length;
-            }
-            // No scrub on close: the point is public, unlike the private
-            // scalar above.
+            byte[] name = utf8(curveName);
+            // Non-critical handle (the entropy upcall must run), so the point is copied into the arena; it is
+            // public, so no scrub.
             MemorySegment ref = (MemorySegment) makePublicFromComponentsH.invokeExact(
-                    nativeString(a, curveName), pointSeg, pointSize,
+                    nameSeg(a, name), len(name), copyIn(a, pointUncompressed), len(pointUncompressed),
                     errSeg, entropyStub(a, rndSource));
             err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
             return ref.address();
@@ -452,23 +485,12 @@ public class ECServiceFFM implements ECServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            // nativeString yields MemorySegment.NULL for a null name, so the
-            // refusal is C's: JoEC_getCurveComponent returns JO_NAME_IS_NULL.
-            MemorySegment name = nativeString(a, curveName);
-            if (out == null)
-            {
-                return (int) getCurveComponentH.invokeExact(
-                        name, component, MemorySegment.NULL, 0L);
-            }
-            MemorySegment outSeg = a.allocate(out.length);
-            int written = (int) getCurveComponentH.invokeExact(
-                    name, component, outSeg, (long) out.length);
-            if (written > 0)
-            {
-                MemorySegment.copy(outSeg, ValueLayout.JAVA_BYTE, 0,
-                        out, 0, written);
-            }
-            return written;
+            byte[] name = utf8(curveName);
+            MemorySegment outSeg = outSeg(a, out);
+            int rc = (int) getCurveComponentH.invokeExact(nameSeg(a, name), len(name), component, outSeg, len(out));
+            // A zero-length out is a size query: the C reports the length and writes nothing.
+            copyOutBack(rc, outSeg, out, 0);
+            return rc;
         }
         catch (Throwable t)
         {
@@ -482,49 +504,22 @@ public class ECServiceFFM implements ECServiceNI
                                 byte[] gx, byte[] gy, byte[] order,
                                 byte[] cofactor, byte[] out)
     {
-        byte[][] inputs = {p, a, b, gx, gy, order, cofactor};
         try (Arena arena = Arena.ofConfined())
         {
-            // Copied into the arena rather than passed as heap segments: a
-            // zero-length input is legitimate here (a == 0 on secp256k1) and
-            // MemorySegment.ofArray on an empty array is a valid but
-            // non-dereferenceable segment, so the C side would receive a
-            // pointer it must not treat as null. A null input travels as
-            // MemorySegment.NULL, which is what JoEC_findCurveName refuses
-            // with JO_INPUT_IS_NULL, in this same order.
-            MemorySegment[] segs = new MemorySegment[inputs.length];
-            long[] lens = new long[inputs.length];
-            for (int i = 0; i < inputs.length; i++)
-            {
-                if (inputs[i] == null)
-                {
-                    segs[i] = MemorySegment.NULL;
-                    continue;
-                }
-                segs[i] = arena.allocate(Math.max(1, inputs[i].length));
-                MemorySegment.copy(inputs[i], 0, segs[i],
-                        ValueLayout.JAVA_BYTE, 0, inputs[i].length);
-                lens[i] = inputs[i].length;
-            }
-            MemorySegment outSeg = out == null
-                    ? MemorySegment.NULL
-                    : arena.allocate(Math.max(1, out.length));
-            long outLen = out == null ? 0L : out.length;
-
+            // copyIn gives an empty input (a == 0 on secp256k1) a one-byte segment and a null input NULL, which
+            // JoEC_findCurveName refuses with JO_INPUT_IS_NULL.
+            MemorySegment outSeg = outSeg(arena, out);
             int written = (int) findCurveNameH.invokeExact(fieldType,
-                    segs[0], lens[0],
-                    segs[1], lens[1],
-                    segs[2], lens[2],
-                    segs[3], lens[3],
-                    segs[4], lens[4],
-                    segs[5], lens[5],
-                    segs[6], lens[6],
-                    outSeg, outLen);
-            if (out != null && written > 0)
-            {
-                MemorySegment.copy(outSeg, ValueLayout.JAVA_BYTE, 0,
-                        out, 0, written);
-            }
+                    copyIn(arena, p), len(p),
+                    copyIn(arena, a), len(a),
+                    copyIn(arena, b), len(b),
+                    copyIn(arena, gx), len(gx),
+                    copyIn(arena, gy), len(gy),
+                    copyIn(arena, order), len(order),
+                    copyIn(arena, cofactor), len(cofactor),
+                    outSeg, len(out));
+            // A zero-length out is a size query: the C reports the length and writes nothing.
+            copyOutBack(written, outSeg, out, 0);
             return written;
         }
         catch (Throwable t)
@@ -575,10 +570,11 @@ public class ECServiceFFM implements ECServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
+            byte[] digest = utf8(digestName);
             return (int) initSignH.invokeExact(
                     MemorySegment.ofAddress(ref),
                     MemorySegment.ofAddress(keyRef),
-                    nativeString(a, digestName),
+                    nameSeg(a, digest), len(digest),
                     entropyStub(a, rndSource));
         }
         catch (Throwable t)
@@ -593,10 +589,11 @@ public class ECServiceFFM implements ECServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
+            byte[] digest = utf8(digestName);
             return (int) initVerifyH.invokeExact(
                     MemorySegment.ofAddress(ref),
                     MemorySegment.ofAddress(keyRef),
-                    nativeString(a, digestName));
+                    nameSeg(a, digest), len(digest));
         }
         catch (Throwable t)
         {
@@ -627,28 +624,12 @@ public class ECServiceFFM implements ECServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            // sign uses a non-critical handle (entropy upcall must run);
-            // copy bytes through a native segment when needed.
-            MemorySegment sigSeg;
-            long sigSize;
-            if (sig == null)
-            {
-                sigSeg = MemorySegment.NULL;
-                sigSize = 0L;
-            }
-            else
-            {
-                sigSeg = a.allocate(sig.length);
-                sigSize = sig.length;
-            }
-            int rc = (int) signH.invokeExact(ctx, sigSeg, sigSize, outOff, entropyStub(a, rndSource));
-            // Copy the signature bytes back into the caller's array.
-            // Native side wrote `rc` bytes starting at outOff (when sig != null).
-            if (sig != null && rc > 0)
-            {
-                sigSeg.asByteBuffer().get(outOff, sig, outOff, rc);
-            }
+            // Non-critical handle (the entropy upcall must run): the signature is written into the arena and
+            // copied back. A signature is not secret, so no scrub.
+            MemorySegment sigSeg = outSeg(a, sig);
+            int rc = (int) signH.invokeExact(MemorySegment.ofAddress(ref), sigSeg, len(sig), outOff,
+                    entropyStub(a, rndSource));
+            copyOutBack(rc, sigSeg, sig, outOff);
             return rc;
         }
         catch (Throwable t)
@@ -663,24 +644,8 @@ public class ECServiceFFM implements ECServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            // Heap segments aren't legal across non-critical handles —
-            // copy the signature bytes into a confined-arena native
-            // segment for the call.
-            MemorySegment sigSeg;
-            long sigSize;
-            if (sig == null)
-            {
-                sigSeg = MemorySegment.NULL;
-                sigSize = 0L;
-            }
-            else
-            {
-                sigSeg = a.allocate(sig.length);
-                sigSeg.asByteBuffer().put(sig);
-                sigSize = sig.length;
-            }
-            return (int) verifyH.invokeExact(ctx, sigSeg, sigSize, sigLen,
+            // Non-critical handle (the entropy upcall must run), so the signature is copied into the arena.
+            return (int) verifyH.invokeExact(MemorySegment.ofAddress(ref), copyIn(a, sig), len(sig), sigLen,
                     entropyStub(a, rndSource));
         }
         catch (Throwable t)
@@ -765,45 +730,19 @@ public class ECServiceFFM implements ECServiceNI
     {
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            MemorySegment outSeg;
-            long outSize;
-            if (out == null)
-            {
-                outSeg = MemorySegment.NULL;
-                outSize = 0L;
-            }
-            else
-            {
-                outSeg = a.allocate(out.length);
-                outSize = out.length;
-            }
+            MemorySegment outSeg = outSeg(a, out);
             try
             {
-                int rc = (int) kexDeriveH.invokeExact(ctx, outSeg, outSize, outOff,
+                int rc = (int) kexDeriveH.invokeExact(MemorySegment.ofAddress(ref), outSeg, len(out), outOff,
                         entropyStub(a, rndSource));
-                // A positive rc with outOff == out.length is the size-query
-                // return (the C side treats out_len == 0 as "report the
-                // required length"), NOT a write — copying then would read
-                // past the segment and throw. Only copy back when the derive
-                // actually wrote, i.e. there was remaining capacity at outOff.
-                // Matches the JNI bridge, which returns the length without
-                // touching the array for the same inputs.
-                if (out != null && rc > 0 && outOff < out.length)
-                {
-                    outSeg.asByteBuffer().get(outOff, out, outOff, rc);
-                }
+                // outOff == out.length is a size query: the C reports the length and writes nothing.
+                copyOutBack(rc, outSeg, out, outOff);
                 return rc;
             }
             finally
             {
-                // Arena.close() frees but does NOT cleanse — scrub the derived
-                // shared secret from the off-heap segment before release
-                // (KSServiceFFM precedent).
-                if (outSeg.byteSize() > 0)
-                {
-                    outSeg.fill((byte) 0);
-                }
+                // Arena.close() frees but does not cleanse: scrub the shared secret first.
+                zero(outSeg);
             }
         }
         catch (Throwable t)

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.ec.ECKeyCells;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -1447,5 +1448,23 @@ public class FIPSECTest
                 JostleProvider.PROVIDER_NAME));
         jslVerify.update(hash);
         Assertions.assertTrue(jslVerify.verify(rawSig), "JSL did not verify a JSLFIPS raw signature");
+    }
+
+    @Test
+    public void cells_privateScalarOutsideTheOrderIsRefused() throws Exception
+    {
+        ECKeyCells.privateScalarOutsideTheOrderIsRefused(FIPS);
+    }
+
+    @Test
+    public void cells_keysDoNotSerialise() throws Exception
+    {
+        ECKeyCells.keysDoNotSerialise(FIPS);
+    }
+
+    @Test
+    public void cells_highSVerifies() throws Exception
+    {
+        ECKeyCells.highSVerifies(FIPS);
     }
 }

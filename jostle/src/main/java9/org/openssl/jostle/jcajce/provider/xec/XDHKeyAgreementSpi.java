@@ -198,6 +198,9 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
             int upper = ecServiceNI.kexDerive(ref.getReference(), null, 0, randSource);
             byte[] secret = new byte[upper];
             int actual = ecServiceNI.kexDerive(ref.getReference(), secret, 0, randSource);
+            // The derive consumed the peer: a further secret needs a new phase.
+            peerSet = false;
+            pinnedPeer = null;
             if (actual == secret.length)
             {
                 return secret;
@@ -246,7 +249,10 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                                 + " bytes from offset " + offset
                                 + ", have " + (sharedSecret.length - offset));
             }
-            return ecServiceNI.kexDerive(ref.getReference(), sharedSecret, offset, randSource);
+            int written = ecServiceNI.kexDerive(ref.getReference(), sharedSecret, offset, randSource);
+            peerSet = false;
+            pinnedPeer = null;
+            return written;
         }
         finally
         {

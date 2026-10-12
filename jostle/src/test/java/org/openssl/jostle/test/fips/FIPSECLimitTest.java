@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.ec.ECBridgeCells;
 
 import java.security.SecureRandom;
 
@@ -1156,5 +1157,39 @@ public class FIPSECLimitTest
         return out;
     }
 
+    @Test
+    public void bridge_unusableNamesAreRefused()
+    {
+        ECBridgeCells.unusableNamesAreRefused(ec, specNI);
+    }
 
+    @Test
+    public void bridge_zeroLengthOutputIsASizeQuery()
+    {
+        ECBridgeCells.zeroLengthOutputIsASizeQuery(ec);
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        ECBridgeCells.wrongKindHandlesAreRefused(ec, specNI);
+    }
+
+    @Test
+    public void bridge_privateScalarRange()
+    {
+        ECBridgeCells.privateScalarRange(ec, specNI);
+    }
+
+    @Test
+    public void bridge_deriveConsumesThePeer()
+    {
+        ECBridgeCells.deriveConsumesThePeer(ec, specNI);
+    }
+
+    @Test
+    public void bridge_invalidPublicPointsAreRefused()
+    {
+        ECBridgeCells.invalidPublicPointsAreRefused(ec, specNI);
+    }
 }

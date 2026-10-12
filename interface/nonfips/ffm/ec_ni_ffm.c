@@ -7,6 +7,7 @@
 
 
 #include <stdint.h>
+#include <string.h>
 #include <openssl/crypto.h>
 
 #include "../util/bc_err_codes.h"
@@ -16,15 +17,24 @@
 #include "types.h"
 
 
+/* name_len is the name's UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI. */
+static int ec_name_unusable(const char *name, size_t name_len) {
+    return name_len == 0 || strnlen(name, name_len) != name_len;
+}
+
+
 // =============================================================
 // Curve introspection
 // =============================================================
 
-int32_t JoEC_curveSupported(const char *curve_name) {
+int32_t JoEC_curveSupported(const char *curve_name, size_t name_len) {
     // Bridge surfaces a null name as a typed error code; the util
     // function asserts non-NULL as a bridge-validated invariant.
     if (curve_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (ec_name_unusable(curve_name, name_len)) {
+        return JO_CURVE_NOT_SUPPORTED;
     }
     return ec_curve_supported(curve_name);
 }
@@ -34,7 +44,7 @@ int32_t JoEC_curveSupported(const char *curve_name) {
 // Key generation
 // =============================================================
 
-key_spec *JoEC_generateKeyPair(const char *curve_name,
+key_spec *JoEC_generateKeyPair(const char *curve_name, size_t name_len,
                                int32_t *ret_val,
                                void *rnd_src) {
     jo_assert(ret_val != NULL);
@@ -46,6 +56,10 @@ key_spec *JoEC_generateKeyPair(const char *curve_name,
     }
     if (rnd_src == NULL) {
         *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
+    if (ec_name_unusable(curve_name, name_len)) {
+        *ret_val = JO_CURVE_NOT_SUPPORTED;
         return NULL;
     }
 
@@ -64,7 +78,7 @@ key_spec *JoEC_generateKeyPair(const char *curve_name,
 // Construct EVP_PKEY from raw private-key components
 // =============================================================
 
-key_spec *JoEC_makePrivateFromComponents(const char *curve_name,
+key_spec *JoEC_makePrivateFromComponents(const char *curve_name, size_t name_len,
                                          uint8_t *scalar, size_t scalar_size,
                                          int32_t *ret_val,
                                          void *rnd_src) {
@@ -81,6 +95,10 @@ key_spec *JoEC_makePrivateFromComponents(const char *curve_name,
     }
     if (rnd_src == NULL) {
         *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
+    if (ec_name_unusable(curve_name, name_len)) {
+        *ret_val = JO_CURVE_NOT_SUPPORTED;
         return NULL;
     }
     // Bridge validates scalar length so the util layer can trust the
@@ -108,7 +126,7 @@ key_spec *JoEC_makePrivateFromComponents(const char *curve_name,
 }
 
 
-key_spec *JoEC_makePublicFromComponents(const char *curve_name,
+key_spec *JoEC_makePublicFromComponents(const char *curve_name, size_t name_len,
                                         uint8_t *point, size_t point_size,
                                         int32_t *ret_val,
                                         void *rnd_src) {
@@ -125,6 +143,10 @@ key_spec *JoEC_makePublicFromComponents(const char *curve_name,
     }
     if (rnd_src == NULL) {
         *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
+    if (ec_name_unusable(curve_name, name_len)) {
+        *ret_val = JO_CURVE_NOT_SUPPORTED;
         return NULL;
     }
     // Bridge validates point length so the util layer can trust the
@@ -158,8 +180,9 @@ key_spec *JoEC_makePublicFromComponents(const char *curve_name,
 
 int32_t JoEC_getComponent(key_spec *spec, int32_t component,
                           uint8_t *out, size_t out_len) {
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t check_rc = key_spec_check(spec);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     return ec_get_component(spec, component, out, out_len);
 }
@@ -169,10 +192,13 @@ int32_t JoEC_getComponent(key_spec *spec, int32_t component,
 // Curve table lookup
 // =============================================================
 
-int32_t JoEC_getCurveComponent(const char *curve_name, int32_t component,
+int32_t JoEC_getCurveComponent(const char *curve_name, size_t name_len, int32_t component,
                                uint8_t *out, size_t out_len) {
     if (curve_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (ec_name_unusable(curve_name, name_len)) {
+        return JO_CURVE_NOT_SUPPORTED;
     }
     if (out_len > (size_t) INT32_MAX) {
         return JO_OUTPUT_TOO_LONG_INT32;
@@ -232,33 +258,43 @@ void JoEC_disposeSigner(ec_ctx *ctx) {
 }
 
 int32_t JoEC_initSign(ec_ctx *ctx, key_spec *key,
-                     const char *digest_name,
+                     const char *digest_name, size_t digest_len,
                      void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t check_rc = ec_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    check_rc = key_spec_check(key);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (digest_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (ec_name_unusable(digest_name, digest_len)) {
+        return JO_EC_DIGEST_NOT_SUPPORTED;
     }
     return ec_ctx_init_sign(ctx, key, digest_name, rnd_src);
 }
 
 int32_t JoEC_initVerify(ec_ctx *ctx, key_spec *key,
-                       const char *digest_name) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+                       const char *digest_name, size_t digest_len) {
+    int32_t check_rc = ec_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    check_rc = key_spec_check(key);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (digest_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (ec_name_unusable(digest_name, digest_len)) {
+        return JO_EC_DIGEST_NOT_SUPPORTED;
     }
     return ec_ctx_init_verify(ctx, key, digest_name);
 }
@@ -266,8 +302,9 @@ int32_t JoEC_initVerify(ec_ctx *ctx, key_spec *key,
 int32_t JoEC_update(ec_ctx *ctx,
                    uint8_t *input, size_t input_size,
                    int32_t in_off, int32_t in_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t check_rc = ec_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (input == NULL) {
         return JO_INPUT_IS_NULL;
@@ -289,8 +326,9 @@ int32_t JoEC_sign(ec_ctx *ctx,
                  uint8_t *output, size_t output_size,
                  int32_t out_off,
                  void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t check_rc = ec_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -314,8 +352,9 @@ int32_t JoEC_verify(ec_ctx *ctx,
                    uint8_t *sig, size_t sig_size,
                    int32_t sig_len,
                    void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t check_rc = ec_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -349,28 +388,32 @@ void JoEC_disposeKex(ec_kex_ctx *ctx) {
 }
 
 int32_t JoEC_kexInit(ec_kex_ctx *ctx, key_spec *my_priv, void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t check_rc = ec_kex_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
-    if (my_priv == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    check_rc = key_spec_check(my_priv);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     return ec_kex_init(ctx, my_priv, rnd_src);
 }
 
 int32_t JoEC_kexSetPeer(ec_kex_ctx *ctx, key_spec *peer_pub,
                         void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t check_rc = ec_kex_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
-    if (peer_pub == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    check_rc = key_spec_check(peer_pub);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     return ec_kex_set_peer(ctx, peer_pub, rnd_src);
 }
@@ -379,8 +422,9 @@ int32_t JoEC_kexDerive(ec_kex_ctx *ctx,
                        uint8_t *out, size_t out_size,
                        int32_t out_off,
                        void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t check_rc = ec_kex_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;

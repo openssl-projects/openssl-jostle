@@ -1654,4 +1654,40 @@ public class ECLimitTest
             TestNISelector.getSpecNI().dispose(ref);
         }
     }
+
+    @Test
+    public void bridge_unusableNamesAreRefused()
+    {
+        ECBridgeCells.unusableNamesAreRefused(ec, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_zeroLengthOutputIsASizeQuery()
+    {
+        ECBridgeCells.zeroLengthOutputIsASizeQuery(ec);
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        ECBridgeCells.wrongKindHandlesAreRefused(ec, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_privateScalarRange()
+    {
+        ECBridgeCells.privateScalarRange(ec, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_deriveConsumesThePeer()
+    {
+        ECBridgeCells.deriveConsumesThePeer(ec, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_invalidPublicPointsAreRefused()
+    {
+        ECBridgeCells.invalidPublicPointsAreRefused(ec, TestNISelector.getSpecNI());
+    }
 }

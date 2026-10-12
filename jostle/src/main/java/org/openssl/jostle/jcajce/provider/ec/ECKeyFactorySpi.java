@@ -213,6 +213,11 @@ public class ECKeyFactorySpi extends KeyFactorySpi
             PKEYKeySpec pkSpec = new PKEYKeySpec(specNI, ref, OSSLKeyType.EC, providerInstance);
             return new JOECPrivateKey(ecServiceNI, asn1NI, pkSpec);
         }
+        catch (IllegalArgumentException e)
+        {
+            // A typed native refusal of the scalar, chiefly one outside [1, n-1].
+            throw new InvalidKeySpecException(e.getMessage(), e);
+        }
         catch (RuntimeException e)
         {
             // A native rejection of the scalar (e.g. d == 0 / point at

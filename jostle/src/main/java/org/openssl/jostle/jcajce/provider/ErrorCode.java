@@ -378,6 +378,14 @@ public enum ErrorCode
     JO_KDF_ARGON2_OUTPUT_TOO_SHORT(-201),
     // An Argon2 memory cost above the native ceiling.
     JO_KDF_ARGON2_MEMORY_TOO_LARGE(-202),
+    // An empty EC digest name, one with an embedded NUL, or one the library cannot fetch.
+    JO_EC_DIGEST_NOT_SUPPORTED(-203),
+    // A handle passed as an EC signer context that is not one.
+    JO_EC_CTX_WRONG_KIND(-204),
+    // A handle passed as an EC key-agreement context that is not one.
+    JO_EC_KEX_CTX_WRONG_KIND(-205),
+    // An EC private scalar of zero or at or above the group order.
+    JO_EC_SCALAR_OUT_OF_RANGE(-206),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

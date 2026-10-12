@@ -1246,4 +1246,22 @@ public class ECTest
         KeyFactory kf = KeyFactory.getInstance("EC", JostleProvider.PROVIDER_NAME);
         Assertions.assertThrows(InvalidKeySpecException.class, () -> kf.generatePublic(spec));
     }
+
+    @Test
+    public void cells_privateScalarOutsideTheOrderIsRefused() throws Exception
+    {
+        ECKeyCells.privateScalarOutsideTheOrderIsRefused(JostleProvider.PROVIDER_NAME);
+    }
+
+    @Test
+    public void cells_keysDoNotSerialise() throws Exception
+    {
+        ECKeyCells.keysDoNotSerialise(JostleProvider.PROVIDER_NAME);
+    }
+
+    @Test
+    public void cells_highSVerifies() throws Exception
+    {
+        ECKeyCells.highSVerifies(JostleProvider.PROVIDER_NAME);
+    }
 }
