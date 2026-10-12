@@ -32,6 +32,9 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
  */
 public interface MemoryHardKdfNI extends DefaultServiceNI
 {
+    /** The Argon2 memory ceiling in KiB the bridges refuse above; equal to JO_ARGON2_MAX_MEMORY_KIB in C. */
+    int ARGON2_MAX_MEMORY_KIB = 4 * 1024 * 1024;
+
     int scrypt(byte[] password, byte[] salt, int n, int r, int p, byte[] out, int outOffset, int outLen);
 
     /**
@@ -71,6 +74,12 @@ public interface MemoryHardKdfNI extends DefaultServiceNI
                 throw new IllegalArgumentException("lanes is less than 1");
             case JO_KDF_ARGON2_MEMORY_TOO_SMALL:
                 throw new IllegalArgumentException("memory is less than 8*lanes KiB");
+            case JO_KDF_ARGON2_MEMORY_TOO_LARGE:
+                throw new IllegalArgumentException("memory exceeds the ceiling of " + ARGON2_MAX_MEMORY_KIB + " KiB");
+            case JO_KDF_ARGON2_SALT_TOO_SHORT:
+                throw new IllegalArgumentException("salt is shorter than 8 bytes");
+            case JO_KDF_ARGON2_OUTPUT_TOO_SHORT:
+                throw new IllegalArgumentException("output is shorter than 4 bytes");
             default:
         }
         return baseErrorHandler(code);

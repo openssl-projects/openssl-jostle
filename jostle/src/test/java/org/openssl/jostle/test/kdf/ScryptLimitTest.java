@@ -15,7 +15,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.CryptoServicesRegistrar;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
@@ -274,7 +276,7 @@ public class ScryptLimitTest
     {
         // Positive companion to the past-end probes: offset + len == size is
         // exactly in range, proving the boundary sits past the end (not one
-        // byte earlier). A real derive since EVP_KDF_derive rejects keylen == 0.
+        // byte earlier). A real derive, since the bridge refuses a zero length.
         int code = kdfNI.scrypt(new byte[1], new byte[1], 2, 8, 1, new byte[42], 10, 32);
         Assertions.assertEquals(0, code);
     }
@@ -288,5 +290,42 @@ public class ScryptLimitTest
         // under integrationTest25JNI and integrationTest25FFM for parity.
         int code = kdfNI.scrypt(new byte[0], new byte[1], 2, 8, 1, new byte[16], 0, 16);
         Assertions.assertEquals(0, code);
+    }
+
+    @Test
+    public void testSCRYPT_output_zero_length() throws Exception
+    {
+        Assertions.assertEquals(ErrorCode.JO_OUTPUT_LEN_IS_ZERO.getCode(),
+                kdfNI.scrypt(new byte[1], new byte[1], 2, 8, 1, new byte[16], 16, 0));
+        try
+        {
+            kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 2, 8, 1, new byte[16], 0, 0));
+            Assertions.fail();
+        } catch (IllegalArgumentException iae)
+        {
+            Assertions.assertEquals("output len is zero", iae.getMessage());
+        }
+    }
+
+    @Test
+    public void testSCRYPT_output_zero_length_afterNullPassword() throws Exception
+    {
+        Assertions.assertEquals(ErrorCode.JO_KDF_PASSWORD_NULL.getCode(),
+                kdfNI.scrypt(null, new byte[1], 2, 8, 1, new byte[16], 0, 0));
+    }
+
+    @Test
+    public void testSCRYPT_memory_bound() throws Exception
+    {
+        // n 2^21 r 8 needs 2 GiB; OpenSSL refuses it against the stated bound before allocating.
+        try
+        {
+            kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 1 << 21, 8, 1, new byte[16], 0, 16));
+            Assertions.fail();
+        } catch (OpenSSLException e)
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        }
+        Assertions.assertEquals(0, kdfNI.scrypt(new byte[1], new byte[1], 1 << 14, 8, 1, new byte[16], 0, 16));
     }
 }

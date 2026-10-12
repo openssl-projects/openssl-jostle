@@ -14,6 +14,7 @@ package org.openssl.jostle.test.parity;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.jcajce.provider.OpenSSLNI;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
 
@@ -310,5 +311,21 @@ public class NativeConstantParityTest
         Integer cValue = c.get(name);
         Assertions.assertNotNull(cValue, name + " is not defined in x509.h");
         Assertions.assertEquals(cValue.intValue(), javaValue, name + " drifted between x509.h and X509NI");
+    }
+
+    /** The Argon2 memory ceiling the Java refusal message names is the one both bridges enforce. */
+    @Test
+    public void argon2MemoryCeilingMatchesTheHeader() throws Exception
+    {
+        Pattern define = Pattern.compile("^#define\\s+JO_ARGON2_MAX_MEMORY_KIB\\s+\\(([0-9 *]+)\\)\\s*$",
+                Pattern.MULTILINE);
+        Matcher m = define.matcher(read("interface/nonfips/util/kdf_memhard.h"));
+        Assertions.assertTrue(m.find(), "JO_ARGON2_MAX_MEMORY_KIB not found in kdf_memhard.h");
+        long value = 1;
+        for (String factor : m.group(1).split("\\*"))
+        {
+            value *= Long.parseLong(factor.trim());
+        }
+        Assertions.assertEquals(value, MemoryHardKdfNI.ARGON2_MAX_MEMORY_KIB);
     }
 }

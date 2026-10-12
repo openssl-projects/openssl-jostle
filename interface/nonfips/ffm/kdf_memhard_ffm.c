@@ -6,14 +6,8 @@
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
 //
-// FFM bridge for the memory-hard password KDFs (scrypt, Argon2).
-//
-// Nonfips tree only, with no fips twin: the FIPS interface library deliberately
-// exports neither JoKDF_SCRYPT nor JoKDF_ARGON2. That is load-bearing, not
-// cosmetic - KdfFIPSFFM extends KdfNIFFM and inherits a constructor that
-// resolves every symbol with orElseThrow(), so binding these there would fail
-// the FIPS KDF NI at construction. See util/kdf_memhard.c for the FIPS
-// rationale.
+// FFM bridge for scrypt and Argon2, nonfips only. The FIPS library exports neither symbol: KdfFIPSFFM inherits a
+// constructor that resolves every KdfNIFFM symbol with orElseThrow, so these live on MemoryHardKdfNIFFM instead.
 //
 
 #include <stddef.h>
@@ -21,6 +15,32 @@
 #include "types.h"
 #include "../util/kdf_memhard.h"
 #include "../util/bc_err_codes.h"
+
+/* Output checks in the order kdf_check_output (kdf_ffm.c) uses, so the KDF family answers alike. */
+static int32_t memhard_check_output(uint8_t *output, size_t out_size, int32_t out_offset, int32_t out_len)
+{
+    if (output == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+
+    if (out_offset < 0) {
+        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
+    }
+
+    if (out_len < 0) {
+        return JO_OUTPUT_LEN_IS_NEGATIVE;
+    }
+
+    if (out_len == 0) {
+        return JO_OUTPUT_LEN_IS_ZERO;
+    }
+
+    if (!check_in_range(out_size, out_offset, out_len)) {
+        return JO_OUTPUT_OUT_OF_RANGE;
+    }
+
+    return JO_SUCCESS;
+}
 
 int32_t JoKDF_SCRYPT(
     uint8_t *passwd, size_t passwd_len,
@@ -33,79 +53,49 @@ int32_t JoKDF_SCRYPT(
     int32_t out_offset,
     int32_t out_len
 ) {
-    int32_t ret_code = JO_FAIL;
+    int32_t ret_code;
 
     if (passwd == NULL) {
-        ret_code = JO_KDF_PASSWORD_NULL;
-        goto exit;
+        return JO_KDF_PASSWORD_NULL;
     }
 
     if (salt == NULL) {
-        ret_code = JO_KDF_SALT_NULL;
-        goto exit;
+        return JO_KDF_SALT_NULL;
     }
 
     if (salt_len == 0) {
-        ret_code = JO_KDF_SALT_EMPTY;
-        goto exit;
+        return JO_KDF_SALT_EMPTY;
     }
 
     if (n < 2) {
-        ret_code = JO_KDF_SCRYPT_N_TOO_SMALL;
-        goto exit;
+        return JO_KDF_SCRYPT_N_TOO_SMALL;
     }
 
     if ((n & (n - 1)) != 0) {
-        ret_code = JO_KDF_SCRYPT_N_NOT_POW2;
-        goto exit;
+        return JO_KDF_SCRYPT_N_NOT_POW2;
     }
 
     if (r < 1) {
-        ret_code = JO_KDF_SCRYPT_R_TOO_SMALL;
-        goto exit;
+        return JO_KDF_SCRYPT_R_TOO_SMALL;
     }
 
     if (p < 1) {
-        ret_code = JO_KDF_SCRYPT_P_TOO_SMALL;
-        goto exit;
+        return JO_KDF_SCRYPT_P_TOO_SMALL;
     }
 
-    if (output == NULL) {
-        ret_code = JO_OUTPUT_IS_NULL;
-        goto exit;
+    ret_code = memhard_check_output(output, out_size, out_offset, out_len);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
 
-    if (out_offset < 0) {
-        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (out_len < 0) {
-        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
-        goto exit;
-    }
-
-    if (!check_in_range(out_size, out_offset, out_len)) {
-        ret_code = JO_OUTPUT_OUT_OF_RANGE;
-        goto exit;
-    }
-
-
-    uint8_t *out = output + out_offset;
-
-    ret_code = jo_scrypt(
+    return jo_scrypt(
         passwd, passwd_len,
         salt, salt_len,
-        n,
-        r,
-        p,
-        out, out_len);
-
-
-exit:
-    return ret_code;
+        (uint64_t) n,
+        (uint32_t) r,
+        (uint32_t) p,
+        output + out_offset, (size_t) out_len);
 }
-
 
 int32_t JoKDF_ARGON2(
     int32_t type,
@@ -120,75 +110,59 @@ int32_t JoKDF_ARGON2(
     int32_t out_offset,
     int32_t out_len
 ) {
-    int32_t ret_code = JO_FAIL;
+    int32_t ret_code;
 
     if (passwd == NULL) {
-        ret_code = JO_KDF_PASSWORD_NULL;
-        goto exit;
+        return JO_KDF_PASSWORD_NULL;
     }
 
     if (salt == NULL) {
-        ret_code = JO_KDF_SALT_NULL;
-        goto exit;
+        return JO_KDF_SALT_NULL;
     }
 
     if (salt_len == 0) {
-        ret_code = JO_KDF_SALT_EMPTY;
-        goto exit;
+        return JO_KDF_SALT_EMPTY;
+    }
+
+    if (salt_len < JO_ARGON2_MIN_SALT_LEN) {
+        return JO_KDF_ARGON2_SALT_TOO_SHORT;
     }
 
     if (type < 0 || type > 2) {
-        ret_code = JO_KDF_ARGON2_TYPE_INVALID;
-        goto exit;
+        return JO_KDF_ARGON2_TYPE_INVALID;
     }
 
     if (version != 0x10 && version != 0x13) {
-        ret_code = JO_KDF_ARGON2_VERSION_INVALID;
-        goto exit;
+        return JO_KDF_ARGON2_VERSION_INVALID;
     }
 
     if (iterations < 1) {
-        ret_code = JO_KDF_ARGON2_ITER_TOO_SMALL;
-        goto exit;
+        return JO_KDF_ARGON2_ITER_TOO_SMALL;
     }
 
     if (lanes < 1) {
-        ret_code = JO_KDF_ARGON2_LANES_TOO_SMALL;
-        goto exit;
+        return JO_KDF_ARGON2_LANES_TOO_SMALL;
     }
 
-    //
-    // RFC 9106 floor: 8 * lanes KiB. Compared in 64-bit so the multiply cannot
-    // overflow for lanes up to INT32_MAX.
-    //
+    // RFC 9106 floor: 8 * lanes KiB, compared in 64 bits so the multiply cannot overflow.
     if (memory_kib < 1 || (int64_t) memory_kib < (int64_t) 8 * (int64_t) lanes) {
-        ret_code = JO_KDF_ARGON2_MEMORY_TOO_SMALL;
-        goto exit;
+        return JO_KDF_ARGON2_MEMORY_TOO_SMALL;
     }
 
-    if (output == NULL) {
-        ret_code = JO_OUTPUT_IS_NULL;
-        goto exit;
+    if (memory_kib > JO_ARGON2_MAX_MEMORY_KIB) {
+        return JO_KDF_ARGON2_MEMORY_TOO_LARGE;
     }
 
-    if (out_offset < 0) {
-        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
+    ret_code = memhard_check_output(output, out_size, out_offset, out_len);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
 
-    if (out_len < 0) {
-        ret_code = JO_OUTPUT_LEN_IS_NEGATIVE;
-        goto exit;
+    if (out_len < JO_ARGON2_MIN_OUT_LEN) {
+        return JO_KDF_ARGON2_OUTPUT_TOO_SHORT;
     }
 
-    if (!check_in_range(out_size, out_offset, out_len)) {
-        ret_code = JO_OUTPUT_OUT_OF_RANGE;
-        goto exit;
-    }
-
-    uint8_t *out = output + out_offset;
-
-    ret_code = jo_argon2(
+    return jo_argon2(
         type,
         (uint32_t) version,
         passwd, passwd_len,
@@ -196,8 +170,5 @@ int32_t JoKDF_ARGON2(
         (uint32_t) iterations,
         (uint32_t) memory_kib,
         (uint32_t) lanes,
-        out, out_len);
-
-exit:
-    return ret_code;
+        output + out_offset, (size_t) out_len);
 }

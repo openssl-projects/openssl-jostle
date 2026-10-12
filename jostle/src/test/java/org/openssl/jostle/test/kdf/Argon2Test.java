@@ -16,11 +16,16 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf;
+import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.jcajce.spec.Argon2KeySpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.interfaces.PBEKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
@@ -309,8 +314,8 @@ public class Argon2Test
         InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
                 () -> factory.generateSecret(new Argon2KeySpec(
                         "password".toCharArray(), new byte[16], 2, Integer.MAX_VALUE, 2, 256)));
-        Assertions.assertTrue(e.getMessage().startsWith("memory must not exceed"),
-                "unexpected message: " + e.getMessage());
+        Assertions.assertEquals("memory exceeds the ceiling of " + MemoryHardKdfNI.ARGON2_MAX_MEMORY_KIB + " KiB",
+                e.getMessage());
     }
 
     /**
@@ -428,5 +433,66 @@ public class Argon2Test
             out[t] = (char) (bytes[t] & 0xFF);
         }
         return out;
+    }
+
+    /** translateKey refuses every key but this factory's own, so no parameter that produced a key is dropped. */
+    @Test
+    public void translateKey_refusesOtherKeys() throws Exception
+    {
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("ARGON2", JostleProvider.PROVIDER_NAME);
+        SecretKey jostlePbe = BytePasswordKdf.pbeKey("PBKDF2WithHmacSHA256", "password".toCharArray(), new byte[16],
+                1000, new byte[32]);
+        SecretKey[] others = {jostlePbe, new ForeignPbeKey(), new SecretKeySpec(new byte[16], "AES")};
+        for (SecretKey other : others)
+        {
+            InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> factory.translateKey(other));
+            Assertions.assertEquals("unsupported key type: " + other.getClass(), e.getMessage());
+        }
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class, () -> factory.translateKey(null));
+        Assertions.assertEquals("key parameter is null", e.getMessage());
+    }
+
+    /** A PBEKey from outside Jostle. */
+    private static final class ForeignPbeKey implements PBEKey
+    {
+        public char[] getPassword()
+        {
+            return "password".toCharArray();
+        }
+
+        public byte[] getSalt()
+        {
+            return new byte[16];
+        }
+
+        public int getIterationCount()
+        {
+            return 1000;
+        }
+
+        public String getAlgorithm()
+        {
+            return "PBKDF2WithHmacSHA256";
+        }
+
+        public String getFormat()
+        {
+            return "RAW";
+        }
+
+        public byte[] getEncoded()
+        {
+            return new byte[32];
+        }
+    }
+
+    @Test
+    public void nullPassword_rejectedTyped()
+    {
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> KDFAgreementTest.derive(JostleProvider.PROVIDER_NAME, "ARGON2",
+                        new Argon2KeySpec(null, new byte[16], 1, 8, 1, 256)));
+        Assertions.assertEquals("password is null", e.getMessage());
     }
 }

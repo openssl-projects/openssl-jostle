@@ -85,7 +85,7 @@ public class Argon2OpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf_memhard.c:147
+            // Exercises interface/nonfips/util/kdf_memhard.c:130
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             code = kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
                     new byte[32], 0, 32);
@@ -105,7 +105,7 @@ public class Argon2OpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf_memhard.c:154
+            // Exercises interface/nonfips/util/kdf_memhard.c:137
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             code = kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
                     new byte[32], 0, 32);
@@ -124,7 +124,7 @@ public class Argon2OpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf_memhard.c:170
+            // Exercises interface/nonfips/util/kdf_memhard.c:153
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             code = kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
                     new byte[32], 0, 32);
@@ -147,7 +147,7 @@ public class Argon2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:159
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:173
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
                     new byte[32], 0, 32));
@@ -170,7 +170,7 @@ public class Argon2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:169
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:183
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
                     new byte[32], 0, 32));
@@ -193,7 +193,7 @@ public class Argon2OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:213
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:234
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
                     new byte[32], 0, 32));
@@ -202,6 +202,79 @@ public class Argon2OpsTest
         catch (AccessException e)
         {
             Assertions.assertEquals("unable to access output array", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    /** JNI copies the password and the output through the cleansing helper on every outcome; FFM takes none. */
+    @Test
+    public void secretCopiesAreCleansed()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        int expected = Loader.isFFM() ? 0 : 2;
+        int[] outLen = {32, 3, 32};
+        int[] codes = {0, ErrorCode.JO_KDF_ARGON2_OUTPUT_TOO_SHORT.getCode(),
+                ErrorCode.JO_OPENSSL_ERROR.getCode() - 4001};
+        try
+        {
+            for (int i = 0; i != codes.length; i++)
+            {
+                if (i == 2)
+                {
+                    // Exercises interface/nonfips/util/kdf_memhard.c:153
+                    operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+                }
+                operationsTestNI.ledgerReset();
+                Assertions.assertEquals(codes[i], kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY,
+                        LANES, new byte[32], 0, outLen[i]));
+                for (OperationsTestNI.LedgerType t : new OperationsTestNI.LedgerType[]{
+                        OperationsTestNI.LedgerType.SECRET_BYTEARRAY, OperationsTestNI.LedgerType.SECRET_CLEANSE})
+                {
+                    Assertions.assertEquals(expected, operationsTestNI.ledgerCreated(t), "call " + i + " " + t);
+                    Assertions.assertEquals(expected, operationsTestNI.ledgerDestroyed(t), "call " + i + " " + t);
+                }
+            }
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    /** The caller's array changes only inside the window, and only when the derive succeeded. */
+    @Test
+    public void outputIsWrittenOnlyOnSuccess()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        byte[] reference = new byte[32];
+        Assertions.assertEquals(0, kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
+                reference, 0, 32));
+        int[] outLen = {32, 3, 32};
+        int[] codes = {0, ErrorCode.JO_KDF_ARGON2_OUTPUT_TOO_SHORT.getCode(),
+                ErrorCode.JO_OPENSSL_ERROR.getCode() - 4001};
+        try
+        {
+            for (int i = 0; i != codes.length; i++)
+            {
+                if (i == 2)
+                {
+                    // Exercises interface/nonfips/util/kdf_memhard.c:153
+                    operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+                }
+                byte[] out = new byte[64];
+                java.util.Arrays.fill(out, (byte) 0xAA);
+                byte[] expected = out.clone();
+                Assertions.assertEquals(codes[i], kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY,
+                        LANES, out, 8, outLen[i]));
+                if (codes[i] == 0)
+                {
+                    System.arraycopy(reference, 0, expected, 8, 32);
+                }
+                Assertions.assertArrayEquals(expected, out, "case " + i);
+            }
         }
         finally
         {

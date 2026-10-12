@@ -19,13 +19,20 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf;
 import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.Strings;
+import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
+import javax.crypto.interfaces.PBEKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.InvalidKeySpecException;
 
 public class ScryptTest
 {
@@ -166,4 +173,87 @@ public class ScryptTest
 
 
 
+
+    /** translateKey refuses every key but this factory's own, so no parameter that produced a key is dropped. */
+    @Test
+    public void translateKey_refusesOtherKeys() throws Exception
+    {
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("SCRYPT", JostleProvider.PROVIDER_NAME);
+        SecretKey jostlePbe = BytePasswordKdf.pbeKey("PBKDF2WithHmacSHA256", "password".toCharArray(), new byte[16],
+                1000, new byte[32]);
+        SecretKey[] others = {jostlePbe, new ForeignPbeKey(), new SecretKeySpec(new byte[16], "AES")};
+        for (SecretKey other : others)
+        {
+            InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> factory.translateKey(other));
+            Assertions.assertEquals("unsupported key type: " + other.getClass(), e.getMessage());
+        }
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class, () -> factory.translateKey(null));
+        Assertions.assertEquals("key parameter is null", e.getMessage());
+    }
+
+    /** A PBEKey from outside Jostle. */
+    private static final class ForeignPbeKey implements PBEKey
+    {
+        public char[] getPassword()
+        {
+            return "password".toCharArray();
+        }
+
+        public byte[] getSalt()
+        {
+            return new byte[16];
+        }
+
+        public int getIterationCount()
+        {
+            return 1000;
+        }
+
+        public String getAlgorithm()
+        {
+            return "PBKDF2WithHmacSHA256";
+        }
+
+        public String getFormat()
+        {
+            return "RAW";
+        }
+
+        public byte[] getEncoded()
+        {
+            return new byte[32];
+        }
+    }
+
+    @Test
+    public void nullPassword_rejectedTyped()
+    {
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> KDFAgreementTest.derive(JostleProvider.PROVIDER_NAME, "SCRYPT",
+                        new ScryptKeySpec(null, new byte[16], 16, 1, 1, 256)));
+        Assertions.assertEquals("password is null", e.getMessage());
+    }
+
+    /**
+     * RFC 7914 section 12 vectors 2 and 3 as known answers. Vector 1 has an empty salt, which the bridge refuses;
+     * the 1 GiB vector 4 is not run.
+     */
+    @Test
+    public void rfc7914Vectors() throws Exception
+    {
+        Assertions.assertArrayEquals(Hex.decode("fdbabe1c9d3472007856e7190d01e9fe7c6ad7cbc8237830e77376634b373162"
+                        + "2eaf30d92e22a3886ff109279d9830dac727afb94a83ee6d8360cbdfa2cc0640"),
+                KDFAgreementTest.derive(JostleProvider.PROVIDER_NAME, "SCRYPT", new ScryptKeySpec(
+                        "password".toCharArray(), Strings.toByteArray("NaCl"), 1024, 8, 16, 512)));
+        Assertions.assertArrayEquals(Hex.decode("7023bdcb3afd7348461c06cd81fd38ebfda8fbba904f8e3ea9b543f6545da1f2"
+                        + "d5432955613f0fcf62d49705242a9af9e61e85dc0d651e40dfcf017b45575887"),
+                KDFAgreementTest.derive(JostleProvider.PROVIDER_NAME, "SCRYPT", new ScryptKeySpec(
+                        "pleaseletmein".toCharArray(), Strings.toByteArray("SodiumChloride"), 16384, 8, 1, 512)));
+
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> KDFAgreementTest.derive(JostleProvider.PROVIDER_NAME, "SCRYPT",
+                        new ScryptKeySpec(new char[0], new byte[0], 16, 1, 1, 512)));
+        Assertions.assertEquals("salt is empty", e.getMessage());
+    }
 }

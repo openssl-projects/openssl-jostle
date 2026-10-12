@@ -15,6 +15,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* RFC 9106 floors on the Argon2 salt and output, refused typed at both bridges. */
+#define JO_ARGON2_MIN_SALT_LEN 8
+#define JO_ARGON2_MIN_OUT_LEN 4
+
+/* Argon2 memory cost ceiling in KiB, refused at both bridges before any allocation is requested. */
+#define JO_ARGON2_MAX_MEMORY_KIB (4 * 1024 * 1024)
+
+/* scrypt memory bound in bytes, passed as SCRYPT_MAXMEM so an OpenSSL default change cannot move it. */
+#define JO_SCRYPT_MAX_MEMORY_BYTES ((uint64_t) 1025 * 1024 * 1024)
+
 int32_t jo_scrypt(
     uint8_t *password, size_t password_len,
     uint8_t *salt, size_t salt_len,

@@ -8,15 +8,9 @@
 //
 // Memory-hard password KDFs: scrypt (RFC 7914) and Argon2 (RFC 9106).
 //
-// This file exists ONLY in the nonfips tree - it has no fips twin, and the
-// tree-parity audit sanctions that. Neither algorithm is served by the OpenSSL
-// FIPS provider (in 3.6.2 both build only into libdefault.a and neither appears
-// in fipsprov.c), and neither is registered by ProvFIPSKDF. Keeping their
-// bridges out of the FIPS interface library means that library contains no
-// glue, and exports no symbols, for algorithms outside the validated boundary.
-//
-// kdf.c holds the KDFs both providers serve (PBKDF2, HKDF) and remains a
-// byte-identical twin across the two trees.
+// Nonfips tree only: the FIPS provider serves neither, so the FIPS interface library carries no bridge and exports
+// no symbol for them, and the tree-parity audit sanctions the missing fips twin. kdf.c holds the five one-shot KDFs
+// both providers serve (PBKDF2, HKDF, KBKDF, SSKDF, SSHKDF).
 //
 
 #include "kdf_memhard.h"
@@ -49,6 +43,7 @@ int32_t jo_scrypt(
     int ret = JO_FAIL;
     EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *kctx = NULL;
+    uint64_t maxmem = JO_SCRYPT_MAX_MEMORY_BYTES;
 
     ERR_clear_error();
 
@@ -72,6 +67,7 @@ int32_t jo_scrypt(
         OSSL_PARAM_construct_uint64(OSSL_KDF_PARAM_SCRYPT_N, &n),
         OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_SCRYPT_R, &r),
         OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_SCRYPT_P, &p),
+        OSSL_PARAM_construct_uint64(OSSL_KDF_PARAM_SCRYPT_MAXMEM, &maxmem),
         OSSL_PARAM_END
     };
 
@@ -90,22 +86,9 @@ exit:
 }
 
 /*
- * Argon2 (RFC 9106). The KDF name is selected from the caller's type; the
- * bridge has already restricted it to {0,1,2}.
- *
- * Two parameters are pinned rather than left to OpenSSL's defaults:
- *
- *   version - set explicitly from the caller so the derived key is a
- *             function of stated inputs alone. A future OpenSSL default
- *             change must not silently alter output for existing callers.
- *
- *   threads - pinned to 1. Argon2 output depends on `lanes`, NOT on how many
- *             threads compute them, so a fixed thread count keeps derivation
- *             deterministic across machines while `lanes` still varies freely.
- *             It also avoids OSSL_set_max_threads on the shared lib ctx (a
- *             process-wide side effect), and sidesteps OpenSSL rejecting
- *             threads > lanes. Do not raise this without re-reading all three
- *             reasons.
+ * Argon2 (RFC 9106). The KDF name follows the caller's type, which the bridge restricts to {0,1,2}. The version is
+ * set from the caller so the output depends on stated inputs alone. Threads are pinned to 1: the output depends on
+ * lanes, not threads, and no process-wide max-threads setting is touched.
  */
 int32_t jo_argon2(
     int32_t type,

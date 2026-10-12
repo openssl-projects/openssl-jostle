@@ -15,7 +15,7 @@ import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 
 /**
- * The password/salt bridge rejections shared by every password-based KDF.
+ * The password, salt and zero-length output rejections shared by every KDF bridge.
  *
  * <p>{@link KdfNI} and {@link MemoryHardKdfNI} are deliberately separate
  * interfaces (see {@code MemoryHardKdfNI} for why), but both surface the same
@@ -30,7 +30,7 @@ final class KdfInputErrors
     }
 
     /**
-     * Throws the typed exception for a shared password/salt rejection, or
+     * Throws the typed exception for a shared input rejection, or
      * returns normally if {@code errorCode} is not one of them.
      */
     static void throwIfInputError(ErrorCode errorCode)
@@ -47,6 +47,8 @@ final class KdfInputErrors
                 throw new IllegalArgumentException("salt is null");
             case JO_KDF_SALT_EMPTY:
                 throw new IllegalArgumentException("salt is empty");
+            case JO_OUTPUT_LEN_IS_ZERO:
+                throw new IllegalArgumentException("output len is zero");
             default:
         }
     }

@@ -17,7 +17,6 @@ import org.openssl.jostle.util.Strings;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactorySpi;
-import javax.crypto.interfaces.PBEKey;
 import java.security.InvalidKeyException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
@@ -79,6 +78,11 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
             throw new InvalidKeySpecException("key length must be a multiple of 8 bits");
         }
 
+        if (password == null)
+        {
+            throw new InvalidKeySpecException("password is null");
+        }
+
         byte[] rawKey = new byte[keyLengthBits >> 3];
 
         // The UTF-8 password bytes and the derived key are secret material —
@@ -127,29 +131,12 @@ public class ScryptSecretKeyFactory extends SecretKeyFactorySpi
             throw new InvalidKeyException("key parameter is null");
         }
 
-        if (key instanceof PBEKey)
+        // Only this factory's own key carries every parameter that produced it; any other key would lose some.
+        if (key instanceof JOScryptKey)
         {
-            PBEKey pbeKey = (PBEKey) key;
-            // getPassword() and getEncoded() return fresh copies of secret
-            // material (PBEKey contract); JOPBEKey clones what it keeps, so
-            // scrub our transient copies once it has taken ownership.
-            char[] password = pbeKey.getPassword();
-            byte[] encoded = pbeKey.getEncoded();
-            try
-            {
-                return new JOPBEKey(key.getAlgorithm(), password, pbeKey.getSalt(), pbeKey.getIterationCount(), encoded);
-            }
-            finally
-            {
-                Arrays.clear(encoded);
-                if (password != null)
-                {
-                    Arrays.fill(password, (char) 0);
-                }
-            }
+            return key;
         }
 
         throw new InvalidKeyException("unsupported key type: " + key.getClass());
-
     }
 }

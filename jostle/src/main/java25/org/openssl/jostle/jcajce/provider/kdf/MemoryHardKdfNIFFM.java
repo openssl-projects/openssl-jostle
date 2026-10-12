@@ -30,7 +30,8 @@ import java.util.logging.Logger;
  * {@code Linker.Option.critical} heap segments for the same reason as
  * {@link KdfNIFFM}: both KDFs run for a caller-controlled duration (high cost
  * parameters take seconds by design), which is the worst case for pinning the
- * caller's arrays.</p>
+ * caller's arrays. Every copy and the output segment hold secret material, so each is filled with zero before
+ * the arena closes.</p>
  */
 public class MemoryHardKdfNIFFM implements MemoryHardKdfNI
 {
@@ -93,20 +94,27 @@ public class MemoryHardKdfNIFFM implements MemoryHardKdfNI
             MemorySegment saltSeg = copyIn(a, salt);
             MemorySegment output = outSeg(a, out);
 
-            int ret = (int) scryptFuncHandle.invokeExact(
-                    pwSeg, len(password),
-                    saltSeg, len(salt),
-                    n,
-                    r,
-                    p,
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
+            try
+            {
+                int ret = (int) scryptFuncHandle.invokeExact(
+                        pwSeg, len(password),
+                        saltSeg, len(salt),
+                        n,
+                        r,
+                        p,
+                        output,
+                        len(out),
+                        outOffset,
+                        outLen
+                );
 
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
+                copyOutBack(ret, output, out, outOffset, outLen);
+                return ret;
+            }
+            finally
+            {
+                zero(pwSeg, saltSeg, output);
+            }
         }
         catch (Throwable t)
         {
@@ -125,22 +133,29 @@ public class MemoryHardKdfNIFFM implements MemoryHardKdfNI
             MemorySegment saltSeg = copyIn(a, salt);
             MemorySegment output = outSeg(a, out);
 
-            int ret = (int) argon2FuncHandle.invokeExact(
-                    type,
-                    version,
-                    pwSeg, len(password),
-                    saltSeg, len(salt),
-                    iterations,
-                    memoryKiB,
-                    lanes,
-                    output,
-                    len(out),
-                    outOffset,
-                    outLen
-            );
+            try
+            {
+                int ret = (int) argon2FuncHandle.invokeExact(
+                        type,
+                        version,
+                        pwSeg, len(password),
+                        saltSeg, len(salt),
+                        iterations,
+                        memoryKiB,
+                        lanes,
+                        output,
+                        len(out),
+                        outOffset,
+                        outLen
+                );
 
-            copyOutBack(ret, output, out, outOffset, outLen);
-            return ret;
+                copyOutBack(ret, output, out, outOffset, outLen);
+                return ret;
+            }
+            finally
+            {
+                zero(pwSeg, saltSeg, output);
+            }
         }
         catch (Throwable t)
         {
@@ -181,6 +196,18 @@ public class MemoryHardKdfNIFFM implements MemoryHardKdfNI
             return MemorySegment.NULL;
         }
         return a.allocate(out.length == 0 ? 1L : out.length);
+    }
+
+    /** Fills each non-NULL segment with zero. */
+    private static void zero(MemorySegment... segs)
+    {
+        for (MemorySegment seg : segs)
+        {
+            if (seg.address() != 0)
+            {
+                seg.fill((byte) 0);
+            }
+        }
     }
 
     private static long len(byte[] a)

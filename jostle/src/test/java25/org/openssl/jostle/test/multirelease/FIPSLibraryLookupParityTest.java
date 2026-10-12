@@ -186,6 +186,32 @@ public class FIPSLibraryLookupParityTest
      * {@code find} returned empty for everything, the "base library exports the
      * unprefixed name" leg fails.
      */
+    /**
+     * The memory-hard KDFs are base-only: the FIPS interface library for the bridge in use exports neither entry
+     * point, while the base library exports both, so an absence cannot come from a lookup that finds nothing.
+     */
+    @Test
+    public void fipsLibraryExportsNoMemoryHardKdf()
+    {
+        Loader.load();
+        Loader.loadFipsInterface();
+        String fipsPath = Loader.getFipsInterfaceLibPath();
+        Assumptions.assumeTrue(fipsPath != null,
+                "FIPS interface library not extracted: " + Loader.getFipsMessage());
+
+        SymbolLookup fips = SymbolLookup.libraryLookup(Paths.get(fipsPath), Arena.global());
+        SymbolLookup base = SymbolLookup.loaderLookup();
+        String[] symbols = Loader.isFFM()
+                ? new String[]{"JoKDF_SCRYPT", "JoKDF_ARGON2"}
+                : new String[]{"Java_org_openssl_jostle_jcajce_provider_kdf_MemoryHardKdfNIJNI_scrypt",
+                        "Java_org_openssl_jostle_jcajce_provider_kdf_MemoryHardKdfNIJNI_argon2"};
+        for (String sym : symbols)
+        {
+            Assertions.assertTrue(base.find(sym).isPresent(), "base library does not export " + sym);
+            Assertions.assertFalse(fips.find(sym).isPresent(), fipsPath + " exports " + sym);
+        }
+    }
+
     @Test
     public void builtLibrariesHaveDisjointEntryPoints()
     {

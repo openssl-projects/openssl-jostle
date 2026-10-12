@@ -679,6 +679,12 @@
 #define JO_MAC_OUTPUT_LEN_INVALID -198
 /* A GMAC init repeating the key and nonce of the previous one. */
 #define JO_MAC_NONCE_REUSED -199
+/* An Argon2 salt shorter than the RFC 9106 minimum of 8 bytes. */
+#define JO_KDF_ARGON2_SALT_TOO_SHORT -200
+/* An Argon2 output shorter than the RFC 9106 minimum of 4 bytes. */
+#define JO_KDF_ARGON2_OUTPUT_TOO_SHORT -201
+/* An Argon2 memory cost above the ceiling in kdf_memhard.h. */
+#define JO_KDF_ARGON2_MEMORY_TOO_LARGE -202
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module

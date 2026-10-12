@@ -17,7 +17,6 @@ import org.openssl.jostle.util.Strings;
 
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactorySpi;
-import javax.crypto.interfaces.PBEKey;
 import java.security.InvalidKeyException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
@@ -33,15 +32,6 @@ import java.security.spec.KeySpec;
  */
 public class Argon2SecretKeyFactory extends SecretKeyFactorySpi
 {
-    /**
-     * Upper bound on the memory cost, rejected here rather than left to the
-     * native allocation: {@code memory} is kibibytes and a caller-controlled
-     * int, so anything approaching Integer.MAX_VALUE asks OpenSSL for terabytes.
-     * 4 GiB is far above any legitimate password-hashing configuration and
-     * still leaves the KiB→byte multiply well inside a 64-bit size_t.
-     */
-    private static final int MAX_MEMORY_KIB = 4 * 1024 * 1024;
-
     // Instance field, not a NISelector static (NISelector for JSL,
     // FIPSNISelector for JSLFIPS) — matches scrypt/PBKDF2/HKDF so the derive
     // runs on the injected NI's library rather than being structurally pinned
@@ -84,9 +74,10 @@ public class Argon2SecretKeyFactory extends SecretKeyFactorySpi
         {
             throw new InvalidKeySpecException("key length must be a multiple of 8 bits");
         }
-        if (spec.getMemory() > MAX_MEMORY_KIB)
+
+        if (password == null)
         {
-            throw new InvalidKeySpecException("memory must not exceed " + MAX_MEMORY_KIB + " KiB");
+            throw new InvalidKeySpecException("password is null");
         }
 
         byte[] rawKey = new byte[keyLengthBits >> 3];
@@ -148,26 +139,10 @@ public class Argon2SecretKeyFactory extends SecretKeyFactorySpi
             throw new InvalidKeyException("key parameter is null");
         }
 
-        if (key instanceof PBEKey)
+        // Only this factory's own key carries every parameter that produced it; any other key would lose some.
+        if (key instanceof JOArgon2Key)
         {
-            PBEKey pbeKey = (PBEKey) key;
-            // getPassword() and getEncoded() return fresh copies of secret
-            // material (PBEKey contract); JOPBEKey clones what it keeps, so
-            // scrub our transient copies once it has taken ownership.
-            char[] password = pbeKey.getPassword();
-            byte[] encoded = pbeKey.getEncoded();
-            try
-            {
-                return new JOPBEKey(key.getAlgorithm(), password, pbeKey.getSalt(), pbeKey.getIterationCount(), encoded);
-            }
-            finally
-            {
-                Arrays.clear(encoded);
-                if (password != null)
-                {
-                    Arrays.fill(password, (char) 0);
-                }
-            }
+            return key;
         }
 
         throw new InvalidKeyException("unsupported key type: " + key.getClass());

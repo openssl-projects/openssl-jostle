@@ -59,7 +59,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:46
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:83
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[0], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -79,7 +79,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:57
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:93
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[1], new byte[1], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -99,7 +99,7 @@ public class ScryptOpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
         try
         {
-            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:93
+            // Exercises interface/nonfips/jni/kdf_memhard_jni.c:128
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             kdfNI.handleErrorCodes(kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0));
             Assertions.fail();
@@ -119,9 +119,9 @@ public class ScryptOpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf_memhard.c:56
+            // Exercises interface/nonfips/util/kdf_memhard.c:51
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
+            code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[16], 0, 16);
             // -2 + (-1002) = -1004.
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1002, code);
         } finally
@@ -137,9 +137,9 @@ public class ScryptOpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf_memhard.c:64
+            // Exercises interface/nonfips/util/kdf_memhard.c:59
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
+            code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[16], 0, 16);
 
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1000, code);
         } finally
@@ -155,14 +155,62 @@ public class ScryptOpsTest
         int code;
         try
         {
-            // Exercises interface/nonfips/util/kdf_memhard.c:78
+            // Exercises interface/nonfips/util/kdf_memhard.c:74
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
-            code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[0], 0, 0);
+            code = kdfNI.scrypt(new byte[0], new byte[1], 2, 10, 10, new byte[16], 0, 16);
 
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1001, code);
         } finally
         {
             operationsTestNI.resetFlags();
+        }
+    }
+
+    /** JNI copies the password and the output through the cleansing helper on every outcome; FFM takes none. */
+    @Test
+    public void secretCopiesAreCleansed()
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        int expected = Loader.isFFM() ? 0 : 2;
+        int[][] nrp = {{16, 1, 1}, {16, 1, 1}, {1 << 16, 1, 1}};
+        int[] outLen = {32, 33, 32};
+        int[] codes = {0, ErrorCode.JO_OUTPUT_OUT_OF_RANGE.getCode(), ErrorCode.JO_OPENSSL_ERROR.getCode()};
+        for (int i = 0; i != codes.length; i++)
+        {
+            operationsTestNI.ledgerReset();
+            Assertions.assertEquals(codes[i],
+                    kdfNI.scrypt(new byte[8], new byte[16], nrp[i][0], nrp[i][1], nrp[i][2], new byte[32], 0,
+                            outLen[i]));
+            for (OperationsTestNI.LedgerType t : new OperationsTestNI.LedgerType[]{
+                    OperationsTestNI.LedgerType.SECRET_BYTEARRAY, OperationsTestNI.LedgerType.SECRET_CLEANSE})
+            {
+                Assertions.assertEquals(expected, operationsTestNI.ledgerCreated(t), "call " + i + " " + t);
+                Assertions.assertEquals(expected, operationsTestNI.ledgerDestroyed(t), "call " + i + " " + t);
+            }
+        }
+    }
+
+    /** The caller's array changes only inside the window, and only when the derive succeeded. */
+    @Test
+    public void outputIsWrittenOnlyOnSuccess()
+    {
+        byte[] reference = new byte[32];
+        Assertions.assertEquals(0, kdfNI.scrypt(new byte[8], new byte[16], 16, 1, 1, reference, 0, 32));
+        int[][] cases = {{16, 32}, {16, 57}, {1 << 16, 32}};
+        int[] codes = {0, ErrorCode.JO_OUTPUT_OUT_OF_RANGE.getCode(), ErrorCode.JO_OPENSSL_ERROR.getCode()};
+        for (int i = 0; i != codes.length; i++)
+        {
+            byte[] out = new byte[64];
+            java.util.Arrays.fill(out, (byte) 0xAA);
+            byte[] before = out.clone();
+            Assertions.assertEquals(codes[i],
+                    kdfNI.scrypt(new byte[8], new byte[16], cases[i][0], 1, 1, out, 8, cases[i][1]));
+            byte[] expected = before.clone();
+            if (codes[i] == 0)
+            {
+                System.arraycopy(reference, 0, expected, 8, 32);
+            }
+            Assertions.assertArrayEquals(expected, out, "case " + i);
         }
     }
 }

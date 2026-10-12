@@ -372,6 +372,12 @@ public enum ErrorCode
     JO_MAC_OUTPUT_LEN_INVALID(-198),
     // A GMAC init repeating the key and nonce of the previous one.
     JO_MAC_NONCE_REUSED(-199),
+    // An Argon2 salt shorter than the RFC 9106 minimum of 8 bytes.
+    JO_KDF_ARGON2_SALT_TOO_SHORT(-200),
+    // An Argon2 output shorter than the RFC 9106 minimum of 4 bytes.
+    JO_KDF_ARGON2_OUTPUT_TOO_SHORT(-201),
+    // An Argon2 memory cost above the native ceiling.
+    JO_KDF_ARGON2_MEMORY_TOO_LARGE(-202),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

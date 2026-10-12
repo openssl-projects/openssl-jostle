@@ -100,8 +100,6 @@ public interface KdfNI extends DefaultServiceNI
                 throw new IllegalArgumentException("session id is null");
             case JO_KDF_SSHKDF_SESSION_ID_FAILED_ACCESS:
                 throw new AccessException("unable to access session id array");
-            case JO_OUTPUT_LEN_IS_ZERO:
-                throw new IllegalArgumentException("output len is zero");
             case JO_KDF_SEED_FAILED_ACCESS:
                 throw new AccessException("unable to access seed array");
             default:

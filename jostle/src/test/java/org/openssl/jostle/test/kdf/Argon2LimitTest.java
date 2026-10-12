@@ -14,8 +14,8 @@ package org.openssl.jostle.test.kdf;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
@@ -301,28 +301,82 @@ public class Argon2LimitTest
                 "offset+len == buffer length must be accepted");
     }
 
-    /**
-     * Offset at exactly the buffer length with a zero length passes the
-     * bridge's range check (it is the degenerate "write nothing at the end"
-     * case) and is then rejected by OpenSSL itself: RFC 9106 requires a tag of
-     * at least 4 bytes, so a zero-length derive has no meaning. Pinned here
-     * because the distinction matters — the rejection is a real OpenSSL error
-     * surfaced typed, not a bridge range failure and not a crash. The queue
-     * text varies with OpenSSL version, so only the wrapper prefix is matched.
-     */
+    /** A zero-length output is refused typed at the bridge, as every KDF refuses it. */
     @Test
-    public void outputZeroLength_rejectedByOpenSsl()
+    public void outputZeroLength_rejectedTyped()
     {
-        try
+        Assertions.assertEquals(ErrorCode.JO_OUTPUT_LEN_IS_ZERO.getCode(),
+                kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES, new byte[32], 32, 0));
+        assertRejected(() -> argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
+                new byte[32], 0, 0), "output len is zero");
+    }
+
+    /** The password check comes before every output check. */
+    @Test
+    public void outputZeroLength_afterNullPassword()
+    {
+        Assertions.assertEquals(ErrorCode.JO_KDF_PASSWORD_NULL.getCode(),
+                kdfNI.argon2(null, new byte[16], TYPE, VERSION, ITER, MEMORY, LANES, new byte[32], 0, 0));
+    }
+
+    @Test
+    public void salt_belowEightBytes_rejectedTyped()
+    {
+        for (int len = 1; len < 8; len++)
         {
-            argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES, new byte[32], 32, 0);
-            Assertions.fail("expected OpenSSL to reject a zero-length Argon2 output");
+            Assertions.assertEquals(ErrorCode.JO_KDF_ARGON2_SALT_TOO_SHORT.getCode(),
+                    kdfNI.argon2(new byte[8], new byte[len], TYPE, VERSION, ITER, MEMORY, LANES, new byte[32], 0, 32),
+                    "salt length " + len);
         }
-        catch (OpenSSLException e)
+        assertRejected(() -> argon2(new byte[8], new byte[7], TYPE, VERSION, ITER, MEMORY, LANES,
+                new byte[32], 0, 32), "salt is shorter than 8 bytes");
+        Assertions.assertEquals(0,
+                argon2(new byte[8], new byte[8], TYPE, VERSION, ITER, MEMORY, LANES, new byte[32], 0, 32));
+    }
+
+    /** The salt floor comes before the type check. */
+    @Test
+    public void salt_belowEightBytes_beforeType()
+    {
+        Assertions.assertEquals(ErrorCode.JO_KDF_ARGON2_SALT_TOO_SHORT.getCode(),
+                kdfNI.argon2(new byte[8], new byte[7], 3, VERSION, ITER, MEMORY, LANES, new byte[32], 0, 32));
+    }
+
+    @Test
+    public void output_belowFourBytes_rejectedTyped()
+    {
+        for (int len = 1; len < 4; len++)
         {
-            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"),
-                    "unexpected message: " + e.getMessage());
+            Assertions.assertEquals(ErrorCode.JO_KDF_ARGON2_OUTPUT_TOO_SHORT.getCode(),
+                    kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES, new byte[32], 0, len),
+                    "output length " + len);
         }
+        assertRejected(() -> argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES,
+                new byte[32], 0, 3), "output is shorter than 4 bytes");
+        Assertions.assertEquals(0,
+                argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES, new byte[4], 0, 4));
+    }
+
+    /** The output floor comes after the range check. */
+    @Test
+    public void output_belowFourBytes_afterRange()
+    {
+        Assertions.assertEquals(ErrorCode.JO_OUTPUT_OUT_OF_RANGE.getCode(),
+                kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY, LANES, new byte[2], 0, 3));
+    }
+
+    @Test
+    public void memory_aboveCeiling_rejectedTyped()
+    {
+        // The bridge refuses before any allocation is requested.
+        int over = MemoryHardKdfNI.ARGON2_MAX_MEMORY_KIB + 1;
+        Assertions.assertEquals(ErrorCode.JO_KDF_ARGON2_MEMORY_TOO_LARGE.getCode(),
+                kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, over, LANES, new byte[32], 0, 32));
+        assertRejected(() -> argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, Integer.MAX_VALUE, LANES,
+                new byte[32], 0, 32),
+                "memory exceeds the ceiling of " + MemoryHardKdfNI.ARGON2_MAX_MEMORY_KIB + " KiB");
+        Assertions.assertEquals(0,
+                argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, 1 << 10, LANES, new byte[32], 0, 32));
     }
 
     /**
