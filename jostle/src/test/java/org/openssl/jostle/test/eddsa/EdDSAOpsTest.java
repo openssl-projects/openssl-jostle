@@ -18,6 +18,8 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
+import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
@@ -180,7 +182,7 @@ public class EdDSAOpsTest
             keyRef = edDSAServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/ed_jni.c:321
+            // Exercises interface/nonfips/jni/ed_jni.c:327
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             edDSAServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
@@ -253,7 +255,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:413
+            // Exercises interface/nonfips/util/edec.c:483
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = edDSAServiceNI.ni_initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1002, code); // OpenSSL error with offset
@@ -283,7 +285,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:434
+            // Exercises interface/nonfips/util/edec.c:504
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = edDSAServiceNI.ni_initSign(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(-1003, code); // OpenSSL error with offset
@@ -314,7 +316,7 @@ public class EdDSAOpsTest
             keyRef = edDSAServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
 
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/ed_jni.c:447
+            // Exercises interface/nonfips/jni/ed_jni.c:462
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             edDSAServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 1024);
@@ -350,7 +352,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:487
+            // Exercises interface/nonfips/util/edec.c:563
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             long code = edDSAServiceNI.ni_initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0);
             Assertions.assertEquals(-1005, code); // OpenSSL error with offset
@@ -380,7 +382,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
 
 
-            // Exercises interface/nonfips/util/edec.c:506
+            // Exercises interface/nonfips/util/edec.c:582
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             long code = edDSAServiceNI.ni_initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[1024], 0);
             Assertions.assertEquals(-1006, code); // OpenSSL error with offset
@@ -414,7 +416,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
             edDSAServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/jni/ed_jni.c:384
+            // Exercises interface/nonfips/jni/ed_jni.c:392
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             edDSAServiceNI.sign(eddsaRef, new byte[1], 0, TestUtil.RNDSrc);
 
@@ -450,7 +452,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
             edDSAServiceNI.initSign(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/edec.c:600
+            // Exercises interface/nonfips/util/edec.c:676
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             OpenSSL.getOpenSSLErrors(); // Purge any errors
             long len = edDSAServiceNI.sign(eddsaRef, null, 0, TestUtil.RNDSrc);
@@ -493,7 +495,7 @@ public class EdDSAOpsTest
             byte[] sig = new byte[(int) len];
 
             OpenSSL.getOpenSSLErrors(); // Purge any errors
-            // Exercises interface/nonfips/util/edec.c:624
+            // Exercises interface/nonfips/util/edec.c:700
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             edDSAServiceNI.sign(eddsaRef, sig, 0, TestUtil.RNDSrc);
 
@@ -534,7 +536,7 @@ public class EdDSAOpsTest
 
             byte[] sig = new byte[(int) len];
 
-            // Exercises interface/nonfips/util/edec.c:630
+            // Exercises interface/nonfips/util/edec.c:706
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_LEN_CHANGE_1);
             edDSAServiceNI.sign(eddsaRef, sig, 0, TestUtil.RNDSrc);
 
@@ -572,7 +574,7 @@ public class EdDSAOpsTest
             edDSAServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
             OpenSSL.getOpenSSLErrors(); // Purge any errors
-            // Exercises interface/nonfips/jni/ed_jni.c:512
+            // Exercises interface/nonfips/jni/ed_jni.c:527
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             edDSAServiceNI.verify(eddsaRef, new byte[1], 1);
 
@@ -609,7 +611,7 @@ public class EdDSAOpsTest
             Assertions.assertTrue(keyRef > 0);
             edDSAServiceNI.initVerify(eddsaRef, keyRef, "ED25519ctx", new byte[0], 0);
 
-            // Exercises interface/nonfips/util/edec.c:679
+            // Exercises interface/nonfips/util/edec.c:755
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             edDSAServiceNI.verify(eddsaRef, new byte[1], 1);
 
@@ -634,4 +636,395 @@ public class EdDSAOpsTest
         }
     }
 
+    // Cells for the fault sites below, one per site.
+
+    private final EDServiceNI ed = edDSAServiceNI;
+    private final OperationsTestNI ops = operationsTestNI;
+
+    private static final RandSource RND = TestUtil.RNDSrc;
+    private static final int ED25519 = OSSLKeyType.ED25519.getKsType();
+    private static final String NAME = OSSLKeyType.ED25519.getTypeName();
+    private static final int JO_OPENSSL_ERROR = ErrorCode.JO_OPENSSL_ERROR.getCode();
+    private static final int JO_OUTPUT_SIZE_INT_OVERFLOW = ErrorCode.JO_OUTPUT_SIZE_INT_OVERFLOW.getCode();
+    private static final int JO_OUTPUT_TOO_LONG_INT32 = ErrorCode.JO_OUTPUT_TOO_LONG_INT32.getCode();
+    private static final int JO_OUTPUT_TOO_SMALL = ErrorCode.JO_OUTPUT_TOO_SMALL.getCode();
+    private static final int JO_UNEXPECTED_SIG_LEN_CHANGE = ErrorCode.JO_UNEXPECTED_SIG_LEN_CHANGE.getCode();
+    private static final int JO_FAILED_ACCESS_INPUT = ErrorCode.JO_FAILED_ACCESS_INPUT.getCode();
+    private static final int JO_FAILED_ACCESS_OUTPUT = ErrorCode.JO_FAILED_ACCESS_OUTPUT.getCode();
+    private static final int JO_FAILED_ACCESS_CONTEXT = ErrorCode.JO_FAILED_ACCESS_CONTEXT.getCode();
+    private static final int JO_FAILED_ACCESS_SIG = ErrorCode.JO_FAILED_ACCESS_SIG.getCode();
+    private static final int JO_UNABLE_TO_ACCESS_NAME = ErrorCode.JO_UNABLE_TO_ACCESS_NAME.getCode();
+
+    /** The code a fault site with this offset returns. */
+    private static int errorAt(int offset)
+    {
+        return JO_OPENSSL_ERROR - offset;
+    }
+
+    @Test
+    public void site_getPublicKey_sizeQuery()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:111
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            Assertions.assertEquals(JO_OPENSSL_ERROR, ed.ni_getPublicKey(keyRef, null));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_getPublicKey_fill()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:128
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            Assertions.assertEquals(errorAt(1000), ed.ni_getPublicKey(keyRef, new byte[32]));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_getPublicKey_overflow()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:133
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            Assertions.assertEquals(JO_OUTPUT_SIZE_INT_OVERFLOW, ed.ni_getPublicKey(keyRef, new byte[32]));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_getPrivateKey_sizeQuery()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:161
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            Assertions.assertEquals(JO_OPENSSL_ERROR, ed.ni_getPrivateKey(keyRef, null));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_getPrivateKey_fill()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:177
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            byte[] out = new byte[32];
+            Assertions.assertEquals(errorAt(1000), ed.ni_getPrivateKey(keyRef, out));
+            Assertions.assertArrayEquals(new byte[32], out);
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_getPrivateKey_overflow()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:182
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            Assertions.assertEquals(JO_OUTPUT_SIZE_INT_OVERFLOW, ed.ni_getPrivateKey(keyRef, new byte[32]));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_decodePrivateKey_nullKey()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long src = ed.generateKeyPair(ED25519, RND);
+        byte[] publicBytes = new byte[32];
+        byte[] privateBytes = new byte[32];
+        ed.getPublicKey(src, publicBytes);
+        ed.getPrivateKey(src, privateBytes);
+        long target = specNI.allocate();
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:288
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            Assertions.assertEquals(JO_OPENSSL_ERROR, ed.ni_decode_privateKey(target, ED25519, privateBytes, 0, 32));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(target);
+            specNI.dispose(src);
+        }
+    }
+
+    @Test
+    public void site_decodePublicKey_nullKey()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long src = ed.generateKeyPair(ED25519, RND);
+        byte[] publicBytes = new byte[32];
+        byte[] privateBytes = new byte[32];
+        ed.getPublicKey(src, publicBytes);
+        ed.getPrivateKey(src, privateBytes);
+        long target = specNI.allocate();
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:365
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            Assertions.assertEquals(JO_OPENSSL_ERROR, ed.ni_decode_publicKey(target, ED25519, publicBytes, 0, 32));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(target);
+            specNI.dispose(src);
+        }
+    }
+
+    @Test
+    public void site_allocateSigner_bio()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:394
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            int[] err = new int[1];
+            Assertions.assertEquals(0L, ed.ni_allocateSigner(err));
+            Assertions.assertEquals(JO_OPENSSL_ERROR, err[0]);
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    @Test
+    public void site_sign_overflow()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        long sigRef = ed.allocateSigner();
+        ed.initSign(sigRef, keyRef, NAME, null, 0, RND);
+        ed.update(sigRef, new byte[8], 0, 8);
+        try
+        {
+            // Exercises interface/nonfips/util/edec.c:682
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
+            Assertions.assertEquals(JO_OUTPUT_TOO_LONG_INT32, ed.ni_sign(sigRef, null, 0, RND));
+        }
+        finally
+        {
+            ops.resetFlags();
+            ed.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_jni_decodePublicKey_access()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        long src = ed.generateKeyPair(ED25519, RND);
+        byte[] publicBytes = new byte[32];
+        byte[] privateBytes = new byte[32];
+        ed.getPublicKey(src, publicBytes);
+        ed.getPrivateKey(src, privateBytes);
+        long target = specNI.allocate();
+        try
+        {
+            // Exercises interface/nonfips/jni/ed_jni.c:114
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT,
+                    ed.ni_decode_publicKey(target, ED25519, publicBytes, 0, 32));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(target);
+            specNI.dispose(src);
+        }
+    }
+
+    @Test
+    public void site_jni_decodePrivateKey_access()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        long src = ed.generateKeyPair(ED25519, RND);
+        byte[] publicBytes = new byte[32];
+        byte[] privateBytes = new byte[32];
+        ed.getPublicKey(src, publicBytes);
+        ed.getPrivateKey(src, privateBytes);
+        long target = specNI.allocate();
+        try
+        {
+            // Exercises interface/nonfips/jni/ed_jni.c:173
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT,
+                    ed.ni_decode_privateKey(target, ED25519, privateBytes, 0, 32));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(target);
+            specNI.dispose(src);
+        }
+    }
+
+    @Test
+    public void site_jni_getPublicKey_access()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/jni/ed_jni.c:230
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, ed.ni_getPublicKey(keyRef, new byte[32]));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_jni_getPrivateKey_access()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        try
+        {
+            // Exercises interface/nonfips/jni/ed_jni.c:264
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, ed.ni_getPrivateKey(keyRef, new byte[32]));
+        }
+        finally
+        {
+            ops.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_jni_initVerify_name()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        long sigRef = ed.allocateSigner();
+        try
+        {
+            // Exercises interface/nonfips/jni/ed_jni.c:442
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            Assertions.assertEquals(JO_UNABLE_TO_ACCESS_NAME, ed.ni_initVerify(sigRef, keyRef, NAME, null, 0));
+        }
+        finally
+        {
+            ops.resetFlags();
+            ed.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    @Test
+    public void site_jni_update_input()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        long sigRef = ed.allocateSigner();
+        try
+        {
+            // Exercises interface/nonfips/jni/ed_jni.c:586
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(JO_FAILED_ACCESS_INPUT, ed.ni_update(sigRef, new byte[8], 0, 8));
+        }
+        finally
+        {
+            ops.resetFlags();
+            ed.disposeSigner(sigRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    /** JNI moves the private key through the secret helper: one copy, cleansed, per call; FFM makes no copy. */
+    @Test
+    public void ed_privateKeyLedger()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        int expected = Loader.isFFM() ? 0 : 1;
+        long keyRef = ed.generateKeyPair(ED25519, RND);
+        long target = specNI.allocate();
+        try
+        {
+            byte[] secret = new byte[32];
+            assertSecretLedger(expected,
+                    "getPrivateKey", () -> Assertions.assertEquals(32, ed.ni_getPrivateKey(keyRef, secret)));
+            assertSecretLedger(expected, "getPrivateKey short", () -> Assertions.assertEquals(JO_OUTPUT_TOO_SMALL,
+                    ed.ni_getPrivateKey(keyRef, new byte[31])));
+            assertSecretLedger(expected, "decode_privateKey", () -> Assertions.assertEquals(0,
+                    ed.ni_decode_privateKey(target, ED25519, secret, 0, 32)));
+            assertSecretLedger(0,
+                    "getPublicKey", () -> Assertions.assertEquals(32, ed.ni_getPublicKey(keyRef, new byte[32])));
+        }
+        finally
+        {
+            specNI.dispose(target);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    private void assertSecretLedger(int expected, String label, Runnable call)
+    {
+        ops.ledgerReset();
+        call.run();
+        Assertions.assertEquals(expected, ops.ledgerCreated(OperationsTestNI.LedgerType.SECRET_BYTEARRAY), label);
+        Assertions.assertEquals(expected, ops.ledgerDestroyed(OperationsTestNI.LedgerType.SECRET_BYTEARRAY), label);
+        Assertions.assertEquals(expected, ops.ledgerCreated(OperationsTestNI.LedgerType.SECRET_CLEANSE), label);
+        Assertions.assertEquals(expected, ops.ledgerDestroyed(OperationsTestNI.LedgerType.SECRET_CLEANSE), label);
+    }
 }

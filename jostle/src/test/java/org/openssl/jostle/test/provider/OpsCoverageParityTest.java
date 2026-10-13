@@ -99,7 +99,7 @@ public class OpsCoverageParityTest
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 96;
+    static final int BASELINE_SIZE = 87;
 
     private static final Set<String> BASELINE = baseline();
 
@@ -115,8 +115,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_RAND_UP_CALL_NULL");
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_SHORT_SIZE_1");
         add(s, "interface/fips/jni/dh_ni_jni.c", "OPS_FAILED_ACCESS_4");
-        add(s, "interface/fips/jni/ed_jni.c", "OPS_FAILED_ACCESS_1");
-        add(s, "interface/fips/jni/ed_jni.c", "OPS_FAILED_ACCESS_2");
         add(s, "interface/fips/jni/mldsa_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/fips/jni/mlkem_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/fips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_1");
@@ -132,12 +130,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/jni/slhdsa_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/fips/jni/xec_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/fips/util/dh.c", "OPS_FAILED_SET_1");
-        add(s, "interface/fips/util/edec.c", "OPS_INT32_OVERFLOW_1");
-        add(s, "interface/fips/util/edec.c", "OPS_LEN_CHANGE_1");
-        add(s, "interface/fips/util/edec.c", "OPS_OPENSSL_ERROR_1");
-        add(s, "interface/fips/util/edec.c", "OPS_OPENSSL_ERROR_2");
-        add(s, "interface/fips/util/edec.c", "OPS_OPENSSL_ERROR_3");
-        add(s, "interface/fips/util/edec.c", "OPS_OPENSSL_ERROR_4");
         add(s, "interface/fips/util/mac.c", "OPS_ALTERNATE_3");
         add(s, "interface/fips/util/mac.c", "OPS_OPENSSL_ERROR_7");
         add(s, "interface/fips/util/mldsa.c", "OPS_FAILED_CREATE_1");
@@ -195,7 +187,6 @@ public class OpsCoverageParityTest
         add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_2");
         add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_3");
-        add(s, "interface/nonfips/util/edec.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/nonfips/util/mlxkem.c", "OPS_INT32_OVERFLOW_1");
         add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_1");
         add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_2");

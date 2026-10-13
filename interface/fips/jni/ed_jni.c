@@ -12,6 +12,7 @@
 
 #include "bytearrays.h"
 #include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_ed_EDServiceJNI.h"
 #include "types.h"
 #include "../util/jo_assert.h"
@@ -100,13 +101,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     java_bytearray_ctx input; // Non critical access
     init_bytearray_ctx(&input);
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
     if (_input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -155,20 +156,21 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 
 
     jint ret_val = JO_FAIL;
-    java_bytearray_ctx input; // Non critical access
-    init_bytearray_ctx(&input);
+    // The private key goes through the secret helper: cleansed before release.
+    java_secret_bytearray_ctx input;
+    init_secret_bytearray_ctx(&input);
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
     if (_input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&input, env, _input)) {
         ret_val = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -183,7 +185,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         goto exit;
     }
 
-    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+    if (!check_secret_in_range(&input, in_off, in_len)) {
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -194,7 +196,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 
 
 exit:
-    release_bytearray_ctx(&input);
+    release_secret_bytearray_ctx(&input);
     return ret_val;
 }
 
@@ -208,8 +210,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    if (key_spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t check_rc = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
 
@@ -246,33 +249,29 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    java_bytearray_ctx output; // Non critical access
-    init_bytearray_ctx(&output);
-
-    int32_t ret_code = JO_FAIL;
-
-
-    if (key_spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
 
     if (_output == NULL) {
-        ret_code = edec_get_private_encoded(key_spec,NULL, 0);
-        goto exit;
+        return edec_get_private_encoded(key_spec, NULL, 0);
     }
 
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
-        goto exit;
+    // The private key goes through the secret helper: cleansed, and written back only on success.
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&output, env, _output)) {
+        discard_secret_bytearray_ctx(&output);
+        return JO_FAILED_ACCESS_OUTPUT;
     }
 
     ret_code = edec_get_private_encoded(key_spec, output.bytearray, output.size);
-
-exit:
-    release_bytearray_ctx(&output);
+    if (SUCCESSFUL(ret_code)) {
+        release_secret_bytearray_ctx(&output);
+    } else {
+        discard_secret_bytearray_ctx(&output);
+    }
     return ret_code;
 }
 
@@ -287,8 +286,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
  jobject rnd_src) {
     UNUSED(jo);
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
-    if (eddsa == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t check_rc = edec_ctx_check(eddsa);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (rnd_src == NULL) {
@@ -318,14 +318,20 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         goto exit;
     }
 
+    // An embedded NUL names no instance, as the FFM bridge's length check finds.
+    if (modified_utf8_names_nothing(name)) {
+        ret_code = JO_EDEC_INSTANCE_NOT_SUPPORTED;
+        goto exit;
+    }
+
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)) {
         ret_code = JO_FAILED_ACCESS_CONTEXT;
         goto exit;
     }
 
     key_spec *spec = (key_spec *) key_ref;
-    if (spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(spec);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
@@ -359,8 +365,18 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(env);
     UNUSED(jo);
     edec_ctx *edec = (edec_ctx *) ref;
-    if (edec == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = edec_ctx_check(edec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+
+    // One order on both bridges: ctx, rnd, offset, then the output.
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
+    if (out_off < 0) {
+        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
     }
 
     if (_output == NULL) {
@@ -368,18 +384,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         return edec_ctx_sign(edec, NULL, 0, rnd_src);
     }
 
-    int32_t ret_code = JO_FAIL;
     size_t out_len = 0;
-
 
     java_bytearray_ctx output;
     init_bytearray_ctx(&output);
-
-
-    if (out_off < 0) {
-        ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
-    }
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
@@ -416,8 +424,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(jo);
 
     edec_ctx *eddsa = (edec_ctx *) edec_ref;
-    if (eddsa == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t check_rc = edec_ctx_check(eddsa);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     if (_name == NULL) {
@@ -443,6 +452,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
         goto exit;
     }
 
+    // An embedded NUL names no instance, as the FFM bridge's length check finds.
+    if (modified_utf8_names_nothing(name)) {
+        ret_code = JO_EDEC_INSTANCE_NOT_SUPPORTED;
+        goto exit;
+    }
+
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)
     ) {
@@ -452,9 +467,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 
 
     key_spec *spec = (key_spec *) key_ref;
-
-    if (spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(spec);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
@@ -489,8 +503,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
     UNUSED(jo);
 
     edec_ctx *ctx = (edec_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t check_rc = edec_ctx_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
     }
 
     java_bytearray_ctx sig;
@@ -538,11 +553,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ed_EDServiceJNI_n
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(jo);
     edec_ctx *ctx = (edec_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = edec_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    int32_t ret_code = JO_FAIL;
 
     critical_bytearray_ctx input;
     init_critical_ctx(&input, env, _input);

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.ed.EDServiceNI;
+import org.openssl.jostle.test.eddsa.EdBridgeCells;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -585,5 +586,40 @@ public class FIPSEdLimitTest
     {
         IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, action);
         Assertions.assertEquals(message, e.getMessage());
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        assumeEdKey();
+        EdBridgeCells.wrongKindHandlesAreRefused(ed, specNI);
+    }
+
+    @Test
+    public void bridge_nulInstanceNamesAreRefused()
+    {
+        assumeEdKey();
+        EdBridgeCells.nulInstanceNamesAreRefused(ed, specNI);
+    }
+
+    @Test
+    public void bridge_signArgumentOrder()
+    {
+        assumeEdKey();
+        EdBridgeCells.signArgumentOrder(ed, specNI);
+    }
+
+    @Test
+    public void bridge_nonCanonicalPointsAreRefused()
+    {
+        assumeEdKey();
+        EdBridgeCells.nonCanonicalPointsAreRefused(ed, specNI, FIPSNISelector.Asn1NI);
+    }
+
+    @Test
+    public void bridge_decodeTwiceReplacesTheKey()
+    {
+        assumeEdKey();
+        EdBridgeCells.decodeTwiceReplacesTheKey(ed, specNI);
     }
 }

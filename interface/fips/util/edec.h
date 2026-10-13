@@ -17,7 +17,11 @@
 #define EDEC_SIGN 1
 #define EDEC_VERIFY 2
 
+#define EDEC_CTX_KIND 0x45445301u     /* "EDS\1" */
+#define EDEC_CTX_NONE 0u              /* what a freed ctx is left with; never a valid kind */
+
 typedef struct edec_ctx {
+    uint32_t kind;
     EVP_MD_CTX *digest_ctx;
     BIO *message;
     int opp;
@@ -36,6 +40,14 @@ int32_t edec_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src,
 
 edec_ctx *edec_ctx_create(int32_t *err);
 
+/*
+ * JO_SIGNER_CTX_IS_NULL, JO_EDEC_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t edec_ctx_check(const edec_ctx *ctx);
+
+/*
+ * Frees nothing unless edec_ctx_check passes.
+ */
 void edec_ctx_destroy(edec_ctx *edec_ctx);
 
 int32_t edec_ctx_init_sign(edec_ctx *ctx, const key_spec *key_spec, const char *name, int name_len, const uint8_t *context, int32_t context_len, void *rnd_src);

@@ -304,4 +304,39 @@ public class EdECInterfaceTest
         Assertions.assertArrayEquals(sunSig, joSig,
                 alg + ": deterministic EdDSA signatures disagree between SunEC and JSL");
     }
+
+    /**
+     * getKeySpec answers the JDK EdEC specs for both halves on both curves, the specs decode back to keys with
+     * the same encodings, and BouncyCastle decodes them to the same encodings.
+     */
+    @Test
+    public void edecKeySpecsRoundTripAgainstBouncyCastle() throws Exception
+    {
+        for (String alg : new String[]{"Ed25519", "Ed448"})
+        {
+            KeyPair kp = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME).generateKeyPair();
+            KeyFactory jsl = KeyFactory.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            KeyFactory bc = KeyFactory.getInstance(alg, BouncyCastleProvider.PROVIDER_NAME);
+
+            EdECPublicKeySpec pubSpec = jsl.getKeySpec(kp.getPublic(), EdECPublicKeySpec.class);
+            EdECPrivateKeySpec privSpec = jsl.getKeySpec(kp.getPrivate(), EdECPrivateKeySpec.class);
+            Assertions.assertEquals(alg, pubSpec.getParams().getName(), alg);
+            Assertions.assertEquals(alg, privSpec.getParams().getName(), alg);
+
+            Assertions.assertTrue(Arrays.areEqual(kp.getPublic().getEncoded(),
+                    jsl.generatePublic(pubSpec).getEncoded()), alg);
+            Assertions.assertTrue(Arrays.areEqual(kp.getPublic().getEncoded(),
+                    bc.generatePublic(pubSpec).getEncoded()), alg);
+
+            PrivateKey back = jsl.generatePrivate(privSpec);
+            Assertions.assertTrue(Arrays.areEqual(((EdECPrivateKey) kp.getPrivate()).getBytes().get(),
+                    ((EdECPrivateKey) back).getBytes().get()), alg);
+            Assertions.assertTrue(Arrays.areEqual(((EdECPrivateKey) kp.getPrivate()).getBytes().get(),
+                    ((EdECPrivateKey) bc.generatePrivate(privSpec)).getBytes().get()), alg);
+
+            EdECPublicKeySpec bcPubSpec = bc.getKeySpec(bc.generatePublic(pubSpec), EdECPublicKeySpec.class);
+            Assertions.assertEquals(bcPubSpec.getPoint().getY(), pubSpec.getPoint().getY(), alg);
+            Assertions.assertEquals(bcPubSpec.getPoint().isXOdd(), pubSpec.getPoint().isXOdd(), alg);
+        }
+    }
 }

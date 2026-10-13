@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <openssl/crypto.h>
 
 #include "../util/key_spec.h"
@@ -41,8 +42,8 @@ key_spec *JoEDDSA_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src)
 int32_t JoEDDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -55,8 +56,8 @@ exit:
 int32_t JoEDDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
     int32_t ret_val = JO_FAIL;
 
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -75,8 +76,8 @@ int32_t JoEDDSA_decodePublicKey(key_spec *key_spec,
                               int32_t in_len) {
     int32_t ret_val = JO_FAIL;
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -115,8 +116,8 @@ int32_t JoEDDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *
                                int32_t in_len) {
     int32_t ret_val = JO_FAIL;
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -170,10 +171,10 @@ int32_t JoEDDSA_initVerifier(edec_ctx *ctx,
                            const uint8_t *context,
                            const size_t context_size,
                            int32_t context_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = edec_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
-    int32_t ret_val = JO_FAIL;
 
     if (name == NULL) {
         ret_val = JO_NAME_IS_NULL;
@@ -185,8 +186,14 @@ int32_t JoEDDSA_initVerifier(edec_ctx *ctx,
         goto exit;
     }
 
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    // name_len is the UTF-8 byte count: an embedded NUL names no instance, as on JNI.
+    if (strnlen(name, (size_t) name_len) != (size_t) name_len) {
+        ret_val = JO_EDEC_INSTANCE_NOT_SUPPORTED;
+        goto exit;
+    }
+
+    ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -213,13 +220,13 @@ int32_t JoEDDSA_initSign(edec_ctx *ctx,
                        int32_t context_len,
                        void *rnd_src
 ) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = edec_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
-    int32_t ret_val = JO_FAIL;
 
     if (name == NULL) {
         ret_val = JO_NAME_IS_NULL;
@@ -231,8 +238,14 @@ int32_t JoEDDSA_initSign(edec_ctx *ctx,
         goto exit;
     }
 
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    // name_len is the UTF-8 byte count: an embedded NUL names no instance, as on JNI.
+    if (strnlen(name, (size_t) name_len) != (size_t) name_len) {
+        ret_val = JO_EDEC_INSTANCE_NOT_SUPPORTED;
+        goto exit;
+    }
+
+    ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -256,10 +269,10 @@ exit:
 
 int32_t JoEDDSA_update(edec_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                      const int32_t in_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = edec_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-    int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
         ret_code = JO_INPUT_IS_NULL;
@@ -301,21 +314,26 @@ int32_t JoEDDSA_sign(
     const size_t output_size,
     const int32_t out_off,
     void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = edec_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
+
+    // One order on both bridges: ctx, rnd, offset, then the output.
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
 
-    int32_t ret_val = JO_FAIL;
-    size_t out_len = 0;
-
-
     if (out_off < 0) {
-        ret_val = JO_OUTPUT_OFFSET_IS_NEGATIVE;
-        goto exit;
+        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
     }
+
+    if (output == NULL) {
+        /* Caller wants length */
+        return edec_ctx_sign(ctx, NULL, 0, rnd_src);
+    }
+
+    size_t out_len = 0;
 
     out_len = output_size - (size_t) out_off;
 
@@ -337,11 +355,10 @@ int32_t JoEDDSA_verify(
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = edec_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
-    int32_t ret_val = JO_FAIL;
-
 
     if (sig == NULL) {
         ret_val = JO_SIG_IS_NULL;

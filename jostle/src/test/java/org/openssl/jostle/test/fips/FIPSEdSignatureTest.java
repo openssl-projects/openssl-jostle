@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.eddsa.EdKeyCells;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.InvalidKeyException;
@@ -530,5 +531,12 @@ public class FIPSEdSignatureTest
         s.initVerify(key);
         s.update(msg);
         return s.verify(sig);
+    }
+
+    @Test
+    public void nonCanonicalPublicKeysAreRefused() throws Exception
+    {
+        Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("ED25519"), "the module serves no Ed key type");
+        EdKeyCells.nonCanonicalPublicKeysAreRefused(JostleFIPSProvider.PROVIDER_NAME);
     }
 }

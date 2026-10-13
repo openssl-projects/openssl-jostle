@@ -386,6 +386,12 @@ public enum ErrorCode
     JO_EC_KEX_CTX_WRONG_KIND(-205),
     // An EC private scalar of zero or at or above the group order.
     JO_EC_SCALAR_OUT_OF_RANGE(-206),
+    // A handle passed as an EdDSA signer context that is not one.
+    JO_EDEC_CTX_WRONG_KIND(-207),
+    // An EdDSA instance name with an embedded NUL.
+    JO_EDEC_INSTANCE_NOT_SUPPORTED(-208),
+    // An EdDSA public key whose y coordinate is not below the field prime.
+    JO_EDEC_POINT_NOT_CANONICAL(-209),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

@@ -694,6 +694,12 @@
 #define JO_EC_KEX_CTX_WRONG_KIND -205
 /* An EC private scalar of zero or at or above the group order. */
 #define JO_EC_SCALAR_OUT_OF_RANGE -206
+/* A handle passed as an EdDSA signer context that is not one. */
+#define JO_EDEC_CTX_WRONG_KIND -207
+/* An EdDSA instance name with an embedded NUL. */
+#define JO_EDEC_INSTANCE_NOT_SUPPORTED -208
+/* An EdDSA public key whose y coordinate is not below the field prime. */
+#define JO_EDEC_POINT_NOT_CANONICAL -209
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

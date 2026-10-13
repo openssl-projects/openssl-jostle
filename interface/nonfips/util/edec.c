@@ -186,6 +186,50 @@ int32_t edec_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out_le
     return (int32_t) written;
 }
 
+/* Byte i, little-endian, of the field prime: 2^255 - 19, or 2^448 - 2^224 - 1 over 57 bytes. */
+static uint8_t edec_prime_byte(int ed448, size_t i) {
+    if (ed448) {
+        return i == 56 ? 0x00 : (i == 28 ? 0xfe : 0xff);
+    }
+    return i == 0 ? 0xed : (i == 31 ? 0x7f : 0xff);
+}
+
+/* 1 when the encoded y, with the x sign bit masked, is below the field prime (RFC 8032 5.1.3 and 5.2.3). */
+static int edec_y_canonical(int ed448, const uint8_t *src, size_t len) {
+    for (size_t i = len; i-- > 0;) {
+        const uint8_t b = (i == len - 1) ? (uint8_t) (src[i] & 0x7f) : src[i];
+        const uint8_t p = edec_prime_byte(ed448, i);
+        if (b != p) {
+            return b < p;
+        }
+    }
+    return 0;
+}
+
+/*
+ * JO_SUCCESS unless the key is Ed25519 or Ed448 and its public y is not below the field prime; keys of other
+ * types pass through for OpenSSL to refuse.
+ */
+static int32_t edec_key_public_canonical(EVP_PKEY *pkey) {
+    const char *algo = EVP_PKEY_get0_type_name(pkey);
+    if (algo == NULL) {
+        return JO_SUCCESS;
+    }
+    const int ed448 = strcmp(algo, "ED448") == 0;
+    if (!ed448 && strcmp(algo, "ED25519") != 0) {
+        return JO_SUCCESS;
+    }
+    uint8_t pub[57];
+    size_t pub_len = 0;
+    if (1 != EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, pub, sizeof(pub), &pub_len)) {
+        return JO_OPENSSL_ERROR;
+    }
+    if (pub_len != (ed448 ? 57u : 32u) || !edec_y_canonical(ed448, pub, pub_len)) {
+        return JO_EDEC_POINT_NOT_CANONICAL;
+    }
+    return JO_SUCCESS;
+}
+
 int32_t edec_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src, size_t src_len) {
     int32_t ret_code = JO_FAIL;
     size_t min_len = 0;
@@ -236,6 +280,7 @@ int32_t edec_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *src
 
     ERR_clear_error();
 
+    EVP_PKEY_free(key_spec->key);
     key_spec->key = EVP_PKEY_new_raw_private_key_ex(
         get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
@@ -305,8 +350,14 @@ int32_t edec_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src,
         goto exit;
     }
 
+    if (!edec_y_canonical(typeId == KS_ED448, src, src_len)) {
+        ret_code = JO_EDEC_POINT_NOT_CANONICAL;
+        goto exit;
+    }
+
     ERR_clear_error();
 
+    EVP_PKEY_free(key_spec->key);
     key_spec->key = EVP_PKEY_new_raw_public_key_ex(
         get_global_jostle_ossl_lib_ctx(), type,NULL, src, src_len);
 
@@ -348,13 +399,25 @@ edec_ctx *edec_ctx_create(int32_t *err) {
 
     jo_assert(ctx->message != NULL);
 
+    ctx->kind = EDEC_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_EDEC_CTX);
     return ctx;
 }
 
-void edec_ctx_destroy(edec_ctx *ctx) {
+int32_t edec_ctx_check(const edec_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (ctx->kind != EDEC_CTX_KIND) {
+        return JO_EDEC_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+void edec_ctx_destroy(edec_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as an edec_ctx corrupts it.
+    if (edec_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_EDEC_CTX);
@@ -368,6 +431,7 @@ void edec_ctx_destroy(edec_ctx *ctx) {
         EVP_MD_CTX_free(ctx->digest_ctx);
     }
 
+    ctx->kind = EDEC_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -377,7 +441,7 @@ int32_t edec_ctx_init_sign(
     const char *name,
     int name_len,
     const uint8_t *context, int32_t context_len, void *rnd_src) {
-    jo_assert(ctx != NULL);
+    jo_assert(edec_ctx_check(ctx) == JO_SUCCESS);
     jo_assert(key_spec != NULL);
     jo_assert(name != NULL);
     jo_assert(name_len > 0);
@@ -394,6 +458,12 @@ int32_t edec_ctx_init_sign(
 
     if (key_spec->key == NULL) {
         ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
+        goto exit;
+    }
+
+    // A key imported by any path is refused here if its public y is not canonical.
+    ret_code = edec_key_public_canonical(key_spec->key);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
@@ -455,7 +525,7 @@ int32_t edec_ctx_init_verify(
     const char *name,
     int name_len,
     const uint8_t *context, int32_t context_len) {
-    jo_assert(ctx != NULL);
+    jo_assert(edec_ctx_check(ctx) == JO_SUCCESS);
     jo_assert(key_spec != NULL);
     jo_assert(name_len >0);
     jo_assert(name != NULL);
@@ -468,6 +538,12 @@ int32_t edec_ctx_init_verify(
 
     if (key_spec->key == NULL) {
         ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
+        goto exit;
+    }
+
+    // A key imported by any path is refused here if its public y is not canonical.
+    ret_code = edec_key_public_canonical(key_spec->key);
+    if (UNSUCCESSFUL(ret_code)) {
         goto exit;
     }
 
@@ -527,7 +603,7 @@ exit:
 
 
 int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
-    jo_assert(ctx != NULL);
+    jo_assert(edec_ctx_check(ctx) == JO_SUCCESS);
     jo_assert(in != NULL);
 
     if (ctx->digest_ctx == NULL) {
@@ -566,7 +642,7 @@ int32_t edec_ctx_update(edec_ctx *ctx, const uint8_t *in, const size_t in_len) {
 
 
 int32_t edec_ctx_sign(edec_ctx *ctx, uint8_t *out, const size_t out_len, void *rnd_src) {
-    jo_assert(ctx != NULL);
+    jo_assert(edec_ctx_check(ctx) == JO_SUCCESS);
     int ret_code = JO_FAIL;
     int sign_attempted = 0;
 
@@ -646,7 +722,7 @@ exit:
 }
 
 int32_t edec_ctx_verify(edec_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
-    jo_assert(ctx != NULL);
+    jo_assert(edec_ctx_check(ctx) == JO_SUCCESS);
     int ret_code = JO_FAIL;
 
     if (ctx->digest_ctx == NULL) {

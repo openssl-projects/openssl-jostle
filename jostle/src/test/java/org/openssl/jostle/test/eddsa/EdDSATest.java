@@ -1943,4 +1943,15 @@ public class EdDSATest
                 "malformed PKCS#8 must throw InvalidKeySpecException");
     }
 
+    @Test
+    public void nonCanonicalPublicKeysAreRefused() throws Exception
+    {
+        EdKeyCells.nonCanonicalPublicKeysAreRefused(JostleProvider.PROVIDER_NAME);
+    }
+
+    @Test
+    public void contextOfMoreThan255BytesIsRefused()
+    {
+        EdKeyCells.contextOfMoreThan255BytesIsRefused();
+    }
 }

@@ -1465,5 +1465,34 @@ public class EdDSALimitTest
         }
     }
 
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        EdBridgeCells.wrongKindHandlesAreRefused(edServiceNI, specNI);
+    }
 
+    @Test
+    public void bridge_nulInstanceNamesAreRefused()
+    {
+        EdBridgeCells.nulInstanceNamesAreRefused(edServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_signArgumentOrder()
+    {
+        EdBridgeCells.signArgumentOrder(edServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_nonCanonicalPointsAreRefused()
+    {
+        EdBridgeCells.nonCanonicalPointsAreRefused(edServiceNI, specNI,
+                TestNISelector.getAsn1NI());
+    }
+
+    @Test
+    public void bridge_decodeTwiceReplacesTheKey()
+    {
+        EdBridgeCells.decodeTwiceReplacesTheKey(edServiceNI, specNI);
+    }
 }

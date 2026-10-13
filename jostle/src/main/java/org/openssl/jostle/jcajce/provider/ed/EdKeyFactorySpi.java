@@ -119,6 +119,14 @@ public class EdKeyFactorySpi extends KeyFactorySpi
                     throw new InvalidKeySpecException("expected ED key but got " + pkeySpec.getType());
             }
 
+            try
+            {
+                requireCanonicalPublic(pkeySpec);
+            }
+            catch (RuntimeException e)
+            {
+                throw new InvalidKeySpecException("unable to decode Ed public key", e);
+            }
             return new JOEdPublicKey(edServiceNI, asn1NI, pkeySpec);
         }
         else
@@ -323,6 +331,26 @@ public class EdKeyFactorySpi extends KeyFactorySpi
      * layer hits when a peer certificate's key was decoded by a different
      * provider (GH issue: JCA/TLS gap #5).
      */
+    /**
+     * Re-decodes the public key's raw encoding into a scratch spec so the native decoder refuses a non-canonical
+     * point that an SPKI decode accepted. The scratch spec is freed on every path.
+     */
+    private void requireCanonicalPublic(PKEYKeySpec pkeySpec)
+    {
+        long ref = pkeySpec.getReference();
+        byte[] raw = new byte[edServiceNI.getPublicKey(ref, null)];
+        edServiceNI.getPublicKey(ref, raw);
+        long scratch = specNI.allocate();
+        try
+        {
+            edServiceNI.decode_publicKey(scratch, pkeySpec.getType().getKsType(), raw, 0, raw.length);
+        }
+        finally
+        {
+            specNI.dispose(scratch);
+        }
+    }
+
     JOEdPublicKey importPublicKey(PublicKey key) throws InvalidKeyException
     {
         if (key == null)
@@ -360,6 +388,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             {
                 case ED25519:
                 case ED448:
+                    requireCanonicalPublic(pkeySpec);
                     return new JOEdPublicKey(edServiceNI, asn1NI, pkeySpec);
                 default:
                     throw new InvalidKeyException(

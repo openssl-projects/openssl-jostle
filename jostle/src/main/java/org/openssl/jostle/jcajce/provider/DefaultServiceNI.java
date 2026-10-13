@@ -120,6 +120,12 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("digest is not supported");
             case JO_EC_SCALAR_OUT_OF_RANGE:
                 throw new IllegalArgumentException("scalar is not in [1, n-1]");
+            case JO_EDEC_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not an EdDSA signer context");
+            case JO_EDEC_INSTANCE_NOT_SUPPORTED:
+                throw new IllegalArgumentException("EdDSA instance name is not supported");
+            case JO_EDEC_POINT_NOT_CANONICAL:
+                throw new IllegalArgumentException("EdDSA public key is not canonical");
             case JO_FAILED_ACCESS_OUTPUT:
                 throw new AccessException("unable to access output array");
             case JO_FAILED_ACCESS_INPUT:
