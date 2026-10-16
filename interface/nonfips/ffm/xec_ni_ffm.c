@@ -6,6 +6,7 @@
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
 #include <stdint.h>
+#include <string.h>
 #include <openssl/crypto.h>
 
 #include "../util/bc_err_codes.h"
@@ -21,6 +22,7 @@
  * shared with EC (JoEC_* in ec_ni_ffm.c) — XEC adds only keygen.
  */
 key_spec *JoXEC_generateKeyPair(const char *name,
+                                size_t name_len,
                                 int32_t *ret_val,
                                 void *rnd_src) {
     jo_assert(ret_val != NULL);
@@ -32,6 +34,11 @@ key_spec *JoXEC_generateKeyPair(const char *name,
     }
     if (rnd_src == NULL) {
         *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
+    // name_len is the UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI.
+    if (name_len == 0 || strnlen(name, name_len) != name_len) {
+        *ret_val = JO_CURVE_NOT_SUPPORTED;
         return NULL;
     }
 

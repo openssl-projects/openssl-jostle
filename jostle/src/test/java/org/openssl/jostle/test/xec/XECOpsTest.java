@@ -171,7 +171,7 @@ public class XECOpsTest
         Assumptions.assumeFalse(Loader.isFFM(), "JNI Only");
         try
         {
-            // Exercises interface/nonfips/jni/xec_ni_jni.c:42
+            // Exercises interface/nonfips/jni/xec_ni_jni.c:43
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             long ref = xec.ni_generateKeyPair("X25519", err, TestUtil.RNDSrc);

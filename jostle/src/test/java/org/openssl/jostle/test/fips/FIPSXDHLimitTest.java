@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.xec.XdhBridgeCells;
 
 /**
  * Input-validation limit tests at the FIPS XEC (X25519 / X448) key-generation
@@ -122,5 +123,50 @@ public class FIPSXDHLimitTest
     {
         NullPointerException e = Assertions.assertThrows(NullPointerException.class, action);
         Assertions.assertEquals(message, e.getMessage());
+    }
+
+    private final XdhBridgeCells cells = new XdhBridgeCells(FIPSNISelector.XECServiceNI, FIPSNISelector.ECServiceNI,
+            FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, FIPSTestUtil::moduleServesKeyMgmt);
+
+    /** Runs on every module: the XDH KeyFactory is registered exactly when the module serves the X25519 key type. */
+    @Test
+    public void xdhRegisteredIffModuleServesIt()
+    {
+        boolean registered = TestUtil.addFipsProvider().getService("KeyFactory", "X25519") != null;
+        Assertions.assertEquals(FIPSTestUtil.moduleServesKeyMgmt("X25519"), registered,
+                "the XDH registration disagrees with the loaded module");
+    }
+
+    private static void assumeXdhServed()
+    {
+        Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("X25519"), "the module serves no XDH key type");
+    }
+
+    @Test
+    public void bridge_unusableNamesAreRefused()
+    {
+        assumeXdhServed();
+        cells.unusableNamesAreRefused();
+    }
+
+    @Test
+    public void bridge_lowOrderPeersAreRefusedAtDerive()
+    {
+        assumeXdhServed();
+        cells.lowOrderPeersAreRefusedAtDerive();
+    }
+
+    @Test
+    public void bridge_derivedValueSizes()
+    {
+        assumeXdhServed();
+        cells.derivedValueSizes();
+    }
+
+    @Test
+    public void bridge_rfc7748Vectors()
+    {
+        assumeXdhServed();
+        cells.rfc7748Vectors();
     }
 }

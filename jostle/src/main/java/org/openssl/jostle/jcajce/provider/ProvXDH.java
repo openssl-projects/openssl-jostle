@@ -68,10 +68,10 @@ class ProvXDH
         // KeyFactory — one SPI handles both variants (the decoded key carries
         // its type). Registered per name, under the "XDH" family, and by OID.
         provider.addAlgorithmImplementation("KeyFactory", "X25519",
-                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider));
+                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider, OSSLKeyType.X25519));
         provider.addAlias("KeyFactory", "X25519", X25519_OID);
         provider.addAlgorithmImplementation("KeyFactory", "X448",
-                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider));
+                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider, OSSLKeyType.X448));
         provider.addAlias("KeyFactory", "X448", X448_OID);
         provider.addAlgorithmImplementation("KeyFactory", "XDH",
                 XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider));
@@ -162,5 +162,11 @@ class ProvXDH
     private static XECKeyFactorySpi keyFactory(JostleProvider provider)
     {
         return new XECKeyFactorySpi(NISelector.SpecNI, NISelector.Asn1NI, provider);
+    }
+
+    /** A KeyFactory registered under one curve's name, decoding only that curve's keys. */
+    private static XECKeyFactorySpi keyFactory(JostleProvider provider, OSSLKeyType fixedType)
+    {
+        return new XECKeyFactorySpi(NISelector.SpecNI, NISelector.Asn1NI, provider, fixedType);
     }
 }

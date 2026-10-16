@@ -942,4 +942,10 @@ public class XDHTest
         ka.doPhase(peer, true);
         return ka.generateSecret();
     }
+
+    @Test
+    public void namedFactoryHoldsItsCurve() throws Exception
+    {
+        XdhKeyCells.namedFactoryHoldsItsCurve(JostleProvider.PROVIDER_NAME);
+    }
 }

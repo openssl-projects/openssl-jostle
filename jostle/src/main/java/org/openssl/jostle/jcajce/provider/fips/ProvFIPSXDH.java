@@ -94,10 +94,10 @@ class ProvFIPSXDH
         provider.addAlias("KeyPairGenerator", "X448", X448_OID);
 
         provider.addAlgorithmImplementation("KeyFactory", "X25519",
-                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider));
+                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider, OSSLKeyType.X25519));
         provider.addAlias("KeyFactory", "X25519", X25519_OID);
         provider.addAlgorithmImplementation("KeyFactory", "X448",
-                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider));
+                XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider, OSSLKeyType.X448));
         provider.addAlias("KeyFactory", "X448", X448_OID);
         provider.addAlgorithmImplementation("KeyFactory", "XDH",
                 XECKeyFactorySpi.class.getName(), attr, (arg) -> keyFactory(provider));
@@ -187,5 +187,11 @@ class ProvFIPSXDH
     private static XECKeyFactorySpi keyFactory(JostleFIPSProvider provider)
     {
         return new XECKeyFactorySpi(FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, provider);
+    }
+
+    /** A KeyFactory registered under one curve's name, decoding only that curve's keys. */
+    private static XECKeyFactorySpi keyFactory(JostleFIPSProvider provider, OSSLKeyType fixedType)
+    {
+        return new XECKeyFactorySpi(FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, provider, fixedType);
     }
 }

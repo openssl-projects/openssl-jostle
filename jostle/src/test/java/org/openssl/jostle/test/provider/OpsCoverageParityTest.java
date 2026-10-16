@@ -99,7 +99,7 @@ public class OpsCoverageParityTest
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 87;
+    static final int BASELINE_SIZE = 82;
 
     private static final Set<String> BASELINE = baseline();
 
@@ -128,7 +128,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/jni/rand_upcall_jni.c", "OPS_SHORT_SIZE_1");
         add(s, "interface/fips/jni/rand_upcall_jni.c", "OPS_THREAD_ATTACH_1");
         add(s, "interface/fips/jni/slhdsa_ni_jni.c", "OPS_FAILED_ACCESS_1");
-        add(s, "interface/fips/jni/xec_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/fips/util/dh.c", "OPS_FAILED_SET_1");
         add(s, "interface/fips/util/mac.c", "OPS_ALTERNATE_3");
         add(s, "interface/fips/util/mac.c", "OPS_OPENSSL_ERROR_7");
@@ -179,10 +178,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/util/slhdsa.c", "OPS_OPENSSL_ERROR_4");
         add(s, "interface/fips/util/slhdsa.c", "OPS_OPENSSL_ERROR_5");
         add(s, "interface/fips/util/slhdsa.c", "OPS_OPENSSL_ERROR_6");
-        add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_1");
-        add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_2");
-        add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_3");
-        add(s, "interface/fips/util/xec.c", "OPS_OPENSSL_ERROR_4");
         add(s, "interface/nonfips/jni/dh_ni_jni.c", "OPS_FAILED_ACCESS_4");
         add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_1");
         add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_2");

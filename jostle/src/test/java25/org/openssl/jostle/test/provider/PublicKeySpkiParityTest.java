@@ -266,7 +266,7 @@ public class PublicKeySpkiParityTest
      * <p>These were BLOCKED twice over, for two different reasons that both
      * expired. The class javadoc said jostle's own {@code JOXECPublicKey} did
      * not implement {@code XECPublicKey} — fixed, and
-     * {@code XECJdkSpecRoundTripTest} is that fix's witness. The static block
+     * {@code XECJdkSpecAgreementTest} is that fix's witness. The static block
      * said BC rejected {@code XECPublicKeySpec} — true of 1.85.2, and BC 1.86
      * accepts it. Neither reason had a guard, so both outlived their truth
      * silently; that is what

@@ -55,6 +55,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
      * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
      */
     private final java.security.Provider providerInstance;
+    private final OSSLKeyType fixedType;
 
     public XECKeyFactorySpi()
     {
@@ -68,9 +69,19 @@ public class XECKeyFactorySpi extends KeyFactorySpi
 
     public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
     {
+        this(specNI, asn1NI, providerInstance, OSSLKeyType.NONE);
+    }
+
+    /**
+     * @param fixedType X25519 or X448 for a factory registered under that name, NONE for one serving both.
+     */
+    public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance,
+                            OSSLKeyType fixedType)
+    {
         this.providerInstance = providerInstance;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
+        this.fixedType = fixedType;
     }
 
     /**
@@ -96,7 +107,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             try
             {
                 PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
-                requireXEC(spec);
+                requireXEC(spec, fixedType);
                 return new JOXECPublicKey(asn1NI, spec);
             }
             catch (RuntimeException e)
@@ -122,7 +133,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             try
             {
                 PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
-                requireXEC(spec);
+                requireXEC(spec, fixedType);
                 return new JOXECPrivateKey(asn1NI, spec);
             }
             catch (RuntimeException e)
@@ -220,12 +231,23 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         }
     }
 
-    private static void requireXEC(PKEYKeySpec spec) throws InvalidKeySpecException
+    private static void requireXEC(PKEYKeySpec spec, OSSLKeyType fixedType) throws InvalidKeySpecException
     {
         if (spec.getType() != OSSLKeyType.X25519 && spec.getType() != OSSLKeyType.X448)
         {
             throw new InvalidKeySpecException(
                     "expected an XDH key but got " + spec.getType().getAlgorithmName());
+        }
+        requireFixed(spec.getType(), fixedType);
+    }
+
+    /** A factory registered under one curve's name decodes only that curve's keys. */
+    private static void requireFixed(OSSLKeyType type, OSSLKeyType fixedType) throws InvalidKeySpecException
+    {
+        if (fixedType != OSSLKeyType.NONE && type != fixedType)
+        {
+            throw new InvalidKeySpecException(
+                    "expected " + fixedType.getAlgorithmName() + " but got " + type.getAlgorithmName());
         }
     }
 }

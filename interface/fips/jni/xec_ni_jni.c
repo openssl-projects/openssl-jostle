@@ -5,6 +5,7 @@
 //  in the file LICENSE in the source distribution or at
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
+#include "byte_array_critical.h"
 #include "org_openssl_jostle_jcajce_provider_xec_XECServiceJNI.h"
 #include "types.h"
 #include "../util/jo_assert.h"
@@ -41,6 +42,12 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_xec_XECServiceJN
     name = (*env)->GetStringUTFChars(env, _name, NULL);
     if (OPS_FAILED_ACCESS_1 name == NULL) {
         ret_val = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    // An empty name or an embedded NUL names nothing, as the FFM bridge's length check finds.
+    if (modified_utf8_names_nothing(name)) {
+        ret_val = JO_CURVE_NOT_SUPPORTED;
         goto exit;
     }
 

@@ -122,4 +122,31 @@ public class XDHLimitTest
                     "unexpected message: " + expected.getMessage());
         }
     }
+
+    private final XdhBridgeCells cells = new XdhBridgeCells(TestNISelector.getXECNi(), TestNISelector.getECNi(),
+            TestNISelector.getSpecNI(), TestNISelector.getAsn1NI(), name -> true);
+
+    @Test
+    public void bridge_unusableNamesAreRefused()
+    {
+        cells.unusableNamesAreRefused();
+    }
+
+    @Test
+    public void bridge_lowOrderPeersAreRefusedAtDerive()
+    {
+        cells.lowOrderPeersAreRefusedAtDerive();
+    }
+
+    @Test
+    public void bridge_derivedValueSizes()
+    {
+        cells.derivedValueSizes();
+    }
+
+    @Test
+    public void bridge_rfc7748Vectors()
+    {
+        cells.rfc7748Vectors();
+    }
 }

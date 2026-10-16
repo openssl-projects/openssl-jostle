@@ -69,6 +69,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
      * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
      */
     private final java.security.Provider providerInstance;
+    private final OSSLKeyType fixedType;
 
     public XECKeyFactorySpi()
     {
@@ -82,9 +83,19 @@ public class XECKeyFactorySpi extends KeyFactorySpi
 
     public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
     {
+        this(specNI, asn1NI, providerInstance, OSSLKeyType.NONE);
+    }
+
+    /**
+     * @param fixedType X25519 or X448 for a factory registered under that name, NONE for one serving both.
+     */
+    public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance,
+                            OSSLKeyType fixedType)
+    {
         this.providerInstance = providerInstance;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
+        this.fixedType = fixedType;
     }
 
     /**
@@ -108,10 +119,15 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         {
             XECPublicKeySpec jdk = (XECPublicKeySpec) keySpec;
             OSSLKeyType type = xecType(jdk.getParams());
+            requireFixed(type, fixedType);
             BigInteger u = jdk.getU();
             if (u == null)
             {
                 throw new InvalidKeySpecException("XECPublicKeySpec has no u-coordinate");
+            }
+            if (u.signum() < 0)
+            {
+                throw new InvalidKeySpecException("XECPublicKeySpec u-coordinate is negative");
             }
             // Non-canonical u is REDUCED, not refused. RFC 7748 section 5:
             // "Implementations MUST accept non-canonical values and process
@@ -131,7 +147,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             try
             {
                 PKEYKeySpec spec = ASN1Encoder.fromSubjectPublicKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
-                requireXEC(spec);
+                requireXEC(spec, fixedType);
                 return new JOXECPublicKey(asn1NI, spec);
             }
             catch (RuntimeException e)
@@ -153,6 +169,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         {
             XECPrivateKeySpec jdk = (XECPrivateKeySpec) keySpec;
             OSSLKeyType type = xecType(jdk.getParams());
+            requireFixed(type, fixedType);
             byte[] scalar = jdk.getScalar();
             int want = XECMontgomery.rawLength(type);
             if (scalar == null || scalar.length != want)
@@ -200,7 +217,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             try
             {
                 PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
-                requireXEC(spec);
+                requireXEC(spec, fixedType);
                 return new JOXECPrivateKey(asn1NI, spec);
             }
             catch (RuntimeException e)
@@ -225,6 +242,11 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             {
                 return keySpec.cast(new X509EncodedKeySpec(((JOXECPublicKey) key).getEncoded()));
             }
+            if (XECPublicKeySpec.class.isAssignableFrom(keySpec))
+            {
+                JOXECPublicKey pub = (JOXECPublicKey) key;
+                return keySpec.cast(new XECPublicKeySpec(pub.getParams(), pub.getU()));
+            }
             throw new InvalidKeySpecException("unsupported key spec for XDH public key: " + keySpec);
         }
         if (key instanceof JOXECPrivateKey)
@@ -232,6 +254,21 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             if (PKCS8EncodedKeySpec.class.isAssignableFrom(keySpec))
             {
                 return keySpec.cast(new PKCS8EncodedKeySpec(((JOXECPrivateKey) key).getEncoded()));
+            }
+            if (XECPrivateKeySpec.class.isAssignableFrom(keySpec))
+            {
+                JOXECPrivateKey priv = (JOXECPrivateKey) key;
+                byte[] scalar = priv.getScalar().orElseThrow(
+                        () -> new InvalidKeySpecException("XDH private key has no scalar"));
+                try
+                {
+                    // The JDK spec clones what it is given, so this copy is ours to clear.
+                    return keySpec.cast(new XECPrivateKeySpec(priv.getParams(), scalar));
+                }
+                finally
+                {
+                    org.openssl.jostle.util.Arrays.clear(scalar);
+                }
             }
             throw new InvalidKeySpecException("unsupported key spec for XDH private key: " + keySpec);
         }
@@ -298,12 +335,23 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         }
     }
 
-    private static void requireXEC(PKEYKeySpec spec) throws InvalidKeySpecException
+    private static void requireXEC(PKEYKeySpec spec, OSSLKeyType fixedType) throws InvalidKeySpecException
     {
         if (spec.getType() != OSSLKeyType.X25519 && spec.getType() != OSSLKeyType.X448)
         {
             throw new InvalidKeySpecException(
                     "expected an XDH key but got " + spec.getType().getAlgorithmName());
+        }
+        requireFixed(spec.getType(), fixedType);
+    }
+
+    /** A factory registered under one curve's name decodes only that curve's keys. */
+    private static void requireFixed(OSSLKeyType type, OSSLKeyType fixedType) throws InvalidKeySpecException
+    {
+        if (fixedType != OSSLKeyType.NONE && type != fixedType)
+        {
+            throw new InvalidKeySpecException(
+                    "expected " + fixedType.getAlgorithmName() + " but got " + type.getAlgorithmName());
         }
     }
 

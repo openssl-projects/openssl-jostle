@@ -63,6 +63,14 @@ int32_t xec_generate_key(key_spec *spec, const char *name, void *rnd_src) {
         goto exit;
     }
 
+    // The name may resolve to another key type; only the family's own two are kept.
+    if (!EVP_PKEY_is_a(spec->key, "X25519") && !EVP_PKEY_is_a(spec->key, "X448")) {
+        EVP_PKEY_free(spec->key);
+        spec->key = NULL;
+        ret_code = JO_CURVE_NOT_SUPPORTED;
+        goto exit;
+    }
+
     ret_code = JO_SUCCESS;
 
 exit:

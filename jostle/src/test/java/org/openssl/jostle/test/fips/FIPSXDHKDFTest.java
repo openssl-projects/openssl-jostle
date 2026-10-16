@@ -12,10 +12,12 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.xec.XdhKeyCells;
 
 import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKeyFactory;
@@ -264,5 +266,12 @@ public class FIPSXDHKDFTest
             Assertions.assertNotNull(SecretKeyFactory.getInstance(name, JostleProvider.PROVIDER_NAME),
                     name + " must still resolve through JSL");
         }
+    }
+
+    @Test
+    public void namedFactoryHoldsItsCurve() throws Exception
+    {
+        Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("X25519"), "the module serves no XDH key type");
+        XdhKeyCells.namedFactoryHoldsItsCurve(JostleFIPSProvider.PROVIDER_NAME);
     }
 }

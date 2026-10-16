@@ -30,6 +30,8 @@ import java.security.interfaces.XECPrivateKey;
 import java.security.interfaces.XECPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.NamedParameterSpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.security.spec.XECPrivateKeySpec;
 import java.security.spec.XECPublicKeySpec;
 
@@ -61,10 +63,11 @@ import java.security.spec.XECPublicKeySpec;
  * BC 1.85.2 refused both specs with "key spec not recognized"
  * ({@code BaseKeyFactorySpi:57} via {@code edec/KeyFactorySpi:301}).
  *
- * <p>BC is used here as an INSTANCE and is never added to {@code Security}, so
- * the four cells below still prove jostle serves these keys on its own.
+ * <p>BC is registered in {@code Security} for the agreement cells that look it
+ * up by name. The cells that name the {@code jsl} instance still prove jostle
+ * serves these keys on its own.
  */
-public class XECJdkSpecRoundTripTest
+public class XECJdkSpecAgreementTest
 {
     private static Provider jsl;
 
@@ -73,6 +76,10 @@ public class XECJdkSpecRoundTripTest
     {
         jsl = new JostleProvider();
         Security.addProvider(jsl);
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new BouncyCastleProvider());
+        }
     }
 
     /** 2^255 - 19 (RFC 7748 section 4.1). */
@@ -206,8 +213,8 @@ public class XECJdkSpecRoundTripTest
      * dropped the attachment must fail here and be re-measured, not pass
      * quietly.
      *
-     * <p>BC is constructed here and NOT registered, so every other cell in this
-     * class still runs with jostle as the only installed provider.
+     * <p>BC is passed here as an instance, so this cell does not depend on
+     * which providers are registered.
      *
      * <p>Both providers are handed the SAME spec object — two constructions
      * agreeing would measure the constructions, not the encoders — and the
@@ -266,5 +273,54 @@ public class XECJdkSpecRoundTripTest
                 () -> kf.generatePrivate(new XECPrivateKeySpec(
                         NamedParameterSpec.X25519, new byte[0])),
                 "an empty scalar must be refused typed");
+    }
+
+    /**
+     * getKeySpec answers the JDK XEC specs for both halves on both curves, and the specs agree with BouncyCastle
+     * and decode back to the same encodings on both providers.
+     */
+    @Test
+    public void jdkKeySpecsAgreeWithBouncyCastle() throws Exception
+    {
+        for (String alg : new String[]{"X25519", "X448"})
+        {
+            KeyPair kp = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME).generateKeyPair();
+            KeyFactory jslKf = KeyFactory.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            KeyFactory bcKf = KeyFactory.getInstance(alg, BouncyCastleProvider.PROVIDER_NAME);
+
+            XECPublicKeySpec pub = jslKf.getKeySpec(kp.getPublic(), XECPublicKeySpec.class);
+            XECPublicKeySpec bcPub = bcKf.getKeySpec(bcKf.generatePublic(
+                    new X509EncodedKeySpec(kp.getPublic().getEncoded())), XECPublicKeySpec.class);
+            Assertions.assertEquals(bcPub.getU(), pub.getU(), alg);
+            Assertions.assertEquals(alg, ((NamedParameterSpec) pub.getParams()).getName(), alg);
+            Assertions.assertTrue(Arrays.areEqual(kp.getPublic().getEncoded(), jslKf.generatePublic(pub).getEncoded()));
+            Assertions.assertTrue(Arrays.areEqual(kp.getPublic().getEncoded(), bcKf.generatePublic(pub).getEncoded()));
+
+            XECPrivateKeySpec priv = jslKf.getKeySpec(kp.getPrivate(), XECPrivateKeySpec.class);
+            XECPrivateKeySpec bcPriv = bcKf.getKeySpec(bcKf.generatePrivate(
+                    new PKCS8EncodedKeySpec(kp.getPrivate().getEncoded())), XECPrivateKeySpec.class);
+            Assertions.assertTrue(Arrays.areEqual(bcPriv.getScalar(), priv.getScalar()), alg);
+            PrivateKey back = jslKf.generatePrivate(priv);
+            Assertions.assertTrue(Arrays.areEqual(((XECPrivateKey) kp.getPrivate()).getScalar().get(),
+                    ((XECPrivateKey) back).getScalar().get()), alg);
+        }
+    }
+
+    /** A negative u is refused on both providers; u at or above p still reduces mod p. */
+    @Test
+    public void negativeUIsRefusedAndLargeUReduces() throws Exception
+    {
+        KeyFactory jslKf = KeyFactory.getInstance("X25519", JostleProvider.PROVIDER_NAME);
+        KeyFactory bcKf = KeyFactory.getInstance("X25519", BouncyCastleProvider.PROVIDER_NAME);
+        XECPublicKeySpec negative = new XECPublicKeySpec(NamedParameterSpec.X25519, BigInteger.ONE.negate());
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> jslKf.generatePublic(negative));
+        Assertions.assertEquals("XECPublicKeySpec u-coordinate is negative", e.getMessage());
+        Assertions.assertThrows(InvalidKeySpecException.class, () -> bcKf.generatePublic(negative));
+
+        BigInteger p = BigInteger.ONE.shiftLeft(255).subtract(BigInteger.valueOf(19));
+        XECPublicKeySpec atP = new XECPublicKeySpec(NamedParameterSpec.X25519, p.add(BigInteger.ONE));
+        Assertions.assertEquals(BigInteger.ONE, ((XECPublicKey) jslKf.generatePublic(atP)).getU());
+        Assertions.assertEquals(BigInteger.ONE, ((XECPublicKey) bcKf.generatePublic(atP)).getU());
     }
 }

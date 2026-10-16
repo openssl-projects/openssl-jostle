@@ -24,6 +24,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,12 +69,13 @@ public class XECServiceFFM implements XECServiceNI
      */
     public XECServiceFFM(SymbolLookup lookup, String symPrefix)
     {
-        // JoXEC_generateKeyPair(const char* name, int32_t* err, void* rnd_src) -> key_spec*
+        // JoXEC_generateKeyPair(const char* name, size_t name_len, int32_t* err, void* rnd_src) -> key_spec*
         generateKeyPairH = linker.downcallHandle(
                 lookup.find(symPrefix + "JoXEC_generateKeyPair").orElseThrow(),
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,    // returns key_spec*
                         ValueLayout.ADDRESS,    // name
+                        ValueLayout.JAVA_LONG,  // name_len, UTF-8 bytes
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
@@ -98,18 +100,16 @@ public class XECServiceFFM implements XECServiceNI
         }
     }
 
-    /** Allocate a NUL-terminated UTF-8 C string in the arena, or NULL. */
-    private static MemorySegment nativeString(Arena a, String s)
+    /** A name as its UTF-8 bytes, or null; the C takes a NUL-terminated copy plus this count. */
+    private static byte[] utf8(String name)
     {
-        if (s == null)
-        {
-            return MemorySegment.NULL;
-        }
-        byte[] utf8 = s.getBytes(StandardCharsets.UTF_8);
-        MemorySegment seg = a.allocate(utf8.length + 1);
-        seg.asByteBuffer().put(utf8);
-        seg.set(ValueLayout.JAVA_BYTE, utf8.length, (byte) 0);
-        return seg;
+        return name == null ? null : name.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static MemorySegment nameSeg(Arena a, byte[] utf8)
+    {
+        return utf8 == null ? MemorySegment.NULL
+                : a.allocateFrom(ValueLayout.JAVA_BYTE, Arrays.copyOf(utf8, utf8.length + 1));
     }
 
     @Override
@@ -118,8 +118,10 @@ public class XECServiceFFM implements XECServiceNI
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
+            byte[] nameBytes = utf8(name);
             MemorySegment ref = (MemorySegment) generateKeyPairH.invokeExact(
-                    nativeString(a, name), errSeg, entropyStub(a, rndSource));
+                    nameSeg(a, nameBytes), nameBytes == null ? 0L : (long) nameBytes.length, errSeg,
+                    entropyStub(a, rndSource));
             err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
             return ref.address();
         }
