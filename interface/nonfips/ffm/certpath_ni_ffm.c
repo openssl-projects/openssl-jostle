@@ -41,10 +41,11 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
 
     memset(&result, 0, sizeof(result));
 
-    if (der == NULL) {
+    /* The refusal order is the JNI twin's, check for check: the same input gives the same code. */
+    if (der == NULL || sizes == NULL) {
         return JO_INPUT_IS_NULL;
     }
-    if (sizes == NULL || out_info == NULL || chain_out == NULL) {
+    if (out_info == NULL || chain_out == NULL) {
         return JO_OUTPUT_IS_NULL;
     }
     if (der_len <= 0) {
@@ -104,4 +105,10 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     }
     certpath_result_free(&result);
     return JO_SUCCESS;
+}
+
+/* OpenSSL's static text for an X509_V_* code; the caller reads it and never frees it. */
+const char *JoCertPath_errorText(int32_t error)
+{
+    return certpath_error_text(error);
 }

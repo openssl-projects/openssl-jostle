@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.certpath;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 /**
  * Refuses the PKIX parameters this phase cannot honour.
@@ -58,6 +59,13 @@ final class CertPathParams
         {
             throw new InvalidAlgorithmParameterException(
                     "PKIXCertPathChecker is not supported yet");
+        }
+        String sigProvider = pkix.getSigProvider();
+        if (sigProvider != null && !JostleProvider.PROVIDER_NAME.equals(sigProvider))
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "sigProvider " + sigProvider + " is not supported: OpenSSL verifies the signatures natively,"
+                            + " so no other JCA provider can be used");
         }
         if (pkix.getTrustAnchors().isEmpty())
         {

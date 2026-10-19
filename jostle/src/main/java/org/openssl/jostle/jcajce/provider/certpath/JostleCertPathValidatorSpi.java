@@ -17,12 +17,14 @@ import java.security.cert.CertPathParameters;
 import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertPathValidatorResult;
 import java.security.cert.CertPathValidatorSpi;
+import java.security.cert.CertSelector;
 import java.security.cert.Certificate;
 import java.security.cert.PKIXCertPathValidatorResult;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 
 /**
  * PKIX certification path validation over OpenSSL's {@code X509_verify_cert}.
@@ -43,8 +45,10 @@ import java.util.List;
  * from their defaults, and a non-empty {@code PKIXCertPathChecker} list —
  * which is also what keeps {@code PKIXRevocationChecker}, and so OCSP, out.
  * <p>
- * <b>Ignored, deliberately:</b> {@code sigProvider} — OpenSSL performs the
- * signature verification, so no JCA provider is consulted; the
+ * <b>sigProvider</b> is accepted only when null or this provider's name, and
+ * refused typed otherwise: OpenSSL performs the signature verification, so no
+ * other JCA provider can be honoured. {@code targetCertConstraints} is applied
+ * to the target certificate before anything is verified. Without effect:
  * {@code policyQualifiersRejected}, which only matters once policies are
  * processed.
  * <p>
@@ -115,6 +119,12 @@ public class JostleCertPathValidatorSpi
             // here — the assert must be unreachable from a caller.
             throw new CertPathValidatorException("certification path is empty");
         }
+        CertSelector target = pkix.getTargetCertConstraints();
+        if (target != null && !target.match(certs.get(0)))
+        {
+            throw new CertPathValidatorException(
+                    "the target certificate does not match the target constraints", null, certPath, 0);
+        }
 
         CertPathCall call = CertPathCall.build(pkix, certs, CertPathCall.crlsFrom(pkix),
                 CertPathCall.extraCertsFrom(pkix, certs));
@@ -143,12 +153,20 @@ public class JostleCertPathValidatorSpi
             throw new CertPathValidatorException(
                     "a certificate in the path is not valid DER X.509", null, certPath, pathIndex);
         }
-        ni.baseErrorHandler(rc);
+        try
+        {
+            ni.baseErrorHandler(rc);
+        }
+        catch (OpenSSLException e)
+        {
+            throw new CertPathValidatorException("certification path validation could not run", e,
+                    certPath, -1);
+        }
 
         int error = call.outInfo[0];
         if (error != 0)
         {
-            throw CertPathErrors.toValidatorException(error, call.outInfo[1], certPath);
+            throw CertPathErrors.toValidatorException(ni, error, call.outInfo[1], certPath);
         }
 
         // P4: the validator does not rebuild. A chain OpenSSL completed

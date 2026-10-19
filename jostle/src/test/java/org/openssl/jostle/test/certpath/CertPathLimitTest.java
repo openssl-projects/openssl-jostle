@@ -9,6 +9,7 @@ import org.openssl.jostle.jcajce.provider.certpath.CertPathNI;
 
 import java.io.IOException;
 import java.security.Security;
+import java.util.Arrays;
 
 /**
  * NI-surface limit tests for {@code ni_verify}, driven directly so the bridge
@@ -244,13 +245,65 @@ public class CertPathLimitTest
                 "JO_INPUT_IS_NULL");
     }
 
-    /** A null sizes array. */
+    /** A null sizes array is a null INPUT, as the der buffer is. */
     @Test
     public void nullSizesIsRefused() throws IOException
     {
-        Assertions.assertEquals(-17, NISelector.CertPathNI.ni_verify(
+        Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(
                 new byte[16], null, 3, 2, 1, CertPathNI.TIME_NOW, 1, 1, new byte[16], new int[6]),
-                "JO_OUTPUT_IS_NULL");
+                "JO_INPUT_IS_NULL");
+    }
+
+    /**
+     * Inputs that fail more than one check: both bridges check in one order, so
+     * the first failing check names the code on both.
+     */
+    @Test
+    public void inputsFailingTwoChecksGetTheSameCodeOnBothBridges() throws Exception
+    {
+        byte[] der = new byte[64];
+        Assertions.assertAll(
+                () -> Assertions.assertEquals(-19, NISelector.CertPathNI.ni_verify(der, new int[300], 300, 0, 0,
+                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[303]),
+                        "count over 256 before the anchor range"),
+                () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 1, 0, 1,
+                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[6]), "empty der before the count range"),
+                () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 3, 0, 1,
+                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[0]), "empty der before the outInfo length"),
+                () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 257, 0, 1,
+                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[6]), "empty der before the 256 bound"),
+                () -> Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(der, null, 257, 0, 1,
+                        CertPathNI.TIME_NOW, 1, 0, null, null), "null sizes before every other check"));
+    }
+
+    /**
+     * outInfo is written on success and on a decode failure only: a refusal
+     * leaves the caller's values, and a success leaves the entries past the
+     * chain, on both bridges.
+     */
+    @Test
+    public void outInfoIsWrittenOnlyWhereTheContractSays() throws Exception
+    {
+        int[] refused = new int[6];
+        Arrays.fill(refused, 99);
+        Assertions.assertEquals(-19, drive(goodCerts(), goodCrls(), 300, 2, 1, null, refused, 1));
+        Assertions.assertArrayEquals(new int[]{99, 99, 99, 99, 99, 99}, refused, "a refusal leaves outInfo alone");
+
+        int[] success = new int[10];
+        Arrays.fill(success, 99);
+        Assertions.assertEquals(0, drive(goodCerts(), goodCrls(), 3, 2, 1, null, success, 1));
+        Assertions.assertEquals(3, success[2], "a chain of three");
+        Assertions.assertArrayEquals(new int[]{99, 99, 99, 99}, Arrays.copyOfRange(success, 6, 10),
+                "a success leaves the entries past the chain alone");
+
+        byte[][] certs = goodCerts();
+        certs[1] = Arrays.copyOf(certs[1], certs[1].length);
+        certs[1][0] = 0x31;
+        int[] decode = new int[7];
+        Arrays.fill(decode, 99);
+        Assertions.assertEquals(-175, drive(certs, goodCrls(), 3, 2, 1, null, decode, 1));
+        Assertions.assertArrayEquals(new int[]{-175, 1, 0, 99, 99, 99, 99}, decode,
+                "a decode failure writes [code, index, 0] and nothing else");
     }
 
     /** outInfo must hold the header plus one size per certificate. */

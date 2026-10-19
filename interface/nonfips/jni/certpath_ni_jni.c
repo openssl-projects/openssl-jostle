@@ -59,24 +59,30 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
     init_bytearray_ctx(&chainOut);
     memset(&result, 0, sizeof(result));
 
-    if (_der == NULL)
+    /* The refusal order is the FFM twin's, check for check: the same input gives the same code. */
+    if (_der == NULL || _sizes == NULL)
     {
         ret = JO_INPUT_IS_NULL;
         goto exit;
     }
-    if (_sizes == NULL || _outInfo == NULL || _chainOut == NULL)
+    if (_outInfo == NULL || _chainOut == NULL)
     {
         ret = JO_OUTPUT_IS_NULL;
         goto exit;
     }
-    if (count < 2 || crlCount < 0 || anchorCount < 1 || anchorCount >= count)
+    if ((*env)->GetArrayLength(env, _der) == 0)
     {
-        ret = JO_INPUT_OUT_OF_RANGE;
+        ret = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
     if (count > MAX_CERTS || crlCount > MAX_CRLS)
     {
         ret = JO_INPUT_TOO_LONG_INT32;
+        goto exit;
+    }
+    if (count < 2 || crlCount < 0 || anchorCount < 1 || anchorCount >= count)
+    {
+        ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
     /* Both halves are bounded above, so the sum cannot overflow. */
@@ -102,11 +108,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         /* load_bytearray_ctx succeeds for a NULL Java array, so this is the
            check that separates a null input from an empty one. */
         ret = JO_INPUT_IS_NULL;
-        goto exit;
-    }
-    if (der.size == 0)
-    {
-        ret = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
     if (OPS_FAILED_ACCESS_5 !load_bytearray_ctx(&chainOut, env, _chainOut))
@@ -201,4 +202,13 @@ exit:
     release_bytearray_ctx(&chainOut);
     release_bytearray_ctx(&der);
     return ret;
+}
+
+JNIEXPORT jstring JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPathServiceJNI_ni_1errorText
+(JNIEnv *env, jobject jo, jint error)
+{
+    UNUSED(jo);
+
+    /* NULL with an OutOfMemoryError pending when the string cannot be made. */
+    return (*env)->NewStringUTF(env, certpath_error_text((int32_t) error));
 }

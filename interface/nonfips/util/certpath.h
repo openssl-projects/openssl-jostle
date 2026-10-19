@@ -31,7 +31,7 @@
 typedef struct {
     int32_t error;        /* X509_V_* code; 0 is X509_V_OK */
     int32_t depth;        /* error depth, -1 when there was no error */
-    int32_t chain_count;  /* certificates in the built chain, anchor last */
+    int32_t chain_count;  /* certificates in the built chain, anchor last; at most count */
     uint8_t *chain_der;   /* concatenated DER of the built chain */
     size_t   chain_len;
     int32_t *chain_sizes; /* chain_count entries */
@@ -46,7 +46,8 @@ typedef struct {
  *             The three go together; see certpath.c for what each decides.
  *
  * Returns JO_SUCCESS when the verification RAN (whatever its verdict — read
- * result->error for that) and a JO_* error when it could not be attempted.
+ * result->error for that) and a JO_* error when it could not be attempted;
+ * an OpenSSL failure on the way is JO_OPENSSL_ERROR.
  */
 int32_t certpath_verify(const uint8_t *der, size_t der_len,
                         const int32_t *sizes, int32_t count, int32_t crl_count,
@@ -55,5 +56,8 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
                         certpath_result *result);
 
 void certpath_result_free(certpath_result *result);
+
+/* OpenSSL's own text for an X509_V_* code; a static string, never NULL. */
+const char *certpath_error_text(int32_t error);
 
 #endif

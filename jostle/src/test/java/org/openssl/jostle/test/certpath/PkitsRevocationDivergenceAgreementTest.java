@@ -13,7 +13,7 @@ import java.security.cert.CertPathValidatorException;
  * The revocation case this provider does NOT pass, pinned in both halves so
  * neither can drift unnoticed.
  */
-public class PkitsRevocationDivergenceTest
+public class PkitsRevocationDivergenceAgreementTest
 {
     @BeforeAll
     static void before()

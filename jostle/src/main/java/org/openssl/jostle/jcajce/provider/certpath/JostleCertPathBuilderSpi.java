@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.certpath;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathBuilderException;
@@ -260,12 +261,19 @@ public class JostleCertPathBuilderSpi
         {
             throw new CertPathValidatorException("a supplied CRL is not valid DER X.509");
         }
-        ni.baseErrorHandler(rc);
+        try
+        {
+            ni.baseErrorHandler(rc);
+        }
+        catch (OpenSSLException e)
+        {
+            throw new CertPathBuilderException("certification path building could not run", e);
+        }
 
         int error = call.outInfo[0];
         if (error != 0)
         {
-            throw CertPathErrors.toValidatorException(error, call.outInfo[1], null);
+            throw CertPathErrors.toValidatorException(ni, error, call.outInfo[1], null);
         }
 
         try

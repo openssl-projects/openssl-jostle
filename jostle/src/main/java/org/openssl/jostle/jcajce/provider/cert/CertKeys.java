@@ -149,7 +149,7 @@ final class CertKeys
      * refusal names the cause instead of reporting a generic decode error —
      * OpenSSL's {@code X509_PUBKEY_get0} cannot load these at all, which is
      * the same root cause as the certification-path divergence already pinned
-     * in {@code PkitsDivergenceTest}.
+     * in {@code PkitsDivergenceAgreementTest}.
      */
     static boolean hasInheritedDsaParameters(String spkiAlgOid, byte[] spki)
     {

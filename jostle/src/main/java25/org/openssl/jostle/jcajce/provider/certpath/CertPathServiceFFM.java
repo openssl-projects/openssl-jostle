@@ -33,6 +33,7 @@ public class CertPathServiceFFM implements CertPathNI
     private static final Linker linker = Linker.nativeLinker();
 
     private final MethodHandle verifyH;
+    private final MethodHandle errorTextH;
 
     public CertPathServiceFFM()
     {
@@ -73,6 +74,11 @@ public class CertPathServiceFFM implements CertPathNI
                         ValueLayout.JAVA_INT,      // chain_out_len
                         ValueLayout.ADDRESS,       // out_info
                         ValueLayout.JAVA_INT));    // out_info_len
+
+        // const char *JoCertPath_errorText(int32_t)
+        errorTextH = linker.downcallHandle(
+                lookup.find(symPrefix + "JoCertPath_errorText").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
     }
 
     @Override
@@ -92,9 +98,13 @@ public class CertPathServiceFFM implements CertPathNI
                     ? MemorySegment.NULL : arena.allocateFrom(ValueLayout.JAVA_INT, sizes);
             MemorySegment chainSeg = chainOut == null
                     ? MemorySegment.NULL : arena.allocate(Math.max(chainOut.length, 1));
+            // outInfo is copied IN as well as back, so the entries C does not
+            // write keep the caller's values, as on the JNI twin.
             MemorySegment infoSeg = outInfo == null
                     ? MemorySegment.NULL
-                    : arena.allocate(ValueLayout.JAVA_INT, Math.max(outInfo.length, 1));
+                    : outInfo.length == 0
+                    ? arena.allocate(ValueLayout.JAVA_INT, 1)
+                    : arena.allocateFrom(ValueLayout.JAVA_INT, outInfo);
 
             int rc = (int) verifyH.invokeExact(derSeg, der == null ? 0 : der.length,
                     sizesSeg, sizes == null ? 0 : sizes.length,
@@ -103,8 +113,7 @@ public class CertPathServiceFFM implements CertPathNI
                     infoSeg, outInfo == null ? 0 : outInfo.length);
 
             // outInfo comes back on the failure paths too: the decode failure
-            // reports WHICH certificate in it, and returning rc alone would
-            // lose that. Only the chain is success-only.
+            // reports WHICH certificate in it. Only the chain is success-only.
             if (outInfo != null)
             {
                 MemorySegment.copy(infoSeg, ValueLayout.JAVA_INT, 0, outInfo, 0, outInfo.length);
@@ -118,6 +127,20 @@ public class CertPathServiceFFM implements CertPathNI
         catch (Throwable t)
         {
             throw new RuntimeException("JoCertPath_verify failed", t);
+        }
+    }
+
+    @Override
+    public String ni_errorText(int error)
+    {
+        try
+        {
+            MemorySegment text = (MemorySegment) errorTextH.invokeExact(error);
+            return text.reinterpret(Long.MAX_VALUE).getString(0);
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("JoCertPath_errorText failed", t);
         }
     }
 }

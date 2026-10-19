@@ -31,11 +31,11 @@ import java.util.Set;
  *
  * <h2>What is not run here, and why</h2>
  * <b>4.14.30 is a pinned divergence</b>, in
- * {@link PkitsRevocationDivergenceTest} with its mechanism. Every other row
+ * {@link PkitsRevocationDivergenceAgreementTest} with its mechanism. Every other row
  * runs: delta CRLs are honoured since {@code X509_V_FLAG_USE_DELTAS} landed,
  * which made 4.15.4 and 4.15.5 agree with PKITS and left the other eight
  * delta rows unmoved. Those two are now JDK divergences, pinned in
- * {@link PkitsRevocationDivergenceTest} alongside 4.14.30.
+ * {@link PkitsRevocationDivergenceAgreementTest} alongside 4.14.30.
  */
 public class PkitsPhase2Test
 {

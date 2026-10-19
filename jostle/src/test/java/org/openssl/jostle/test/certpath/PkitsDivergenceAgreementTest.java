@@ -11,6 +11,7 @@ import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
 import java.security.cert.PKIXParameters;
+import java.security.cert.PKIXReason;
 
 /**
  * The two PKITS cases this provider does NOT pass, each pinned in both halves —
@@ -18,7 +19,7 @@ import java.security.cert.PKIXParameters;
  * bump that moves the reference fails here rather than silently invalidating
  * the rationale.
  */
-public class PkitsDivergenceTest
+public class PkitsDivergenceAgreementTest
 {
     @BeforeAll
     static void before()
@@ -83,7 +84,7 @@ public class PkitsDivergenceTest
         Assertions.assertTrue(e.getMessage().matches("(?s).*failed: 20 .*"),
                 "expected X509 error 20, got: " + e.getMessage());
         Assertions.assertEquals(0, e.getIndex(), "error 20 is reported at depth 0, the EE");
-        Assertions.assertEquals(CertPathValidatorException.BasicReason.UNSPECIFIED, e.getReason());
+        Assertions.assertEquals(PKIXReason.NO_TRUST_ANCHOR, e.getReason());
 
         Assertions.assertTrue(validatesWith(BouncyCastleProvider.PROVIDER_NAME, c),
                 "BouncyCastle is expected to support DSA parameter inheritance; if this fails, "

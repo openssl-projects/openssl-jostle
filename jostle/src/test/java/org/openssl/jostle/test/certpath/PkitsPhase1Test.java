@@ -24,7 +24,7 @@ import java.util.List;
  * The expected outcomes come from {@code cases.txt}, generated from PKITS.pdf's
  * own "Expected Result" text, so this class restates nothing. Two cases are
  * expected to DIVERGE and are pinned separately, by name, in
- * {@link PkitsDivergenceTest} — they are excluded here rather than silently
+ * {@link PkitsDivergenceAgreementTest}: they are excluded here rather than silently
  * tolerated.
  * <p>
  * Since phase 2 the table also carries the revocation sections, so this class

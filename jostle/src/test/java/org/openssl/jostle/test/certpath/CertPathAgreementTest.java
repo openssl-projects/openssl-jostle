@@ -30,6 +30,7 @@ import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.security.cert.CertificateRevokedException;
 import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.PKIXCertPathValidatorResult;
@@ -52,7 +53,7 @@ import java.util.TreeSet;
  *
  * <p><b>Scope, and what this deliberately does NOT do.</b> Every PKITS row is
  * already asserted against its specification outcome on this provider, on SUN
- * and on BouncyCastle by {@link PkitsThreeWayTest}; re-asserting those rows
+ * and on BouncyCastle by {@link PkitsThreeWayAgreementTest}; re-asserting those rows
  * here would duplicate a measurement rather than add one. This class covers
  * what PKITS cannot reach: PKITS is entirely RSA, so the post-quantum,
  * Edwards and elliptic-curve paths have no corpus at all, and PKITS carries
@@ -695,5 +696,101 @@ public class CertPathAgreementTest
     {
         return bad.size() + " disagreements with BouncyCastle:\n  "
                 + String.join("\n  ", bad.subList(0, Math.min(bad.size(), 40)));
+    }
+
+    // ---------------------------------------------------------------- the JDK on the same inputs
+
+    /**
+     * A path carrying a certificate off the end entity's chain (PKITS 4.5.6's
+     * CRL signer at index 1): the JDK refuses it as we do, which is what makes
+     * the refusal a statement about the contract.
+     */
+    @Test
+    public void aPathCarryingACertificateOffTheChainIsRefusedByTheJdkToo() throws Exception
+    {
+        CertPath bad = CertPathContractTest.offChainPath(new ArrayList<X509Certificate>());
+        PKIXParameters p = CertPathContractTest.offChainParams();
+        for (String provider : new String[]{JSL, "SUN"})
+        {
+            Assertions.assertThrows(CertPathValidatorException.class,
+                    () -> CertPathValidator.getInstance("PKIX", provider).validate(bad, p), provider);
+        }
+    }
+
+    /** Every CRL fault we report as UNDETERMINED_REVOCATION_STATUS, the JDK reports so on the same case. */
+    @Test
+    public void everyCrlFaultReasonAgreesWithTheJdk() throws Exception
+    {
+        List<String> wrong = new ArrayList<String>();
+        int compared = 0;
+        for (PkitsCertificates.Case c : PkitsPhase2Test.selected())
+        {
+            if (PkitsPhase2Test.PINNED_DIVERGENCES.contains(c.number) || "4.4.8".equals(c.number))
+            {
+                continue;
+            }
+            String ours = CertPathRevocationErrorTableTest.refusal(JSL, c);
+            if (ours == null || !CertPathRevocationErrorTableTest.CRL_FAULTS.contains(
+                    CertPathRevocationErrorTableTest.codeOf(ours)))
+            {
+                continue;
+            }
+            compared++;
+            String jdk = CertPathRevocationErrorTableTest.refusal("SUN", c);
+            if (!ours.startsWith("UNDETERMINED_REVOCATION_STATUS|")
+                    || jdk == null || !jdk.startsWith("UNDETERMINED_REVOCATION_STATUS|"))
+            {
+                wrong.add(c.number + ": ours " + ours + ", JDK " + jdk);
+            }
+        }
+        Assertions.assertTrue(compared >= 20, "only " + compared + " CRL-fault cases compared");
+        Assertions.assertTrue(wrong.isEmpty(), "reason disagreements with the JDK: " + wrong);
+    }
+
+    /**
+     * A revoked end entity (PKITS 4.4.3): REVOKED on both, no cause here, a
+     * CertificateRevokedException cause on the JDK. Both halves are asserted, so
+     * the documented difference cannot move silently in either direction.
+     */
+    @Test
+    public void theRevocationDateAndReasonAreAbsentHereAndPresentInTheJdk() throws Exception
+    {
+        PkitsCertificates.Case c = PkitsPhase2Test.find("4.4.3");
+        CertPathValidatorException ours = Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", JSL)
+                        .validate(PkitsPhase2Test.path(c), PkitsPhase2Test.params(c)));
+        CertPathValidatorException jdk = Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", "SUN")
+                        .validate(PkitsPhase2Test.path(c), PkitsPhase2Test.params(c)));
+        Assertions.assertEquals(CertPathValidatorException.BasicReason.REVOKED, ours.getReason());
+        Assertions.assertEquals(CertPathValidatorException.BasicReason.REVOKED, jdk.getReason());
+        Assertions.assertNull(ours.getCause());
+        Assertions.assertTrue(jdk.getCause() instanceof CertificateRevokedException,
+                "the JDK is expected to carry a CertificateRevokedException cause: " + jdk.getCause());
+    }
+
+    /**
+     * Code 36 (PKITS 4.4.8, 4.4.9, 4.4.10): we answer UNDETERMINED for all
+     * three, the JDK UNSPECIFIED for 4.4.8 and UNDETERMINED for the other two.
+     * Pinned in both halves, so a JDK release that changes 4.4.8 fails here.
+     */
+    @Test
+    public void theUnhandledCriticalCrlExtensionReasonIsPinnedAgainstTheJdk() throws Exception
+    {
+        for (String n : new String[]{"4.4.8", "4.4.9", "4.4.10"})
+        {
+            String ours = CertPathRevocationErrorTableTest.refusal(JSL, PkitsPhase2Test.find(n));
+            Assertions.assertTrue(ours != null && ours.startsWith("UNDETERMINED_REVOCATION_STATUS|"),
+                    n + ": " + ours);
+        }
+        String jdk48 = CertPathRevocationErrorTableTest.refusal("SUN", PkitsPhase2Test.find("4.4.8"));
+        Assertions.assertTrue(jdk48 != null && jdk48.startsWith("UNSPECIFIED|"),
+                "the JDK is expected to answer UNSPECIFIED for 4.4.8: " + jdk48);
+        for (String n : new String[]{"4.4.9", "4.4.10"})
+        {
+            String jdk = CertPathRevocationErrorTableTest.refusal("SUN", PkitsPhase2Test.find(n));
+            Assertions.assertTrue(jdk != null && jdk.startsWith("UNDETERMINED_REVOCATION_STATUS|"),
+                    n + ": " + jdk);
+        }
     }
 }

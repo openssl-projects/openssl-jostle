@@ -7,19 +7,26 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.certpath.CertPathNI;
 
+import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.Security;
 import java.security.cert.CertPath;
+import java.security.cert.CertPathBuilder;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertificateFactory;
+import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.PKIXParameters;
 import java.security.cert.PKIXCertPathChecker;
+import java.security.cert.PKIXReason;
 import java.security.cert.TrustAnchor;
+import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -364,12 +371,29 @@ public class CertPathContractTest
      * and BouncyCastle for "lacks BasicConstraints". Accepting a path
      * containing a member we never validated was more lenient than either.
      *
-     * <p>The JDK's refusal is asserted alongside ours: it is what makes this a
-     * statement about the contract rather than about our implementation, and
-     * it fails loudly if the fixture ever stops being a wrongly-built path.
+     * <p>The JDK's refusal of the same path is asserted in
+     * {@link CertPathAgreementTest}.
      */
     @Test
     public void aPathCarryingACertificateOffTheChainIsRefused() throws Exception
+    {
+        List<X509Certificate> chained = new ArrayList<X509Certificate>();
+        CertPath bad = offChainPath(chained);
+        PKIXParameters p = offChainParams();
+
+        Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME)
+                        .validate(bad, p),
+                "a path carrying a certificate off the chain must be refused");
+
+        // The control: the CHAINED path still validates, so the refusal is
+        // about the extra certificate and not about the fixture at large.
+        CertPath good = CertificateFactory.getInstance("X.509").generateCertPath(chained);
+        CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME).validate(good, p);
+    }
+
+    /** PKITS 4.5.6's certificates with the CRL signer at index 1; fills chainedOut with the real path. */
+    static CertPath offChainPath(List<X509Certificate> chainedOut) throws Exception
     {
         PkitsCertificates.Case c = null;
         for (PkitsCertificates.Case cand : PkitsCertificates.cases())
@@ -396,25 +420,122 @@ public class CertPathContractTest
         Assertions.assertEquals(3, naive.size(), "vacuity guard: the naive path must be longer");
         Assertions.assertFalse(chained.contains(naive.get(1)),
                 "vacuity guard: the extra certificate must be one the chain does not reach");
+        chainedOut.addAll(chained);
+        return CertificateFactory.getInstance("X.509").generateCertPath(naive);
+    }
 
-        CertPath bad = CertificateFactory.getInstance("X.509").generateCertPath(naive);
+    static PKIXParameters offChainParams() throws Exception
+    {
         PKIXParameters p = new PKIXParameters(Collections.singleton(new TrustAnchor(
                 PkitsCertificates.certificate(PkitsCertificates.ANCHOR), null)));
         p.setRevocationEnabled(false);
+        return p;
+    }
 
-        Assertions.assertThrows(CertPathValidatorException.class,
+    private static CertPath pkitsPath() throws Exception
+    {
+        return CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME).generateCertPath(
+                Arrays.asList(PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt"),
+                        PkitsCertificates.certificate("GoodCACert.crt")));
+    }
+
+    private static PKIXParameters pkitsParams() throws Exception
+    {
+        PKIXParameters p = new PKIXParameters(Collections.singleton(new TrustAnchor(
+                PkitsCertificates.certificate(PkitsCertificates.ANCHOR), null)));
+        p.setRevocationEnabled(false);
+        p.setDate(new Date(1500000000000L));
+        return p;
+    }
+
+    /** targetCertConstraints are applied to the target: a miss is refused at index 0, a match validates. */
+    @Test
+    public void theTargetConstraintsAreAppliedToTheTarget() throws Exception
+    {
+        CertPath path = pkitsPath();
+        PKIXParameters p = pkitsParams();
+        X509CertSelector miss = new X509CertSelector();
+        miss.setSerialNumber(BigInteger.valueOf(999999));
+        p.setTargetCertConstraints(miss);
+        CertPathValidatorException e = Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME).validate(path, p));
+        Assertions.assertEquals("the target certificate does not match the target constraints", e.getMessage());
+        Assertions.assertEquals(0, e.getIndex());
+
+        X509CertSelector hit = new X509CertSelector();
+        hit.setCertificate((X509Certificate) path.getCertificates().get(0));
+        p.setTargetCertConstraints(hit);
+        Assertions.assertNotNull(CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME).validate(path, p));
+    }
+
+    /** sigProvider: null and this provider's name validate; any other name is refused, named, on both SPIs. */
+    @Test
+    public void aSigProviderOtherThanThisOneIsRefusedNamingIt() throws Exception
+    {
+        CertPath path = pkitsPath();
+        for (String ok : new String[]{null, JostleProvider.PROVIDER_NAME})
+        {
+            PKIXParameters p = pkitsParams();
+            p.setSigProvider(ok);
+            Assertions.assertNotNull(CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME)
+                    .validate(path, p), String.valueOf(ok));
+        }
+        for (String other : new String[]{"SUN", "NOPE"})
+        {
+            PKIXParameters p = pkitsParams();
+            p.setSigProvider(other);
+            InvalidAlgorithmParameterException e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                    () -> CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME).validate(path, p));
+            Assertions.assertEquals("sigProvider " + other + " is not supported: OpenSSL verifies the signatures"
+                    + " natively, so no other JCA provider can be used", e.getMessage());
+
+            X509CertSelector sel = new X509CertSelector();
+            sel.setCertificate((X509Certificate) path.getCertificates().get(0));
+            PKIXBuilderParameters bp = new PKIXBuilderParameters(
+                    pkitsParams().getTrustAnchors(), sel);
+            bp.setSigProvider(other);
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                    () -> CertPathBuilder.getInstance("PKIX", JostleProvider.PROVIDER_NAME)
+                            .build(bp));
+        }
+    }
+
+    /**
+     * Every code the reason map names has its own text in the linked library,
+     * and a refusal carries exactly that text: no row of the text is ours.
+     */
+    @Test
+    public void theErrorTextIsTheLinkedLibrarysOwn() throws Exception
+    {
+        int[] mapped = {3, 7, 8, 9, 10, 11, 12, 20, 23, 33, 35, 36, 44, 54, 79};
+        CertPathNI ni = NISelector.CertPathNI;
+        String unknown = ni.ni_errorText(-424242);
+        Set<String> texts = new HashSet<String>();
+        for (int code : mapped)
+        {
+            String t = ni.ni_errorText(code);
+            Assertions.assertFalse(t.isEmpty(), "code " + code);
+            Assertions.assertNotEquals(unknown, t, "code " + code + " is unknown to the linked library");
+            texts.add(t);
+        }
+        Assertions.assertEquals(mapped.length, texts.size(), "two codes share a text");
+
+        PKIXParameters p = pkitsParams();
+        p.setDate(new Date(2524608000000L));
+        CertPathValidatorException expired = Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME).validate(pkitsPath(), p));
+        Assertions.assertEquals("certification path validation failed: 10 " + ni.ni_errorText(10),
+                expired.getMessage());
+        Assertions.assertEquals(CertPathValidatorException.BasicReason.EXPIRED, expired.getReason());
+
+        CertPath noIntermediate = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME)
+                .generateCertPath(Collections.singletonList(
+                        PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt")));
+        CertPathValidatorException missing = Assertions.assertThrows(CertPathValidatorException.class,
                 () -> CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME)
-                        .validate(bad, p),
-                "a path carrying a certificate off the chain must be refused");
-
-        // The reference: the JDK refuses the same path.
-        Assertions.assertThrows(CertPathValidatorException.class,
-                () -> CertPathValidator.getInstance("PKIX", "SUN").validate(bad, p),
-                "the JDK must refuse it too, or this fixture is not what it claims");
-
-        // The control: the CHAINED path still validates, so the refusal is
-        // about the extra certificate and not about the fixture at large.
-        CertPath good = CertificateFactory.getInstance("X.509").generateCertPath(chained);
-        CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME).validate(good, p);
+                        .validate(noIntermediate, pkitsParams()));
+        Assertions.assertEquals("certification path validation failed: 20 " + ni.ni_errorText(20),
+                missing.getMessage());
+        Assertions.assertEquals(PKIXReason.NO_TRUST_ANCHOR, missing.getReason());
     }
 }

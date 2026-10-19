@@ -21,4 +21,7 @@ public class CertPathServiceJNI implements CertPathNI
     public native int ni_verify(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
                                 long timeSecs, int strict, int revocation,
                                 byte[] chainOut, int[] outInfo);
+
+    @Override
+    public native String ni_errorText(int error);
 }

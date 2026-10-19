@@ -47,11 +47,21 @@ public interface CertPathNI
      * @param revocation  non-zero turns CRL checking on for the WHOLE path
      * @param chainOut    receives the built chain's concatenated DER
      * @param outInfo     {@code [error, depth, chainCount, size0 … sizeN-1]},
-     *                    so at least {@code OUT_INFO_HEADER + count} entries
+     *                    so at least {@code OUT_INFO_HEADER + count} entries;
+     *                    written on success and on a certificate or CRL decode
+     *                    failure ({@code [code, index, 0]}), untouched otherwise
      * @return {@code JO_SUCCESS} when the verification RAN — its verdict is
      *         {@code outInfo[0]}, an {@code X509_V_*} code — or a negative
      *         {@code JO_*} when it could not be attempted
      */
     int ni_verify(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
                   long timeSecs, int strict, int revocation, byte[] chainOut, int[] outInfo);
+
+    /**
+     * OpenSSL's own text for an {@code X509_V_*} code, from the linked library.
+     *
+     * @param error the code {@code outInfo[0]} reported
+     * @return the text, never null
+     */
+    String ni_errorText(int error);
 }

@@ -197,7 +197,7 @@ public class X509AgreementTest
                                 + inheritsParameters.getMessage());
                 Assertions.assertNotNull(theirs.getPublicKey(),
                         n + ": BouncyCastle now refuses the inherited-parameter key too — "
-                                + "the divergence pinned in PkitsDivergenceTest is stale");
+                                + "the divergence pinned in PkitsDivergenceAgreementTest is stale");
                 inherited.add(n);
             }
 

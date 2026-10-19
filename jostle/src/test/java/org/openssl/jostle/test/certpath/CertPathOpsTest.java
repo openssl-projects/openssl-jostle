@@ -18,10 +18,26 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.certpath.CertPathNI;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.security.Security;
+import java.security.cert.CertPath;
+import java.security.cert.CertPathBuilder;
+import java.security.cert.CertPathBuilderException;
+import java.security.cert.CertPathValidator;
+import java.security.cert.CertPathValidatorException;
+import java.security.cert.CertStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CollectionCertStoreParameters;
+import java.security.cert.PKIXBuilderParameters;
+import java.security.cert.PKIXParameters;
+import java.security.cert.TrustAnchor;
+import java.security.cert.X509CertSelector;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * Fault injection over the certification-path native surface.
@@ -33,13 +49,11 @@ import java.security.Security;
  * them.
  *
  * <p><b>These cells discriminate by FLAG, not by code.</b> Every instrumented
- * site in {@code certpath.c} returns {@code JO_FAIL}, which is not
- * {@code JO_OPENSSL_ERROR}, so no {@code OPS_OFFSET_*} applies and the codes
- * cannot tell two sites apart. Each cell therefore sets exactly ONE flag and
- * asserts the call went from success to {@code JO_FAIL}. The positive control
- * runs first in every cell, so a refusal can never be blamed on the fixture.
- * The same reasoning is written at the top of {@code certpath.c}; do not "fix"
- * the absent offsets.
+ * site in {@code certpath.c} returns {@code JO_OPENSSL_ERROR} with no offset,
+ * so the codes cannot tell two sites apart. Each cell therefore sets exactly
+ * ONE flag and asserts the call went from success to {@code JO_OPENSSL_ERROR}.
+ * The positive control runs first in every cell, so a refusal can never be
+ * blamed on the fixture.
  *
  * <p>The flags are deliberately disjoint from the X.509 ones — a path call
  * re-parses through the X.509 factory, so a shared flag would fire in two
@@ -140,8 +154,8 @@ public class CertPathOpsTest
         }
     }
 
-    /** JO_FAIL; the instrumented sites all report it. */
-    private static final int JO_FAIL = -1;
+    /** JO_OPENSSL_ERROR; the instrumented util sites all report it. */
+    private static final int JO_OPENSSL_ERROR = -2;
 
     /**
      * Drive one flag: the same path must verify with it clear and fail with it
@@ -200,8 +214,8 @@ public class CertPathOpsTest
         try
         {
             operationsTestNI.setFlag(flag);
-            Assertions.assertEquals(JO_FAIL, fixture.build().verify(),
-                    site + " was not reached, or did not report JO_FAIL");
+            Assertions.assertEquals(JO_OPENSSL_ERROR, fixture.build().verify(),
+                    site + " was not reached, or did not report JO_OPENSSL_ERROR");
         }
         finally
         {
@@ -215,7 +229,7 @@ public class CertPathOpsTest
     @Test
     public void storeAllocationFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c X509_STORE_new arm
+        // Exercises interface/nonfips/util/certpath.c:173
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1,
                 "the store/untrusted/crls allocation arm");
     }
@@ -223,7 +237,7 @@ public class CertPathOpsTest
     @Test
     public void storeAddCertFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c X509_STORE_add_cert arm
+        // Exercises interface/nonfips/util/certpath.c:200
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7,
                 "the X509_STORE_add_cert arm");
     }
@@ -231,7 +245,7 @@ public class CertPathOpsTest
     @Test
     public void storeCtxAllocationOrInitFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c X509_STORE_CTX_new_ex/init arm
+        // Exercises interface/nonfips/util/certpath.c:246
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2,
                 "the store-ctx allocate-and-init arm");
     }
@@ -239,7 +253,7 @@ public class CertPathOpsTest
     @Test
     public void chainSizesAllocationFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c capture_chain chain_sizes arm
+        // Exercises interface/nonfips/util/certpath.c:98
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10,
                 "the capture_chain chain_sizes allocation arm");
     }
@@ -247,7 +261,7 @@ public class CertPathOpsTest
     @Test
     public void chainMeasureFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c capture_chain i2d measure arm
+        // Exercises interface/nonfips/util/certpath.c:106
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11,
                 "the capture_chain i2d measuring arm");
     }
@@ -255,7 +269,7 @@ public class CertPathOpsTest
     @Test
     public void chainDerAllocationFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c capture_chain chain_der arm
+        // Exercises interface/nonfips/util/certpath.c:117
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12,
                 "the capture_chain chain_der allocation arm");
     }
@@ -276,7 +290,7 @@ public class CertPathOpsTest
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
         {
-            // Exercises interface/nonfips/jni/certpath_ni_jni.c input load arm
+            // Exercises interface/nonfips/jni/certpath_ni_jni.c:101
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             Assertions.assertEquals(-22, new Path().verify(), "JO_FAILED_ACCESS_INPUT");
         }
@@ -298,7 +312,7 @@ public class CertPathOpsTest
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
         {
-            // Exercises interface/nonfips/jni/certpath_ni_jni.c chainOut load arm
+            // Exercises interface/nonfips/jni/certpath_ni_jni.c:113
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_5);
             Assertions.assertEquals(-23, new Path().verify(), "JO_FAILED_ACCESS_OUTPUT");
         }
@@ -311,7 +325,7 @@ public class CertPathOpsTest
     @Test
     public void untrustedPushFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c sk_X509_push arm
+        // Exercises interface/nonfips/util/certpath.c:211
         assertFlagBreaksVerification(WITH_INTERMEDIATE,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8,
                 "the sk_X509_push arm, which only a path WITH an intermediate reaches");
@@ -320,7 +334,7 @@ public class CertPathOpsTest
     @Test
     public void crlPushFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c sk_X509_CRL_push arm
+        // Exercises interface/nonfips/util/certpath.c:238
         assertFlagBreaksVerification(WITH_CRLS,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9,
                 "the sk_X509_CRL_push arm, which only a call carrying CRLs reaches");
@@ -338,9 +352,60 @@ public class CertPathOpsTest
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
         {
-            // Exercises interface/nonfips/jni/certpath_ni_jni.c sizes load arm
+            // Exercises interface/nonfips/jni/certpath_ni_jni.c:125
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_6);
             Assertions.assertEquals(-22, new Path().verify(), "JO_FAILED_ACCESS_INPUT");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    /**
+     * At the SPIs an OpenSSL failure is the JCA's checked type with the cause
+     * kept: CertPathValidatorException from the validator, CertPathBuilderException
+     * from the builder.
+     */
+    @Test
+    public void anOpenSslFailureIsTheJcaTypeAtBothSpis() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+        X509Certificate anchor = PkitsCertificates.certificate(PkitsCertificates.ANCHOR);
+        X509Certificate ca = PkitsCertificates.certificate("GoodCACert.crt");
+        X509Certificate ee = PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt");
+        TrustAnchor ta = new TrustAnchor(anchor, null);
+        PKIXParameters vp =
+                new PKIXParameters(Collections.singleton(ta));
+        vp.setRevocationEnabled(false);
+        X509CertSelector sel = new X509CertSelector();
+        sel.setCertificate(ee);
+        PKIXBuilderParameters bp =
+                new PKIXBuilderParameters(Collections.singleton(ta), sel);
+        bp.setRevocationEnabled(false);
+        bp.addCertStore(CertStore.getInstance("Collection",
+                new CollectionCertStoreParameters(Arrays.asList(ee, ca))));
+        CertPath path = CertificateFactory.getInstance("X.509",
+                JostleProvider.PROVIDER_NAME).generateCertPath(Arrays.asList(ee, ca));
+        CertPathValidator validator =
+                CertPathValidator.getInstance("PKIX", JostleProvider.PROVIDER_NAME);
+        CertPathBuilder builder =
+                CertPathBuilder.getInstance("PKIX", JostleProvider.PROVIDER_NAME);
+        Assertions.assertNotNull(validator.validate(path, vp), "control");
+        try
+        {
+            // Exercises interface/nonfips/util/certpath.c:173
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
+            CertPathValidatorException v = Assertions.assertThrows(
+                    CertPathValidatorException.class, () -> validator.validate(path, vp));
+            Assertions.assertEquals("certification path validation could not run", v.getMessage());
+            Assertions.assertTrue(v.getCause() instanceof OpenSSLException,
+                    String.valueOf(v.getCause()));
+            CertPathBuilderException b = Assertions.assertThrows(
+                    CertPathBuilderException.class, () -> builder.build(bp));
+            Assertions.assertEquals("certification path building could not run", b.getMessage());
+            Assertions.assertTrue(b.getCause() instanceof OpenSSLException,
+                    String.valueOf(b.getCause()));
         }
         finally
         {

@@ -18,12 +18,9 @@
 #include "rand/jostle_lib_ctx.h"
 
 /*
- * OPS fault injection for this file uses FLAGS ONLY — no offset block, and
- * that is deliberate rather than an omission. Every site below returns
- * JO_FAIL, which is not JO_OPENSSL_ERROR, so an OPS_OFFSET_* would have
- * nothing to subtract from and the number it produced would mean something it
- * does not. Tests therefore name a site by the FLAG they set, exactly as the
- * d2i arms in x509.c do. Do not "fix" the missing offsets.
+ * OPS fault injection for this file uses FLAGS ONLY, with no offset block.
+ * Every site below returns JO_OPENSSL_ERROR, so tests name a site by the FLAG
+ * they set, exactly as the d2i arms in x509.c do.
  *
  * The flags are chosen DISJOINT from x509.c's (which uses OPENSSL_ERROR_1-6
  * and FAILED_ACCESS_1-3): a certification-path call re-parses its result
@@ -100,7 +97,7 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
     result->chain_sizes = OPENSSL_malloc(sizeof(int32_t) * (size_t) n);
     if (OPS_OPENSSL_ERROR_10 result->chain_sizes == NULL)
     {
-        return JO_FAIL;
+        return JO_OPENSSL_ERROR;
     }
 
     for (i = 0; i < n; i++)
@@ -110,7 +107,7 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
         {
             OPENSSL_free(result->chain_sizes);
             result->chain_sizes = NULL;
-            return JO_FAIL;
+            return JO_OPENSSL_ERROR;
         }
         result->chain_sizes[i] = (int32_t) len;
         total += (size_t) len;
@@ -121,7 +118,7 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
     {
         OPENSSL_free(result->chain_sizes);
         result->chain_sizes = NULL;
-        return JO_FAIL;
+        return JO_OPENSSL_ERROR;
     }
 
     {
@@ -134,7 +131,7 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
                 OPENSSL_free(result->chain_sizes);
                 result->chain_der = NULL;
                 result->chain_sizes = NULL;
-                return JO_FAIL;
+                return JO_OPENSSL_ERROR;
             }
         }
     }
@@ -156,7 +153,8 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     X509 *target = NULL;
     size_t off = 0;
     int32_t i;
-    int32_t ret = JO_FAIL;
+    /* Every goto-exit that does not set ret is an OpenSSL failure. */
+    int32_t ret = JO_OPENSSL_ERROR;
 
     /* Bridge-validated; asserted here as invariants per native-code.md. */
     jo_assert(der != NULL);
@@ -312,6 +310,8 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     }
 
     ret = capture_chain(ctx, result);
+    /* The chain is built from the count certificates supplied, so the bridges size outInfo to count + 3. */
+    jo_assert(ret != JO_SUCCESS || result->chain_count <= count);
 
 exit:
     X509_STORE_CTX_free(ctx);
@@ -325,6 +325,11 @@ exit:
         certpath_result_free(result);
     }
     return ret;
+}
+
+const char *certpath_error_text(int32_t error)
+{
+    return X509_verify_cert_error_string((long) error);
 }
 
 void certpath_result_free(certpath_result *result)

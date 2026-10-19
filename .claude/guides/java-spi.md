@@ -204,6 +204,15 @@ a name field stops catching anything the moment the `Provider` field becomes a
 binding — measured, a stray `String providerName` beside the binding went
 unflagged until the check counted carriers instead.
 
+### Import a class; a fully qualified name in code means a real naming collision
+
+Production and test code name a class through an import, never by its package path in a code line. The only
+exception is two imported simple names that collide (for example a Jostle key class and the JDK interface of the
+same name); then one of them is written fully qualified at its use sites with a one-line comment naming the
+collision. A fully qualified name anywhere else is a review hold: it hides the dependency from the import list and
+reads as a different author. The index review greps added lines, import lines excluded, for a package path
+followed by a capitalised class name and holds on any hit.
+
 ### Review Java SPI and provider plumbing for the bug classes positive-only tests can't catch
 
 The JCE SPI surface is a contract-heavy state machine: subtle exception-type expectations, transition rules, parameter-handling defaults, and provider-fallback semantics that a positive-only roundtrip test never surfaces. Most of these bugs become visible only under specific use patterns — wrong exception type breaking provider fallback, mis-registered cipher transformations silently downgrading the digest, GC reclaiming a key handle mid-call, or a multi-release ABI drift only visible to downstream callers compiled against the older view. When reviewing Java in `jostle/src/main/java/`, `jostle/src/main/java<N>/`, and `jostle/src/test/java/`, look for these classes specifically.

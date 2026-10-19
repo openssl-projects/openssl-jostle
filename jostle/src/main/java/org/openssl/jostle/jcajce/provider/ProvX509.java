@@ -29,9 +29,10 @@ class ProvX509
                         ProviderBinding.of(provider)));
         provider.addAlias("CertificateFactory", "X.509", "X509");
 
-        // PKIX certification path validation over OpenSSL's X509_verify_cert.
-        // JSL only in this phase; no revocation, no policy processing — both
-        // refused typed rather than ignored (see JostleCertPathValidatorSpi).
+        // PKIX certification path validation over OpenSSL's X509_verify_cert,
+        // JSL only. Revocation is honoured over the CertStores' CRLs and is on
+        // by default; policy processing is refused typed (see
+        // JostleCertPathValidatorSpi).
         provider.addAlgorithmImplementation("CertPathValidator", "PKIX",
                 JostleCertPathValidatorSpi.class.getName(), attr,
                 (arg) -> new JostleCertPathValidatorSpi());

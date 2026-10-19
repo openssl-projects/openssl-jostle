@@ -36,7 +36,7 @@ import java.util.Map;
  * sanctioned row starts agreeing, because a stale sanction is
  * indistinguishable from a justified one. Delete the line it names.
  */
-public class PkitsThreeWayTest
+public class PkitsThreeWayAgreementTest
 {
     private static final String JSL = JostleProvider.PROVIDER_NAME;
     private static final String SUN = "SUN";
@@ -84,17 +84,17 @@ public class PkitsThreeWayTest
     static
     {
         // Ours. Both are pinned with their mechanism, in both halves, in
-        // PkitsDivergenceTest — this entry defers to that pin rather than
+        // PkitsDivergenceAgreementTest: this entry defers to that pin rather than
         // repeating it.
         EXCLUSIONS.add(new Exclusion("4.1.5", JSL,
                 "DSA parameter inheritance is unimplemented in OpenSSL; error 20 at depth 0. "
-                        + "Pinned in PkitsDivergenceTest."));
+                        + "Pinned in PkitsDivergenceAgreementTest."));
         EXCLUSIONS.add(new Exclusion("4.6.4", JSL,
                 "non-critical basicConstraints refused under X509_V_FLAG_X509_STRICT; error 89. "
-                        + "Pinned in PkitsDivergenceTest."));
+                        + "Pinned in PkitsDivergenceAgreementTest."));
         EXCLUSIONS.add(new Exclusion("4.14.30", JSL,
                 "recursive indirect-CRL resolution refused by check_crl_path; error 54. "
-                        + "Pinned in PkitsRevocationDivergenceTest."));
+                        + "Pinned in PkitsRevocationDivergenceAgreementTest."));
 
         // BouncyCastle's. Each is a sanction against a live assertion, and
         // theForeignExclusionsAreStillEarnt reddens when one goes stale.
@@ -120,7 +120,7 @@ public class PkitsThreeWayTest
         // The delta-CRL pair. We honour deltas (X509_V_FLAG_USE_DELTAS) and
         // agree with PKITS on both; neither the JDK nor BouncyCastle does, so
         // all four triples here are foreign. Our side is pinned against the
-        // JDK in PkitsRevocationDivergenceTest.
+        // JDK in PkitsRevocationDivergenceAgreementTest.
         EXCLUSIONS.add(new Exclusion("4.15.4", SUN,
                 "SUN ACCEPTS a path PKITS calls invalid: the EE is revoked only in the "
                         + "delta and the base does not list it, so without deltas nothing "
@@ -352,7 +352,7 @@ public class PkitsThreeWayTest
      * A foreign provider that starts agreeing must be reported — a silent pass
      * leaves a stale sanction indistinguishable from a justified one. Separate
      * from the sweep so a bcprov fix reddens this cell alone. Ours are pinned
-     * in PkitsDivergenceTest and PkitsRevocationDivergenceTest; BC's half of
+     * in PkitsDivergenceAgreementTest and PkitsRevocationDivergenceAgreementTest; BC's half of
      * 4.14.30 belongs here, a foreign divergence like any other.
      */
     @Test
