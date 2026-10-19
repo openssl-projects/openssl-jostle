@@ -29,6 +29,7 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * Divergences from BouncyCastle that are DELIBERATE, pinned in both halves.
@@ -77,7 +78,7 @@ public class ExceptionTypeDivergencePinTest
     }
 
     private static Throwable initWith(String provider, java.security.Key key,
-                                      java.security.spec.AlgorithmParameterSpec ps)
+                                      AlgorithmParameterSpec ps)
     {
         try
         {

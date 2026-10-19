@@ -78,6 +78,7 @@ public class ForeignSpecRefusalRegressionTest
 
         byte[] ukm = new byte[16];
         RANDOM.nextBytes(ukm);
+        // UserKeyingMaterialSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec bcSpec =
                 new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm);
 
@@ -126,6 +127,7 @@ public class ForeignSpecRefusalRegressionTest
         kpg.initialize(new ECGenParameterSpec("secp256r1"));
         KeyPair recipient = kpg.generateKeyPair();
 
+        // IESKEMParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.IESKEMParameterSpec bcSpec =
                 new org.bouncycastle.jcajce.spec.IESKEMParameterSpec(new byte[12]);
 
@@ -171,6 +173,7 @@ public class ForeignSpecRefusalRegressionTest
         char[] password = "a-password".toCharArray();
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
+        // ScryptKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.ScryptKeySpec bcSpec =
                 new org.bouncycastle.jcajce.spec.ScryptKeySpec(password, salt, 16, 1, 1, 256);
 
@@ -208,6 +211,7 @@ public class ForeignSpecRefusalRegressionTest
         RANDOM.nextBytes(ikm);
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
+        // HKDFParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.HKDFParameterSpec bcSpec =
                 new org.bouncycastle.jcajce.spec.HKDFParameterSpec(ikm, salt, null, 32);
 

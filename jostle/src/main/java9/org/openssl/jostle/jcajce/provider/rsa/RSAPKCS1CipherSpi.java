@@ -16,6 +16,8 @@ import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
 import org.openssl.jostle.jcajce.interfaces.RSAKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
@@ -226,7 +228,7 @@ public class RSAPKCS1CipherSpi extends CipherSpi
             {
                 cipherNI.init(ref.getReference(), keyRef, this.opMode, this.randSource);
             }
-            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            catch (ProviderCapabilityException e)
             {
                 // Fail-loud contract: the loaded provider cannot honour
                 // implicit rejection (Bleichenbacher mitigation), so
@@ -319,7 +321,7 @@ public class RSAPKCS1CipherSpi extends CipherSpi
                 System.arraycopy(out, 0, trimmed, 0, written);
                 return trimmed;
             }
-            catch (org.openssl.jostle.jcajce.provider.OpenSSLException e)
+            catch (OpenSSLException e)
             {
                 if (opMode == RSAPKCS1CipherNI.OP_DECRYPT)
                 {

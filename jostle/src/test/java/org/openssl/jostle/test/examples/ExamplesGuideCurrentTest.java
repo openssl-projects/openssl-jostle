@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 
 /**
@@ -71,7 +73,7 @@ public class ExamplesGuideCurrentTest
             {
                 sb.append(line).append("\r\n");
             }
-            java.nio.file.Files.write(crlf.toPath(), sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            Files.write(crlf.toPath(), sb.toString().getBytes(StandardCharsets.UTF_8));
             Assertions.assertEquals(lf, ExamplesGuide.readLines(crlf));
             Assertions.assertTrue(lf.size() > 100, "the guide is implausibly short: " + lf.size() + " lines");
         }

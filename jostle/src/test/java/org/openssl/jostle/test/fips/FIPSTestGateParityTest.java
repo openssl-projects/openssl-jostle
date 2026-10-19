@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Source-level parity guard: every FIPS test class must apply its
@@ -130,7 +131,7 @@ public class FIPSTestGateParityTest
         for (Path root : roots)
         {
             List<Path> sources = new ArrayList<Path>();
-            try (java.util.stream.Stream<Path> list = Files.list(root))
+            try (Stream<Path> list = Files.list(root))
             {
                 list.filter(p -> p.getFileName().toString().endsWith(".java")).forEach(sources::add);
             }

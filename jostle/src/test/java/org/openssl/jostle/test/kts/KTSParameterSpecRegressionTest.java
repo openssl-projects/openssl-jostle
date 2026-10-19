@@ -73,6 +73,7 @@ public class KTSParameterSpecRegressionTest
     @Test
     public void bcSpecRefusedByRsaKts() throws Exception
     {
+        // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.KTSParameterSpec bcSpec =
                 new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AESWRAP", 256).build();
         Cipher c = Cipher.getInstance("RSA-KTS-KEM-KWS", JSL);

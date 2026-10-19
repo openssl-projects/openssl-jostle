@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.mlkem;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -379,8 +380,8 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof MLKEMPrivateKey || key instanceof MLKEMPublicKey)
         {
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.

@@ -5,6 +5,7 @@ import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.KeyUsage;
+import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v2CRLBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
@@ -12,6 +13,7 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -98,8 +100,8 @@ public class CertPathStoreCertificateTest
         caCrl = crl(caName, caKp);
 
         Assertions.assertNotEquals(
-                org.bouncycastle.util.encoders.Hex.toHexString(ca.getEncoded()),
-                org.bouncycastle.util.encoders.Hex.toHexString(caReissued.getEncoded()),
+                Hex.toHexString(ca.getEncoded()),
+                Hex.toHexString(caReissued.getEncoded()),
                 "the fixture is pointless unless the two encodings differ");
         Assertions.assertEquals(ca.getSubjectX500Principal(),
                 caReissued.getSubjectX500Principal(), "same subject");
@@ -182,7 +184,7 @@ public class CertPathStoreCertificateTest
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME).build(kp.getPrivate());
     }
 
-    private static X509Certificate convert(org.bouncycastle.cert.X509CertificateHolder h)
+    private static X509Certificate convert(X509CertificateHolder h)
             throws Exception
     {
         return new JcaX509CertificateConverter()

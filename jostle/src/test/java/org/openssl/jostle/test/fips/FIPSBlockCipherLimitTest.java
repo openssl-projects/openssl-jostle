@@ -58,7 +58,7 @@ public class FIPSBlockCipherLimitTest
     private static final int DES_EDE3 = OSSLCipher.DES_EDE3.ordinal();
     private static final int CTR = OSSLMode.CTR.ordinal();
     private static final int DES_BLOCK = 8;
-    private static final int AES_256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+    private static final int AES_256 = OSSLCipher.AES256.ordinal();
 
     /** CBC-CTS mode ordinal. */
     private static final int CTS = OSSLMode.CTS.ordinal();
@@ -944,7 +944,7 @@ public class FIPSBlockCipherLimitTest
         long ref = ni.ni_makeInstance(AES128, CTS, PKCS_PADDING, err);
         Assertions.assertEquals(0, ref, "no ctx may be produced");
         Assertions.assertEquals(
-                org.openssl.jostle.jcajce.provider.ErrorCode.JO_MODE_TAKES_NO_PADDING.getCode(),
+                ErrorCode.JO_MODE_TAKES_NO_PADDING.getCode(),
                 err[0], "CTS + padding must be JO_MODE_TAKES_NO_PADDING");
     }
 
@@ -1136,7 +1136,7 @@ public class FIPSBlockCipherLimitTest
     {
         int code = ni.ni_cipherFetchable(-1, OSSLMode.GCM.ordinal());
         Assertions.assertEquals(
-                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_CIPHER.getCode(),
+                ErrorCode.JO_INVALID_CIPHER.getCode(),
                 code, "an unrecognised cipher ordinal must report JO_INVALID_CIPHER");
     }
 
@@ -1146,7 +1146,7 @@ public class FIPSBlockCipherLimitTest
     {
         int code = ni.ni_cipherFetchable(OSSLCipher.AES256.ordinal(), 9999);
         Assertions.assertEquals(
-                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_MODE.getCode(),
+                ErrorCode.JO_INVALID_MODE.getCode(),
                 code, "a mode ordinal AES256 has no name for must report JO_INVALID_MODE");
     }
 
@@ -1235,6 +1235,7 @@ public class FIPSBlockCipherLimitTest
             RANDOM.nextBytes(pt);
             byte[] ct = new byte[16];
             Assertions.assertEquals(16, ni.update(ref, ct, 0, pt, 0, 16) + ni.doFinal(ref, ct, 16));
+            // Arrays is qualified where jostle's is meant: the JDK's of that name is imported
             Assertions.assertFalse(org.openssl.jostle.util.Arrays.areEqual(pt, ct));
         }
         finally

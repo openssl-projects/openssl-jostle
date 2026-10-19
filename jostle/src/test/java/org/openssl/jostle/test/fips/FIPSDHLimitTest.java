@@ -39,6 +39,7 @@ import java.security.KeyPairGenerator;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
+import javax.crypto.interfaces.DHPublicKey;
 
 /**
  * Input-validation limit tests at the FIPS DH service NI surface
@@ -608,7 +609,7 @@ public class FIPSDHLimitTest
         // supplying q removes the capability refusal, it does not make an
         // unapproved group approved.
         DHParameterSpec fromNamedGroup =
-                ((javax.crypto.interfaces.DHPublicKey) bySize.generateKeyPair().getPublic()).getParams();
+                ((DHPublicKey) bySize.generateKeyPair().getPublic()).getParams();
         Assertions.assertTrue(fromNamedGroup instanceof DHDomainParameterSpec,
                 "the module's named-group parameters are expected to carry q");
         KeyPairGenerator withQ = KeyPairGenerator.getInstance("DH", JostleFIPSProvider.PROVIDER_NAME);

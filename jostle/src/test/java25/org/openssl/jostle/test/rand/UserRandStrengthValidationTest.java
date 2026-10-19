@@ -12,8 +12,10 @@
 package org.openssl.jostle.test.rand;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
@@ -153,7 +155,7 @@ public class UserRandStrengthValidationTest
         SecretKey encapKey = kg.generateKey();
         Assertions.assertNotNull(encapKey);
         byte[] encapsulation =
-                ((org.openssl.jostle.jcajce.SecretKeyWithEncapsulation) encapKey).getEncapsulation();
+                ((SecretKeyWithEncapsulation) encapKey).getEncapsulation();
         Assertions.assertTrue(encapsulation.length > 0,
                 "encap with an upgraded weak DRBG must still produce an encapsulation");
     }
@@ -177,7 +179,7 @@ public class UserRandStrengthValidationTest
                 .withKeySizeInBits(256)
                 .build());
         SecretKey encapKey = encapKg.generateKey();
-        byte[] wrapped = ((org.openssl.jostle.jcajce.SecretKeyWithEncapsulation) encapKey).getEncapsulation();
+        byte[] wrapped = ((SecretKeyWithEncapsulation) encapKey).getEncapsulation();
 
         KeyGenerator decapKg = KeyGenerator.getInstance("ML-KEM-768",
                 JostleProvider.PROVIDER_NAME);
@@ -345,7 +347,7 @@ public class UserRandStrengthValidationTest
      */
     private static void assumeDrbgAvailable(SecureRandom rand)
     {
-        org.junit.jupiter.api.Assumptions.assumeTrue(rand != null,
+        Assumptions.assumeTrue(rand != null,
                 "platform DRBG not available — skipping strength-validation test");
     }
 }

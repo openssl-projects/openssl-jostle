@@ -11,6 +11,10 @@
 
 package org.openssl.jostle.test.xec;
 
+import org.bouncycastle.crypto.params.X25519PrivateKeyParameters;
+import org.bouncycastle.crypto.params.X25519PublicKeyParameters;
+import org.bouncycastle.crypto.util.PrivateKeyInfoFactory;
+import org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
@@ -34,6 +38,7 @@ import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.nio.charset.StandardCharsets;
+import javax.crypto.interfaces.DHKey;
 
 /**
  * RFC 9580 §5.1.6/§5.1.7's v6 hybrid HKDF for X25519 / X448 — BC's
@@ -127,18 +132,18 @@ public class XDHHybridHKDFAgreementTest
     /** Raw X25519 point -> PKCS#8, via BC's low-level params (no X509/PKCS8 encoder round trip needed at this layer). */
     private static PKCS8EncodedKeySpec rawX25519PrivateKeySpec(byte[] raw) throws Exception
     {
-        org.bouncycastle.crypto.params.X25519PrivateKeyParameters params =
-                new org.bouncycastle.crypto.params.X25519PrivateKeyParameters(raw, 0);
+        X25519PrivateKeyParameters params =
+                new X25519PrivateKeyParameters(raw, 0);
         return new PKCS8EncodedKeySpec(
-                org.bouncycastle.crypto.util.PrivateKeyInfoFactory.createPrivateKeyInfo(params).getEncoded());
+                PrivateKeyInfoFactory.createPrivateKeyInfo(params).getEncoded());
     }
 
     private static X509EncodedKeySpec rawX25519PublicKeySpec(byte[] raw) throws Exception
     {
-        org.bouncycastle.crypto.params.X25519PublicKeyParameters params =
-                new org.bouncycastle.crypto.params.X25519PublicKeyParameters(raw, 0);
+        X25519PublicKeyParameters params =
+                new X25519PublicKeyParameters(raw, 0);
         return new X509EncodedKeySpec(
-                org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(params).getEncoded());
+                SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(params).getEncoded());
     }
 
     /** Every registered name, both directions, random T/info/wrap, over several trials. */
@@ -153,7 +158,7 @@ public class XDHHybridHKDFAgreementTest
                 KeyPair ephemeral = generate(curve);
                 KeyPair recipient = generate(curve);
                 byte[] t = Arrays.concatenate(
-                        ((javax.crypto.interfaces.DHKey) null) == null
+                        ((DHKey) null) == null
                                 ? publicKeyBytes(ephemeral.getPublic()) : null,
                         publicKeyBytes(recipient.getPublic()));
 
@@ -167,7 +172,9 @@ public class XDHHybridHKDFAgreementTest
 
                     KeyAgreement bc = KeyAgreement.getInstance(name, BC);
                     bc.init(bcPrivate(curve, ephemeral.getPrivate()),
+                            // HybridValueParameterSpec: BouncyCastle's is qualified, jostle's is imported
                             new org.bouncycastle.jcajce.spec.HybridValueParameterSpec(t, true,
+                                    // UserKeyingMaterialSpec: BouncyCastle's is qualified, jostle's is imported
                                     new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(info(curve))));
                     bc.doPhase(bcPublic(curve, recipient.getPublic()), true);
                     byte[] bcKek = bc.generateSecret(wrapOid).getEncoded();

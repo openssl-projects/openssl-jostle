@@ -18,6 +18,7 @@ import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
+import org.openssl.jostle.test.TestUtil;
 
 /**
  * NI-surface test of the FIPS interface library loading and the
@@ -43,7 +44,7 @@ public class OpenSSLFIPSNITest
     @BeforeAll
     static void before()
     {
-        Assumptions.assumeFalse(org.openssl.jostle.test.TestUtil.skipFipsTests(),
+        Assumptions.assumeFalse(TestUtil.skipFipsTests(),
                 "TEST_FIPS_LIB not set (full path to the FIPS module library)");
     }
 

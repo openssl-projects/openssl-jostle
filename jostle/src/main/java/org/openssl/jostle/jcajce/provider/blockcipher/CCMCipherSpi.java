@@ -27,6 +27,7 @@ import javax.crypto.spec.IvParameterSpec;
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.Locale;
+import java.security.spec.InvalidParameterSpecException;
 
 /**
  * Authenticated-encryption SPI for CCM mode (NIST SP 800-38C). CCM is
@@ -457,7 +458,7 @@ public class CCMCipherSpi extends CipherSpi
         {
             engineInit(opmode, key, params.getParameterSpec(GCMParameterSpec.class), random);
         }
-        catch (java.security.spec.InvalidParameterSpecException e)
+        catch (InvalidParameterSpecException e)
         {
             // A foreign CCM AlgorithmParameters need not offer the GCM view --
             // BouncyCastle's does not -- but the encoding is the same, so read
@@ -467,7 +468,7 @@ public class CCMCipherSpi extends CipherSpi
     }
 
     private GCMParameterSpec viaOurCodec(AlgorithmParameters params,
-                                         java.security.spec.InvalidParameterSpecException cause)
+                                         InvalidParameterSpecException cause)
             throws InvalidAlgorithmParameterException
     {
         try

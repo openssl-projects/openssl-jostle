@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.crypto;
 
+import org.bouncycastle.crypto.DataLengthException;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -269,7 +270,7 @@ public class RFC3211WrapAgreementTest
             Assertions.assertThrows(InvalidKeyException.class,
                     () -> unwrap(JSL, alg, kek, iv, blob),
                     alg + ": a truncated wrap must be refused with the declared type");
-            Assertions.assertThrows(org.bouncycastle.crypto.DataLengthException.class,
+            Assertions.assertThrows(DataLengthException.class,
                     () -> unwrap(BC, alg, kek, iv, blob),
                     alg + ": BouncyCastle no longer lets DataLengthException escape."
                             + " The divergence has moved, re-measure both halves.");

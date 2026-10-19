@@ -30,6 +30,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.X509EncodedKeySpec;
 
 /**
  * MT-16: the KTS ciphers resolve their inner lookups from the provider
@@ -273,7 +274,7 @@ public class KtsProviderInstancePinningTest
         // key-wrap. The public half crosses by encoding — the sanctioned
         // route — because the wrap side refuses a key bound elsewhere.
         java.security.PublicKey pubForFull = java.security.KeyFactory.getInstance("RSA", full)
-                .generatePublic(new java.security.spec.X509EncodedKeySpec(
+                .generatePublic(new X509EncodedKeySpec(
                         kek.getPublic().getEncoded()));
         Cipher w = Cipher.getInstance("RSA-KTS-KEM-KWS", full);
         w.init(Cipher.WRAP_MODE, pubForFull, ktsSpec(), RANDOM);

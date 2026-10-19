@@ -50,6 +50,7 @@ import org.openssl.jostle.jcajce.spec.SSKDFParameterSpec;
 import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
+import org.bouncycastle.crypto.params.Argon2Parameters;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -716,6 +717,7 @@ public class KDFAgreementTest
             // compared against BC's "SCRYPT" — which is the point: the OID
             // alias must derive the same key as the name it aliases.
             byte[] bc = derive(BC, "SCRYPT",
+                    // ScryptKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                     new org.bouncycastle.jcajce.spec.ScryptKeySpec(password, salt, 1024, 8, 1, keyBits));
             Assertions.assertArrayEquals(bc, jsl, alg);
 
@@ -745,9 +747,10 @@ public class KDFAgreementTest
                     Argon2KeySpec.ARGON2_VERSION_13, password, salt,
                     iterations, memoryKb, lanes, keyBits));
 
+            // Argon2KeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             byte[] bc = derive(BC, "ARGON2", new org.bouncycastle.jcajce.spec.Argon2KeySpec(
-                    org.bouncycastle.crypto.params.Argon2Parameters.ARGON2_id,
-                    org.bouncycastle.crypto.params.Argon2Parameters.ARGON2_VERSION_13,
+                    Argon2Parameters.ARGON2_id,
+                    Argon2Parameters.ARGON2_VERSION_13,
                     password, salt, iterations, memoryKb, lanes, keyBits));
 
             Assertions.assertArrayEquals(bc, jsl, alg);

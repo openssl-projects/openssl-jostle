@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.rsa;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import java.security.Security;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.PSSParameterSpec;
+import javax.crypto.spec.IvParameterSpec;
 
 /**
  * RFC 4055 {@code RSASSA-PSS-params} against two independent implementations.
@@ -50,7 +52,7 @@ public class RSAPSSAlgorithmParametersTest
     public static void setUp()
     {
         Security.addProvider(new JostleProvider());
-        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+        Security.addProvider(new BouncyCastleProvider());
     }
 
     /** JCA digest name, BouncyCastle's spelling of it, salt length. */
@@ -286,7 +288,7 @@ public class RSAPSSAlgorithmParametersTest
         AlgorithmParameters params = AlgorithmParameters.getInstance("RSASSA-PSS", "JSL");
         InvalidParameterSpecException wrong = Assertions.assertThrows(
                 InvalidParameterSpecException.class,
-                () -> params.init(new javax.crypto.spec.IvParameterSpec(new byte[8])));
+                () -> params.init(new IvParameterSpec(new byte[8])));
         Assertions.assertTrue(wrong.getMessage().startsWith("RSASSA-PSS parameters require a PSSParameterSpec"),
                 wrong.getMessage());
 

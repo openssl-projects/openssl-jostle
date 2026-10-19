@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Production code names a provider by INSTANCE, not by name.
@@ -476,7 +477,7 @@ public class ProviderInstancePinningParityTest
     private static List<Path> javaSourcesUnder(Path root) throws IOException
     {
         final List<Path> out = new ArrayList<Path>();
-        try (java.util.stream.Stream<Path> walk = Files.walk(root))
+        try (Stream<Path> walk = Files.walk(root))
         {
             walk.filter(p -> p.getFileName().toString().endsWith(".java")).forEach(out::add);
         }

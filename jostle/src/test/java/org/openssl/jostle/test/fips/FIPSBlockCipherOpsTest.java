@@ -24,7 +24,10 @@ import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.ops.OperationsTestNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 
+import java.util.concurrent.Callable;
 import javax.crypto.Cipher;
 
 /**
@@ -813,7 +816,7 @@ public class FIPSBlockCipherOpsTest
         }
     }
 
-    private static void expectFailure(java.util.concurrent.Callable<Object> call,
+    private static void expectFailure(Callable<Object> call,
                                       Class<? extends Exception> type, String message)
     {
         Exception ex = Assertions.assertThrows(Exception.class, call::call);
@@ -929,8 +932,8 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+                    OSSLCipher.AES128.ordinal(),
+                    OSSLMode.CTS.ordinal(), 0);
             // Exercises interface/fips/util/block_cipher_ctx.c:1636
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
 
@@ -965,8 +968,8 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+                    OSSLCipher.AES128.ordinal(),
+                    OSSLMode.CTS.ordinal(), 0);
             // Exercises interface/fips/util/block_cipher_ctx.c:1646
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
 
@@ -1003,8 +1006,8 @@ public class FIPSBlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+                    OSSLCipher.AES128.ordinal(),
+                    OSSLMode.CTS.ordinal(), 0);
             Assertions.assertEquals(0,
                     blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 

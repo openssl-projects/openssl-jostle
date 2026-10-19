@@ -110,6 +110,7 @@ public class ECCDHKDFAgreementTest
 
                     KeyAgreement bc = KeyAgreement.getInstance(name, BC);
                     bc.init(bcPrivate(alice.getPrivate()),
+                            // UserKeyingMaterialSpec: BouncyCastle's is qualified, jostle's is imported
                             new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(param));
                     bc.doPhase(bcPublic(bob.getPublic()), true);
                     byte[] bcKek = bc.generateSecret(wrapOid).getEncoded();

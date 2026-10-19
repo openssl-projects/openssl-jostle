@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import javax.crypto.spec.DESKeySpec;
 
 /**
  * MT-31 Group B, SecretKeyFactory: 42 names across 7 SPI classes.
@@ -146,7 +147,7 @@ public class SecretKeyFactoryNegativePathSurveyTest
                 case GET_KEY_SPEC_UNSUPPORTED_CLASS:
                 {
                     Object o = kf.getKeySpec(new SecretKeySpec(new byte[16], "AES"),
-                            javax.crypto.spec.DESKeySpec.class);
+                            DESKeySpec.class);
                     return o == null ? null : new byte[0];
                 }
                 case TRANSLATE_NULL_KEY:

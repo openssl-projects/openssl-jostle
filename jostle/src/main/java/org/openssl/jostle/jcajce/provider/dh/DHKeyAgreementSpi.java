@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
@@ -211,7 +212,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                         privateKey.getSpec().getReference(),
                         randSource);
             }
-            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            catch (ProviderCapabilityException e)
             {
                 // Fail-loud contract: the loaded provider requires the
                 // subgroup order q for agreement (FIPS SP 800-56A key

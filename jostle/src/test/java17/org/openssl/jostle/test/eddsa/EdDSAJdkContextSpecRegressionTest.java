@@ -26,6 +26,7 @@ import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * {@code java.security.spec.EdDSAParameterSpec} (a JDK 15 API) is
@@ -117,6 +118,7 @@ public class EdDSAJdkContextSpecRegressionTest
         // A prehash spec is always refused, on every level — our code
         // explicitly rejects it once the override is active, and the
         // baseline refuses every non-ContextParameterSpec regardless.
+        // EdDSAParameterSpec is qualified where the JDK's is meant: jostle's of that name is imported
         java.security.spec.EdDSAParameterSpec prehash = new java.security.spec.EdDSAParameterSpec(true);
         Assertions.assertThrows(InvalidAlgorithmParameterException.class,
                 () -> sign(transformation, kp, msg, prehash),
@@ -167,7 +169,7 @@ public class EdDSAJdkContextSpecRegressionTest
     }
 
     private static byte[] sign(String transformation, KeyPair kp, byte[] msg,
-                                java.security.spec.AlgorithmParameterSpec spec) throws Exception
+                                AlgorithmParameterSpec spec) throws Exception
     {
         Signature s = Signature.getInstance(transformation, JostleProvider.PROVIDER_NAME);
         s.initSign(kp.getPrivate());
@@ -180,7 +182,7 @@ public class EdDSAJdkContextSpecRegressionTest
     }
 
     private static boolean verify(String transformation, KeyPair kp, byte[] msg, byte[] sig,
-                                   java.security.spec.AlgorithmParameterSpec spec) throws Exception
+                                   AlgorithmParameterSpec spec) throws Exception
     {
         Signature v = Signature.getInstance(transformation, JostleProvider.PROVIDER_NAME);
         v.initVerify(kp.getPublic());

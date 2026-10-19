@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
@@ -107,7 +108,7 @@ public class FIPSMemoryHardKdfAbsenceTest
     @Test
     public void baseNiSelectorDoesExposeMemoryHardKdf() throws Exception
     {
-        Field field = org.openssl.jostle.jcajce.provider.NISelector.class.getField("MemoryHardKdfNI");
+        Field field = NISelector.class.getField("MemoryHardKdfNI");
         Assertions.assertTrue(MemoryHardKdfNI.class.isAssignableFrom(field.getType()));
         Assertions.assertNotNull(field.get(null), "the base provider must supply a memory-hard KDF NI");
     }

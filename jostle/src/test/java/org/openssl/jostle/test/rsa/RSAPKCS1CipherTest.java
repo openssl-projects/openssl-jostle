@@ -28,6 +28,10 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.MGF1ParameterSpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * JCE-level tests for the RSA-PKCS#1 v1.5 cipher: round-trips, BC parity,
@@ -322,10 +326,10 @@ public class RSAPKCS1CipherTest
     @Test
     public void testPKCS1_WrapReuseAfterWrap() throws Exception
     {
-        javax.crypto.spec.SecretKeySpec aesA =
-                new javax.crypto.spec.SecretKeySpec(randomMessage(16), "AES");
-        javax.crypto.spec.SecretKeySpec aesB =
-                new javax.crypto.spec.SecretKeySpec(randomMessage(32), "AES");
+        SecretKeySpec aesA =
+                new SecretKeySpec(randomMessage(16), "AES");
+        SecretKeySpec aesB =
+                new SecretKeySpec(randomMessage(32), "AES");
 
         Cipher wrapper = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
         wrapper.init(Cipher.WRAP_MODE, sharedKeyPair.getPublic());
@@ -749,9 +753,9 @@ public class RSAPKCS1CipherTest
         try
         {
             c.init(Cipher.ENCRYPT_MODE, sharedKeyPair.getPublic(),
-                    new javax.crypto.spec.OAEPParameterSpec("SHA-256", "MGF1",
-                            new java.security.spec.MGF1ParameterSpec("SHA-256"),
-                            javax.crypto.spec.PSource.PSpecified.DEFAULT));
+                    new OAEPParameterSpec("SHA-256", "MGF1",
+                            new MGF1ParameterSpec("SHA-256"),
+                            PSource.PSpecified.DEFAULT));
             Assertions.fail();
         }
         catch (InvalidAlgorithmParameterException expected) {}
@@ -809,8 +813,8 @@ public class RSAPKCS1CipherTest
     public void testPKCS1_WrapWithoutInit_throwsIllegalState() throws Exception
     {
         Cipher c = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
-        javax.crypto.spec.SecretKeySpec aes =
-                new javax.crypto.spec.SecretKeySpec(new byte[16], "AES");
+        SecretKeySpec aes =
+                new SecretKeySpec(new byte[16], "AES");
         try
         {
             c.wrap(aes);

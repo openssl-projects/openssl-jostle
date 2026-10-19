@@ -11,14 +11,19 @@
 
 package org.openssl.jostle.test.rsa;
 
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.OAEPParameterSpec;
@@ -40,6 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Cross-implementation agreement for Jostle's RSA surface: JSL against
@@ -651,7 +657,7 @@ public class RSAAgreementTest
     private static byte[] digestInfoSha256(byte[] msg) throws Exception
     {
         byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(msg);
-        byte[] prefix = org.openssl.jostle.util.encoders.Hex.decode(
+        byte[] prefix = Hex.decode(
                 "3031300d060960864801650304020105000420");
         byte[] out = new byte[prefix.length + h.length];
         System.arraycopy(prefix, 0, out, 0, prefix.length);
@@ -673,14 +679,14 @@ public class RSAAgreementTest
         {
             byte[] cekBytes = new byte[32];
             sr.nextBytes(cekBytes);
-            javax.crypto.spec.SecretKeySpec cek =
-                    new javax.crypto.spec.SecretKeySpec(cekBytes, "AES");
-            org.openssl.jostle.jcajce.spec.KTSParameterSpec spec =
-                    new org.openssl.jostle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
-                            .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                    org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
-                                    new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)).getEncoded())
+            SecretKeySpec cek =
+                    new SecretKeySpec(cekBytes, "AES");
+            KTSParameterSpec spec =
+                    new KTSParameterSpec.Builder("AES", 256)
+                            .withKdfAlgorithm(new AlgorithmIdentifier(
+                                    X9ObjectIdentifiers.id_kdf_kdf3,
+                                    new AlgorithmIdentifier(
+                                            NISTObjectIdentifiers.id_sha256)).getEncoded())
                             .build();
 
             Cipher w = Cipher.getInstance(alg, JSL);

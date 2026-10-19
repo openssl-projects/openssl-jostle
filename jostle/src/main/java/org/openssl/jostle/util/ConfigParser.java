@@ -11,6 +11,7 @@
 package org.openssl.jostle.util;
 
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -263,6 +264,6 @@ public final class ConfigParser
             }
             return in;
         }
-        return java.nio.file.Files.newInputStream(java.nio.file.Paths.get(locator));
+        return Files.newInputStream(Paths.get(locator));
     }
 }

@@ -23,6 +23,7 @@ import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -120,7 +121,7 @@ public class RSAPSSAlgorithmParameters
         Map<String, String> aliases = new LinkedHashMap<String, String>();
         for (String canonical : toOid.keySet())
         {
-            aliases.put(canonical.toUpperCase(java.util.Locale.ROOT), canonical);
+            aliases.put(canonical.toUpperCase(Locale.ROOT), canonical);
         }
         aliases.put("SHA1", "SHA-1");
         aliases.put("SHA224", "SHA-224");
@@ -426,7 +427,7 @@ public class RSAPSSAlgorithmParameters
         {
             return null;
         }
-        return ALIASES.get(name.toUpperCase(java.util.Locale.ROOT));
+        return ALIASES.get(name.toUpperCase(Locale.ROOT));
     }
 
     /**

@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.test.fips;
 
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -84,10 +86,10 @@ public class FIPSDHExtendedPublicKeySpecTest
 
         byte[] validEncoded = fipsKf.generatePublic(
                 new DHExtendedPublicKeySpec(((DHPublicKey) peer.getPublic()).getY(), ffdhe2048)).getEncoded();
-        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo spki =
-                org.bouncycastle.asn1.x509.SubjectPublicKeyInfo.getInstance(validEncoded);
-        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo badSpki = new org.bouncycastle.asn1.x509.SubjectPublicKeyInfo(
-                spki.getAlgorithm(), new org.bouncycastle.asn1.ASN1Integer(badY));
+        SubjectPublicKeyInfo spki =
+                SubjectPublicKeyInfo.getInstance(validEncoded);
+        SubjectPublicKeyInfo badSpki = new SubjectPublicKeyInfo(
+                spki.getAlgorithm(), new ASN1Integer(badY));
         byte[] badEncoded = badSpki.getEncoded();
 
         InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,

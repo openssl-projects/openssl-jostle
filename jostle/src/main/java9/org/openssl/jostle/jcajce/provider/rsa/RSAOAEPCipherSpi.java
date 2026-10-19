@@ -39,6 +39,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import org.openssl.jostle.jcajce.provider.wrap.UnwrappedKeys;
+import java.security.spec.InvalidParameterSpecException;
 
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
@@ -314,7 +315,7 @@ public class RSAOAEPCipherSpi extends CipherSpi
             {
                 spec = params.getParameterSpec(OAEPParameterSpec.class);
             }
-            catch (java.security.spec.InvalidParameterSpecException e)
+            catch (InvalidParameterSpecException e)
             {
                 throw new InvalidAlgorithmParameterException(
                         "expected OAEPParameterSpec via AlgorithmParameters", e);

@@ -70,6 +70,7 @@ public class MLDSATest
 
     };
 
+    // MLDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
     private static org.bouncycastle.jcajce.spec.MLDSAParameterSpec[] bcSpec = new org.bouncycastle.jcajce.spec.MLDSAParameterSpec[]{
             org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44,
             org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65,
@@ -999,7 +1000,9 @@ public class MLDSATest
             keyGen.initialize(spec);
             KeyPair keyPair = keyGen.generateKeyPair();
 
+            // MLDSAPrivateKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
             byte[] privateData = ((org.bouncycastle.jcajce.interfaces.MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
+            // MLDSAPublicKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
             byte[] publicData = ((org.bouncycastle.jcajce.interfaces.MLDSAPublicKey) keyPair.getPublic()).getPublicData();
 
             KeyFactory jostleFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
@@ -1348,7 +1351,9 @@ public class MLDSATest
         byte[] privateKey = ((MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
 
         KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
+        // MLDSAPrivateKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         PrivateKey privKeyBC = factory.generatePrivate(new org.bouncycastle.jcajce.spec.MLDSAPrivateKeySpec(specBC, privateKey, publicKey));
+        // MLDSAPublicKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         PublicKey pubKeyBC = factory.generatePublic(new org.bouncycastle.jcajce.spec.MLDSAPublicKeySpec(specBC, publicKey));
 
 
@@ -1422,6 +1427,7 @@ public class MLDSATest
 
         Signature bcSigner = Signature.getInstance(algoName, "BC");
         bcSigner.initSign(privKeyBC);
+        // ContextParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         bcSigner.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(ctx));
         bcSigner.update(msg);
         byte[] bcSignature = bcSigner.sign();

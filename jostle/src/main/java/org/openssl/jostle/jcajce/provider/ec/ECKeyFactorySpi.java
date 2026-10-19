@@ -21,6 +21,7 @@ import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 
 import java.math.BigInteger;
 
@@ -375,8 +376,8 @@ public class ECKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof JOECPublicKey || key instanceof JOECPrivateKey)
         {
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.

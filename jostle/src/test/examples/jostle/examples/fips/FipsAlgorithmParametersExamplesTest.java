@@ -31,6 +31,7 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
+import java.security.interfaces.DSAParams;
 
 /**
  * Algorithm parameters in the FIPS module: encode with `getEncoded()`, decode with `init(byte[])`, and read
@@ -119,7 +120,7 @@ public class FipsAlgorithmParametersExamplesTest
 
         KeyPairGenerator dsa = KeyPairGenerator.getInstance("DSA", "JSL");
         dsa.initialize(2048);
-        java.security.interfaces.DSAParams dsaSpec = ((DSAPublicKey) dsa.generateKeyPair().getPublic()).getParams();
+        DSAParams dsaSpec = ((DSAPublicKey) dsa.generateKeyPair().getPublic()).getParams();
         AlgorithmParameters dsaParams = AlgorithmParameters.getInstance("DSA", "JSLFIPS");
         dsaParams.init(new DSAParameterSpec(dsaSpec.getP(), dsaSpec.getQ(), dsaSpec.getG()));
         AlgorithmParameters dsaBack = AlgorithmParameters.getInstance("DSA", "JSLFIPS");

@@ -187,7 +187,7 @@ public class FIPSMLXKEMLimitTest
     {
         for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
         {
-            if (org.openssl.jostle.test.fips.FIPSTestUtil.assumeFipsProvider()
+            if (FIPSTestUtil.assumeFipsProvider()
                     .getService("KeyPairGenerator", spec.getName()) == null)
             {
                 continue;

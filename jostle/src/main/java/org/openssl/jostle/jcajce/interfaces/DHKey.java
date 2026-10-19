@@ -19,6 +19,7 @@ import java.security.Key;
  * from multiple providers (SunJCE, BC, Jostle) can dispatch on
  * Jostle-typed keys without picking up other providers' implementations.
  */
+// DHKey is qualified where the JDK's is meant: jostle's of that name is declared here
 public interface DHKey extends Key, javax.crypto.interfaces.DHKey
 {
 }

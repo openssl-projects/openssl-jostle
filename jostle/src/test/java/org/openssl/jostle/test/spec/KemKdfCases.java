@@ -18,8 +18,11 @@ import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.junit.jupiter.api.Assertions;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.test.TestUtil;
 
 import javax.crypto.KeyGenerator;
 import java.security.InvalidAlgorithmParameterException;
@@ -87,6 +90,7 @@ public final class KemKdfCases
         return (kdf == null ? b.withNoKdf() : b.withKdfAlgorithm(kdf.getEncoded())).build();
     }
 
+    // KEMGenerateSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
     private static org.bouncycastle.jcajce.spec.KEMGenerateSpec bcGenerate(PublicKey pub, int bits,
                                                                            AlgorithmIdentifier kdf, byte[] other)
     {
@@ -95,6 +99,7 @@ public final class KemKdfCases
         return (kdf == null ? b.withNoKdf() : b.withKdfAlgorithm(kdf)).build();
     }
 
+    // KEMExtractSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
     private static org.bouncycastle.jcajce.spec.KEMExtractSpec bcExtract(PrivateKey priv, byte[] enc, int bits,
                                                                          AlgorithmIdentifier kdf, byte[] other)
     {
@@ -129,6 +134,7 @@ public final class KemKdfCases
 
         KeyGenerator bg = KeyGenerator.getInstance(name, bc);
         bg.init(bcGenerate(bcPub, bits, kdf, otherInfo));
+        // SecretKeyWithEncapsulation is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.SecretKeyWithEncapsulation bcSent =
                 (org.bouncycastle.jcajce.SecretKeyWithEncapsulation) bg.generateKey();
         KeyGenerator ox = KeyGenerator.getInstance(name, ours);
@@ -170,9 +176,9 @@ public final class KemKdfCases
         g.init(ourGenerate(kp.getPublic(), bits, KDF3_SHA256, otherInfo));
         SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) g.generateKey();
 
-        int secretLen = ((org.openssl.jostle.jcajce.interfaces.OSSLKey) kp.getPublic()).getSpec().getSpecNI()
-                .encapSecretLength(((org.openssl.jostle.jcajce.interfaces.OSSLKey) kp.getPublic()).getSpec()
-                        .getReference(), null, org.openssl.jostle.test.TestUtil.RNDSrc);
+        int secretLen = ((OSSLKey) kp.getPublic()).getSpec().getSpecNI()
+                .encapSecretLength(((OSSLKey) kp.getPublic()).getSpec()
+                        .getReference(), null, TestUtil.RNDSrc);
         KeyGenerator raw = KeyGenerator.getInstance(name, ours);
         raw.init(ourExtract(kp.getPrivate(), sent.getEncapsulation(), secretLen * 8, null, null));
         byte[] z = raw.generateKey().getEncoded();
@@ -296,9 +302,9 @@ public final class KemKdfCases
     public static int secretBits(Provider ours, String name) throws Exception
     {
         KeyPair kp = KeyPairGenerator.getInstance(name, ours).generateKeyPair();
-        org.openssl.jostle.jcajce.spec.PKEYKeySpec spec =
-                ((org.openssl.jostle.jcajce.interfaces.OSSLKey) kp.getPublic()).getSpec();
-        return spec.getSpecNI().encapSecretLength(spec.getReference(), null, org.openssl.jostle.test.TestUtil.RNDSrc)
+        PKEYKeySpec spec =
+                ((OSSLKey) kp.getPublic()).getSpec();
+        return spec.getSpecNI().encapSecretLength(spec.getReference(), null, TestUtil.RNDSrc)
                 * 8;
     }
 }

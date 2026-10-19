@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.test.dh;
 
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,6 +35,8 @@ import java.security.Security;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.spec.DHPublicKeySpec;
 
 /**
  * {@link DHExtendedPublicKeySpec} — importing a peer's DH public value
@@ -116,8 +120,10 @@ public class DHExtendedPublicKeySpecTest
         KeyFactory bcKf = KeyFactory.getInstance("DH", BC);
         PrivateKey bcLocalPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(local.getPrivate().getEncoded()));
         PublicKey bcPeerPub = bcKf.generatePublic(
+                // DHExtendedPublicKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 new org.bouncycastle.jcajce.spec.DHExtendedPublicKeySpec(
                         ((DHPublicKey) peer.getPublic()).getY(),
+                        // DHDomainParameterSpec: BouncyCastle's is qualified, jostle's is imported
                         new org.bouncycastle.jcajce.spec.DHDomainParameterSpec(
                                 x942.getP(), x942.getQ(), x942.getG())));
         byte[] bcSecret = agree(BC, bcLocalPriv, bcPeerPub);
@@ -141,7 +147,7 @@ public class DHExtendedPublicKeySpecTest
         // Same peer value, imported through the bare DHPublicKeySpec path —
         // must derive identically, proving PKCS#3 import is unaffected.
         PublicKey peerPubPlain = jslKf.generatePublic(
-                new javax.crypto.spec.DHPublicKeySpec(
+                new DHPublicKeySpec(
                         ((DHPublicKey) peer.getPublic()).getY(), pkcs3.getP(), pkcs3.getG()));
         byte[] viaPlain = agree(JSL, local.getPrivate(), peerPubPlain);
 
@@ -215,16 +221,16 @@ public class DHExtendedPublicKeySpecTest
         KeyFactory jslKf = KeyFactory.getInstance("DH", JSL);
         byte[] validEncoded = jslKf.generatePublic(
                 new DHExtendedPublicKeySpec(((DHPublicKey) peer.getPublic()).getY(), x942)).getEncoded();
-        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo spki =
-                org.bouncycastle.asn1.x509.SubjectPublicKeyInfo.getInstance(validEncoded);
-        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo badSpki = new org.bouncycastle.asn1.x509.SubjectPublicKeyInfo(
-                spki.getAlgorithm(), new org.bouncycastle.asn1.ASN1Integer(badY));
+        SubjectPublicKeyInfo spki =
+                SubjectPublicKeyInfo.getInstance(validEncoded);
+        SubjectPublicKeyInfo badSpki = new SubjectPublicKeyInfo(
+                spki.getAlgorithm(), new ASN1Integer(badY));
         byte[] badEncoded = badSpki.getEncoded();
 
         // The bad y is inside the SPKI's own encoding, not a spec field —
         // the decode itself must now refuse it.
         InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
-                () -> jslKf.generatePublic(new java.security.spec.X509EncodedKeySpec(badEncoded)));
+                () -> jslKf.generatePublic(new X509EncodedKeySpec(badEncoded)));
         Assertions.assertEquals("public value failed the DH public-key check", e.getMessage());
     }
 
@@ -269,14 +275,14 @@ public class DHExtendedPublicKeySpecTest
         KeyFactory jslKf = KeyFactory.getInstance("DH", JSL);
         byte[] validEncoded = jslKf.generatePublic(
                 new DHExtendedPublicKeySpec(((DHPublicKey) peer.getPublic()).getY(), ffdhe2048)).getEncoded();
-        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo spki =
-                org.bouncycastle.asn1.x509.SubjectPublicKeyInfo.getInstance(validEncoded);
-        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo badSpki = new org.bouncycastle.asn1.x509.SubjectPublicKeyInfo(
-                spki.getAlgorithm(), new org.bouncycastle.asn1.ASN1Integer(badY));
+        SubjectPublicKeyInfo spki =
+                SubjectPublicKeyInfo.getInstance(validEncoded);
+        SubjectPublicKeyInfo badSpki = new SubjectPublicKeyInfo(
+                spki.getAlgorithm(), new ASN1Integer(badY));
         byte[] badEncoded = badSpki.getEncoded();
 
         InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
-                () -> jslKf.generatePublic(new java.security.spec.X509EncodedKeySpec(badEncoded)));
+                () -> jslKf.generatePublic(new X509EncodedKeySpec(badEncoded)));
         Assertions.assertEquals("public value failed the DH public-key check", e.getMessage());
     }
 

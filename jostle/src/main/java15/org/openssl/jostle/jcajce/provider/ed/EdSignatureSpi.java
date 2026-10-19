@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.ed;
 
 import java.security.AlgorithmParameters;
+import java.security.spec.EdDSAParameterSpec;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
@@ -342,9 +343,9 @@ public class EdSignatureSpi extends SignatureSpi
         }
 
         // java.security.spec.EdDSAParameterSpec exists from JDK 15.
-        if (params instanceof java.security.spec.EdDSAParameterSpec)
+        if (params instanceof EdDSAParameterSpec)
         {
-            java.security.spec.EdDSAParameterSpec edSpec = (java.security.spec.EdDSAParameterSpec) params;
+            EdDSAParameterSpec edSpec = (EdDSAParameterSpec) params;
             if (edSpec.isPrehash())
             {
                 throw new InvalidAlgorithmParameterException("prehash EdDSA is not supported");

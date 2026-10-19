@@ -37,6 +37,8 @@ import java.security.Security;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.InvalidParameterSpecException;
 
 /**
  * X9.42 ({@code dhpublicnumber}) DH, folded into the single {@code DH}
@@ -186,6 +188,7 @@ public class DHX942Test
     public void bcEncodesX942_jslDecodesAndAgrees() throws Exception
     {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", "BC");
+        // DHDomainParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         kpg.initialize(new org.bouncycastle.jcajce.spec.DHDomainParameterSpec(
                 x942.getP(), x942.getQ(), x942.getG()));
         KeyPair a = kpg.generateKeyPair();
@@ -263,12 +266,12 @@ public class DHX942Test
         for (int extra : new int[]{1, 37})
         {
             byte[] pub = java.util.Arrays.copyOf(spki, spki.length + extra);
-            Assertions.assertThrows(java.security.spec.InvalidKeySpecException.class,
+            Assertions.assertThrows(InvalidKeySpecException.class,
                     () -> jsl.generatePublic(new X509EncodedKeySpec(pub)),
                     "SPKI with " + extra + " trailing byte(s) must be rejected");
 
             byte[] priv = java.util.Arrays.copyOf(p8, p8.length + extra);
-            Assertions.assertThrows(java.security.spec.InvalidKeySpecException.class,
+            Assertions.assertThrows(InvalidKeySpecException.class,
                     () -> jsl.generatePrivate(new PKCS8EncodedKeySpec(priv)),
                     "PKCS#8 with " + extra + " trailing byte(s) must be rejected");
         }
@@ -291,8 +294,8 @@ public class DHX942Test
 
         java.security.AlgorithmParameters params =
                 java.security.AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
-        java.security.spec.InvalidParameterSpecException e = Assertions.assertThrows(
-                java.security.spec.InvalidParameterSpecException.class, () -> params.init(foreign));
+        InvalidParameterSpecException e = Assertions.assertThrows(
+                InvalidParameterSpecException.class, () -> params.init(foreign));
         Assertions.assertTrue(e.getMessage().contains(foreign.getClass().getName()),
                 "message must name the refused class: " + e.getMessage());
         Assertions.assertTrue(e.getMessage().contains(DHDomainParameterSpec.class.getName())

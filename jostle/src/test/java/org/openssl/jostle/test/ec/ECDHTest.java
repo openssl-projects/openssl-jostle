@@ -36,6 +36,7 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.interfaces.ECPublicKey;
 
 /**
  * JCE-level tests for the ECDH KeyAgreement SPI. Covers:
@@ -123,7 +124,7 @@ public class ECDHTest
             // Derive from the actual ECParameterSpec rather than a
             // hardcoded switch so the assertion works for any curve we
             // add to STANDARD_CURVES (binary-field K/B curves included).
-            int fieldBits = ((java.security.interfaces.ECPublicKey) alice.getPublic())
+            int fieldBits = ((ECPublicKey) alice.getPublic())
                     .getParams().getCurve().getField().getFieldSize();
             int expectedBytes = (fieldBits + 7) / 8;
             Assertions.assertEquals(expectedBytes, aliceSecret.length,

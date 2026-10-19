@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.mlxkem;
 
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLXKEMPublicKeySpec;
@@ -167,8 +168,8 @@ public class MLXKEMKeyFactorySpi extends KeyFactorySpi
             // (fips-c-review/probes/xprovider_key_probe.c) shows a key keeps
             // its CREATING provider for life, so accepting one meant the
             // operation ran in the other library.
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.

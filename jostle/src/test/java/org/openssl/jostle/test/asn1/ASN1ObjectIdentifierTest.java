@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
+import java.math.BigInteger;
 
 /**
  * Gates and {@code intern()} behaviour of {@link ASN1ObjectIdentifier}, exercised
@@ -114,7 +115,7 @@ public class ASN1ObjectIdentifierTest
         java.util.Arrays.fill(contents, (byte) 0xFF);
         contents[11] = 0x7F;
 
-        java.math.BigInteger acc = java.math.BigInteger.ZERO;
+        BigInteger acc = BigInteger.ZERO;
         for (byte b : contents)
         {
             acc = acc.shiftLeft(7).or(java.math.BigInteger.valueOf(b & 0x7F));

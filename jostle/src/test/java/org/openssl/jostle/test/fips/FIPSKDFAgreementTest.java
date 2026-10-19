@@ -39,6 +39,9 @@ import org.openssl.jostle.jcajce.spec.PBKDF2KeySpec;
 import org.openssl.jostle.jcajce.spec.SSHKDFParameterSpec;
 import org.openssl.jostle.jcajce.spec.SSKDFParameterSpec;
 import org.openssl.jostle.util.Arrays;
+import org.bouncycastle.crypto.generators.KDFFeedbackBytesGenerator;
+import org.bouncycastle.crypto.params.KDFFeedbackParameters;
+import org.bouncycastle.util.encoders.Hex;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -48,6 +51,7 @@ import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Set;
 import java.util.TreeSet;
+import java.security.spec.KeySpec;
 
 /**
  * Cross-provider agreement for the FIPS provider's KDF surface (PBKDF2 and
@@ -533,7 +537,7 @@ public class FIPSKDFAgreementTest
         return new AESEngine();
     }
 
-    private static byte[] derive(String provider, String alg, java.security.spec.KeySpec spec)
+    private static byte[] derive(String provider, String alg, KeySpec spec)
             throws Exception
     {
         return SecretKeyFactory.getInstance(alg, provider).generateSecret(spec).getEncoded();
@@ -651,10 +655,10 @@ public class FIPSKDFAgreementTest
                 byte[] fips = derive(FIPS, alg, spec);
                 byte[] jsl = derive(JSL, alg, spec);
 
-                org.bouncycastle.crypto.generators.KDFFeedbackBytesGenerator gen =
-                        new org.bouncycastle.crypto.generators.KDFFeedbackBytesGenerator(
+                KDFFeedbackBytesGenerator gen =
+                        new KDFFeedbackBytesGenerator(
                                 new HMac(bcDigestBySuffix(alg)));
-                gen.init(org.bouncycastle.crypto.params.KDFFeedbackParameters
+                gen.init(KDFFeedbackParameters
                         .createWithCounter(ki, iv, fixed, 32));
                 byte[] bc = new byte[len];
                 gen.generateBytes(bc, 0, len);
@@ -746,7 +750,7 @@ public class FIPSKDFAgreementTest
             {
                 byte[] out = derive(FIPS, alg,
                         new SSHKDFParameterSpec(k, h, sessionId, type, 32));
-                Assertions.assertTrue(seen.add(org.bouncycastle.util.encoders.Hex.toHexString(out)),
+                Assertions.assertTrue(seen.add(Hex.toHexString(out)),
                         alg + ": two key types produced the same key");
             }
         }

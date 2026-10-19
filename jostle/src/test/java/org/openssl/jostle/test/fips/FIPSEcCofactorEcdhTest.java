@@ -28,6 +28,8 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * MT-71: JSLFIPS minted EC keys on curves it could not then agree on.
@@ -225,7 +227,7 @@ public class FIPSEcCofactorEcdhTest
      */
     private static String shortName(String curve)
     {
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[0-9]+").matcher(curve);
+        Matcher m = Pattern.compile("[0-9]+").matcher(curve);
         Assertions.assertTrue(m.find(), "curve name must carry a field size: " + curve);
         return m.group();
     }

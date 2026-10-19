@@ -15,6 +15,7 @@ import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.BasicConstraints;
 import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.asn1.x509.CRLReason;
@@ -435,7 +436,7 @@ public final class BcBuiltChains
 
         SubjectPublicKeyInfo full = SubjectPublicKeyInfo.getInstance(eeKp.getPublic().getEncoded());
         SubjectPublicKeyInfo stripped = new SubjectPublicKeyInfo(
-                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(full.getAlgorithm().getAlgorithm()),
+                new AlgorithmIdentifier(full.getAlgorithm().getAlgorithm()),
                 full.getPublicKeyData().getBytes());
         Assertions.assertNull(stripped.getAlgorithm().getParameters(),
                 "the end entity still carries DSA parameters, so it inherits nothing");

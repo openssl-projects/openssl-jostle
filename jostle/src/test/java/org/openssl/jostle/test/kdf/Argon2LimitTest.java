@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.Security;
 
@@ -419,7 +420,7 @@ public class Argon2LimitTest
 
         byte[] shifted = new byte[32];
         System.arraycopy(big, 23, shifted, 0, 32);
-        Assertions.assertFalse(org.openssl.jostle.util.Arrays.areEqual(reference, shifted),
+        Assertions.assertFalse(Arrays.areEqual(reference, shifted),
                 "the derive wrote one byte early");
     }
 }

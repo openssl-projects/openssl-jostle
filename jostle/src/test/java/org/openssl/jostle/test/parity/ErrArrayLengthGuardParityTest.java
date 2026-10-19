@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Source lint: every {@code GetIntArrayElements} on an error out-array is
@@ -137,7 +138,7 @@ public class ErrArrayLengthGuardParityTest
     private static List<Path> listFiles(Path dir, String suffix)
     {
         final List<Path> out = new ArrayList<Path>();
-        try (java.util.stream.Stream<Path> walk = Files.walk(dir, 1))
+        try (Stream<Path> walk = Files.walk(dir, 1))
         {
             walk.filter(p -> p.getFileName().toString().endsWith(suffix)).forEach(out::add);
         }

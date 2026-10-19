@@ -21,7 +21,10 @@ import org.openssl.jostle.util.Arrays;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.nio.file.Files;
 import java.security.Security;
+import java.security.cert.CRLReason;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509CRLEntry;
@@ -29,6 +32,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -120,7 +124,7 @@ public class X509AgreementTest
 
     private static byte[] read(File f) throws Exception
     {
-        return java.nio.file.Files.readAllBytes(f.toPath());
+        return Files.readAllBytes(f.toPath());
     }
 
     // -----------------------------------------------------------------
@@ -372,8 +376,8 @@ public class X509AgreementTest
             else
             {
                 differ++;
-                Assertions.assertEquals(ours.getSigAlgName().toUpperCase(java.util.Locale.ROOT),
-                        theirs.getSigAlgName().toUpperCase(java.util.Locale.ROOT),
+                Assertions.assertEquals(ours.getSigAlgName().toUpperCase(Locale.ROOT),
+                        theirs.getSigAlgName().toUpperCase(Locale.ROOT),
                         f.getName() + ": the two spellings differ by more than case");
             }
         }
@@ -482,7 +486,7 @@ public class X509AgreementTest
         for (String encoding : new String[]{"PkiPath", "PKCS7"})
         {
             byte[] ourPath = jsl.generateCertPath(certs).getEncoded(encoding);
-            Collection<? extends java.security.cert.Certificate> viaBc =
+            Collection<? extends Certificate> viaBc =
                     bc.generateCertPath(new ByteArrayInputStream(ourPath), encoding).getCertificates();
             Assertions.assertEquals(certs.size(), viaBc.size(),
                     encoding + ": BouncyCastle read back a different number of certificates");
@@ -717,7 +721,7 @@ public class X509AgreementTest
         java.util.Set<String> distinctReasons = new java.util.TreeSet<String>();
         for (java.io.File f : dir.listFiles())
         {
-            byte[] der = java.nio.file.Files.readAllBytes(f.toPath());
+            byte[] der = Files.readAllBytes(f.toPath());
             X509CRL ours;
             X509CRL theirs;
             try
@@ -743,7 +747,7 @@ public class X509AgreementTest
                     // serial-only overload correctly does not find it here.
                     continue;
                 }
-                java.security.cert.CRLReason mine = our.getRevocationReason();
+                CRLReason mine = our.getRevocationReason();
                 Assertions.assertEquals(their.getRevocationReason(), mine,
                         f.getName() + " serial " + their.getSerialNumber());
                 compared++;

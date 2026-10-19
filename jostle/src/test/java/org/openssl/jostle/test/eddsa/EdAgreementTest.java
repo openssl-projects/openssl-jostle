@@ -10,6 +10,11 @@
 
 package org.openssl.jostle.test.eddsa;
 
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.ASN1TaggedObject;
 import org.bouncycastle.crypto.Signer;
 import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 import org.bouncycastle.crypto.signers.Ed25519ctxSigner;
@@ -624,30 +629,30 @@ public class EdAgreementTest
     /** The {@code privateKey} OCTET STRING of a PKCS#8 / OneAsymmetricKey blob. */
     private static byte[] innerPrivateKey(byte[] pkcs8)
     {
-        org.bouncycastle.asn1.ASN1Sequence seq =
-                org.bouncycastle.asn1.ASN1Sequence.getInstance(pkcs8);
-        return org.bouncycastle.asn1.ASN1OctetString.getInstance(seq.getObjectAt(2)).getOctets();
+        ASN1Sequence seq =
+                ASN1Sequence.getInstance(pkcs8);
+        return ASN1OctetString.getInstance(seq.getObjectAt(2)).getOctets();
     }
 
     /** The version INTEGER of a PKCS#8 / OneAsymmetricKey blob. */
     private static int pkcs8Version(byte[] pkcs8)
     {
-        org.bouncycastle.asn1.ASN1Sequence seq =
-                org.bouncycastle.asn1.ASN1Sequence.getInstance(pkcs8);
-        return org.bouncycastle.asn1.ASN1Integer.getInstance(seq.getObjectAt(0))
+        ASN1Sequence seq =
+                ASN1Sequence.getInstance(pkcs8);
+        return ASN1Integer.getInstance(seq.getObjectAt(0))
                 .getValue().intValue();
     }
 
     /** Whether the blob carries the OPTIONAL {@code [1] publicKey} attribute. */
     private static boolean hasPublicKeyAttribute(byte[] pkcs8)
     {
-        org.bouncycastle.asn1.ASN1Sequence seq =
-                org.bouncycastle.asn1.ASN1Sequence.getInstance(pkcs8);
+        ASN1Sequence seq =
+                ASN1Sequence.getInstance(pkcs8);
         for (int i = 0; i < seq.size(); i++)
         {
-            org.bouncycastle.asn1.ASN1Encodable o = seq.getObjectAt(i);
-            if (o instanceof org.bouncycastle.asn1.ASN1TaggedObject
-                    && ((org.bouncycastle.asn1.ASN1TaggedObject) o).getTagNo() == 1)
+            ASN1Encodable o = seq.getObjectAt(i);
+            if (o instanceof ASN1TaggedObject
+                    && ((ASN1TaggedObject) o).getTagNo() == 1)
             {
                 return true;
             }

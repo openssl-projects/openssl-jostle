@@ -18,6 +18,10 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLDSAPublicKeySpec;
+import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLKEMPublicKeySpec;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.AlgorithmParameters;
@@ -36,7 +40,9 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.EdECPublicKeySpec;
+import java.security.spec.KeySpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.security.spec.XECPublicKeySpec;
 import java.util.ArrayList;
 import java.util.List;
@@ -357,9 +363,9 @@ public class PublicKeySpkiParityTest
 
         // Each still reads the other's bytes, so this is not a parsing defect.
         Assertions.assertNotNull(KeyFactory.getInstance("EC", bc)
-                .generatePublic(new java.security.spec.X509EncodedKeySpec(ours)));
+                .generatePublic(new X509EncodedKeySpec(ours)));
         Assertions.assertNotNull(KeyFactory.getInstance("EC", jsl)
-                .generatePublic(new java.security.spec.X509EncodedKeySpec(theirs)));
+                .generatePublic(new X509EncodedKeySpec(theirs)));
     }
 
     /**
@@ -394,15 +400,19 @@ public class PublicKeySpkiParityTest
             // classpath, so the compiler witnesses these names. fromName is
             // used rather than the constants because BC's fields are
             // lower-case (ml_dsa_44) and fromName is the stable accessor.
-            java.security.spec.KeySpec bcSpec;
+            KeySpec bcSpec;
             if (dsa)
             {
+                // MLDSAPublicKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 bcSpec = new org.bouncycastle.jcajce.spec.MLDSAPublicKeySpec(
+                        // MLDSAParameterSpec: BouncyCastle's is qualified, jostle's is imported
                         org.bouncycastle.jcajce.spec.MLDSAParameterSpec.fromName(f[1]), raw);
             }
             else
             {
+                // MLKEMPublicKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 bcSpec = new org.bouncycastle.jcajce.spec.MLKEMPublicKeySpec(
+                        // MLKEMParameterSpec: BouncyCastle's is qualified, jostle's is imported
                         org.bouncycastle.jcajce.spec.MLKEMParameterSpec.fromName(f[1]), raw);
             }
             PublicKey bcPub = KeyFactory.getInstance(f[0], bc).generatePublic(bcSpec);
@@ -411,11 +421,11 @@ public class PublicKeySpkiParityTest
                             + ", BC " + bcPub.getEncoded().length + ")");
             // Symmetry: jostle's own KeyFactory from ITS spec must agree too,
             // so a jostle generator/KeyFactory disagreement cannot hide.
-            java.security.spec.KeySpec ourSpec = dsa
-                    ? new org.openssl.jostle.jcajce.spec.MLDSAPublicKeySpec(
-                            org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.fromName(f[1]), raw)
-                    : new org.openssl.jostle.jcajce.spec.MLKEMPublicKeySpec(
-                            org.openssl.jostle.jcajce.spec.MLKEMParameterSpec.fromName(f[1]), raw);
+            KeySpec ourSpec = dsa
+                    ? new MLDSAPublicKeySpec(
+                            MLDSAParameterSpec.fromName(f[1]), raw)
+                    : new MLKEMPublicKeySpec(
+                            MLKEMParameterSpec.fromName(f[1]), raw);
             PublicKey oursFromSpec = KeyFactory.getInstance(f[0], jsl).generatePublic(ourSpec);
             Assertions.assertTrue(Arrays.areEqual(pub.getEncoded(), oursFromSpec.getEncoded()),
                     f[0] + ": jostle's generator and KeyFactory disagree");
@@ -460,7 +470,7 @@ public class PublicKeySpkiParityTest
                 "precondition: the two forms must differ for this test to mean anything");
 
         byte[] jslGivenExplicit = KeyFactory.getInstance("EC", jsl)
-                .generatePublic(new java.security.spec.X509EncodedKeySpec(explicitForm))
+                .generatePublic(new X509EncodedKeySpec(explicitForm))
                 .getEncoded();
         Assertions.assertTrue(Arrays.areEqual(explicitForm, jslGivenExplicit),
                 "jostle must PRESERVE explicit parameters it was given, not rewrite them to"
@@ -468,7 +478,7 @@ public class PublicKeySpkiParityTest
                         + " from " + explicitForm.length);
 
         byte[] bcGivenNamed = KeyFactory.getInstance("EC", bc)
-                .generatePublic(new java.security.spec.X509EncodedKeySpec(namedForm))
+                .generatePublic(new X509EncodedKeySpec(namedForm))
                 .getEncoded();
         Assertions.assertTrue(Arrays.areEqual(namedForm, bcGivenNamed),
                 "BC must PRESERVE the named form it was given; got " + bcGivenNamed.length
@@ -486,7 +496,7 @@ public class PublicKeySpkiParityTest
      * closes.
      */
     private static void assertSpecBuiltAgree(String alg, PublicKey generated,
-                                             java.security.spec.KeySpec spec) throws Exception
+                                             KeySpec spec) throws Exception
     {
         PublicKey ours = KeyFactory.getInstance(alg, jsl).generatePublic(spec);
         PublicKey theirs = KeyFactory.getInstance(alg, bc).generatePublic(spec);

@@ -26,6 +26,7 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
 import java.security.Signature;
+import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPublicKeySpec;
 
@@ -128,8 +129,8 @@ public class FIPSECKeyFactoryWithoutJdkProvidersRegressionTest
                 continue;
             }
 
-            java.security.interfaces.ECPublicKey originalPub =
-                    (java.security.interfaces.ECPublicKey) keyPair.getPublic();
+            ECPublicKey originalPub =
+                    (ECPublicKey) keyPair.getPublic();
             ECPublicKeySpec rawSpec = new ECPublicKeySpec(originalPub.getW(), originalPub.getParams());
 
             KeyFactory kf = KeyFactory.getInstance("EC", JostleFIPSProvider.PROVIDER_NAME);

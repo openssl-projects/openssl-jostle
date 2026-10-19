@@ -24,6 +24,7 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
@@ -157,7 +158,7 @@ public class X509CertificateFactoryWithoutJdkProvidersTest
 
         byte[] garbage = new byte[32];
         java.util.Arrays.fill(garbage, (byte) 0xFF);
-        Assertions.assertThrows(java.security.cert.CertificateException.class,
+        Assertions.assertThrows(CertificateException.class,
                 () -> cf.generateCertificate(new ByteArrayInputStream(garbage)));
     }
 }

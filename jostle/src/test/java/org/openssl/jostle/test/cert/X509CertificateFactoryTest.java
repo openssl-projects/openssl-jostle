@@ -29,6 +29,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
+import org.bouncycastle.asn1.DERNull;
+import org.bouncycastle.asn1.DERTaggedObject;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.ExtensionsGenerator;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.IssuingDistributionPoint;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
@@ -52,6 +60,8 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.security.cert.CRL;
+import javax.security.auth.x500.X500Principal;
 
 /**
  * JCE-level tests for the JSL {@code CertificateFactory.X.509} SPI
@@ -495,7 +505,7 @@ public class X509CertificateFactoryTest
     public void testGenerateCRLs_collection() throws Exception
     {
         CertificateFactory cf = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
-        Collection<? extends java.security.cert.CRL> crls =
+        Collection<? extends CRL> crls =
                 cf.generateCRLs(new ByteArrayInputStream(crlDer()));
         Assertions.assertEquals(1, crls.size());
     }
@@ -515,7 +525,7 @@ public class X509CertificateFactoryTest
         CertificateFactory cf = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
         X509Certificate one = parse(rsaCertDer());
 
-        String prop = org.openssl.jostle.jcajce.provider.cert.X509NI.MAX_MEMBERS_PROPERTY;
+        String prop = X509NI.MAX_MEMBERS_PROPERTY;
         String restore = System.getProperty(prop);
         try
         {
@@ -603,7 +613,7 @@ public class X509CertificateFactoryTest
     {
         X509Certificate cert = parse(rsaCertDer());
         Principal dn = cert.getIssuerDN();
-        javax.security.auth.x500.X500Principal principal = cert.getIssuerX500Principal();
+        X500Principal principal = cert.getIssuerX500Principal();
 
         Assertions.assertEquals(dn, parse(rsaCertDer()).getIssuerDN(),
                 "two wrappers over the same name must be equal");
@@ -657,60 +667,60 @@ public class X509CertificateFactoryTest
         g.initialize(2048);
         java.security.KeyPair kp = g.generateKeyPair();
 
-        org.bouncycastle.asn1.ASN1EncodableVector entries =
-                new org.bouncycastle.asn1.ASN1EncodableVector();
+        ASN1EncodableVector entries =
+                new ASN1EncodableVector();
 
-        org.bouncycastle.asn1.ASN1EncodableVector e1 =
-                new org.bouncycastle.asn1.ASN1EncodableVector();
-        e1.add(new org.bouncycastle.asn1.ASN1Integer(INDIRECT_SERIAL));
-        e1.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1600000000000L)));
-        entries.add(new org.bouncycastle.asn1.DERSequence(e1));
+        ASN1EncodableVector e1 =
+                new ASN1EncodableVector();
+        e1.add(new ASN1Integer(INDIRECT_SERIAL));
+        e1.add(new Time(new Date(1600000000000L)));
+        entries.add(new DERSequence(e1));
 
-        org.bouncycastle.asn1.x509.GeneralNames gn = new org.bouncycastle.asn1.x509.GeneralNames(
-                new org.bouncycastle.asn1.x509.GeneralName(
-                        org.bouncycastle.asn1.x509.GeneralName.directoryName,
-                        new org.bouncycastle.asn1.x500.X500Name("CN=Other CA")));
-        org.bouncycastle.asn1.x509.ExtensionsGenerator eg =
-                new org.bouncycastle.asn1.x509.ExtensionsGenerator();
-        eg.addExtension(org.bouncycastle.asn1.x509.Extension.certificateIssuer, true, gn);
-        org.bouncycastle.asn1.ASN1EncodableVector e2 =
-                new org.bouncycastle.asn1.ASN1EncodableVector();
-        e2.add(new org.bouncycastle.asn1.ASN1Integer(INDIRECT_SERIAL));
-        e2.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1600000001000L)));
+        GeneralNames gn = new GeneralNames(
+                new GeneralName(
+                        GeneralName.directoryName,
+                        new X500Name("CN=Other CA")));
+        ExtensionsGenerator eg =
+                new ExtensionsGenerator();
+        eg.addExtension(Extension.certificateIssuer, true, gn);
+        ASN1EncodableVector e2 =
+                new ASN1EncodableVector();
+        e2.add(new ASN1Integer(INDIRECT_SERIAL));
+        e2.add(new Time(new Date(1600000001000L)));
         e2.add(eg.generate());
-        entries.add(new org.bouncycastle.asn1.DERSequence(e2));
+        entries.add(new DERSequence(e2));
 
-        org.bouncycastle.asn1.x509.AlgorithmIdentifier alg =
-                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                        new org.bouncycastle.asn1.ASN1ObjectIdentifier("1.2.840.113549.1.1.11"),
-                        org.bouncycastle.asn1.DERNull.INSTANCE);
+        AlgorithmIdentifier alg =
+                new AlgorithmIdentifier(
+                        new ASN1ObjectIdentifier("1.2.840.113549.1.1.11"),
+                        DERNull.INSTANCE);
 
-        org.bouncycastle.asn1.ASN1EncodableVector tbs =
-                new org.bouncycastle.asn1.ASN1EncodableVector();
-        tbs.add(new org.bouncycastle.asn1.ASN1Integer(1));
+        ASN1EncodableVector tbs =
+                new ASN1EncodableVector();
+        tbs.add(new ASN1Integer(1));
         tbs.add(alg);
-        tbs.add(new org.bouncycastle.asn1.x500.X500Name("CN=CRL Issuer"));
-        tbs.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1600000000000L)));
-        tbs.add(new org.bouncycastle.asn1.x509.Time(new java.util.Date(1900000000000L)));
-        tbs.add(new org.bouncycastle.asn1.DERSequence(entries));
-        org.bouncycastle.asn1.x509.ExtensionsGenerator crlExt =
-                new org.bouncycastle.asn1.x509.ExtensionsGenerator();
-        crlExt.addExtension(org.bouncycastle.asn1.x509.Extension.issuingDistributionPoint, true,
-                new org.bouncycastle.asn1.x509.IssuingDistributionPoint(null, false, true));
-        tbs.add(new org.bouncycastle.asn1.DERTaggedObject(true, 0, crlExt.generate()));
-        org.bouncycastle.asn1.DERSequence tbsSeq = new org.bouncycastle.asn1.DERSequence(tbs);
+        tbs.add(new X500Name("CN=CRL Issuer"));
+        tbs.add(new Time(new Date(1600000000000L)));
+        tbs.add(new Time(new Date(1900000000000L)));
+        tbs.add(new DERSequence(entries));
+        ExtensionsGenerator crlExt =
+                new ExtensionsGenerator();
+        crlExt.addExtension(Extension.issuingDistributionPoint, true,
+                new IssuingDistributionPoint(null, false, true));
+        tbs.add(new DERTaggedObject(true, 0, crlExt.generate()));
+        DERSequence tbsSeq = new DERSequence(tbs);
 
         java.security.Signature sig =
                 java.security.Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
         sig.initSign(kp.getPrivate());
-        sig.update(tbsSeq.getEncoded(org.bouncycastle.asn1.ASN1Encoding.DER));
+        sig.update(tbsSeq.getEncoded(ASN1Encoding.DER));
 
-        org.bouncycastle.asn1.ASN1EncodableVector crl =
-                new org.bouncycastle.asn1.ASN1EncodableVector();
+        ASN1EncodableVector crl =
+                new ASN1EncodableVector();
         crl.add(tbsSeq);
         crl.add(alg);
-        crl.add(new org.bouncycastle.asn1.DERBitString(sig.sign()));
-        return new org.bouncycastle.asn1.DERSequence(crl)
-                .getEncoded(org.bouncycastle.asn1.ASN1Encoding.DER);
+        crl.add(new DERBitString(sig.sign()));
+        return new DERSequence(crl)
+                .getEncoded(ASN1Encoding.DER);
     }
 }

@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.test.fips;
 
+import org.bouncycastle.jcajce.spec.EdDSAParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
@@ -437,7 +438,7 @@ public class FIPSEdSignatureTest
             // BC -> JSLFIPS -> BC
             KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("EdDSA",
                     BouncyCastleProvider.PROVIDER_NAME);
-            bcKpg.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec(
+            bcKpg.initialize(new EdDSAParameterSpec(
                     "ED25519".equals(alg) ? "Ed25519" : "Ed448"));
             KeyPair bcKp = bcKpg.generateKeyPair();
             byte[] bcSpki = bcKp.getPublic().getEncoded();

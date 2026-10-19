@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -238,7 +239,7 @@ public class ChunkingContractTest
                     byte[] got = runChunked(
                             cipher(JostleProvider.PROVIDER_NAME, m, Cipher.ENCRYPT_MODE, key, iv),
                             msg, chunk);
-                    if (!org.openssl.jostle.util.Arrays.areEqual(reference, got))
+                    if (!Arrays.areEqual(reference, got))
                     {
                         failures.add(m.transformation + " key=" + m.keyLen
                                 + " encrypt chunk=" + describe(chunk)
@@ -257,7 +258,7 @@ public class ChunkingContractTest
                     byte[] back = runChunked(
                             cipher(JostleProvider.PROVIDER_NAME, m, Cipher.DECRYPT_MODE, key, iv),
                             reference, chunk);
-                    if (!org.openssl.jostle.util.Arrays.areEqual(msg, back))
+                    if (!Arrays.areEqual(msg, back))
                     {
                         failures.add(m.transformation + " key=" + m.keyLen
                                 + " decrypt chunk=" + describe(chunk)
@@ -320,7 +321,7 @@ public class ChunkingContractTest
                 }
                 out.write(c.doFinal());
 
-                if (!org.openssl.jostle.util.Arrays.areEqual(reference, out.toByteArray()))
+                if (!Arrays.areEqual(reference, out.toByteArray()))
                 {
                     failures.add(m.transformation + " trial=" + trial + ": random split differs from BouncyCastle");
                 }

@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.interfaces;
 
 import java.security.PrivateKey;
 
+// RSAPrivateKey is qualified where the JDK's is meant: jostle's of that name is declared here
 public interface RSAPrivateKey extends PrivateKey, RSAKey, java.security.interfaces.RSAPrivateKey
 {
     /**

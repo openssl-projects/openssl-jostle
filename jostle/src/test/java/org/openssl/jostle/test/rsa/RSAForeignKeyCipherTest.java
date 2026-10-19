@@ -38,6 +38,7 @@ import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Date;
+import java.security.spec.ECGenParameterSpec;
 
 /**
  * Regression for the RSA-Cipher foreign-key gap: the PKCS#1 and OAEP Cipher
@@ -171,7 +172,7 @@ public class RSAForeignKeyCipherTest
         // A foreign but non-RSA key must still be rejected with the typed
         // exception and the operation-specific message.
         KeyPairGenerator ec = KeyPairGenerator.getInstance("EC", JSL);
-        ec.initialize(new java.security.spec.ECGenParameterSpec("P-256"));
+        ec.initialize(new ECGenParameterSpec("P-256"));
         PublicKey ecPub = ec.generateKeyPair().getPublic();
 
         Cipher enc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JSL);

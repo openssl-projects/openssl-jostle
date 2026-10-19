@@ -39,6 +39,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.io.IOException;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * Tests for {@code MLKEMKTSCipherSpi} — the ML-KEM KTS (key-transport) Cipher
@@ -125,10 +127,11 @@ public class MLKEMKTSCipherTest
             this.kdf = kdf;
         }
 
-        java.security.spec.AlgorithmParameterSpec forProvider(String provider) throws java.io.IOException
+        AlgorithmParameterSpec forProvider(String provider) throws IOException
         {
             if (BouncyCastleProvider.PROVIDER_NAME.equals(provider))
             {
+                // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder b =
                         new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
                                 keyAlgorithmName, keySizeInBits, otherInfo);

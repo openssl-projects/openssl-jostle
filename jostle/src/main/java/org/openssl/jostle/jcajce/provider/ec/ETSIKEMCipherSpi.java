@@ -46,6 +46,8 @@ import java.security.spec.ECPoint;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
+import java.security.interfaces.ECKey;
+import java.security.spec.PKCS8EncodedKeySpec;
 
 /**
  * The IEEE 1609.2 (ITS) integrated-encryption KEM, registered as
@@ -443,7 +445,7 @@ public class ETSIKEMCipherSpi extends CipherSpi
             }
             if (type == Cipher.PRIVATE_KEY)
             {
-                return targetFactory.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(encoded));
+                return targetFactory.generatePrivate(new PKCS8EncodedKeySpec(encoded));
             }
         }
         catch (InvalidKeySpecException e)
@@ -610,11 +612,11 @@ public class ETSIKEMCipherSpi extends CipherSpi
     @Override
     protected int engineGetKeySize(Key key) throws InvalidKeyException
     {
-        if (!(key instanceof java.security.interfaces.ECKey))
+        if (!(key instanceof ECKey))
         {
             throw new InvalidKeyException("not an EC key: " + key.getClass().getName());
         }
-        return ((java.security.interfaces.ECKey) key).getParams().getOrder().bitLength();
+        return ((ECKey) key).getParams().getOrder().bitLength();
     }
 
     @Override

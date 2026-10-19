@@ -34,9 +34,11 @@ import java.security.Signature;
 import java.security.interfaces.DSAParams;
 import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.DSAPublicKey;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.DSAPrivateKeySpec;
 import java.security.spec.DSAPublicKeySpec;
+import java.security.spec.ECGenParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -197,7 +199,7 @@ public class DSATest
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", JostleProvider.PROVIDER_NAME);
         try
         {
-            kpg.initialize((java.security.spec.AlgorithmParameterSpec) null);
+            kpg.initialize((AlgorithmParameterSpec) null);
             Assertions.fail("expected InvalidAlgorithmParameterException");
         }
         catch (InvalidAlgorithmParameterException expected)
@@ -212,7 +214,7 @@ public class DSATest
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", JostleProvider.PROVIDER_NAME);
         try
         {
-            kpg.initialize(new java.security.spec.ECGenParameterSpec("P-256"));
+            kpg.initialize(new ECGenParameterSpec("P-256"));
             Assertions.fail("expected InvalidAlgorithmParameterException");
         }
         catch (InvalidAlgorithmParameterException expected)

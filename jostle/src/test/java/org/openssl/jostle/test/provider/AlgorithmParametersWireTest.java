@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.provider;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import java.security.Provider;
 import java.security.Security;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * The parameter codecs MT-18 brought in house must put the SAME bytes on the
@@ -56,7 +58,7 @@ public class AlgorithmParametersWireTest
         }
         if (Security.getProvider("BC") == null)
         {
-            Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+            Security.addProvider(new BouncyCastleProvider());
         }
     }
 
@@ -333,7 +335,7 @@ public class AlgorithmParametersWireTest
         return b;
     }
 
-    private static byte[] platform(String alg, String provider, java.security.spec.AlgorithmParameterSpec s)
+    private static byte[] platform(String alg, String provider, AlgorithmParameterSpec s)
             throws Exception
     {
         AlgorithmParameters ap = AlgorithmParameters.getInstance(alg, provider);
@@ -341,14 +343,14 @@ public class AlgorithmParametersWireTest
         return ap.getEncoded();
     }
 
-    private static byte[] jostle(String alg, java.security.spec.AlgorithmParameterSpec s) throws Exception
+    private static byte[] jostle(String alg, AlgorithmParameterSpec s) throws Exception
     {
         AlgorithmParameters ap = AlgorithmParameters.getInstance(alg, JSL);
         ap.init(s);
         return ap.getEncoded();
     }
 
-    private static <T extends java.security.spec.AlgorithmParameterSpec> T decode(
+    private static <T extends AlgorithmParameterSpec> T decode(
             String provider, String alg, byte[] der, Class<T> as) throws Exception
     {
         AlgorithmParameters ap = AlgorithmParameters.getInstance(alg, provider);

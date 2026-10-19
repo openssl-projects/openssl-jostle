@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.util.Arrays;
 
@@ -34,6 +35,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.security.Provider;
+import java.util.Locale;
 
 /**
  * Cross-provider agreement for the FIPS provider's EC surface (ECDSA
@@ -226,11 +229,12 @@ public class FIPSECAgreementTest
         }
         else if (BC.equals(provider))
         {
+            // UserKeyingMaterialSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             ka.init(priv, new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm));
         }
         else
         {
-            ka.init(priv, new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm));
+            ka.init(priv, new UserKeyingMaterialSpec(ukm));
         }
         ka.doPhase(peerPub, true);
         return ka.generateSecret(wrapOid).getEncoded();
@@ -402,12 +406,12 @@ public class FIPSECAgreementTest
 
             Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
                     javax.crypto.KeyAgreement.getInstance(name, FIPS).init(kp.getPrivate(),
-                            new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(null)),
+                            new UserKeyingMaterialSpec(null)),
                     name + ": a null Param must be refused typed under JSLFIPS");
 
             Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
                     javax.crypto.KeyAgreement.getInstance(name, FIPS).init(kp.getPrivate(),
-                            new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(new byte[0])),
+                            new UserKeyingMaterialSpec(new byte[0])),
                     name + ": an empty Param must be refused typed under JSLFIPS");
         }
     }
@@ -508,7 +512,7 @@ public class FIPSECAgreementTest
     {
         java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
         java.util.List<String> names = new java.util.ArrayList<String>();
-        for (java.security.Provider.Service svc : provider.getServices())
+        for (Provider.Service svc : provider.getServices())
         {
             String cn = svc.getClassName();
             if (type.equals(svc.getType()) && cn != null && cn.startsWith(CipherFamilies.EC_PREFIX))
@@ -576,7 +580,7 @@ public class FIPSECAgreementTest
             Assertions.assertFalse(verifyWith(alg, FIPS, keys.get(FIPS).pub, tampered, sigBc),
                     alg + ": tampered message must not verify");
 
-            if (!SHA1_ECDSA.contains(alg.toUpperCase(java.util.Locale.ROOT)))
+            if (!SHA1_ECDSA.contains(alg.toUpperCase(Locale.ROOT)))
             {
                 // An APPROVED digest. A refusal here is a regression, not a
                 // configuration — no tolerance, so it fails hard.
@@ -626,10 +630,10 @@ public class FIPSECAgreementTest
         {
             java.security.AlgorithmParameters fipsAp =
                     java.security.AlgorithmParameters.getInstance("EC", FIPS);
-            fipsAp.init(new java.security.spec.ECGenParameterSpec(curve));
+            fipsAp.init(new ECGenParameterSpec(curve));
             java.security.AlgorithmParameters bcAp =
                     java.security.AlgorithmParameters.getInstance("EC", BC);
-            bcAp.init(new java.security.spec.ECGenParameterSpec(curve));
+            bcAp.init(new ECGenParameterSpec(curve));
             Assertions.assertArrayEquals(bcAp.getEncoded(), fipsAp.getEncoded(),
                     curve + ": JSLFIPS and BC encode the named curve differently");
 
@@ -658,12 +662,12 @@ public class FIPSECAgreementTest
         for (String alg : registeredFips("Signature"))
         {
             // Every one is driven by everyRegisteredEcdsaNameCrossVerifiesWithBc.
-            covered.add("Signature." + alg.toUpperCase(java.util.Locale.ROOT));
+            covered.add("Signature." + alg.toUpperCase(Locale.ROOT));
         }
         covered.add("KeyAgreement.ECDH");
         for (String alg : ECDH_KDF_NAMES)
         {
-            covered.add("KeyAgreement." + alg.toUpperCase(java.util.Locale.ROOT));
+            covered.add("KeyAgreement." + alg.toUpperCase(Locale.ROOT));
         }
         covered.add("KeyFactory.EC");
         covered.add("KeyPairGenerator.EC");
@@ -684,12 +688,12 @@ public class FIPSECAgreementTest
         }
 
         java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
-        for (java.security.Provider.Service svc : provider.getServices())
+        for (Provider.Service svc : provider.getServices())
         {
             String cn = svc.getClassName();
             if (cn != null && cn.startsWith(CipherFamilies.EC_PREFIX))
             {
-                registered.add(svc.getType() + "." + svc.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+                registered.add(svc.getType() + "." + svc.getAlgorithm().toUpperCase(Locale.ROOT));
             }
         }
         Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no EC services");

@@ -14,6 +14,7 @@ package org.openssl.jostle.test.rsa;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
@@ -409,9 +410,9 @@ public class RSAOAEPCipherLimitTest
             // there; capture it in a final local for the lambda.)
             final long decRefFinal = decRef;
             byte[] shiftedOut = new byte[needed];
-            org.openssl.jostle.jcajce.provider.InvalidCipherTextException thrown =
+            InvalidCipherTextException thrown =
                     Assertions.assertThrows(
-                            org.openssl.jostle.jcajce.provider.InvalidCipherTextException.class,
+                            InvalidCipherTextException.class,
                             () -> cipherNI.doFinal(decRefFinal, shifted, 0, shifted.length,
                                     shiftedOut, 0, TestUtil.RNDSrc),
                             "ciphertext window shifted by 1 byte INTO the prefix "

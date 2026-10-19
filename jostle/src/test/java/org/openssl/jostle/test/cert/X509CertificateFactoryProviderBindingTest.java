@@ -15,9 +15,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi;
 import org.openssl.jostle.test.certpath.PkitsCertificates;
 
 import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.Provider;
 import java.security.PublicKey;
@@ -28,6 +33,9 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Collections;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A certificate's public key is decoded by the factory's own provider
@@ -150,8 +158,8 @@ public class X509CertificateFactoryProviderBindingTest
     @Test
     public void theNameOnlyFactoryStillResolvesByName() throws Exception
     {
-        org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi spi =
-                new org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi(
+        X509CertificateFactorySpi spi =
+                new X509CertificateFactorySpi(
                         JostleProvider.PROVIDER_NAME, false);
 
         Certificate c = spi.engineGenerateCertificate(
@@ -171,7 +179,7 @@ public class X509CertificateFactoryProviderBindingTest
     public void aNullProviderIsRefusedAtConstruction()
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi(
+                () -> new X509CertificateFactorySpi(
                         (java.security.Provider) null, false));
 
         Assertions.assertEquals(
@@ -276,8 +284,8 @@ public class X509CertificateFactoryProviderBindingTest
     }
 
     /** A {@code String} parameter whose NAME says it carries a provider. */
-    private static final java.util.regex.Pattern PROVIDER_NAME_PARAM =
-            java.util.regex.Pattern.compile("\\bString\\s+\\w*[pP]rovider\\w*");
+    private static final Pattern PROVIDER_NAME_PARAM =
+            Pattern.compile("\\bString\\s+\\w*[pP]rovider\\w*");
 
     /**
      * Comment-stripped source of EVERY multi-release copy of the class. Both
@@ -292,12 +300,12 @@ public class X509CertificateFactoryProviderBindingTest
             for (String level : new String[]{"java", "java9", "java11", "java15", "java17",
                     "java21", "java25"})
             {
-                java.nio.file.Path p = java.nio.file.Paths.get(base, level,
+                Path p = Paths.get(base, level,
                         className.replace('.', '/') + ".java");
-                if (java.nio.file.Files.isRegularFile(p))
+                if (Files.isRegularFile(p))
                 {
-                    out.add(new String(java.nio.file.Files.readAllBytes(p),
-                            java.nio.charset.StandardCharsets.UTF_8)
+                    out.add(new String(Files.readAllBytes(p),
+                            StandardCharsets.UTF_8)
                             .replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("//[^\n]*", " "));
                 }
             }
@@ -311,13 +319,13 @@ public class X509CertificateFactoryProviderBindingTest
     private static java.util.List<String> fieldsCarryingAProvider(String className)
             throws java.io.IOException
     {
-        java.util.regex.Pattern field = java.util.regex.Pattern.compile(
+        Pattern field = Pattern.compile(
                 "(?m)^\\s*(?:private|protected|public)\\s+(?:static\\s+)?(?:final\\s+)?"
                         + "([\\w.]+)\\s+(\\w+)\\s*[;=]");
         java.util.List<String> out = new java.util.ArrayList<String>();
         for (String code : sourcesOf(className))
         {
-            java.util.regex.Matcher m = field.matcher(code);
+            Matcher m = field.matcher(code);
             while (m.find())
             {
                 String type = m.group(1);
@@ -326,7 +334,7 @@ public class X509CertificateFactoryProviderBindingTest
                 boolean carries = "Provider".equals(simpleType)
                         || "ProviderBinding".equals(simpleType)
                         || ("String".equals(simpleType)
-                            && name.toLowerCase(java.util.Locale.ROOT).contains("provider"));
+                            && name.toLowerCase(Locale.ROOT).contains("provider"));
                 if (carries && !out.contains(simpleType + " " + name))
                 {
                     out.add(simpleType + " " + name);
@@ -344,7 +352,7 @@ public class X509CertificateFactoryProviderBindingTest
         String code = String.join("\n", sourcesOf(className));
 
         java.util.List<String> out = new java.util.ArrayList<String>();
-        java.util.regex.Matcher m = java.util.regex.Pattern
+        Matcher m = Pattern
                 .compile("\\b" + simple + "\\s*\\(").matcher(code);
         while (m.find())
         {

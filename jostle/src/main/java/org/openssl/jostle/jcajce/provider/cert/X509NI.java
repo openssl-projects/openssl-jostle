@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.cert;
 import org.openssl.jostle.jcajce.provider.CertificateParseException;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.util.Properties;
 
 /**
  * X.509 certificate parsing over OpenSSL.
@@ -85,7 +86,7 @@ public interface X509NI
      */
     static int maxCertificateBytes()
     {
-        int configured = org.openssl.jostle.util.Properties.asInteger(
+        int configured = Properties.asInteger(
                 MAX_CERT_BYTES_PROPERTY, DEFAULT_MAX_CERT_BYTES);
         if (configured < 1)
         {
@@ -151,7 +152,7 @@ public interface X509NI
 
     static int maxContainerBytes()
     {
-        int configured = org.openssl.jostle.util.Properties.asInteger(
+        int configured = Properties.asInteger(
                 MAX_CONTAINER_BYTES_PROPERTY, DEFAULT_MAX_CONTAINER_BYTES);
         return configured < 1 ? DEFAULT_MAX_CONTAINER_BYTES : configured;
     }
@@ -167,7 +168,7 @@ public interface X509NI
 
     static int maxMembers()
     {
-        int configured = org.openssl.jostle.util.Properties.asInteger(
+        int configured = Properties.asInteger(
                 MAX_MEMBERS_PROPERTY, DEFAULT_MAX_MEMBERS);
         return configured < 1 ? DEFAULT_MAX_MEMBERS : configured;
     }

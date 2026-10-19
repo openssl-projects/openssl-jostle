@@ -26,6 +26,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.InvalidParameterSpecException;
+import javax.crypto.spec.IvParameterSpec;
 
 /**
  * MT-85: an {@code AlgorithmParameters} object produced by another provider
@@ -138,7 +139,7 @@ public class CCMForeignParametersTest
         byte[] desIv = new byte[8];
         RANDOM.nextBytes(desIv);
         AlgorithmParameters foreign = AlgorithmParameters.getInstance("DES");
-        foreign.init(new javax.crypto.spec.IvParameterSpec(desIv));
+        foreign.init(new IvParameterSpec(desIv));
         // Precondition: it really does refuse the GCM view, so the test drives
         // the fallback rather than the direct path.
         Assertions.assertThrows(InvalidParameterSpecException.class,

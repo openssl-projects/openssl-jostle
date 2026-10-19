@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
 import java.security.InvalidAlgorithmParameterException;
@@ -98,7 +99,7 @@ public class FIPSWeakCurveVerifyOnlyTest
 
             // A verify stubbed to return true passes the line above. Tamper the
             // message and require it to say no.
-            byte[] tampered = org.openssl.jostle.util.Arrays.clone(msg);
+            byte[] tampered = Arrays.clone(msg);
             tampered[0] ^= (byte) 0x01;
             Assertions.assertFalse(verify(fips, pub, tampered, sig),
                     curve + ": a tampered message must not verify");

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Every {@code native} method on a {@code *FIPSJNI} class must have a
@@ -189,7 +190,7 @@ public class FIPSJniSymbolRenameParityTest
     private static List<Path> listFiles(Path dir, String suffix)
     {
         final List<Path> out = new ArrayList<Path>();
-        try (java.util.stream.Stream<Path> walk = Files.walk(dir, 1))
+        try (Stream<Path> walk = Files.walk(dir, 1))
         {
             walk.filter(p -> p.getFileName().toString().endsWith(suffix)).forEach(out::add);
         }

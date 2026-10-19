@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.AEADBadTagException;
@@ -170,13 +171,14 @@ public class ChaCha20Poly1305AgreementTest
      * from the same content — BC and Jostle now each accept only their own
      * type directly, so one object can no longer drive both.
      */
-    private static javax.crypto.spec.IvParameterSpec aeadSpec(String provider, byte[] nonce, int tagBits, byte[] aad)
+    private static IvParameterSpec aeadSpec(String provider, byte[] nonce, int tagBits, byte[] aad)
     {
         if (BC.equals(provider))
         {
+            // AEADParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             return new org.bouncycastle.jcajce.spec.AEADParameterSpec(nonce, tagBits, aad);
         }
-        return new org.openssl.jostle.jcajce.spec.AEADParameterSpec(nonce, tagBits, aad);
+        return new AEADParameterSpec(nonce, tagBits, aad);
     }
 
     /**

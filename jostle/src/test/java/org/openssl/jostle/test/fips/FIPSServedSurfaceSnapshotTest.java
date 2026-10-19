@@ -16,9 +16,11 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 
 import java.security.Provider;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -615,10 +617,10 @@ public class FIPSServedSurfaceSnapshotTest
         // groups, so one probe for the set would be wrong in one direction or
         // the other. The name is spelled as OpenSSL spells it, which is what
         // the registrar gates on.
-        for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec hybrid
-                : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+        for (MLXKEMParameterSpec hybrid
+                : MLXKEMParameterSpec.all())
         {
-            String upper = hybrid.getName().toUpperCase(java.util.Locale.ROOT);
+            String upper = hybrid.getName().toUpperCase(Locale.ROOT);
             assertGatedAbsenceIsJustified(hybrid.getName(), hybridGated(upper),
                     OpenSSLFIPSNI.OP_KEYMGMT, hybrid.getName(), removed);
         }
@@ -775,10 +777,10 @@ public class FIPSServedSurfaceSnapshotTest
         for (String type : new String[]{"KeyPairGenerator", "KeyGenerator", "KeyFactory"})
         {
             SortedSet<String> actual = new TreeSet<>();
-            for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec spec
-                    : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+            for (MLXKEMParameterSpec spec
+                    : MLXKEMParameterSpec.all())
             {
-                String upper = spec.getName().toUpperCase(java.util.Locale.ROOT);
+                String upper = spec.getName().toUpperCase(Locale.ROOT);
                 if (provider.getService(type, upper) != null)
                 {
                     actual.add(upper);

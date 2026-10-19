@@ -27,6 +27,7 @@ import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
+import javax.crypto.spec.PBEParameterSpec;
 
 /**
  * AES-GMAC (NIST SP 800-38D) agreement between the Jostle base provider and
@@ -465,7 +466,7 @@ public class GMACAgreementTest
         Mac wrongSpec = Mac.getInstance("AESGMAC", JSL);
         InvalidAlgorithmParameterException wrong =
                 Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                        () -> wrongSpec.init(key, new javax.crypto.spec.PBEParameterSpec(new byte[8], 1)));
+                        () -> wrongSpec.init(key, new PBEParameterSpec(new byte[8], 1)));
         Assertions.assertEquals(
                 "expected IvParameterSpec or GCMParameterSpec, got javax.crypto.spec.PBEParameterSpec",
                 wrong.getMessage());

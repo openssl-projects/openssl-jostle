@@ -36,6 +36,8 @@ import java.security.Provider;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.AlgorithmParameterSpec;
+import java.util.Locale;
 
 /**
  * RFC 6637 §7 SP 800-56C one-step KDF applied to X25519 / X448 — BC's
@@ -124,6 +126,7 @@ public class XDHCKDFAgreementTest
 
                         KeyAgreement bc = KeyAgreement.getInstance(name, BC);
                         bc.init(bcPrivate(curve, alice.getPrivate()),
+                                // UserKeyingMaterialSpec: BouncyCastle's is qualified, jostle's is imported
                                 new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(param));
                         bc.doPhase(bcPublic(curve, bob.getPublic()), true);
                         byte[] bcKek = bc.generateSecret(wrapOid).getEncoded();
@@ -372,7 +375,7 @@ public class XDHCKDFAgreementTest
     /** The curve a registered name identifies. */
     private static String curveOf(String algorithm)
     {
-        String a = algorithm.toUpperCase(java.util.Locale.ROOT);
+        String a = algorithm.toUpperCase(Locale.ROOT);
         if (a.startsWith("OID."))
         {
             a = a.substring(4);
@@ -481,6 +484,7 @@ public class XDHCKDFAgreementTest
                     new HybridValueParameterSpec(t1, true, new UserKeyingMaterialSpec(ukm)));
             final byte[] theirs = deriveKek(BC, algorithm,
                     bcPrivate(curve, alice.getPrivate()), bcPublic(curve, bob.getPublic()),
+                    // HybridValueParameterSpec: BouncyCastle's is qualified, jostle's is imported
                     new org.bouncycastle.jcajce.spec.HybridValueParameterSpec(t1, true,
                             new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm)));
             final byte[] otherT = deriveKek(JSL, algorithm, alice.getPrivate(), bob.getPublic(),
@@ -499,7 +503,7 @@ public class XDHCKDFAgreementTest
     }
 
     private static byte[] deriveKek(String provider, String algorithm, PrivateKey priv,
-                                    PublicKey pub, java.security.spec.AlgorithmParameterSpec spec)
+                                    PublicKey pub, AlgorithmParameterSpec spec)
             throws Exception
     {
         KeyAgreement ka = KeyAgreement.getInstance(algorithm, provider);

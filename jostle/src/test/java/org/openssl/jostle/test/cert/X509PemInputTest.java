@@ -26,10 +26,12 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Security;
@@ -101,7 +103,7 @@ public class X509PemInputTest
 
     private static byte[] utf8(String s)
     {
-        return s.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        return s.getBytes(StandardCharsets.US_ASCII);
     }
 
     // ----- positive: singular round-trip -----
@@ -342,7 +344,7 @@ public class X509PemInputTest
     @Test
     public void oversizedPemBodyIsRefusedTyped()
     {
-        int ceiling = org.openssl.jostle.jcajce.provider.cert.X509NI.maxCertificateBytes();
+        int ceiling = X509NI.maxCertificateBytes();
         char[] filler = new char[2 * ceiling + 4096];
         java.util.Arrays.fill(filler, 'A');
         byte[] oversized = utf8("-----BEGIN CERTIFICATE-----\n" + new String(filler) + "\n-----END CERTIFICATE-----\n");

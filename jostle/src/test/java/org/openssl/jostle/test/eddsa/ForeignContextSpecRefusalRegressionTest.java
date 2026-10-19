@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.eddsa;
 
+import org.bouncycastle.jcajce.spec.ContextParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -54,8 +55,8 @@ public class ForeignContextSpecRefusalRegressionTest
 
         Signature s = Signature.getInstance("ED25519", JostleProvider.PROVIDER_NAME);
         s.initSign(kp.getPrivate());
-        org.bouncycastle.jcajce.spec.ContextParameterSpec foreign =
-                new org.bouncycastle.jcajce.spec.ContextParameterSpec(new byte[]{1, 2, 3});
+        ContextParameterSpec foreign =
+                new ContextParameterSpec(new byte[]{1, 2, 3});
         Assertions.assertThrows(InvalidAlgorithmParameterException.class, () -> s.setParameter(foreign),
                 "ED25519 must refuse BouncyCastle's own ContextParameterSpec");
     }
@@ -69,8 +70,8 @@ public class ForeignContextSpecRefusalRegressionTest
 
         Signature s = Signature.getInstance("ML-DSA-44", JostleProvider.PROVIDER_NAME);
         s.initSign(kp.getPrivate());
-        org.bouncycastle.jcajce.spec.ContextParameterSpec foreign =
-                new org.bouncycastle.jcajce.spec.ContextParameterSpec(new byte[]{1, 2, 3});
+        ContextParameterSpec foreign =
+                new ContextParameterSpec(new byte[]{1, 2, 3});
         Assertions.assertThrows(InvalidAlgorithmParameterException.class, () -> s.setParameter(foreign),
                 "ML-DSA-44 must refuse BouncyCastle's own ContextParameterSpec");
     }

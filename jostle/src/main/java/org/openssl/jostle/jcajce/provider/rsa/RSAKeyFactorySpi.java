@@ -20,12 +20,14 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 
 import java.math.BigInteger;
 import java.security.Key;
 import java.security.KeyFactorySpi;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
@@ -296,8 +298,8 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             // point in its own right, not a wrapper over the import helpers,
             // so it needs the check independently. Found because the probe
             // presents keys through this surface rather than reading them.
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec spec =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec spec =
+                    ((OSSLKey) key).getSpec();
             // Additive, same reasoning as RSAKeyImport: the library-level
             // check stays live until instance binding is activated.
             // INSTANCE check only, deliberately — no library half here.
@@ -320,6 +322,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         byte[] encoded = null;
         try
         {
+            // RSAPrivateCrtKey is qualified where the JDK's is meant: jostle's of that name is imported
             if (key instanceof java.security.interfaces.RSAPrivateCrtKey)
             {
                 java.security.interfaces.RSAPrivateCrtKey rsa =
@@ -331,10 +334,10 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                         rsa.getPrimeExponentP(), rsa.getPrimeExponentQ(),
                         rsa.getCrtCoefficient()));
             }
-            if (key instanceof java.security.interfaces.RSAPublicKey)
+            if (key instanceof RSAPublicKey)
             {
-                java.security.interfaces.RSAPublicKey rsa =
-                        (java.security.interfaces.RSAPublicKey) key;
+                RSAPublicKey rsa =
+                        (RSAPublicKey) key;
                 return engineGeneratePublic(new RSAPublicKeySpec(
                         rsa.getModulus(), rsa.getPublicExponent()));
             }

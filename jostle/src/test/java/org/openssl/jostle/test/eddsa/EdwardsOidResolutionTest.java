@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -119,7 +120,7 @@ public class EdwardsOidResolutionTest
                 name + ": signature must verify through the OID-resolved key/Signature");
 
         // Negative path: a tampered message must not verify.
-        byte[] tampered = org.openssl.jostle.util.Arrays.clone(msg);
+        byte[] tampered = Arrays.clone(msg);
         tampered[random.nextInt(tampered.length)] ^= (byte) 0x01;
         Signature verifier2 = Signature.getInstance(oid, JSL);
         verifier2.initVerify(rebuilt);

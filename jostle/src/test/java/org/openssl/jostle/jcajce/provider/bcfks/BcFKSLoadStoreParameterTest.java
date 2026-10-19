@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.bcfks;
 
+import org.bouncycastle.crypto.util.PBKDF2Config;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -72,7 +74,7 @@ public class BcFKSLoadStoreParameterTest
         }
         if (Security.getProvider("BC") == null)
         {
-            Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+            Security.addProvider(new BouncyCastleProvider());
         }
     }
 
@@ -461,6 +463,7 @@ public class BcFKSLoadStoreParameterTest
         // ever reading the file if the verification key's type does not
         // match -- measured: BcFKSKeyStoreSpi.generateSignatureAlgId,
         // r1rv86 :1571-1610. Must be named explicitly for an RSA key.
+        // BCFKSLoadStoreParameter is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.BCFKSLoadStoreParameter bcParam =
                 new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(
                         new ByteArrayInputStream(out.toByteArray()), signingPair.getPublic())
@@ -721,10 +724,10 @@ public class BcFKSLoadStoreParameterTest
         bcWriter.setCertificateEntry("cert", cert);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         bcWriter.store(new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(out, pw)
-                .withStorePBKDFConfig(new org.bouncycastle.crypto.util.PBKDF2Config.Builder()
+                .withStorePBKDFConfig(new PBKDF2Config.Builder()
                         .withIterationCount(4096)
                         .withSaltLength(32)
-                        .withPRF(org.bouncycastle.crypto.util.PBKDF2Config.PRF_SHA512)
+                        .withPRF(PBKDF2Config.PRF_SHA512)
                         .build())
                 .build());
 

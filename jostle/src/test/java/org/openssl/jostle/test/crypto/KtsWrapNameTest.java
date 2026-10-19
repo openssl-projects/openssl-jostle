@@ -33,6 +33,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * MT-90: the KTS ciphers honour {@code KTSParameterSpec.getKeyAlgorithmName()},
@@ -113,10 +114,11 @@ public class KtsWrapNameTest
             this.otherInfo = otherInfo;
         }
 
-        java.security.spec.AlgorithmParameterSpec forProvider(String provider)
+        AlgorithmParameterSpec forProvider(String provider)
         {
             if (BC.equals(provider))
             {
+                // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 return new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
                         keyAlgorithmName, 256, otherInfo).build();
             }

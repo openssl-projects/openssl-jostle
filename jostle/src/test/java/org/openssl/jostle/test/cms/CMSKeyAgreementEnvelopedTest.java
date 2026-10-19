@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.cms;
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.cms.CMSAlgorithm;
 import org.bouncycastle.cms.CMSEnvelopedData;
@@ -104,9 +105,9 @@ public class CMSKeyAgreementEnvelopedTest
      * agreement + AES wrap + content encryption) and {@code decProv} recovers
      * it. Asserts the recovered content matches.
      */
-    private void roundTrip(org.bouncycastle.asn1.ASN1ObjectIdentifier kaOid,
+    private void roundTrip(ASN1ObjectIdentifier kaOid,
                            KeyPair origKp, KeyPair recipKp,
-                           org.bouncycastle.asn1.ASN1ObjectIdentifier wrapOid, byte[] ukm,
+                           ASN1ObjectIdentifier wrapOid, byte[] ukm,
                            String encProv, String decProv) throws Exception
     {
         byte[] data = randomData();

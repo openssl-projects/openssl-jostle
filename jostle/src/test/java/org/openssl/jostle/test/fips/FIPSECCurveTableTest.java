@@ -25,6 +25,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
+import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 
@@ -115,7 +116,7 @@ public class FIPSECCurveTableTest
         // a pair generated on the WRONG curve would pass. "Generated ON" is
         // the claim in this test's name, so check the curve it came out on.
         ECParameterSpec described = ap.getParameterSpec(ECParameterSpec.class);
-        ECParameterSpec generated = ((java.security.interfaces.ECPublicKey) kp.getPublic()).getParams();
+        ECParameterSpec generated = ((ECPublicKey) kp.getPublic()).getParams();
         Assertions.assertEquals(described.getCurve(), generated.getCurve(),
                 APPROVED_CURVE + ": key was generated on a different curve than described");
         Assertions.assertEquals(described.getOrder(), generated.getOrder(), APPROVED_CURVE);

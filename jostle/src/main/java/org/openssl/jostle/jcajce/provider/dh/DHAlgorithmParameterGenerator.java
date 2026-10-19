@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.dh;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
@@ -129,7 +130,7 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
         {
             paramsRef = dhServiceNI.generateParameters(pBits, random);
         }
-        catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+        catch (ProviderCapabilityException e)
         {
             // Fail-loud contract: the loaded provider (FIPS module)
             // substitutes an RFC 7919 named group instead of running the

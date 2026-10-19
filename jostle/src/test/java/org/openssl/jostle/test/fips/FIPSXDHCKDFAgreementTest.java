@@ -36,6 +36,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.AlgorithmParameterSpec;
+import java.util.Locale;
 
 /**
  * RFC 6637 §7 SP 800-56C one-step KDF for X25519 / X448 under JSLFIPS —
@@ -166,6 +168,7 @@ public class FIPSXDHCKDFAgreementTest
             KeyAgreement ka = KeyAgreement.getInstance(name, fips());
             Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
                     ka.init(kp.getPrivate(),
+                            // UserKeyingMaterialSpec: BouncyCastle's is qualified, jostle's is imported
                             new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(new byte[16])),
                     name + ": BC's own UserKeyingMaterialSpec must be refused typed under JSLFIPS");
         }
@@ -239,7 +242,7 @@ public class FIPSXDHCKDFAgreementTest
         return ka.generateSecret(AES256_WRAP).getEncoded();
     }
 
-    private static java.security.spec.AlgorithmParameterSpec spec(Provider provider, byte[] param)
+    private static AlgorithmParameterSpec spec(Provider provider, byte[] param)
             throws Exception
     {
         if (provider == bc())
@@ -295,7 +298,7 @@ public class FIPSXDHCKDFAgreementTest
     /** The curve a registered name identifies; the OIDs ARE the curve identifiers. */
     private static String xecCurveOf(String algorithm)
     {
-        String a = algorithm.toUpperCase(java.util.Locale.ROOT);
+        String a = algorithm.toUpperCase(Locale.ROOT);
         if (a.startsWith("OID."))
         {
             a = a.substring(4);
@@ -405,7 +408,7 @@ public class FIPSXDHCKDFAgreementTest
      * only crossing, so both halves are re-decoded through the target provider.
      */
     private static byte[] fipsKek(Provider p, String algorithm, String curve, KeyPair alice,
-                                  KeyPair bob, java.security.spec.AlgorithmParameterSpec spec)
+                                  KeyPair bob, AlgorithmParameterSpec spec)
             throws Exception
     {
         KeyFactory kf = KeyFactory.getInstance(curve, p);

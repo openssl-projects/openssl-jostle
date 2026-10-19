@@ -24,10 +24,15 @@ import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.util.ops.OperationsTestNI;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
+import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import java.security.Security;
+import java.util.concurrent.Callable;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class BlockCipherOpsTest
 {
@@ -1279,7 +1284,7 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.DES_EDE3.ordinal(),
+                    OSSLCipher.DES_EDE3.ordinal(),
                     1, 0); // DES_EDE3, CBC, NO_PADDING
             // Exercises interface/nonfips/util/block_cipher_ctx.c:1529
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
@@ -1323,8 +1328,8 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+                    OSSLCipher.AES128.ordinal(),
+                    OSSLMode.CTS.ordinal(), 0);
             // Exercises interface/nonfips/util/block_cipher_ctx.c:1636
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_2);
 
@@ -1359,8 +1364,8 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+                    OSSLCipher.AES128.ordinal(),
+                    OSSLMode.CTS.ordinal(), 0);
             // Exercises interface/nonfips/util/block_cipher_ctx.c:1646
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_SET_1);
 
@@ -1399,8 +1404,8 @@ public class BlockCipherOpsTest
         try
         {
             ref = blockCipherNI.makeInstance(
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal(),
-                    org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal(), 0);
+                    OSSLCipher.AES128.ordinal(),
+                    OSSLMode.CTS.ordinal(), 0);
             Assertions.assertEquals(0,
                     blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 
@@ -1461,8 +1466,8 @@ public class BlockCipherOpsTest
         int[] sizes = {16, 32, 24};
         for (int size : sizes)
         {
-            c.init(Cipher.ENCRYPT_MODE, new javax.crypto.spec.SecretKeySpec(sequentialKey(size), "AES"),
-                    new javax.crypto.spec.IvParameterSpec(sequentialIv(16)));
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(sequentialKey(size), "AES"),
+                    new IvParameterSpec(sequentialIv(16)));
             c.doFinal(new byte[17]);
         }
         Assertions.assertEquals(sizes.length,
@@ -1473,7 +1478,7 @@ public class BlockCipherOpsTest
         Assertions.assertEquals(16, c.getBlockSize());
     }
 
-    private static void expectFailure(java.util.concurrent.Callable<Object> call,
+    private static void expectFailure(Callable<Object> call,
                                       Class<? extends Exception> type, String message)
     {
         Exception ex = Assertions.assertThrows(Exception.class, call::call);

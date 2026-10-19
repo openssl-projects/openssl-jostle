@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.Asn1Ni;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -177,8 +178,8 @@ public class XECKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof JOXECPublicKey || key instanceof JOXECPrivateKey)
         {
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.

@@ -39,6 +39,8 @@ import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.ECGenParameterSpec;
 
 /**
  * DH key-management tests: KeyPairGenerator (RFC 7919 named groups and
@@ -162,7 +164,7 @@ public class DHTest
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
         try
         {
-            kpg.initialize((java.security.spec.AlgorithmParameterSpec) null);
+            kpg.initialize((AlgorithmParameterSpec) null);
             Assertions.fail("expected InvalidAlgorithmParameterException");
         }
         catch (InvalidAlgorithmParameterException expected)
@@ -177,7 +179,7 @@ public class DHTest
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
         try
         {
-            kpg.initialize(new java.security.spec.ECGenParameterSpec("P-256"));
+            kpg.initialize(new ECGenParameterSpec("P-256"));
             Assertions.fail("expected InvalidAlgorithmParameterException");
         }
         catch (InvalidAlgorithmParameterException expected)
@@ -236,12 +238,12 @@ public class DHTest
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
         java.math.BigInteger g = java.math.BigInteger.valueOf(2);
 
-        java.math.BigInteger pSmall = java.math.BigInteger.ONE.shiftLeft(767); // 768-bit
+        BigInteger pSmall = BigInteger.ONE.shiftLeft(767); // 768-bit
         Assertions.assertThrows(InvalidAlgorithmParameterException.class,
                 () -> kpg.initialize(new DHParameterSpec(pSmall, g)),
                 "sub-1024-bit DH prime must be rejected");
 
-        java.math.BigInteger pHuge = java.math.BigInteger.ONE.shiftLeft(16385); // > 16384
+        BigInteger pHuge = BigInteger.ONE.shiftLeft(16385); // > 16384
         Assertions.assertThrows(InvalidAlgorithmParameterException.class,
                 () -> kpg.initialize(new DHParameterSpec(pHuge, g)),
                 "over-16384-bit DH prime must be rejected");

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
@@ -42,16 +43,16 @@ public class BlockCipherLimitTest
     BlockCipherNI blockCipherNI = TestNISelector.getBlockCipher();
 
     /** DES-EDE3 ordinals / block size, for the Triple-DES-specific tests. */
-    private static final int DES_EDE3 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.DES_EDE3.ordinal();
-    private static final int CBC_MODE = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CBC.ordinal();
-    private static final int CTR_MODE = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTR.ordinal();
+    private static final int DES_EDE3 = OSSLCipher.DES_EDE3.ordinal();
+    private static final int CBC_MODE = OSSLMode.CBC.ordinal();
+    private static final int CTR_MODE = OSSLMode.CTR.ordinal();
     private static final int NO_PAD = 0;
     private static final int DES_BLOCK = 8;
-    private static final int AES_256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+    private static final int AES_256 = OSSLCipher.AES256.ordinal();
 
     /** AES / CTS ordinals, for the ciphertext-stealing tests. */
-    private static final int AES128_ORD = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES128.ordinal();
-    private static final int CTS_MODE = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.CTS.ordinal();
+    private static final int AES128_ORD = OSSLCipher.AES128.ordinal();
+    private static final int CTS_MODE = OSSLMode.CTS.ordinal();
 
     @BeforeAll
     public static void beforeAll()
@@ -2641,7 +2642,7 @@ public class BlockCipherLimitTest
         long ref = blockCipherNI.ni_makeInstance(AES128_ORD, CTS_MODE, 1, err);
         Assertions.assertEquals(0, ref, "no ctx may be produced");
         Assertions.assertEquals(
-                org.openssl.jostle.jcajce.provider.ErrorCode.JO_MODE_TAKES_NO_PADDING.getCode(),
+                ErrorCode.JO_MODE_TAKES_NO_PADDING.getCode(),
                 err[0], "CTS + padding must be JO_MODE_TAKES_NO_PADDING");
     }
 
@@ -2759,8 +2760,8 @@ public class BlockCipherLimitTest
     @Test
     public void BlockCipher_wrapUnwrap_undersizedOutput_rejected() throws Exception
     {
-        final int WRAP_PAD_MODE = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.WRAP_PAD.ordinal();
-        final int AES256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+        final int WRAP_PAD_MODE = OSSLMode.WRAP_PAD.ordinal();
+        final int AES256 = OSSLCipher.AES256.ordinal();
 
         byte[] key = new byte[32];
         byte[] cek = new byte[32];
@@ -2865,8 +2866,8 @@ public class BlockCipherLimitTest
     @Test
     public void BlockCipher_wrapIllegalLength_refusedAtFinalNotUpdate() throws Exception
     {
-        final int wrapMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.WRAP.ordinal();
-        final int aes256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+        final int wrapMode = OSSLMode.WRAP.ordinal();
+        final int aes256 = OSSLCipher.AES256.ordinal();
 
         byte[] key = new byte[32];
         new SecureRandom().nextBytes(key);
@@ -2905,8 +2906,8 @@ public class BlockCipherLimitTest
     @Test
     public void BlockCipher_wrapUpdateBeforeInit_notInitializedWhateverTheBufferSize() throws Exception
     {
-        final int wrapPad = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.WRAP_PAD.ordinal();
-        final int aes256 = org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher.AES256.ordinal();
+        final int wrapPad = OSSLMode.WRAP_PAD.ordinal();
+        final int aes256 = OSSLCipher.AES256.ordinal();
 
         // Both buffer sizes, one assertion: the size is not consulted at all.
         // This test previously pinned the opposite - that an undersized buffer
@@ -2945,7 +2946,7 @@ public class BlockCipherLimitTest
     @Test
     public void BlockCipher_cipherFetchable_badCipherOrdinalRejectedTyped()
     {
-        int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
+        int gcmMode = OSSLMode.GCM.ordinal();
         IllegalStateException ex = Assertions.assertThrows(IllegalStateException.class,
                 () -> blockCipherNI.cipherFetchable(-1, gcmMode));
         Assertions.assertEquals("cipher fetch probe refused the ordinals: JO_INVALID_CIPHER (-6)", ex.getMessage());
@@ -2958,10 +2959,10 @@ public class BlockCipherLimitTest
     @Test
     public void BlockCipher_ni_cipherFetchable_badCipherOrdinalIsTypedCode()
     {
-        int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
+        int gcmMode = OSSLMode.GCM.ordinal();
         int code = blockCipherNI.ni_cipherFetchable(-1, gcmMode);
         Assertions.assertEquals(
-                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_CIPHER.getCode(),
+                ErrorCode.JO_INVALID_CIPHER.getCode(),
                 code, "an unrecognised cipher ordinal must report JO_INVALID_CIPHER");
     }
 
@@ -2971,7 +2972,7 @@ public class BlockCipherLimitTest
     {
         int code = blockCipherNI.ni_cipherFetchable(AES_256, 9999);
         Assertions.assertEquals(
-                org.openssl.jostle.jcajce.provider.ErrorCode.JO_INVALID_MODE.getCode(),
+                ErrorCode.JO_INVALID_MODE.getCode(),
                 code, "a mode ordinal AES256 has no name for must report JO_INVALID_MODE");
     }
 
@@ -2979,7 +2980,7 @@ public class BlockCipherLimitTest
     @Test
     public void BlockCipher_cipherFetchable_knownGoodOrdinalsFetch()
     {
-        int gcmMode = org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode.GCM.ordinal();
+        int gcmMode = OSSLMode.GCM.ordinal();
         Assertions.assertTrue(blockCipherNI.cipherFetchable(AES_256, gcmMode),
                 "AES-256-GCM must be fetchable on the base interface library");
     }
@@ -3175,7 +3176,7 @@ public class BlockCipherLimitTest
             Assertions.assertEquals(0, blockCipherNI.update(unwrap, new byte[40], 0, blob, 0, 40));
             Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER_TEXT.getCode(),
                     blockCipherNI.ni_doFinal(unwrap, new byte[40], 0));
-            String queued = org.openssl.jostle.jcajce.provider.OpenSSL.getOpenSSLErrors();
+            String queued = OpenSSL.getOpenSSLErrors();
             Assertions.assertNotNull(queued, "the unwrap failure must still be on the queue");
             Assertions.assertTrue(queued.contains(UNWRAP_FAILURE_REASON), queued);
 

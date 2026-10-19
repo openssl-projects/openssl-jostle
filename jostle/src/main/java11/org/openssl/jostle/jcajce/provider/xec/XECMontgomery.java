@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.xec;
 
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.util.Arrays;
 
 import java.math.BigInteger;
 
@@ -121,7 +122,7 @@ final class XECMontgomery
         }
         finally
         {
-            org.openssl.jostle.util.Arrays.clear(p8);
+            Arrays.clear(p8);
         }
     }
 

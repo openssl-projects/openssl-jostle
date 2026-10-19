@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
+import javax.crypto.Cipher;
 
 /**
  * Native interface for the CCM authenticated-encryption mode. CCM
@@ -38,8 +39,8 @@ public interface CCMCipherNI extends DefaultServiceNI
     int SM4      = OSSLCipher.SM4.ordinal();
 
     // Op modes.
-    int OP_ENCRYPT = javax.crypto.Cipher.ENCRYPT_MODE;
-    int OP_DECRYPT = javax.crypto.Cipher.DECRYPT_MODE;
+    int OP_ENCRYPT = Cipher.ENCRYPT_MODE;
+    int OP_DECRYPT = Cipher.DECRYPT_MODE;
 
 
     long ni_makeInstance(int cipherId, int[] err);

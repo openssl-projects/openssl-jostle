@@ -275,7 +275,7 @@ public class NativeReferenceParityTest
                 boolean methodGuarded = m.modifiers.contains("synchronized")
                         || m.text.contains("reachabilityFence")
                         || m.text.contains("reInit(");
-                java.util.regex.Matcher gr = GET_REFERENCE_ARG.matcher(body);
+                Matcher gr = GET_REFERENCE_ARG.matcher(body);
                 while (gr.find())
                 {
                     int pos = gr.start();
@@ -472,7 +472,7 @@ public class NativeReferenceParityTest
     {
         List<Method> out = new ArrayList<Method>();
         int typeBrace = -1;
-        java.util.regex.Matcher tm = Pattern.compile("\\b(class|interface|enum)\\b").matcher(s);
+        Matcher tm = Pattern.compile("\\b(class|interface|enum)\\b").matcher(s);
         if (tm.find())
         {
             typeBrace = s.indexOf('{', tm.end());
@@ -498,7 +498,7 @@ public class NativeReferenceParityTest
                     if (paren >= 0 && (tail.isEmpty() || tail.startsWith("throws")))
                     {
                         int bodyEnd = matchBrace(s, i);
-                        java.util.regex.Matcher nm =
+                        Matcher nm =
                                 Pattern.compile("(\\w+)\\s*\\(").matcher(decl.substring(0, paren + 1));
                         String name = "";
                         while (nm.find())
@@ -567,7 +567,7 @@ public class NativeReferenceParityTest
     private static List<int[]> synchronizedThisRanges(String s)
     {
         List<int[]> ranges = new ArrayList<int[]>();
-        java.util.regex.Matcher m = SYNCHRONIZED_OPEN.matcher(s);
+        Matcher m = SYNCHRONIZED_OPEN.matcher(s);
         while (m.find())
         {
             int open = s.indexOf('{', m.end());

@@ -16,6 +16,7 @@ import java.security.KeyPair;
 import java.security.interfaces.DSAKey;
 import java.security.interfaces.ECKey;
 import java.security.interfaces.RSAKey;
+import javax.crypto.interfaces.DHKey;
 
 /**
  * Shape descriptors for randomly-valued results, and the self-witness that
@@ -108,9 +109,9 @@ public final class Descriptors
         {
             return ((DSAKey) k).getParams().getP().bitLength() + "bit";
         }
-        if (k instanceof javax.crypto.interfaces.DHKey)
+        if (k instanceof DHKey)
         {
-            return ((javax.crypto.interfaces.DHKey) k).getParams().getP().bitLength() + "bit";
+            return ((DHKey) k).getParams().getP().bitLength() + "bit";
         }
         if (k instanceof ECKey && ((ECKey) k).getParams() != null)
         {

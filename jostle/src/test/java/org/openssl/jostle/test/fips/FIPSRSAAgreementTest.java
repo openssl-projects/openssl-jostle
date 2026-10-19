@@ -19,6 +19,10 @@ import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -40,6 +44,8 @@ import java.security.spec.PSSParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Locale;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Cross-provider agreement for the FIPS provider's RSA surface.
@@ -497,7 +503,7 @@ public class FIPSRSAAgreementTest
                         else if ("KeyFactory".equals(type))
                         {
                             Assertions.assertNotNull(KeyFactory.getInstance(alg, FIPS)
-                                    .generatePublic(new java.security.spec.X509EncodedKeySpec(
+                                    .generatePublic(new X509EncodedKeySpec(
                                             kp.getPublic().getEncoded())), alg);
                         }
                         else if ("KeyPairGenerator".equals(type))
@@ -511,7 +517,7 @@ public class FIPSRSAAgreementTest
                                     KeyPairGenerator.getInstance(alg, FIPS).generateKeyPair();
                             byte[] spki = generated.getPublic().getEncoded();
                             byte[] reEncoded = KeyFactory.getInstance("RSA", FIPS)
-                                    .generatePublic(new java.security.spec.X509EncodedKeySpec(spki))
+                                    .generatePublic(new X509EncodedKeySpec(spki))
                                     .getEncoded();
                             Assertions.assertArrayEquals(spki, reEncoded,
                                     alg + ": generated public key did not survive a re-encode");
@@ -589,14 +595,14 @@ public class FIPSRSAAgreementTest
         {
             byte[] cekBytes = new byte[32];
             sr.nextBytes(cekBytes);
-            javax.crypto.spec.SecretKeySpec cek =
-                    new javax.crypto.spec.SecretKeySpec(cekBytes, "AES");
-            org.openssl.jostle.jcajce.spec.KTSParameterSpec spec =
-                    new org.openssl.jostle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
-                            .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                    org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
-                                    new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)).getEncoded())
+            SecretKeySpec cek =
+                    new SecretKeySpec(cekBytes, "AES");
+            KTSParameterSpec spec =
+                    new KTSParameterSpec.Builder("AES", 256)
+                            .withKdfAlgorithm(new AlgorithmIdentifier(
+                                    X9ObjectIdentifiers.id_kdf_kdf3,
+                                    new AlgorithmIdentifier(
+                                            NISTObjectIdentifiers.id_sha256)).getEncoded())
                             .build();
             Cipher w = Cipher.getInstance(alg, FIPS);
             w.init(Cipher.WRAP_MODE, kp.getPublic(), spec);
@@ -636,7 +642,7 @@ public class FIPSRSAAgreementTest
      */
     private static String bareName(String alg)
     {
-        String n = alg.toUpperCase(java.util.Locale.ROOT);
+        String n = alg.toUpperCase(Locale.ROOT);
         return n.startsWith("OID.") ? n.substring("OID.".length()) : n;
     }
 

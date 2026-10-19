@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 /**
  * MT-57: {@code Cipher.getBlockSize()} answers WITHOUT initialisation, and a
@@ -330,7 +331,7 @@ public class BlockSizeContractTest
     /** Whether a registered name is a key wrap: a WRAP name or one of the NIST wrap OIDs. */
     static boolean isWrap(String name)
     {
-        String upper = name.toUpperCase(java.util.Locale.ROOT);
+        String upper = name.toUpperCase(Locale.ROOT);
         return upper.contains("WRAP") || WRAP_NAMES.contains(upper);
     }
 
@@ -350,7 +351,7 @@ public class BlockSizeContractTest
                 continue;
             }
             String name = sv.getAlgorithm();
-            seen.add(name.toUpperCase(java.util.Locale.ROOT));
+            seen.add(name.toUpperCase(Locale.ROOT));
             Integer ours = sizeFrom(jsl, name);
             Integer theirs = sizeFrom(bc, name);
             if (ours == null || ours.intValue() != 0)

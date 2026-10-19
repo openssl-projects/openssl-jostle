@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.spec.HKDFParameterSpec;
 import org.openssl.jostle.test.xec.XdhKeyCells;
 
 import javax.crypto.KeyAgreement;
@@ -31,6 +32,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
+import java.security.spec.PKCS8EncodedKeySpec;
 
 /**
  * XDH (X25519/X448) and the KDFs (PBKDF2, HKDF) through the FIPS provider
@@ -139,7 +141,7 @@ public class FIPSXDHKDFTest
             KeyFactory jslKf = KeyFactory.getInstance(alg, JostleProvider.PROVIDER_NAME);
             KeyAgreement jsl = KeyAgreement.getInstance(alg, JostleProvider.PROVIDER_NAME);
             jsl.init(jslKf.generatePrivate(
-                    new java.security.spec.PKCS8EncodedKeySpec(alice.getPrivate().getEncoded())));
+                    new PKCS8EncodedKeySpec(alice.getPrivate().getEncoded())));
             jsl.doPhase(jslKf.generatePublic(
                     new X509EncodedKeySpec(bob.getPublic().getEncoded())), true);
             Assertions.assertArrayEquals(jsl.generateSecret(), fipsSecret,
@@ -212,8 +214,8 @@ public class FIPSXDHKDFTest
         RANDOM.nextBytes(salt);
         RANDOM.nextBytes(info);
 
-        org.openssl.jostle.jcajce.spec.HKDFParameterSpec spec =
-                new org.openssl.jostle.jcajce.spec.HKDFParameterSpec(ikm, salt, info, 64);
+        HKDFParameterSpec spec =
+                new HKDFParameterSpec(ikm, salt, info, 64);
 
         byte[] fips = SecretKeyFactory.getInstance("HKDF-SHA256", JostleFIPSProvider.PROVIDER_NAME)
                 .generateSecret(spec).getEncoded();

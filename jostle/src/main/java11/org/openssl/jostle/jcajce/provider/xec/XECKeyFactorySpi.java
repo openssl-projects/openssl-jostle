@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.Asn1Ni;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -34,6 +35,7 @@ import java.security.spec.XECPrivateKeySpec;
 import java.security.spec.XECPublicKeySpec;
 import org.openssl.jostle.util.asn1.Der;
 import org.openssl.jostle.util.asn1.oids.EdECObjectIdentifiers;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * KeyFactorySpi for X25519 / X448. Supports the encoded key-spec forms:
@@ -203,10 +205,10 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             }
             finally
             {
-                org.openssl.jostle.util.Arrays.clear(scalar);
-                org.openssl.jostle.util.Arrays.clear(inner);
-                org.openssl.jostle.util.Arrays.clear(wrapped);
-                org.openssl.jostle.util.Arrays.clear(p8);
+                Arrays.clear(scalar);
+                Arrays.clear(inner);
+                Arrays.clear(wrapped);
+                Arrays.clear(p8);
             }
         }
         if (keySpec instanceof PKCS8EncodedKeySpec)
@@ -267,7 +269,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
                 }
                 finally
                 {
-                    org.openssl.jostle.util.Arrays.clear(scalar);
+                    Arrays.clear(scalar);
                 }
             }
             throw new InvalidKeySpecException("unsupported key spec for XDH private key: " + keySpec);
@@ -281,8 +283,8 @@ public class XECKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof JOXECPublicKey || key instanceof JOXECPrivateKey)
         {
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.
@@ -362,7 +364,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
     }
 
     /** Map the JDK's {@link NamedParameterSpec} to jostle's key type. */
-    private OSSLKeyType xecType(java.security.spec.AlgorithmParameterSpec params)
+    private OSSLKeyType xecType(AlgorithmParameterSpec params)
             throws InvalidKeySpecException
     {
         String n = params instanceof NamedParameterSpec

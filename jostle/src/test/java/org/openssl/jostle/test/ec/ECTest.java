@@ -16,9 +16,12 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.interfaces.ECKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
+import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.Arrays;
 
 import java.math.BigInteger;
@@ -622,16 +625,17 @@ public class ECTest
         KeyPair kp = kpg.generateKeyPair();
 
         Assertions.assertTrue(
-                kp.getPublic() instanceof org.openssl.jostle.jcajce.interfaces.ECKey,
+                kp.getPublic() instanceof ECKey,
                 "Jostle public EC key should implement Jostle's ECKey marker");
         Assertions.assertTrue(
-                kp.getPrivate() instanceof org.openssl.jostle.jcajce.interfaces.ECKey,
+                kp.getPrivate() instanceof ECKey,
                 "Jostle private EC key should implement Jostle's ECKey marker");
 
         // The marker extends java.security.interfaces.ECKey too — sanity
         // check that's still true (would catch a refactor that dropped
         // the standard interface from the marker definition).
         Assertions.assertTrue(
+                // ECKey is qualified where the JDK's is meant: jostle's of that name is imported
                 kp.getPublic() instanceof java.security.interfaces.ECKey);
         Assertions.assertTrue(
                 kp.getPrivate() instanceof java.security.interfaces.ECKey);
@@ -1191,10 +1195,10 @@ public class ECTest
         // OpenSSLException per DefaultServiceNI.baseErrorHandler's
         // JO_OPENSSL_ERROR arm; the message text is volatile, so prefix-match.
         ECServiceNI ec = NISelector.ECServiceNI;
-        org.openssl.jostle.jcajce.provider.OpenSSLException ex = Assertions.assertThrows(
-                org.openssl.jostle.jcajce.provider.OpenSSLException.class,
+        OpenSSLException ex = Assertions.assertThrows(
+                OpenSSLException.class,
                 () -> ec.makePublicFromComponents("P-256", new byte[]{0x00},
-                        org.openssl.jostle.rand.DefaultRandSource.wrap(new SecureRandom())));
+                        DefaultRandSource.wrap(new SecureRandom())));
         Assertions.assertTrue(ex.getMessage().startsWith("OpenSSL Error:"), ex.getMessage());
     }
 

@@ -41,6 +41,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashSet;
 import java.util.Set;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * Contract coverage for the four TLS hybrid KEM groups: the properties a
@@ -350,7 +351,7 @@ public class MLXKEMTest
             Assertions.assertThrows(InvalidAlgorithmParameterException.class,
                     () -> kpg.initialize(MLKEMParameterSpec.ml_kem_768), spec.getName() + " <- ML-KEM-768");
             Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                    () -> kpg.initialize((java.security.spec.AlgorithmParameterSpec) null), spec.getName());
+                    () -> kpg.initialize((AlgorithmParameterSpec) null), spec.getName());
         }
     }
 

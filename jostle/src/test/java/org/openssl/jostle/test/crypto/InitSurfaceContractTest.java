@@ -27,6 +27,8 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.List;
+import javax.crypto.spec.DESKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * MT-52 and MT-54: the KeyPairGenerator and SecretKeyFactory halves of the
@@ -180,8 +182,8 @@ public class InitSurfaceContractTest
             try
             {
                 SecretKeyFactory.getInstance(alg, jsl).getKeySpec(
-                        new javax.crypto.spec.SecretKeySpec(new byte[16], "AES"),
-                        javax.crypto.spec.DESKeySpec.class);
+                        new SecretKeySpec(new byte[16], "AES"),
+                        DESKeySpec.class);
                 failures.add(alg + " accepted an unservable spec class");
             }
             catch (InvalidKeySpecException expected)

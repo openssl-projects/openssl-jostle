@@ -29,6 +29,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
+import javax.crypto.spec.IvParameterSpec;
 
 /**
  * AES key wrap on the INVERSE cipher function (SP 800-38F 5.1), which OpenSSL
@@ -415,7 +416,7 @@ public class AESKeyWrapInvTest
         Cipher c = Cipher.getInstance("AESWrapInv", JSL);
         Assertions.assertThrows(Exception.class,
                 () -> c.init(Cipher.WRAP_MODE, new SecretKeySpec(kek, "AES"),
-                        new javax.crypto.spec.IvParameterSpec(iv)),
+                        new IvParameterSpec(iv)),
                 "AESWrapInv must not accept an IV");
     }
 

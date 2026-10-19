@@ -41,6 +41,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * Cross-provider agreement for {@code Cipher.ETSIKEMwithSHA256} — the IEEE
@@ -128,11 +129,12 @@ public class ETSIKEMAgreementTest
      * from the same content — BC and Jostle now each accept only their own
      * type directly, so one object can no longer drive both.
      */
-    private static java.security.spec.AlgorithmParameterSpec iesKemSpec(String provider,
+    private static AlgorithmParameterSpec iesKemSpec(String provider,
                                                                          byte[] recipientInfo, boolean compress)
     {
         if (BC.equals(provider))
         {
+            // IESKEMParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             return new org.bouncycastle.jcajce.spec.IESKEMParameterSpec(recipientInfo, compress);
         }
         return new IESKEMParameterSpec(recipientInfo, compress);
@@ -441,6 +443,7 @@ public class ETSIKEMAgreementTest
 
             EciesP256EncryptedKey ek =
                     EciesP256EncryptedKey.getInstance(edek.getEncryptedDataEncryptionKey());
+            // Arrays is qualified where BouncyCastle's is meant: jostle's of that name is imported
             byte[] flat = org.bouncycastle.util.Arrays.concatenate(
                     ek.getV().getEncodedPoint(), ek.getC().getOctets(), ek.getT().getOctets());
 

@@ -19,6 +19,7 @@ package org.openssl.jostle.jcajce.interfaces;
  * {@link java.security.spec.RSAPrivateKeySpec}) returns {@code null}
  * for each CRT-component getter per the JCA contract.
  */
+// RSAPrivateCrtKey is qualified where the JDK's is meant: jostle's of that name is declared here
 public interface RSAPrivateCrtKey extends RSAPrivateKey, java.security.interfaces.RSAPrivateCrtKey
 {
 }

@@ -34,6 +34,8 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.io.IOException;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * RSA-KEM key transport (ISO 18033-2 / RFC 9690) through {@code RSA-KTS-KEM-KWS}.
@@ -171,10 +173,11 @@ public class RSAKEMCipherTest
             this.kdf = kdf;
         }
 
-        public java.security.spec.AlgorithmParameterSpec forProvider(String provider) throws java.io.IOException
+        public AlgorithmParameterSpec forProvider(String provider) throws IOException
         {
             if (BC.equals(provider))
             {
+                // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder b =
                         new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
                                 keyAlgorithmName, keySizeInBits, otherInfo);

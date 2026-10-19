@@ -13,6 +13,7 @@ package org.openssl.jostle.test.fips;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
@@ -241,11 +242,11 @@ public class FIPSDSASignatureTest
     {
         SecureRandom sr = seededRandom("dsaVerifyResetReuse_failureDoesNotPoisonState");
         KeyPair fips = generateDsaKeyPair();
-        KeyPair jsl = FIPSTestUtil.dsaKeyPair(org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+        KeyPair jsl = FIPSTestUtil.dsaKeyPair(JostleProvider.PROVIDER_NAME);
         byte[] msg = randomMessage(sr, 64);
 
         Signature jslSigner = Signature.getInstance("SHA256withDSA",
-                org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+                JostleProvider.PROVIDER_NAME);
         jslSigner.initSign(jsl.getPrivate());
         jslSigner.update(msg);
         byte[] sigA = jslSigner.sign();
@@ -505,9 +506,9 @@ public class FIPSDSASignatureTest
             // Raw VERIFY must still work — the refusal is signing-only, and
             // saying so needs a signature from somewhere else.
             Signature jslRaw = Signature.getInstance("NoneWithDSA",
-                    org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+                    JostleProvider.PROVIDER_NAME);
             jslRaw.initSign(FIPSTestUtil.dsaKeyPair(
-                    org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME).getPrivate());
+                    JostleProvider.PROVIDER_NAME).getPrivate());
             jslRaw.update(digest);
             byte[] jslSig = jslRaw.sign();
 
@@ -599,9 +600,9 @@ public class FIPSDSASignatureTest
 
         // Verify-only module: sign by name in JSL, verify by OID in JSLFIPS.
         KeyPair jsl = FIPSTestUtil.dsaKeyPair(
-                org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+                JostleProvider.PROVIDER_NAME);
         Signature jslSigner = Signature.getInstance("SHA256withDSA",
-                org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+                JostleProvider.PROVIDER_NAME);
         jslSigner.initSign(jsl.getPrivate());
         jslSigner.update(msg);
         byte[] sig = jslSigner.sign();

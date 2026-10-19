@@ -75,6 +75,7 @@ public class SLHDSATest
 
     };
 
+    // SLHDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
     private static org.bouncycastle.jcajce.spec.SLHDSAParameterSpec[] bcSpec = new org.bouncycastle.jcajce.spec.SLHDSAParameterSpec[]{
             org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_128f,
             org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_128s,
@@ -1132,6 +1133,7 @@ public class SLHDSATest
 
         Signature bcSigner = Signature.getInstance(algoName, "BC");
         bcSigner.initSign(privKeyBC);
+        // ContextParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         bcSigner.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(ctx));
         bcSigner.update(msg);
         byte[] bcSignature = bcSigner.sign();

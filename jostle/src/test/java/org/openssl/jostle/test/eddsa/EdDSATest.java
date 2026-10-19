@@ -40,6 +40,9 @@ import org.openssl.jostle.util.Pack;
 import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.encoders.Hex;
 import org.openssl.jostle.test.multirelease.MultiReleaseOverrides;
+import org.bouncycastle.crypto.signers.Ed448Signer;
+import org.openssl.jostle.jcajce.interfaces.EdDSAPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey;
 
 import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
@@ -707,6 +710,7 @@ public class EdDSATest
         KeyPair joKeyPair = joKeyGen.generateKeyPair();
 
         KeyPairGenerator bcKeyGen = KeyPairGenerator.getInstance("EdDSA", BouncyCastleProvider.PROVIDER_NAME);
+        // EdDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         bcKeyGen.initialize(new org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed25519"));
         KeyPair bcKeyPair = bcKeyGen.generateKeyPair();
 
@@ -1220,16 +1224,16 @@ public class EdDSATest
         joSigner.update(message);
         byte[] joSignature = joSigner.sign();
 
-        org.bouncycastle.crypto.signers.Ed448Signer bcVerifier =
-                new org.bouncycastle.crypto.signers.Ed448Signer(ctxBytes);
+        Ed448Signer bcVerifier =
+                new Ed448Signer(ctxBytes);
         bcVerifier.init(false, PublicKeyFactory.createKey(joKeyPair.getPublic().getEncoded()));
         bcVerifier.update(message, 0, message.length);
         Assertions.assertTrue(bcVerifier.verifySignature(joSignature),
                 "BC must verify a JSL Ed448+context signature");
 
         // BC low-level sign (Ed448 + context) -> JSL verify.
-        org.bouncycastle.crypto.signers.Ed448Signer bcSigner =
-                new org.bouncycastle.crypto.signers.Ed448Signer(ctxBytes);
+        Ed448Signer bcSigner =
+                new Ed448Signer(ctxBytes);
         bcSigner.init(true, PrivateKeyFactory.createKey(joKeyPair.getPrivate().getEncoded()));
         bcSigner.update(message, 0, message.length);
         byte[] bcSignature = bcSigner.generateSignature();
@@ -1367,7 +1371,7 @@ public class EdDSATest
             kf.generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
             Assertions.fail();
         }
-        catch (java.security.spec.InvalidKeySpecException e)
+        catch (InvalidKeySpecException e)
         {
             // engine-level message bubbles up as cause; assert main and cause where useful
             Assertions.assertTrue(e.getMessage() != null && e.getMessage().contains("ED25519"));
@@ -1387,7 +1391,7 @@ public class EdDSATest
             kf.generatePublic(new X509EncodedKeySpec(x509));
             Assertions.fail();
         }
-        catch (java.security.spec.InvalidKeySpecException e)
+        catch (InvalidKeySpecException e)
         {
             Assertions.assertTrue(e.getMessage() != null && e.getMessage().contains("ED448"));
         }
@@ -1408,7 +1412,7 @@ public class EdDSATest
             kf.generatePublic(new EdDSAPublicKeySpec(EdDSAParameterSpec.ED448, raw));
             Assertions.fail();
         }
-        catch (java.security.spec.InvalidKeySpecException e)
+        catch (InvalidKeySpecException e)
         {
             Assertions.assertNotNull(e.getMessage());
         }
@@ -1872,13 +1876,13 @@ public class EdDSATest
         KeyFactory joKf = KeyFactory.getInstance("Ed25519", JostleProvider.PROVIDER_NAME);
 
         Key joPub = joKf.translateKey(bcKp.getPublic());
-        Assertions.assertTrue(joPub instanceof org.openssl.jostle.jcajce.interfaces.EdDSAPublicKey,
+        Assertions.assertTrue(joPub instanceof EdDSAPublicKey,
                 "translateKey should yield a Jostle EdDSA public key");
         Assertions.assertArrayEquals(bcKp.getPublic().getEncoded(), joPub.getEncoded(),
                 "translateKey must preserve the X.509 encoding");
 
         Key joPriv = joKf.translateKey(bcKp.getPrivate());
-        Assertions.assertTrue(joPriv instanceof org.openssl.jostle.jcajce.interfaces.EdDSAPrivateKey,
+        Assertions.assertTrue(joPriv instanceof EdDSAPrivateKey,
                 "translateKey should yield a Jostle EdDSA private key");
     }
 

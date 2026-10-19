@@ -24,11 +24,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Source-level parity guard: every FIPS NI class inheriting
@@ -76,7 +78,7 @@ public class FIPSProviderNameParityTest
         List<String> missing = new ArrayList<String>();
         int checked = 0;
 
-        for (java.util.Map.Entry<String, Path> e : classes.entrySet())
+        for (Map.Entry<String, Path> e : classes.entrySet())
         {
             if (NOT_SERVICE_NIS.contains(e.getKey()))
             {
@@ -244,7 +246,7 @@ public class FIPSProviderNameParityTest
             {
                 continue;
             }
-            try (java.util.stream.Stream<Path> walk = Files.walk(root))
+            try (Stream<Path> walk = Files.walk(root))
             {
                 java.util.Optional<Path> hit = walk
                         .filter(p -> p.getFileName().toString().equals(simpleName + ".java"))
@@ -271,7 +273,7 @@ public class FIPSProviderNameParityTest
     private static List<Path> javaSourcesUnder(Path root)
     {
         final List<Path> out = new ArrayList<Path>();
-        try (java.util.stream.Stream<Path> walk = Files.walk(root))
+        try (Stream<Path> walk = Files.walk(root))
         {
             walk.filter(p -> p.getFileName().toString().endsWith(".java")).forEach(out::add);
         }

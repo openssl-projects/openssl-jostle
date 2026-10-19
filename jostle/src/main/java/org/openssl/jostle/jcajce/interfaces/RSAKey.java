@@ -19,6 +19,7 @@ import java.security.Key;
  * Sun/BC and Jostle keys can switch on Jostle-typed keys without picking
  * up other providers' implementations.
  */
+// RSAKey is qualified where the JDK's is meant: jostle's of that name is declared here
 public interface RSAKey extends Key, java.security.interfaces.RSAKey
 {
 }

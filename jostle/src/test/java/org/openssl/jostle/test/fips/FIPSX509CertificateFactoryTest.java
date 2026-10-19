@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
+import org.junit.jupiter.api.Assumptions;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
@@ -44,9 +45,14 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.CertPath;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateFactory;
+import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Date;
 import java.util.List;
 
@@ -322,7 +328,7 @@ public class FIPSX509CertificateFactoryTest
         {
             return bcEd25519SelfSigned();
         }
-        org.junit.jupiter.api.Assumptions.assumeFalse(fipsServes("X25519"),
+        Assumptions.assumeFalse(fipsServes("X25519"),
                 "the loaded module serves both Ed25519 and X25519 — no unresolvable "
                         + "key algorithm is available as a vehicle for the re-wrap check");
         return bcX25519KeyedCert();
@@ -490,8 +496,8 @@ public class FIPSX509CertificateFactoryTest
             }
         };
 
-        java.security.cert.CertificateException e = Assertions.assertThrows(
-                java.security.cert.CertificateException.class,
+        CertificateException e = Assertions.assertThrows(
+                CertificateException.class,
                 () -> CertificateFactory.getInstance("X.509", FIPS)
                         .generateCertPath(java.util.Collections.singletonList(unencodable)));
 
@@ -537,12 +543,12 @@ public class FIPSX509CertificateFactoryTest
             };
         }
 
-        public void checkValidity() throws java.security.cert.CertificateExpiredException, java.security.cert.CertificateNotYetValidException
+        public void checkValidity() throws CertificateExpiredException, CertificateNotYetValidException
         {
             delegate.checkValidity();
         }
 
-        public void checkValidity(Date date) throws java.security.cert.CertificateExpiredException, java.security.cert.CertificateNotYetValidException
+        public void checkValidity(Date date) throws CertificateExpiredException, CertificateNotYetValidException
         {
             delegate.checkValidity(date);
         }
@@ -577,7 +583,7 @@ public class FIPSX509CertificateFactoryTest
             return delegate.getNotAfter();
         }
 
-        public byte[] getTBSCertificate() throws java.security.cert.CertificateEncodingException
+        public byte[] getTBSCertificate() throws CertificateEncodingException
         {
             return delegate.getTBSCertificate();
         }
@@ -622,19 +628,19 @@ public class FIPSX509CertificateFactoryTest
             return delegate.getBasicConstraints();
         }
 
-        public byte[] getEncoded() throws java.security.cert.CertificateEncodingException
+        public byte[] getEncoded() throws CertificateEncodingException
         {
             return delegate.getEncoded();
         }
 
-        public void verify(PublicKey key) throws java.security.cert.CertificateException,
+        public void verify(PublicKey key) throws CertificateException,
                 java.security.NoSuchAlgorithmException, java.security.InvalidKeyException,
                 java.security.NoSuchProviderException, SignatureException
         {
             delegate.verify(key);
         }
 
-        public void verify(PublicKey key, String sigProvider) throws java.security.cert.CertificateException,
+        public void verify(PublicKey key, String sigProvider) throws CertificateException,
                 java.security.NoSuchAlgorithmException, java.security.InvalidKeyException,
                 java.security.NoSuchProviderException, SignatureException
         {
@@ -802,7 +808,7 @@ public class FIPSX509CertificateFactoryTest
         for (String name : new String[]{"RSASSA-PSS", "1.2.840.113549.1.1.10"})
         {
             PublicKey decoded = java.security.KeyFactory.getInstance(name, FIPS)
-                    .generatePublic(new java.security.spec.X509EncodedKeySpec(pssSpki));
+                    .generatePublic(new X509EncodedKeySpec(pssSpki));
             Assertions.assertTrue(Arrays.areEqual(pssSpki, decoded.getEncoded()),
                     name + ": did not round-trip the id-RSASSA-PSS SPKI");
         }

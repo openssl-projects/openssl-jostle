@@ -24,6 +24,8 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
 import java.security.Signature;
+import java.security.interfaces.ECPublicKey;
+import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPublicKeySpec;
 
 /**
@@ -113,11 +115,11 @@ public class ECKeyFactoryWithoutJdkProvidersRegressionTest
         for (String curveName : CURVES)
         {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", "JSL");
-            generator.initialize(new java.security.spec.ECGenParameterSpec(curveName));
+            generator.initialize(new ECGenParameterSpec(curveName));
             KeyPair keyPair = generator.generateKeyPair();
 
-            java.security.interfaces.ECPublicKey originalPub =
-                    (java.security.interfaces.ECPublicKey) keyPair.getPublic();
+            ECPublicKey originalPub =
+                    (ECPublicKey) keyPair.getPublic();
             ECPublicKeySpec rawSpec = new ECPublicKeySpec(originalPub.getW(), originalPub.getParams());
 
             KeyFactory kf = KeyFactory.getInstance("EC", "JSL");

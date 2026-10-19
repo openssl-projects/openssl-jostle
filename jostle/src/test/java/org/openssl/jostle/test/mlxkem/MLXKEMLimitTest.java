@@ -14,9 +14,11 @@ package org.openssl.jostle.test.mlxkem;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
@@ -94,7 +96,7 @@ public class MLXKEMLimitTest
     @Test
     public void wrongKeyType_rejectedTyped()
     {
-        int mlkem768 = org.openssl.jostle.jcajce.spec.OSSLKeyType.ML_KEM_768.getKsType();
+        int mlkem768 = OSSLKeyType.ML_KEM_768.getKsType();
         assertTyped(IllegalArgumentException.class, "invalid key type for a hybrid ML-KEM",
                 () -> ni.generateKeyPair(mlkem768, TestUtil.RNDSrc));
 
@@ -310,7 +312,7 @@ public class MLXKEMLimitTest
     // -----------------------------------------------------------------
 
     private static void assertTyped(Class<? extends RuntimeException> type, String message,
-                                    org.junit.jupiter.api.function.Executable call)
+                                    Executable call)
     {
         Assertions.assertEquals(message, Assertions.assertThrows(type, call).getMessage());
     }

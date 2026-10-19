@@ -14,6 +14,7 @@ package org.openssl.jostle.test.mlkem;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
@@ -178,7 +179,7 @@ public class MLKEMRandStrengthTest
 
         // Decapsulation side.
         KeyGenerator decapKg = KeyGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME);
-        byte[] wrapped = ((org.openssl.jostle.jcajce.SecretKeyWithEncapsulation) encapKey).getEncapsulation();
+        byte[] wrapped = ((SecretKeyWithEncapsulation) encapKey).getEncapsulation();
         decapKg.init(KEMExtractSpec.builder()
                 .withPrivate(kp.getPrivate())
                 .withAlgorithmName("AES")

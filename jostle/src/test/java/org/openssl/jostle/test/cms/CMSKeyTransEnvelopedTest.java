@@ -17,6 +17,7 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.cms.CMSAlgorithm;
 import org.bouncycastle.cms.CMSEnvelopedData;
 import org.bouncycastle.cms.CMSEnvelopedDataGenerator;
+import org.bouncycastle.cms.CMSException;
 import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.RecipientInformation;
 import org.bouncycastle.cms.jcajce.JceCMSContentEncryptorBuilder;
@@ -220,7 +221,7 @@ public class CMSKeyTransEnvelopedTest
             ri.getContent(new JceKeyTransEnvelopedRecipient(wrongKp.getPrivate()).setProvider(JSL));
             Assertions.fail("decrypt with the wrong private key must not succeed");
         }
-        catch (org.bouncycastle.cms.CMSException | IllegalArgumentException e)
+        catch (CMSException | IllegalArgumentException e)
         {
             // expected — wrong key cannot recover the CEK / content.
             // PKCS#1 v1.5 implicit rejection turns the bad RSA decrypt into a

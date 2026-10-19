@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
@@ -70,6 +71,7 @@ public class MLKEMTest
 
     };
 
+    // MLKEMParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
     private static org.bouncycastle.jcajce.spec.MLKEMParameterSpec[] bcSpec = new org.bouncycastle.jcajce.spec.MLKEMParameterSpec[]{
             org.bouncycastle.jcajce.spec.MLKEMParameterSpec.ml_kem_512,
             org.bouncycastle.jcajce.spec.MLKEMParameterSpec.ml_kem_768,
@@ -227,9 +229,11 @@ public class MLKEMTest
             // Use BC to decapsulate the key
             //
             KeyGenerator serverKeyFactory = KeyGenerator.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
+            // KEMExtractSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             serverKeyFactory.init(new org.bouncycastle.jcajce.spec.KEMExtractSpec.Builder(receiverKeyPair.getPrivate(), encapsulation.getEncapsulation(), "AES", 256)
                     .withKdfAlgorithm(null)
                     .build());
+            // SecretKeyWithEncapsulation is qualified where BouncyCastle's is meant: jostle's of that name is imported
             org.bouncycastle.jcajce.SecretKeyWithEncapsulation decapsulatedKey = (org.bouncycastle.jcajce.SecretKeyWithEncapsulation) serverKeyFactory.generateKey();
 
             Assertions.assertArrayEquals(encapsulation.getEncoded(), decapsulatedKey.getEncoded());
@@ -259,6 +263,7 @@ public class MLKEMTest
             PublicKey receiverRecoveredPublicKey = joKeyFactory.generatePublic(new X509EncodedKeySpec(receiverKeyPair.getPublic().getEncoded()));
 
             KeyGenerator joKeyGenerator = KeyGenerator.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
+            // KEMGenerateSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             joKeyGenerator.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(receiverRecoveredPublicKey, "AES", 256)
                     .withKdfAlgorithm(null)
                     .build());
@@ -502,7 +507,7 @@ public class MLKEMTest
             keyGen.initialize(spec);
             KeyPair keyPair = keyGen.generateKeyPair();
 
-            byte[] publicData = ((org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey) keyPair.getPublic()).getPublicData();
+            byte[] publicData = ((MLKEMPublicKey) keyPair.getPublic()).getPublicData();
             byte[] privateData = ((MLKEMPrivateKey) keyPair.getPrivate()).getPrivateData();
 
             MLKEMPublicKeySpec publicKeySpec = new MLKEMPublicKeySpec(spec, publicData);

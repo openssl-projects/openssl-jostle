@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import org.openssl.jostle.jcajce.spec.ScryptKeySpec;
@@ -32,6 +33,9 @@ import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidParameterSpecException;
+import javax.crypto.spec.PBEParameterSpec;
 
 /**
  * Coverage for IV/AEAD parameter handling in {@code BlockCipherSpi}:
@@ -724,7 +728,7 @@ public class AESParametersTest
             byte[] nonce = new byte[len];
             random.nextBytes(nonce);
             AlgorithmParameters bad = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
-            Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+            Assertions.assertThrows(InvalidParameterSpecException.class,
                     () -> bad.init(new GCMParameterSpec(96, nonce)),
                     len + "-byte CCM nonce must be rejected at spec init");
         }
@@ -745,7 +749,7 @@ public class AESParametersTest
         for (int badBits : new int[]{24, 40})
         {
             AlgorithmParameters bad = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
-            Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+            Assertions.assertThrows(InvalidParameterSpecException.class,
                     () -> bad.init(new GCMParameterSpec(badBits, nonce)),
                     badBits + "-bit CCM ICV must be rejected");
         }
@@ -755,11 +759,11 @@ public class AESParametersTest
         // reject a null IV in their own constructors, so the codec's null-nonce
         // branch is defensive only.)
         AlgorithmParameters p2 = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
-        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
-                () -> p2.init((java.security.spec.AlgorithmParameterSpec) null));
+        Assertions.assertThrows(InvalidParameterSpecException.class,
+                () -> p2.init((AlgorithmParameterSpec) null));
         AlgorithmParameters p3 = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
-        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
-                () -> p3.init(new javax.crypto.spec.PBEParameterSpec(new byte[8], 1)));
+        Assertions.assertThrows(InvalidParameterSpecException.class,
+                () -> p3.init(new PBEParameterSpec(new byte[8], 1)));
     }
 
     /** Build SEQUENCE { OCTET STRING nonce(len) } with the default (omitted) ICV. */
@@ -823,7 +827,7 @@ public class AESParametersTest
                 "IvParameterSpec extraction must return the nonce");
 
         AlgorithmParameters fresh = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
-        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+        Assertions.assertThrows(InvalidParameterSpecException.class,
                 () -> fresh.getParameterSpec(GCMParameterSpec.class),
                 "getParameterSpec before init must throw InvalidParameterSpecException");
         Assertions.assertThrows(java.io.IOException.class, fresh::getEncoded,
@@ -879,7 +883,7 @@ public class AESParametersTest
         try
         {
             cbc.init(Cipher.ENCRYPT_MODE, key,
-                    new org.openssl.jostle.jcajce.spec.AEADParameterSpec(iv, 128, aad), random);
+                    new AEADParameterSpec(iv, 128, aad), random);
             Assertions.fail("AEADParameterSpec on AES/CBC must be rejected");
         }
         catch (InvalidAlgorithmParameterException expected)
@@ -1007,7 +1011,7 @@ public class AESParametersTest
         AlgorithmParameters params = enc.getParameters();
         byte[] ct = enc.doFinal(msg);
 
-        Assertions.assertThrows(java.security.spec.InvalidParameterSpecException.class,
+        Assertions.assertThrows(InvalidParameterSpecException.class,
                 () -> params.getParameterSpec(GCMParameterSpec.class),
                 "CBC parameters must not answer GCMParameterSpec, or this proves nothing");
 

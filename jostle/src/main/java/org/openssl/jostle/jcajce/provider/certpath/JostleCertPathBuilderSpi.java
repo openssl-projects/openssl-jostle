@@ -35,6 +35,10 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.security.cert.X509CRL;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
 
 /**
  * PKIX certification path building.
@@ -58,12 +62,12 @@ public class JostleCertPathBuilderSpi
 
     public JostleCertPathBuilderSpi()
     {
-        this(org.openssl.jostle.jcajce.provider.NISelector.CertPathNI, null);
+        this(NISelector.CertPathNI, null);
     }
 
     public JostleCertPathBuilderSpi(Provider providerInstance)
     {
-        this(org.openssl.jostle.jcajce.provider.NISelector.CertPathNI, providerInstance);
+        this(NISelector.CertPathNI, providerInstance);
     }
 
     public JostleCertPathBuilderSpi(CertPathNI ni)
@@ -77,7 +81,7 @@ public class JostleCertPathBuilderSpi
         this.binding = (providerInstance != null)
                 ? ProviderBinding.of(providerInstance)
                 : ProviderBinding.ofName(
-                        org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME);
+                        JostleProvider.PROVIDER_NAME);
     }
 
     /**
@@ -135,7 +139,7 @@ public class JostleCertPathBuilderSpi
         }
 
         List<X509Certificate> pool = pool(pkix);
-        List<java.security.cert.X509CRL> crls = CertPathCall.crlsFrom(pkix);
+        List<X509CRL> crls = CertPathCall.crlsFrom(pkix);
         List<X509Certificate> targets = new ArrayList<X509Certificate>();
         for (X509Certificate c : pool)
         {
@@ -237,7 +241,7 @@ public class JostleCertPathBuilderSpi
     private CertPathBuilderResult buildFrom(PKIXBuilderParameters pkix,
                                             List<X509Certificate> pool,
                                             X509Certificate target,
-                                            List<java.security.cert.X509CRL> crls)
+                                            List<X509CRL> crls)
             throws CertPathValidatorException, CertPathBuilderException,
                    InvalidAlgorithmParameterException
     {
@@ -253,11 +257,11 @@ public class JostleCertPathBuilderSpi
         CertPathCall call = CertPathCall.forBuild(pkix, untrusted, target, crls);
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
                 call.timeSecs, 1, call.revocation, call.chainOut, call.outInfo);
-        if (rc == org.openssl.jostle.jcajce.provider.ErrorCode.JO_CERT_DECODE_FAILED.getCode())
+        if (rc == ErrorCode.JO_CERT_DECODE_FAILED.getCode())
         {
             throw new CertPathValidatorException("a supplied certificate is not valid DER X.509");
         }
-        if (rc == org.openssl.jostle.jcajce.provider.ErrorCode.JO_CRL_DECODE_FAILED.getCode())
+        if (rc == ErrorCode.JO_CRL_DECODE_FAILED.getCode())
         {
             throw new CertPathValidatorException("a supplied CRL is not valid DER X.509");
         }
@@ -294,7 +298,7 @@ public class JostleCertPathBuilderSpi
             return new PKIXCertPathBuilderResult(cp, vr.getTrustAnchor(), null,
                     pathCerts.get(0).getPublicKey());
         }
-        catch (java.security.cert.CertificateException e)
+        catch (CertificateException e)
         {
             throw new CertPathBuilderException("the built chain could not be decoded", e);
         }

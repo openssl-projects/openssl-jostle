@@ -18,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidParameterSpecException;
 
 /**
  * RFC 3211 password-based key wrap, for CMS PasswordRecipientInfo.
@@ -214,7 +215,7 @@ public class RFC3211WrapCipherSpi
             {
                 spec = params.getParameterSpec(IvParameterSpec.class);
             }
-            catch (java.security.spec.InvalidParameterSpecException e)
+            catch (InvalidParameterSpecException e)
             {
                 throw new InvalidAlgorithmParameterException("cannot read an IV from " + params);
             }

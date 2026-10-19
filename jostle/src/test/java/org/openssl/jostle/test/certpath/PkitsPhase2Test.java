@@ -10,6 +10,7 @@ import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertStore;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXParameters;
@@ -105,7 +106,7 @@ public class PkitsPhase2Test
     static List<X509Certificate> extras(PkitsCertificates.Case c) throws Exception
     {
         List<X509Certificate> out = new ArrayList<X509Certificate>();
-        List<? extends java.security.cert.Certificate> inPath = path(c).getCertificates();
+        List<? extends Certificate> inPath = path(c).getCertificates();
         for (String n : c.intermediates)
         {
             X509Certificate cand = PkitsCertificates.certificate(n);

@@ -24,6 +24,8 @@ import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 
 /**
@@ -77,7 +79,7 @@ public class JostleCertPathValidatorSpi
 
     public JostleCertPathValidatorSpi()
     {
-        this(org.openssl.jostle.jcajce.provider.NISelector.CertPathNI);
+        this(NISelector.CertPathNI);
     }
 
     public JostleCertPathValidatorSpi(CertPathNI ni)
@@ -131,7 +133,7 @@ public class JostleCertPathValidatorSpi
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
                 call.timeSecs, 1, call.revocation, call.chainOut, call.outInfo);
 
-        if (rc == org.openssl.jostle.jcajce.provider.ErrorCode.JO_CRL_DECODE_FAILED.getCode())
+        if (rc == ErrorCode.JO_CRL_DECODE_FAILED.getCode())
         {
             // outInfo[1] indexes the CRLs, which belong to no path element, so
             // the exception carries -1 rather than a misleading certificate.
@@ -144,7 +146,7 @@ public class JostleCertPathValidatorSpi
         // for any code its switch does not list — the same reason the seed
         // getters intercept JO_SEED_UNAVAILABLE. Without this the typed
         // exception below is unreachable.
-        if (rc == org.openssl.jostle.jcajce.provider.ErrorCode.JO_CERT_DECODE_FAILED.getCode())
+        if (rc == ErrorCode.JO_CERT_DECODE_FAILED.getCode())
         {
             // outInfo[1] is the index into the marshalled array: anchors first,
             // then the path REVERSED, so map it back to the caller's ordering.

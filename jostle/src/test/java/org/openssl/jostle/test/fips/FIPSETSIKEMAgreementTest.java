@@ -204,6 +204,7 @@ public class FIPSETSIKEMAgreementTest
     {
         Cipher c = Cipher.getInstance(KEM, bc);
         c.init(Cipher.WRAP_MODE, recipient,
+                // IESKEMParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 new org.bouncycastle.jcajce.spec.IESKEMParameterSpec(recipientInfo, compress), sr);
         return c.wrap(cek);
     }

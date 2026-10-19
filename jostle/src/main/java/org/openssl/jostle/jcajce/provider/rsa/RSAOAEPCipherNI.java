@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.rsa;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
+import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.rand.RandSource;
 
 /**
@@ -100,7 +101,7 @@ public interface RSAOAEPCipherNI extends DefaultServiceNI
                 // translates to BadPaddingException at engineDoFinal.
                 throw new InvalidCipherTextException(
                         String.format("invalid cipher text: %s",
-                                org.openssl.jostle.jcajce.provider.OpenSSL.getOpenSSLErrors()));
+                                OpenSSL.getOpenSSLErrors()));
             default:
         }
 

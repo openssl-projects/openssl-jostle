@@ -63,6 +63,7 @@ public class SecretSizingParityTest
         SecretKeySpec cek = new SecretKeySpec(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, "AES");
         for (int bits : new int[]{128, 192, 256})
         {
+            // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             org.bouncycastle.jcajce.spec.KTSParameterSpec theirs =
                     new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AESWRAP", bits).withNoKdf().build();
             KTSParameterSpec ours = new KTSParameterSpec.Builder("AESWRAP", bits).withNoKdf().build();
@@ -106,6 +107,7 @@ public class SecretSizingParityTest
             w.init(Cipher.WRAP_MODE, ourPub, new IESKEMParameterSpec(recipientInfo));
             Cipher bu = Cipher.getInstance("ETSIKEMwithSHA256", bc);
             bu.init(Cipher.UNWRAP_MODE, bcPair.getPrivate(),
+                    // IESKEMParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                     new org.bouncycastle.jcajce.spec.IESKEMParameterSpec(recipientInfo));
             Assertions.assertArrayEquals(raw, bu.unwrap(w.wrap(cek), "AES", Cipher.SECRET_KEY).getEncoded(),
                     n + " bytes, JSL to BC");

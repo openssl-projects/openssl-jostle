@@ -59,18 +59,21 @@ public class PQCForeignParamSpecRefusalRegressionTest
     @Test
     public void mlkem_refusesBouncyCastleParameterSpec() throws Exception
     {
+        // MLKEMParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         assertForeignSpecRefused("ML-KEM", org.bouncycastle.jcajce.spec.MLKEMParameterSpec.ml_kem_512);
     }
 
     @Test
     public void mldsa_refusesBouncyCastleParameterSpec() throws Exception
     {
+        // MLDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         assertForeignSpecRefused("ML-DSA", org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
     }
 
     @Test
     public void slhdsa_refusesBouncyCastleParameterSpec() throws Exception
     {
+        // SLHDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         assertForeignSpecRefused("SLH-DSA", org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_128f);
     }
 

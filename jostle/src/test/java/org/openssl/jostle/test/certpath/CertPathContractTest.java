@@ -1,5 +1,8 @@
 package org.openssl.jostle.test.certpath;
 
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralSubtree;
+import org.bouncycastle.asn1.x509.NameConstraints;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,8 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
 
 /**
  * The validator's parameter contract: what it honours, what it refuses, and the
@@ -140,7 +145,7 @@ public class CertPathContractTest
                 return null;
             }
 
-            public void check(java.security.cert.Certificate cert, Collection<String> unresolved)
+            public void check(Certificate cert, Collection<String> unresolved)
             {
             }
         });
@@ -154,11 +159,11 @@ public class CertPathContractTest
     {
         // TrustAnchor validates the encoding, so this must be a real
         // NameConstraints extension value rather than arbitrary DER.
-        byte[] nc = new org.bouncycastle.asn1.x509.NameConstraints(
-                new org.bouncycastle.asn1.x509.GeneralSubtree[]{
-                        new org.bouncycastle.asn1.x509.GeneralSubtree(
-                                new org.bouncycastle.asn1.x509.GeneralName(
-                                        org.bouncycastle.asn1.x509.GeneralName.dNSName,
+        byte[] nc = new NameConstraints(
+                new GeneralSubtree[]{
+                        new GeneralSubtree(
+                                new GeneralName(
+                                        GeneralName.dNSName,
                                         "example.com"))},
                 null).getEncoded();
         PKIXParameters p = new PKIXParameters(Collections.singleton(new TrustAnchor(
@@ -337,7 +342,7 @@ public class CertPathContractTest
         public java.security.Principal getSubjectDN() { return delegate.getSubjectDN(); }
         public java.util.Date getNotBefore() { return delegate.getNotBefore(); }
         public java.util.Date getNotAfter() { return delegate.getNotAfter(); }
-        public byte[] getTBSCertificate() throws java.security.cert.CertificateEncodingException
+        public byte[] getTBSCertificate() throws CertificateEncodingException
         { return delegate.getTBSCertificate(); }
         public byte[] getSignature() { return delegate.getSignature(); }
         public String getSigAlgName() { return delegate.getSigAlgName(); }

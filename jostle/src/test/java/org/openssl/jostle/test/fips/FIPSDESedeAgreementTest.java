@@ -842,7 +842,7 @@ public class FIPSDESedeAgreementTest
 
         ProviderSurfaceGuard.assertEveryServiceDriven(provider, DESEDE_PREFIX, "DESede (JSLFIPS)",
                 TYPES, DESedeSurfaceDriver.forProvider(
-                        org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider.PROVIDER_NAME));
+                        JostleFIPSProvider.PROVIDER_NAME));
     }
 
 

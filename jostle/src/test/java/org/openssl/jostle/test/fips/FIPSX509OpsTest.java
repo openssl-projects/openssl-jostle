@@ -15,7 +15,9 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.certpath.PkitsCertificates;
 import org.openssl.jostle.util.ops.OperationsTestNI;
@@ -168,12 +170,12 @@ public class FIPSX509OpsTest
     // FIPSOpsAnnotationParityTest fails a FIPS test that points at nonfips.
     // -----------------------------------------------------------------
 
-    private final org.openssl.jostle.jcajce.provider.cert.X509NI x509NI =
-            org.openssl.jostle.jcajce.provider.fips.FIPSNISelector.X509NI;
+    private final X509NI x509NI =
+            FIPSNISelector.X509NI;
 
     private static byte[] crl() throws Exception
     {
-        return org.openssl.jostle.test.certpath.PkitsCertificates.crlDer("TrustAnchorRootCRL.crl");
+        return PkitsCertificates.crlDer("TrustAnchorRootCRL.crl");
     }
 
     @Test
@@ -186,7 +188,7 @@ public class FIPSX509OpsTest
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int[] err = new int[1];
             byte[] der = cert();
-            x509NI.ni_allocate(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], err);
+            x509NI.ni_allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], err);
             Assertions.assertEquals(-7002, err[0]);
         }
         finally
@@ -205,7 +207,7 @@ public class FIPSX509OpsTest
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int[] err = new int[1];
             byte[] der = crl();
-            x509NI.ni_allocateCrl(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.maxContainerBytes(), new int[1], err);
+            x509NI.ni_allocateCrl(der, 0, der.length, X509NI.maxContainerBytes(), new int[1], err);
             Assertions.assertEquals(-7007, err[0]);
         }
         finally
@@ -224,7 +226,7 @@ public class FIPSX509OpsTest
         {
             // Control first: the same bytes, no flag, must decode.
             long ref = x509NI.ni_allocate(der, 0, der.length,
-                    org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], errClear);
+                    X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], errClear);
             Assertions.assertEquals(0, errClear[0], "a valid certificate must decode with no flag set");
             Assertions.assertNotEquals(0L, ref);
             x509NI.ni_dispose(ref);
@@ -232,7 +234,7 @@ public class FIPSX509OpsTest
             // Exercises interface/fips/util/x509.c:104
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int[] err = new int[1];
-            x509NI.ni_allocate(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], err);
+            x509NI.ni_allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], err);
             Assertions.assertEquals(-175, err[0], "JO_CERT_DECODE_FAILED, injected");
         }
         finally
@@ -249,7 +251,7 @@ public class FIPSX509OpsTest
         try
         {
             byte[] der = cert();
-            ref = x509NI.allocate(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
+            ref = x509NI.allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             // Exercises interface/fips/util/x509.c:246
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             Assertions.assertEquals(-7005, x509NI.ni_fieldsLen(ref));
@@ -272,7 +274,7 @@ public class FIPSX509OpsTest
         try
         {
             byte[] der = cert();
-            ref = x509NI.allocate(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
+            ref = x509NI.allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             // Exercises interface/fips/util/x509.c:167
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             Assertions.assertEquals(-7003, x509NI.ni_fieldsLen(ref));
@@ -294,7 +296,7 @@ public class FIPSX509OpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
@@ -302,7 +304,7 @@ public class FIPSX509OpsTest
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             byte[] der = cert();
-            x509NI.ni_allocate(der, 0, der.length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], err);
+            x509NI.ni_allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], err);
             Assertions.assertEquals(-22, err[0], "JO_FAILED_ACCESS_INPUT");
         }
         finally
@@ -318,7 +320,7 @@ public class FIPSX509OpsTest
         long ref = 0;
         try
         {
-            ref = x509NI.allocate(cert(), 0, cert().length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
+            ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             // Exercises interface/fips/util/x509.c:172
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(-7004, x509NI.ni_fieldsLen(ref));
@@ -340,13 +342,13 @@ public class FIPSX509OpsTest
         long ref = 0;
         try
         {
-            ref = x509NI.allocate(cert(), 0, cert().length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
+            ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             int need = x509NI.ni_fieldsLen(ref);
             Assertions.assertTrue(need > 0, "control: the length query must succeed first");
             // Exercises interface/fips/util/x509.c:268
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             Assertions.assertEquals(-7006, x509NI.ni_fields(ref, new byte[need],
-                    new int[org.openssl.jostle.jcajce.provider.cert.X509NI.SLOT_COUNT], new int[org.openssl.jostle.jcajce.provider.cert.X509NI.INFO_COUNT]));
+                    new int[X509NI.SLOT_COUNT], new int[X509NI.INFO_COUNT]));
         }
         finally
         {
@@ -365,7 +367,7 @@ public class FIPSX509OpsTest
         long ref = 0;
         try
         {
-            ref = x509NI.allocate(cert(), 0, cert().length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
+            ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             // Exercises interface/fips/util/x509.c:259
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             Assertions.assertEquals(-20, x509NI.ni_fieldsLen(ref), "JO_OUTPUT_TOO_LONG_INT32");
@@ -387,7 +389,7 @@ public class FIPSX509OpsTest
         long ref = 0;
         try
         {
-            ref = x509NI.allocateCrl(crl(), 0, crl().length, org.openssl.jostle.jcajce.provider.cert.X509NI.maxContainerBytes(), new int[1]);
+            ref = x509NI.allocateCrl(crl(), 0, crl().length, X509NI.maxContainerBytes(), new int[1]);
             // Exercises interface/fips/util/x509.c:1388
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(-7011, x509NI.ni_crlEntriesLen(ref));
@@ -409,13 +411,13 @@ public class FIPSX509OpsTest
         long ref = 0;
         try
         {
-            ref = x509NI.allocateCrl(crl(), 0, crl().length, org.openssl.jostle.jcajce.provider.cert.X509NI.maxContainerBytes(), new int[1]);
+            ref = x509NI.allocateCrl(crl(), 0, crl().length, X509NI.maxContainerBytes(), new int[1]);
             int need = x509NI.ni_crlFieldsLen(ref);
             Assertions.assertTrue(need > 0, "control: the length query must succeed first");
             // Exercises interface/fips/util/x509.c:1105
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             Assertions.assertEquals(-7009, x509NI.ni_crlFields(ref, new byte[need],
-                    new int[org.openssl.jostle.jcajce.provider.cert.X509NI.CRL_SLOT_COUNT], new int[org.openssl.jostle.jcajce.provider.cert.X509NI.CRL_INFO_COUNT]));
+                    new int[X509NI.CRL_SLOT_COUNT], new int[X509NI.CRL_INFO_COUNT]));
         }
         finally
         {
@@ -434,7 +436,7 @@ public class FIPSX509OpsTest
         long ref = 0;
         try
         {
-            ref = x509NI.allocateCrl(crl(), 0, crl().length, org.openssl.jostle.jcajce.provider.cert.X509NI.maxContainerBytes(), new int[1]);
+            ref = x509NI.allocateCrl(crl(), 0, crl().length, X509NI.maxContainerBytes(), new int[1]);
             // Exercises interface/fips/util/x509.c:1097
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             Assertions.assertEquals(-20, x509NI.ni_crlFieldsLen(ref), "JO_OUTPUT_TOO_LONG_INT32");
@@ -456,17 +458,17 @@ public class FIPSX509OpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long ref = 0;
         try
         {
-            ref = x509NI.allocate(cert(), 0, cert().length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
+            ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             int need = x509NI.ni_fieldsLen(ref);
             // Exercises interface/fips/jni/x509_ni_jni.c:221
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             Assertions.assertEquals(-23, x509NI.ni_fields(ref, new byte[need],
-                    new int[org.openssl.jostle.jcajce.provider.cert.X509NI.SLOT_COUNT], new int[org.openssl.jostle.jcajce.provider.cert.X509NI.INFO_COUNT]),
+                    new int[X509NI.SLOT_COUNT], new int[X509NI.INFO_COUNT]),
                     "JO_FAILED_ACCESS_OUTPUT");
         }
         finally
@@ -486,12 +488,12 @@ public class FIPSX509OpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long ref = 0;
         try
         {
-            ref = x509NI.allocate(cert(), 0, cert().length, org.openssl.jostle.jcajce.provider.cert.X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
+            ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             int count = x509NI.ni_extensionsLen(ref);
             Assertions.assertTrue(count > 0, "control: the fixture must carry extensions");
             // Exercises interface/fips/jni/x509_ni_jni.c:334
@@ -577,7 +579,7 @@ public class FIPSX509OpsTest
     @Test
     public void fips_jniOutputLoadFailures_eachRefusedTyped() throws Exception
     {
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         byte[] certDer = cert();
         byte[] crlDer = crl();

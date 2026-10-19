@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -30,6 +31,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
+import java.nio.charset.StandardCharsets;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * JCE-level tests for the RSA-OAEP cipher: round-trips, BC parity for
@@ -177,10 +180,10 @@ public class RSAOAEPCipherTest
     @Test
     public void testOAEP_WrapReuseAfterWrap() throws Exception
     {
-        javax.crypto.spec.SecretKeySpec aesA =
-                new javax.crypto.spec.SecretKeySpec(randomMessage(16), "AES");
-        javax.crypto.spec.SecretKeySpec aesB =
-                new javax.crypto.spec.SecretKeySpec(randomMessage(32), "AES");
+        SecretKeySpec aesA =
+                new SecretKeySpec(randomMessage(16), "AES");
+        SecretKeySpec aesB =
+                new SecretKeySpec(randomMessage(32), "AES");
 
         Cipher wrapper = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
         wrapper.init(Cipher.WRAP_MODE, sharedKeyPair.getPublic());
@@ -401,8 +404,8 @@ public class RSAOAEPCipherTest
     {
         // A non-default OAEP label must change the ciphertext, and
         // decryption with a different label must fail.
-        byte[] labelA = "label-A".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] labelB = "label-B".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] labelA = "label-A".getBytes(StandardCharsets.UTF_8);
+        byte[] labelB = "label-B".getBytes(StandardCharsets.UTF_8);
 
         OAEPParameterSpec specA = new OAEPParameterSpec(
                 "SHA-256", "MGF1", new MGF1ParameterSpec("SHA-256"),
@@ -609,8 +612,8 @@ public class RSAOAEPCipherTest
     public void testOAEP_WrapWithoutInit_throwsIllegalState() throws Exception
     {
         Cipher c = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
-        javax.crypto.spec.SecretKeySpec aes =
-                new javax.crypto.spec.SecretKeySpec(new byte[16], "AES");
+        SecretKeySpec aes =
+                new SecretKeySpec(new byte[16], "AES");
         try
         {
             c.wrap(aes);
@@ -970,7 +973,7 @@ public class RSAOAEPCipherTest
         boolean shiftedMatched;
         try
         {
-            shiftedMatched = org.openssl.jostle.util.Arrays.areEqual(msg, dec2.doFinal(shifted));
+            shiftedMatched = Arrays.areEqual(msg, dec2.doFinal(shifted));
         }
         catch (Exception badPadding)
         {

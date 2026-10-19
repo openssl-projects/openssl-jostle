@@ -14,6 +14,7 @@ package org.openssl.jostle.test.fips;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.math.BigInteger;
 import java.security.KeyFactory;
@@ -65,7 +66,7 @@ public class FIPSRSAKeySizePinTest
         fips = FIPSTestUtil.assumeFipsProvider();
         // The verify-at-1024 row needs a 1024-bit key, which the module cannot
         // generate; JSL must therefore be registered here to make one.
-        jsl = new org.openssl.jostle.jcajce.provider.JostleProvider();
+        jsl = new JostleProvider();
         java.security.Security.addProvider(jsl);
     }
 

@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
+import java.util.stream.Stream;
 
 /**
  * A module file not named "fips" activates under its own file name, and the diagnostics ask the provider by
@@ -69,7 +70,7 @@ public class FIPSRenamedModuleIntegrationTest
     {
         if (dir != null)
         {
-            try (java.util.stream.Stream<Path> s = Files.list(dir))
+            try (Stream<Path> s = Files.list(dir))
             {
                 for (Path p : (Iterable<Path>) s::iterator)
                 {

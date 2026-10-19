@@ -13,9 +13,14 @@ package org.openssl.jostle.test.fips;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
+import org.openssl.jostle.jcajce.spec.EdDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.EdDSAPublicKeySpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
 
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -23,6 +28,8 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Locale;
 
 /**
  * MT-15: the Ed KeyFactory's RAW key-spec paths allocated through the
@@ -107,7 +114,7 @@ public class FIPSEdRawSpecLibraryTest
         java.util.List<String> present = new java.util.ArrayList<String>();
         for (Provider.Service svc : fips.getServices())
         {
-            String alg = svc.getAlgorithm().toUpperCase(java.util.Locale.ROOT);
+            String alg = svc.getAlgorithm().toUpperCase(Locale.ROOT);
             if (alg.startsWith("ED") || ED_OIDS.contains(alg))
             {
                 present.add(svc.getType() + "/" + svc.getAlgorithm());
@@ -161,7 +168,7 @@ public class FIPSEdRawSpecLibraryTest
         byte[] raw = rawPublicBytes();
 
         Assertions.assertSame(
-                org.openssl.jostle.jcajce.provider.NISelector.SpecNI,
+                NISelector.SpecNI,
                 specNiOfRawSpecKey(jsl, raw),
                 "a JSL raw-spec Ed key must record the BASE SpecNI");
 
@@ -173,7 +180,7 @@ public class FIPSEdRawSpecLibraryTest
         }
 
         Assertions.assertSame(
-                org.openssl.jostle.jcajce.provider.fips.FIPSNISelector.SpecNI,
+                FIPSNISelector.SpecNI,
                 specNiOfRawSpecKey(fips, raw),
                 "a JSLFIPS raw-spec Ed key must record the FIPS SpecNI. Failing here means "
                         + "EdKeyFactorySpi allocated through the FIPS library but recorded the "
@@ -195,7 +202,7 @@ public class FIPSEdRawSpecLibraryTest
         }
         KeyPair kp = KeyPairGenerator.getInstance("ED25519", jsl).generateKeyPair();
         PublicKey viaFips = KeyFactory.getInstance("ED25519", fips)
-                .generatePublic(new java.security.spec.X509EncodedKeySpec(kp.getPublic().getEncoded()));
+                .generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
 
         // Asserted with the PIN'S OWN instrument — the recorded SpecNI — not
         // with getKeyProvider. A control that measures something else cannot
@@ -203,8 +210,8 @@ public class FIPSEdRawSpecLibraryTest
         // silently wrong, a getKeyProvider-based control would stay green and
         // the pin's failure would look like the defect returning.
         Assertions.assertSame(
-                org.openssl.jostle.jcajce.provider.fips.FIPSNISelector.SpecNI,
-                ((org.openssl.jostle.jcajce.interfaces.OSSLKey) viaFips).getSpec().getSpecNI(),
+                FIPSNISelector.SpecNI,
+                ((OSSLKey) viaFips).getSpec().getSpecNI(),
                 "the X509 path uses the explicit constructor and was never affected");
 
         // Kept alongside as a second, independent reading: the module really
@@ -222,13 +229,13 @@ public class FIPSEdRawSpecLibraryTest
                 .getKeySpec(kp.getPublic(), EdDSAPublicKeySpec.class).getPublicData();
     }
 
-    private static org.openssl.jostle.jcajce.spec.SpecNI specNiOfRawSpecKey(Provider p, byte[] raw)
+    private static SpecNI specNiOfRawSpecKey(Provider p, byte[] raw)
             throws Exception
     {
         PublicKey key = KeyFactory.getInstance("ED25519", p)
                 .generatePublic(new EdDSAPublicKeySpec(
-                        org.openssl.jostle.jcajce.spec.EdDSAParameterSpec.ED25519, raw));
-        return ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec().getSpecNI();
+                        EdDSAParameterSpec.ED25519, raw));
+        return ((OSSLKey) key).getSpec().getSpecNI();
     }
 
     /**
@@ -245,7 +252,7 @@ public class FIPSEdRawSpecLibraryTest
      */
     private static String providerOf(java.security.Key key)
     {
-        PKEYKeySpec spec = ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+        PKEYKeySpec spec = ((OSSLKey) key).getSpec();
         return spec.getSpecNI().getKeyProvider(spec.getReference());
     }
 }

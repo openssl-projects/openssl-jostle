@@ -13,11 +13,13 @@ package org.openssl.jostle.jcajce.provider.dsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.AlgorithmParameterGeneratorSpi;
 import java.security.AlgorithmParameters;
@@ -92,7 +94,7 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
         this.providerInstance = providerInstance;
         this.dsaServiceNI = dsaServiceNI;
         this.specNI = specNI;
-        this.acceptedPBits = org.openssl.jostle.util.Arrays.clone(acceptedPBits);
+        this.acceptedPBits = Arrays.clone(acceptedPBits);
     }
 
     /** Default modulus size when no engineInit is performed. */
@@ -121,7 +123,7 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
         // InvalidParameterException (RuntimeException) per the JCA contract.
         if (acceptedPBits != null)
         {
-            if (!org.openssl.jostle.util.Arrays.contains(acceptedPBits, size))
+            if (!Arrays.contains(acceptedPBits, size))
             {
                 throw new InvalidParameterException(
                         "DSA parameter size " + size + " is not supported. "
@@ -172,7 +174,7 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
         {
             paramsRef = dsaServiceNI.generateParameters(pBits, qBits, random);
         }
-        catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+        catch (ProviderCapabilityException e)
         {
             // The loaded provider refuses DSA domain-parameter generation
             // (OpenSSL's 3.5+ FIPS module gates it behind the "sign-check"

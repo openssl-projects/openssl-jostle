@@ -27,15 +27,18 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.interfaces.DSAPublicKey;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -551,8 +554,8 @@ public class FIPSDSAAgreementTest
     {
         ensureSharedKeyPair();
 
-        java.security.interfaces.DSAPublicKey pub =
-                (java.security.interfaces.DSAPublicKey) keysFor(FIPS).pub;
+        DSAPublicKey pub =
+                (DSAPublicKey) keysFor(FIPS).pub;
         DSAParameterSpec domain = new DSAParameterSpec(
                 pub.getParams().getP(), pub.getParams().getQ(), pub.getParams().getG());
 
@@ -620,7 +623,7 @@ public class FIPSDSAAgreementTest
         {
             for (String alg : group)
             {
-                covered.add("Signature." + alg.toUpperCase(java.util.Locale.ROOT));
+                covered.add("Signature." + alg.toUpperCase(Locale.ROOT));
             }
         }
         // The remaining four types are each driven by a named test above:
@@ -634,12 +637,12 @@ public class FIPSDSAAgreementTest
         covered.add("AlgorithmParameterGenerator.DSA");
 
         SortedSet<String> registered = new TreeSet<String>();
-        for (java.security.Provider.Service s : provider.getServices())
+        for (Provider.Service s : provider.getServices())
         {
             String cn = s.getClassName();
             if (cn != null && cn.startsWith(CipherFamilies.DSA_PREFIX))
             {
-                registered.add(s.getType() + "." + s.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+                registered.add(s.getType() + "." + s.getAlgorithm().toUpperCase(Locale.ROOT));
             }
         }
         Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no DSA services");

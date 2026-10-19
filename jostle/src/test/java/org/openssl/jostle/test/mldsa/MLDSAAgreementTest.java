@@ -242,6 +242,7 @@ public class MLDSAAgreementTest
         if (ctx != null)
         {
             s.setParameter(BC.equals(provider)
+                    // ContextParameterSpec: BouncyCastle's is qualified, jostle's is imported
                     ? new org.bouncycastle.jcajce.spec.ContextParameterSpec(ctx)
                     : new ContextParameterSpec(ctx));
         }
@@ -708,6 +709,7 @@ public class MLDSAAgreementTest
     {
         SecureRandom sr = seededRandom("sharedSeedYieldsByteEqualKeyEncodings");
 
+        // MLDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.MLDSAParameterSpec[] bcSpecs = {
                 org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44,
                 org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65,
@@ -723,8 +725,10 @@ public class MLDSAAgreementTest
 
                 MLDSAPrivateKey jslPriv = (MLDSAPrivateKey) KeyFactory.getInstance(set, JSL)
                         .generatePrivate(new MLDSAPrivateKeySpec(MLDSAParameterSpec.fromName(set), seed));
+                // MLDSAPrivateKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 org.bouncycastle.jcajce.interfaces.MLDSAPrivateKey bcPriv =
                         (org.bouncycastle.jcajce.interfaces.MLDSAPrivateKey) bcKeyFactory(set)
+                                // MLDSAPrivateKeySpec: BouncyCastle's is qualified, jostle's is imported
                                 .generatePrivate(new org.bouncycastle.jcajce.spec.MLDSAPrivateKeySpec(
                                         bcSpecs[i], seed));
 

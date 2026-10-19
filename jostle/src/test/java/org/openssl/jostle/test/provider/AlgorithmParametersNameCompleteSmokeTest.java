@@ -30,6 +30,7 @@ import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
@@ -197,7 +198,7 @@ public class AlgorithmParametersNameCompleteSmokeTest
         List<String> failures = new ArrayList<String>();
         int exercised = 0;
 
-        for (java.util.Map.Entry<String, String> e : names.entrySet())
+        for (Map.Entry<String, String> e : names.entrySet())
         {
             String name = e.getKey();
             AlgorithmParameterSpec spec = specFor(e.getValue());
@@ -266,7 +267,7 @@ public class AlgorithmParametersNameCompleteSmokeTest
         List<String> failures = new ArrayList<String>();
         TreeSet<String> compared = new TreeSet<String>();
 
-        for (java.util.Map.Entry<String, String> e : names.entrySet())
+        for (Map.Entry<String, String> e : names.entrySet())
         {
             String name = e.getKey();
             AlgorithmParameterSpec spec = specFor(e.getValue());

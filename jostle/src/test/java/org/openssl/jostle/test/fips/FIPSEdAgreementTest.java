@@ -12,6 +12,7 @@ package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.crypto.Signer;
 import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
+import org.bouncycastle.crypto.signers.Ed25519ctxSigner;
 import org.bouncycastle.crypto.signers.Ed25519phSigner;
 import org.bouncycastle.crypto.signers.Ed448phSigner;
 import org.bouncycastle.crypto.util.PrivateKeyFactory;
@@ -34,6 +35,7 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -41,6 +43,7 @@ import java.security.Signature;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Locale;
 
 /**
  * Cross-provider agreement for the FIPS provider's EdDSA surface.
@@ -456,18 +459,18 @@ public class FIPSEdAgreementTest
 
             byte[] fipsSig = signWithContext("ED25519CTX", kp.getPrivate(), ctx, msg);
 
-            org.bouncycastle.crypto.params.AsymmetricKeyParameter bcPub =
-                    org.bouncycastle.crypto.util.PublicKeyFactory.createKey(spki);
-            org.bouncycastle.crypto.params.AsymmetricKeyParameter bcPriv =
-                    org.bouncycastle.crypto.util.PrivateKeyFactory.createKey(pkcs8);
+            AsymmetricKeyParameter bcPub =
+                    PublicKeyFactory.createKey(spki);
+            AsymmetricKeyParameter bcPriv =
+                    PrivateKeyFactory.createKey(pkcs8);
 
-            Signer v = new org.bouncycastle.crypto.signers.Ed25519ctxSigner(ctx);
+            Signer v = new Ed25519ctxSigner(ctx);
             v.init(false, bcPub);
             v.update(msg, 0, msg.length);
             Assertions.assertTrue(v.verifySignature(fipsSig),
                     "ED25519CTX: BC's lightweight signer rejected a JSLFIPS signature");
 
-            Signer bs = new org.bouncycastle.crypto.signers.Ed25519ctxSigner(ctx);
+            Signer bs = new Ed25519ctxSigner(ctx);
             bs.init(true, bcPriv);
             bs.update(msg, 0, msg.length);
             byte[] bcSig = bs.generateSignature();
@@ -491,7 +494,7 @@ public class FIPSEdAgreementTest
             {
                 sr.nextBytes(otherCtx);
             }
-            while (org.openssl.jostle.util.Arrays.areEqual(ctx, otherCtx));
+            while (Arrays.areEqual(ctx, otherCtx));
 
             Signature wrong = Signature.getInstance("ED25519CTX", FIPS);
             wrong.setParameter(new ContextParameterSpec(otherCtx));
@@ -525,13 +528,13 @@ public class FIPSEdAgreementTest
         java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
 
         java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
-        for (java.security.Provider.Service svc : provider.getServices())
+        for (Provider.Service svc : provider.getServices())
         {
             String cn = svc.getClassName();
             if ("Signature".equals(svc.getType()) && cn != null
                     && cn.startsWith(CipherFamilies.ED_PREFIX))
             {
-                registered.add(svc.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+                registered.add(svc.getAlgorithm().toUpperCase(Locale.ROOT));
             }
         }
 
@@ -669,7 +672,7 @@ public class FIPSEdAgreementTest
      */
     private static String edCurveOf(String algorithm)
     {
-        String a = algorithm.toUpperCase(java.util.Locale.ROOT);
+        String a = algorithm.toUpperCase(Locale.ROOT);
         if (a.startsWith("OID."))
         {
             a = a.substring(4);
@@ -708,7 +711,7 @@ public class FIPSEdAgreementTest
         throws Exception
     {
         KeyPair kp = KeyPairGenerator.getInstance(algorithm, FIPS).generateKeyPair();
-        String made = kp.getPublic().getAlgorithm().toUpperCase(java.util.Locale.ROOT);
+        String made = kp.getPublic().getAlgorithm().toUpperCase(Locale.ROOT);
 
         if (curve != null)
         {

@@ -10,6 +10,13 @@
 
 package org.openssl.jostle.test.ks;
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,6 +28,7 @@ import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
 import org.openssl.jostle.test.TestUtil;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStoreException;
 import java.security.Security;
@@ -646,11 +654,11 @@ public class KSServiceLimitTest
     /** The (OID, key) pair a getSecretKey DER carries. */
     private static Object[] decode(byte[] der)
     {
-        org.bouncycastle.asn1.ASN1Sequence seq = org.bouncycastle.asn1.ASN1Sequence.getInstance(der);
+        ASN1Sequence seq = ASN1Sequence.getInstance(der);
         Assertions.assertEquals(2, seq.size());
         return new Object[]{
-                org.bouncycastle.asn1.ASN1ObjectIdentifier.getInstance(seq.getObjectAt(0)).getId(),
-                org.bouncycastle.asn1.ASN1OctetString.getInstance(seq.getObjectAt(1)).getOctets()};
+                ASN1ObjectIdentifier.getInstance(seq.getObjectAt(0)).getId(),
+                ASN1OctetString.getInstance(seq.getObjectAt(1)).getOctets()};
     }
 
     @Test
@@ -929,14 +937,14 @@ public class KSServiceLimitTest
         ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD);
         assertSetOidsRefused(validRef, "k", RFC_AES128, SUN_AES, NOT_SECRET);
 
-        org.bouncycastle.asn1.x500.X500Name name = new org.bouncycastle.asn1.x500.X500Name("CN=Jostle KS Limit");
+        X500Name name = new X500Name("CN=Jostle KS Limit");
         java.util.Date now = new java.util.Date();
-        org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder builder =
-                new org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder(name, java.math.BigInteger.ONE,
+        JcaX509v3CertificateBuilder builder =
+                new JcaX509v3CertificateBuilder(name, BigInteger.ONE,
                         new java.util.Date(now.getTime() - 3600_000L), new java.util.Date(now.getTime() + 3600_000L),
                         name, pair.getPublic());
-        org.bouncycastle.operator.ContentSigner signer =
-                new org.bouncycastle.operator.jcajce.JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());
+        ContentSigner signer =
+                new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());
         ni.setCertificateEntry(validRef, "c", builder.build(signer).getEncoded());
         assertSetOidsRefused(validRef, "c", RFC_AES128, SUN_AES, NOT_SECRET);
     }

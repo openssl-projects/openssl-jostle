@@ -16,10 +16,12 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.test.certpath.PkitsCertificates;
+import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.io.ByteArrayInputStream;
@@ -41,7 +43,7 @@ public class X509OpsTest
 {
     private final X509NI x509NI = NISelector.X509NI;
     private final OperationsTestNI operationsTestNI =
-            org.openssl.jostle.test.crypto.TestNISelector.getOperationsTestNI();
+            TestNISelector.getOperationsTestNI();
 
     @BeforeAll
     public static void beforeAll()
@@ -200,7 +202,7 @@ public class X509OpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
@@ -397,7 +399,7 @@ public class X509OpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long ref = 0;
         try
@@ -427,7 +429,7 @@ public class X509OpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         long ref = 0;
         try
@@ -518,7 +520,7 @@ public class X509OpsTest
     @Test
     public void jniOutputLoadFailures_eachRefusedTyped() throws Exception
     {
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         byte[] certDer = cert();
         byte[] crlDer = crl();

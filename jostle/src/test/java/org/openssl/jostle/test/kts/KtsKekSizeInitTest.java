@@ -142,6 +142,7 @@ public class KtsKekSizeInitTest
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", bc).generateKeyPair();
         Cipher w = Cipher.getInstance("ML-KEM", bc);
         w.init(Cipher.WRAP_MODE, kp.getPublic(),
+                // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AESWRAP", 136).build());
         IllegalBlockSizeException theirs = Assertions.assertThrows(IllegalBlockSizeException.class,
                 () -> w.wrap(new SecretKeySpec(new byte[16], "AES")));

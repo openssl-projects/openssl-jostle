@@ -19,6 +19,8 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
@@ -107,12 +109,12 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
                         privateKey.getSpec().getReference(),
                         randSource);
             }
-            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            catch (ProviderCapabilityException e)
             {
                 // Carry the capability message verbatim.
                 throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
             }
-            catch (org.openssl.jostle.jcajce.provider.OpenSSLException e)
+            catch (OpenSSLException e)
             {
                 // InvalidKeyException is the JCE-canonical init failure and the
                 // provider-fallback trigger. State what was refused, not why.
@@ -165,7 +167,7 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
                 // mismatch.
                 throw e;
             }
-            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            catch (ProviderCapabilityException e)
             {
                 throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
             }

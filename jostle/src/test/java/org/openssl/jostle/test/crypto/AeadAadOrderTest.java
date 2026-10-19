@@ -23,6 +23,8 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.AlgorithmParameterSpec;
+import javax.crypto.spec.IvParameterSpec;
 
 /**
  * MT-70: AAD supplied AFTER plaintext has been consumed.
@@ -286,11 +288,11 @@ public class AeadAadOrderTest
         return transformation.startsWith("ChaCha") ? "ChaCha20" : "AES";
     }
 
-    private static java.security.spec.AlgorithmParameterSpec specFor(String transformation, byte[] nonce)
+    private static AlgorithmParameterSpec specFor(String transformation, byte[] nonce)
     {
         if (transformation.startsWith("ChaCha"))
         {
-            return new javax.crypto.spec.IvParameterSpec(nonce);
+            return new IvParameterSpec(nonce);
         }
         return new GCMParameterSpec(transformation.contains("CCM") ? 64 : 128, nonce);
     }

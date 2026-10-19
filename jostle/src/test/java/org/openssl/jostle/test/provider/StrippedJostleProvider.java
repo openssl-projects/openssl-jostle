@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.provider;
 
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import java.util.Locale;
 
 /**
  * A {@code JostleProvider} instance with one service removed, so that "THIS
@@ -47,7 +48,7 @@ public class StrippedJostleProvider
      */
     public StrippedJostleProvider(String type, String algorithm)
     {
-        String upper = algorithm.toUpperCase(java.util.Locale.ROOT);
+        String upper = algorithm.toUpperCase(Locale.ROOT);
         // Resolve an alias to its primary exactly as getService does, and
         // remove the PRIMARY: removing an alias would leave the service
         // reachable under its own name. SHA-256, for one, is an alias of

@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.HybridValueParameterSpec;
+import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
 
 import javax.crypto.KeyAgreement;
 import javax.crypto.spec.IvParameterSpec;
@@ -40,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * MT-31, KeyAgreement surface: our exception type against BouncyCastle's.
@@ -231,11 +234,12 @@ public class KeyAgreementNegativePathSurveyTest
      * {@code UserKeyingMaterialSpec} as foreign, and vice versa) — resolve it
      * at the point of use rather than storing one on the cell.
      */
-    private static java.security.spec.AlgorithmParameterSpec ukmSpec(Provider p, byte[] ukm)
+    private static AlgorithmParameterSpec ukmSpec(Provider p, byte[] ukm)
     {
         return p == bc
+                // UserKeyingMaterialSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 ? new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm)
-                : new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm);
+                : new UserKeyingMaterialSpec(ukm);
     }
 
     /**
@@ -243,16 +247,17 @@ public class KeyAgreementNegativePathSurveyTest
      * UKM spec wrapped as the HKDF info inside a provider-appropriate
      * {@code HybridValueParameterSpec} carrying the cell's fixed T.
      */
-    private static java.security.spec.AlgorithmParameterSpec initSpec(Provider p, Cell cell)
+    private static AlgorithmParameterSpec initSpec(Provider p, Cell cell)
     {
-        java.security.spec.AlgorithmParameterSpec ukm = ukmSpec(p, cell.initUkm);
+        AlgorithmParameterSpec ukm = ukmSpec(p, cell.initUkm);
         if (cell.hybridT == null)
         {
             return ukm;
         }
         return p == bc
+                // HybridValueParameterSpec: BouncyCastle's is qualified, jostle's is imported
                 ? new org.bouncycastle.jcajce.spec.HybridValueParameterSpec(cell.hybridT, true, ukm)
-                : new org.openssl.jostle.jcajce.spec.HybridValueParameterSpec(cell.hybridT, true, ukm);
+                : new HybridValueParameterSpec(cell.hybridT, true, ukm);
     }
 
     /** Init with the cell's own valid key, carrying its UKM when it requires one. */

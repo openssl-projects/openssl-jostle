@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -32,6 +33,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.Provider;
+import java.util.Locale;
 
 /**
  * Cross-provider agreement for the FIPS provider's DH (Diffie-Hellman)
@@ -186,11 +189,12 @@ public class FIPSDHAgreementTest
         }
         else if (BC.equals(provider))
         {
+            // UserKeyingMaterialSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             ka.init(localPriv, new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm));
         }
         else
         {
-            ka.init(localPriv, new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm));
+            ka.init(localPriv, new UserKeyingMaterialSpec(ukm));
         }
         ka.doPhase(localPub, true);
         return ka.generateSecret(wrapOid).getEncoded();
@@ -469,12 +473,12 @@ public class FIPSDHAgreementTest
                 "AlgorithmParameterGenerator.DH"));
 
         java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
-        for (java.security.Provider.Service svc : provider.getServices())
+        for (Provider.Service svc : provider.getServices())
         {
             String cn = svc.getClassName();
             if (cn != null && cn.startsWith(CipherFamilies.DH_PREFIX))
             {
-                registered.add(svc.getType() + "." + svc.getAlgorithm().toUpperCase(java.util.Locale.ROOT));
+                registered.add(svc.getType() + "." + svc.getAlgorithm().toUpperCase(Locale.ROOT));
             }
         }
         Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no DH services");

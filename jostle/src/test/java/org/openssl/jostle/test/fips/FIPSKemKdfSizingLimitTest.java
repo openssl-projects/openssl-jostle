@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.test.fips;
 
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -88,8 +90,8 @@ public class FIPSKemKdfSizingLimitTest
                 "the loaded FIPS module implements no ML-KEM (3.1.2)");
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", fips).generateKeyPair();
         KemKdfCases.refusedAtInit(fips, "ML-KEM-768", kp, 256,
-                KemKdfCases.kdf(org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
-                        org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha384),
+                KemKdfCases.kdf(X9ObjectIdentifiers.id_kdf_kdf3,
+                        NISTObjectIdentifiers.id_sha384),
                 "unsupported KDF digest 2.16.840.1.101.3.4.2.2; supported: SHA-256, SHA-512, SHAKE128, SHAKE256");
     }
 }

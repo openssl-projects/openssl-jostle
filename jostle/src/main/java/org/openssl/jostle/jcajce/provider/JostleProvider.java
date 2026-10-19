@@ -25,6 +25,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class JostleProvider
         extends Provider
@@ -331,8 +332,8 @@ public class JostleProvider
      * both ends, so an algorithm name that merely contains digits and dots is
      * not mistaken for an OID.
      */
-    private static final java.util.regex.Pattern OID_SHAPED =
-            java.util.regex.Pattern.compile("\\d+(\\.\\d+)+");
+    private static final Pattern OID_SHAPED =
+            Pattern.compile("\\d+(\\.\\d+)+");
 
     /**
      * Register one alias, emitting BOTH lookup spellings when it is an OID.

@@ -10,12 +10,22 @@
 
 package org.openssl.jostle.test.ec;
 
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1OctetString;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.ASN1TaggedObject;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.EcCurves;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
@@ -42,6 +52,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.security.interfaces.ECPrivateKey;
+import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Cross-provider agreement for the WHOLE base-provider ({@code JSL}) EC
@@ -193,7 +206,7 @@ public class ECAgreementTest
      * its runtime.
      */
     private static final java.util.Map<String, Integer> ORDER_BITS =
-            new java.util.concurrent.ConcurrentHashMap<String, Integer>();
+            new ConcurrentHashMap<String, Integer>();
 
     private static int orderBits(String curve) throws Exception
     {
@@ -202,7 +215,7 @@ public class ECAgreementTest
         {
             return cached.intValue();
         }
-        int bits = ((java.security.interfaces.ECPrivateKey) generate(curve).getPrivate())
+        int bits = ((ECPrivateKey) generate(curve).getPrivate())
                 .getParams().getOrder().bitLength();
         ORDER_BITS.put(curve, Integer.valueOf(bits));
         return bits;
@@ -287,11 +300,12 @@ public class ECAgreementTest
         }
         else if (BC.equals(provider))
         {
+            // UserKeyingMaterialSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             ka.init(priv, new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm));
         }
         else
         {
-            ka.init(priv, new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm));
+            ka.init(priv, new UserKeyingMaterialSpec(ukm));
         }
         ka.doPhase(peerPub, true);
         return ka.generateSecret(wrapOid).getEncoded();
@@ -324,7 +338,7 @@ public class ECAgreementTest
     {
         String cn = ProviderSurfaceGuard.registeredClassNames(Security.getProvider(JSL),
                 CipherFamilies.EC_PREFIX, GUARDED_TYPES)
-                .get("KeyAgreement." + alg.toUpperCase(java.util.Locale.ROOT));
+                .get("KeyAgreement." + alg.toUpperCase(Locale.ROOT));
         Assertions.assertNotNull(cn, "no registered class for KeyAgreement." + alg);
         return KDF_AGREEMENT_SPIS.contains(cn);
     }
@@ -336,7 +350,7 @@ public class ECAgreementTest
     {
         String cn = ProviderSurfaceGuard.registeredClassNames(Security.getProvider(JSL),
                 CipherFamilies.EC_PREFIX, GUARDED_TYPES)
-                .get("KeyAgreement." + alg.toUpperCase(java.util.Locale.ROOT));
+                .get("KeyAgreement." + alg.toUpperCase(Locale.ROOT));
         return CKDF_AGREEMENT_SPI.equals(cn);
     }
 
@@ -697,7 +711,7 @@ public class ECAgreementTest
                         + certPeerPub.getClass().getName());
 
         KeyAgreement ka = KeyAgreement.getInstance("ECDHWITHSHA256KDF", JSL);
-        ka.init(local.getPrivate(), new org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec(ukm));
+        ka.init(local.getPrivate(), new UserKeyingMaterialSpec(ukm));
         ka.doPhase(certPeerPub, true);
         byte[] actual = ka.generateSecret(WRAP_OIDS[2]).getEncoded();
 
@@ -711,20 +725,20 @@ public class ECAgreementTest
         KeyPairGenerator rsaKpg = KeyPairGenerator.getInstance("RSA", JSL);
         rsaKpg.initialize(2048);
         KeyPair signerKp = rsaKpg.generateKeyPair();
-        org.bouncycastle.asn1.x500.X500Name dn =
-                new org.bouncycastle.asn1.x500.X500Name("CN=Jostle EC CMS KDF Foreign Key Test");
-        org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder builder =
-                new org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder(
+        X500Name dn =
+                new X500Name("CN=Jostle EC CMS KDF Foreign Key Test");
+        JcaX509v3CertificateBuilder builder =
+                new JcaX509v3CertificateBuilder(
                         dn, java.math.BigInteger.valueOf(1),
                         new java.util.Date(System.currentTimeMillis() - 3600_000L),
                         new java.util.Date(System.currentTimeMillis() + 3600_000L),
                         dn, subjectPub);
-        org.bouncycastle.operator.ContentSigner signer =
-                new org.bouncycastle.operator.jcajce.JcaContentSignerBuilder("SHA256withRSA")
+        ContentSigner signer =
+                new JcaContentSignerBuilder("SHA256withRSA")
                         .setProvider(BC).build(signerKp.getPrivate());
         // No provider on the converter → the JDK default CertificateFactory,
         // whose getPublicKey() returns sun.security.* key objects.
-        return new org.bouncycastle.cert.jcajce.JcaX509CertificateConverter()
+        return new JcaX509CertificateConverter()
                 .getCertificate(builder.build(signer));
     }
 
@@ -814,7 +828,7 @@ public class ECAgreementTest
     /** The scalar {@code d}, read through the JCE interface rather than the encoding. */
     private static java.math.BigInteger privateValue(PrivateKey key)
     {
-        return ((java.security.interfaces.ECPrivateKey) key).getS();
+        return ((ECPrivateKey) key).getS();
     }
 
     /**
@@ -868,21 +882,21 @@ public class ECAgreementTest
     /** The {@code privateKey} OCTET STRING's content — an RFC 5915 ECPrivateKey. */
     private static byte[] innerEcPrivateKey(byte[] pkcs8) throws Exception
     {
-        org.bouncycastle.asn1.ASN1Sequence seq =
-                org.bouncycastle.asn1.ASN1Sequence.getInstance(pkcs8);
-        return org.bouncycastle.asn1.ASN1OctetString.getInstance(seq.getObjectAt(2)).getOctets();
+        ASN1Sequence seq =
+                ASN1Sequence.getInstance(pkcs8);
+        return ASN1OctetString.getInstance(seq.getObjectAt(2)).getOctets();
     }
 
     /** Whether the ECPrivateKey SEQUENCE carries the given context-specific tag. */
     private static boolean hasContextTag(byte[] ecPrivateKey, int tagNo) throws Exception
     {
-        org.bouncycastle.asn1.ASN1Sequence seq =
-                org.bouncycastle.asn1.ASN1Sequence.getInstance(ecPrivateKey);
+        ASN1Sequence seq =
+                ASN1Sequence.getInstance(ecPrivateKey);
         for (int i = 0; i < seq.size(); i++)
         {
-            org.bouncycastle.asn1.ASN1Encodable o = seq.getObjectAt(i);
-            if (o instanceof org.bouncycastle.asn1.ASN1TaggedObject
-                    && ((org.bouncycastle.asn1.ASN1TaggedObject) o).getTagNo() == tagNo)
+            ASN1Encodable o = seq.getObjectAt(i);
+            if (o instanceof ASN1TaggedObject
+                    && ((ASN1TaggedObject) o).getTagNo() == tagNo)
             {
                 return true;
             }

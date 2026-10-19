@@ -19,6 +19,7 @@ import org.bouncycastle.asn1.pkcs.DHParameter;
 import org.bouncycastle.asn1.x509.DSAParameter;
 import org.bouncycastle.asn1.x9.ECNamedCurveTable;
 import org.bouncycastle.asn1.x9.X962Parameters;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ import java.security.spec.DSAParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * BouncyCastle as a SECOND reference for every bespoke ASN.1 codec, alongside
@@ -85,11 +87,11 @@ public class AlgorithmParametersAgreementTest
         // against BC's JCE codecs, which do.
         if (Security.getProvider("BC") == null)
         {
-            Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+            Security.addProvider(new BouncyCastleProvider());
         }
     }
 
-    private static byte[] encodedOf(String alg, java.security.spec.AlgorithmParameterSpec spec)
+    private static byte[] encodedOf(String alg, AlgorithmParameterSpec spec)
         throws Exception
     {
         AlgorithmParameters p = AlgorithmParameters.getInstance(alg, JSL);
@@ -538,7 +540,7 @@ public class AlgorithmParametersAgreementTest
     }
 
     /** BC's half of a length divergence: it must still accept what we refuse. */
-    private static void assertBouncyCastleStillAccepts(String alg, java.security.spec.AlgorithmParameterSpec spec,
+    private static void assertBouncyCastleStillAccepts(String alg, AlgorithmParameterSpec spec,
                                                        String what)
         throws Exception
     {

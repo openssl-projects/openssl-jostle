@@ -11,6 +11,10 @@
 
 package org.openssl.jostle.test.spec;
 
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
+import org.bouncycastle.jcajce.spec.KEMGenerateSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -75,7 +79,7 @@ public class KemKdfSizingLimitTest
     {
         KeyPair bcPair = KeyPairGenerator.getInstance("ML-KEM-768", bc).generateKeyPair();
         KeyGenerator g = KeyGenerator.getInstance("ML-KEM-768", bc);
-        g.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(bcPair.getPublic(), "AES", 512)
+        g.init(new KEMGenerateSpec.Builder(bcPair.getPublic(), "AES", 512)
                 .withNoKdf().build());
         IllegalArgumentException theirs = Assertions.assertThrows(IllegalArgumentException.class, g::generateKey);
         Assertions.assertEquals("no KDF specified and the shared secret is 256 bits, 512 requested",
@@ -92,7 +96,7 @@ public class KemKdfSizingLimitTest
     {
         KeyPair bcPair = KeyPairGenerator.getInstance("ML-KEM-768", bc).generateKeyPair();
         KeyGenerator g = KeyGenerator.getInstance("ML-KEM-768", bc);
-        g.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(bcPair.getPublic(), "AES", 0).build());
+        g.init(new KEMGenerateSpec.Builder(bcPair.getPublic(), "AES", 0).build());
         IllegalArgumentException theirs = Assertions.assertThrows(IllegalArgumentException.class, g::generateKey);
         Assertions.assertEquals("len must be > 0", theirs.getMessage());
 
@@ -106,12 +110,12 @@ public class KemKdfSizingLimitTest
     {
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
         KemKdfCases.refusedAtInit(jsl, "ML-KEM-768", kp, 256,
-                KemKdfCases.kdf(org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
-                        org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha384),
+                KemKdfCases.kdf(X9ObjectIdentifiers.id_kdf_kdf3,
+                        NISTObjectIdentifiers.id_sha384),
                 "unsupported KDF digest 2.16.840.1.101.3.4.2.2; supported: SHA-256, SHA-512, SHAKE128, SHAKE256");
         KemKdfCases.refusedAtInit(jsl, "ML-KEM-768", kp, 256,
-                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                        org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_shake128),
+                new AlgorithmIdentifier(
+                        NISTObjectIdentifiers.id_shake128),
                 "unsupported KDF 2.16.840.1.101.3.4.2.11; supported: KDF2, KDF3, HKDF-SHA256/384/512, SHAKE256");
     }
 
@@ -123,11 +127,11 @@ public class KemKdfSizingLimitTest
     public void shake256AloneIsBoundedByTheDigestItRunsOn() throws Exception
     {
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
-        org.bouncycastle.asn1.x509.AlgorithmIdentifier shake = new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_shake256);
+        AlgorithmIdentifier shake = new AlgorithmIdentifier(
+                NISTObjectIdentifiers.id_shake256);
         KeyPair bcPair = KeyPairGenerator.getInstance("ML-KEM-768", bc).generateKeyPair();
         KeyGenerator g = KeyGenerator.getInstance("ML-KEM-768", bc);
-        g.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(bcPair.getPublic(), "AES", 520)
+        g.init(new KEMGenerateSpec.Builder(bcPair.getPublic(), "AES", 520)
                 .withKdfAlgorithm(shake).build());
         Assertions.assertEquals(65, g.generateKey().getEncoded().length, "BouncyCastle derives 520 bits");
         Assertions.assertEquals(64, KemKdfCases.bothHalves(jsl, kp, "ML-KEM-768", 512, shake, null).length);

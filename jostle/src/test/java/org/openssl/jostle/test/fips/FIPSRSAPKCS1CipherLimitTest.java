@@ -36,6 +36,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Arrays;
+import java.security.spec.X509EncodedKeySpec;
 
 /**
  * Input-validation limit tests at the FIPS RSA-PKCS#1 v1.5 cipher NI surface
@@ -588,7 +589,7 @@ public class FIPSRSAPKCS1CipherLimitTest
     {
         KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         java.security.PublicKey pub = kf.generatePublic(
-                new java.security.spec.X509EncodedKeySpec(kp.getPublic().getEncoded()));
+                new X509EncodedKeySpec(kp.getPublic().getEncoded()));
         Cipher enc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
         enc.init(Cipher.ENCRYPT_MODE, pub);
         return enc.doFinal(msg);

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 
 import java.security.Provider;
 import java.util.ArrayList;
@@ -169,8 +170,8 @@ public class FIPSModuleIsActuallyUsedTest
     {
         Provider provider = FIPSTestUtil.assumeFipsProvider();
 
-        for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec spec
-                : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+        for (MLXKEMParameterSpec spec
+                : MLXKEMParameterSpec.all())
         {
             String alg = spec.getName();
             boolean registered = provider.getService("KeyPairGenerator", alg) != null;

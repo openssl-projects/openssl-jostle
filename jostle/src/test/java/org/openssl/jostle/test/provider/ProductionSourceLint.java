@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Shared comment/string-literal stripping and file-walking helpers for the
@@ -50,7 +51,7 @@ final class ProductionSourceLint
     static List<Path> javaSourcesUnder(Path root) throws IOException
     {
         final List<Path> out = new ArrayList<Path>();
-        try (java.util.stream.Stream<Path> walk = Files.walk(root))
+        try (Stream<Path> walk = Files.walk(root))
         {
             walk.filter(p -> p.getFileName().toString().endsWith(".java")).forEach(out::add);
         }

@@ -52,6 +52,7 @@ import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * RSA through the FIPS provider ("JSLFIPS"): keygen from the module, PKCS#1
@@ -563,7 +564,7 @@ public class FIPSRSATest
                 "doFinal before init must throw IllegalStateException");
 
         Cipher c3 = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
-        SecretKey aes = new javax.crypto.spec.SecretKeySpec(new byte[16], "AES");
+        SecretKey aes = new SecretKeySpec(new byte[16], "AES");
         Assertions.assertThrows(IllegalStateException.class,
                 () -> c3.wrap(aes),
                 "wrap before init must throw IllegalStateException");

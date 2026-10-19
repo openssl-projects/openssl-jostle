@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.test.provider.StrippedJostleProvider;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.Security;
@@ -11,6 +12,7 @@ import java.security.cert.CertPathBuilder;
 import java.security.cert.CertPathBuilderException;
 import java.security.cert.CertPathBuilderResult;
 import java.security.cert.CertStore;
+import java.security.cert.Certificate;
 import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.TrustAnchor;
@@ -60,7 +62,7 @@ public class CertPathBuilderTest
         sel.setCertificate(ee);
 
         CertPathBuilderResult r = builder().build(params(sel, ee, ca));
-        List<? extends java.security.cert.Certificate> built = r.getCertPath().getCertificates();
+        List<? extends Certificate> built = r.getCertPath().getCertificates();
 
         Assertions.assertEquals(2, built.size(), "expected EE and CA, with the anchor excluded");
         Assertions.assertEquals(ee, built.get(0), "the path must start at the target");
@@ -188,10 +190,10 @@ public class CertPathBuilderTest
         sel.setCertificate(ee);
 
         CertPathBuilderResult r = builder().build(params(sel, ee, ca));
-        List<? extends java.security.cert.Certificate> built = r.getCertPath().getCertificates();
+        List<? extends Certificate> built = r.getCertPath().getCertificates();
         Assertions.assertFalse(built.isEmpty(), "vacuity guard: the build produced no path");
 
-        for (java.security.cert.Certificate c : built)
+        for (Certificate c : built)
         {
             Assertions.assertTrue(
                     c.getClass().getName().startsWith("org.openssl.jostle."),
@@ -219,7 +221,7 @@ public class CertPathBuilderTest
                 "the capable provider must be registered, or the test proves nothing");
 
         java.security.Provider stripped =
-                new org.openssl.jostle.test.provider.StrippedJostleProvider(
+                new StrippedJostleProvider(
                         "CertificateFactory", "X.509");
         Assertions.assertNull(stripped.getService("CertificateFactory", "X.509"),
                 "vacuity guard: the strip must actually have removed the service");

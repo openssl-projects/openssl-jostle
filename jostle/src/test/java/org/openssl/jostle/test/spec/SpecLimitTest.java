@@ -1192,10 +1192,10 @@ public class SpecLimitTest
     public void getKeyProvider_realKey_namesAProvider() throws Exception
     {
         java.security.KeyPair kp = java.security.KeyPairGenerator
-                .getInstance("ML-KEM-768", org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME)
+                .getInstance("ML-KEM-768", JostleProvider.PROVIDER_NAME)
                 .generateKeyPair();
-        org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                ((org.openssl.jostle.jcajce.interfaces.OSSLKey) kp.getPublic()).getSpec();
+        PKEYKeySpec s =
+                ((OSSLKey) kp.getPublic()).getSpec();
 
         String prov = s.getSpecNI().getKeyProvider(s.getReference());
         Assertions.assertNotNull(prov, "a real key must name its provider");

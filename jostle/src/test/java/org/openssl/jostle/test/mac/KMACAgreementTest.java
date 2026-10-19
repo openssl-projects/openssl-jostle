@@ -135,6 +135,7 @@ public class KMACAgreementTest
      */
     private static AlgorithmParameterSpec bcSpec(int macSizeInBits, byte[] custom)
     {
+        // KMACParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         return new org.bouncycastle.jcajce.spec.KMACParameterSpec(macSizeInBits, custom);
     }
 

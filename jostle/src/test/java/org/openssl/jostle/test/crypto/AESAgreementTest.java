@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.test.util.KeyGeneratorSurfaceDriver;
@@ -1209,7 +1210,7 @@ public class AESAgreementTest
 
         try {
             Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
-            org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+            DummyParams params = new DummyParams();
             params.init(new byte[16]);
             cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, params);
             Assertions.fail("Should have thrown an exception");
@@ -1226,7 +1227,7 @@ public class AESAgreementTest
         cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), new IvParameterSpec(new byte[16]));
 
         cipher = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
-        org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+        DummyParams params = new DummyParams();
         params.init(new byte[16]);
         cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), params);
     }
@@ -2460,9 +2461,10 @@ public class AESAgreementTest
     {
         if (BouncyCastleProvider.PROVIDER_NAME.equals(provider))
         {
+            // AEADParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             return new org.bouncycastle.jcajce.spec.AEADParameterSpec(iv, tagBits, aad);
         }
-        return new org.openssl.jostle.jcajce.spec.AEADParameterSpec(iv, tagBits, aad);
+        return new AEADParameterSpec(iv, tagBits, aad);
     }
 
     /**

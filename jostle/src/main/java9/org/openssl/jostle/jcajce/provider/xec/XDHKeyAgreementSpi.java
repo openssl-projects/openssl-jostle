@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 
 import javax.crypto.KeyAgreementSpi;
 import javax.crypto.SecretKey;
@@ -108,7 +109,7 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                         privateKey.getSpec().getReference(),
                         randSource);
             }
-            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            catch (ProviderCapabilityException e)
             {
                 // Carry the capability message verbatim.
                 throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
@@ -162,7 +163,7 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
                 // unchanged rather than mislabelling it as a type mismatch.
                 throw e;
             }
-            catch (org.openssl.jostle.jcajce.provider.ProviderCapabilityException e)
+            catch (ProviderCapabilityException e)
             {
                 throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
             }

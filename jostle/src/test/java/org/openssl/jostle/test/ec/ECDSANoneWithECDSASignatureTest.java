@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -165,7 +166,7 @@ public class ECDSANoneWithECDSASignatureTest
                     "JSL rejected a BC NoneWithECDSA signature (trial " + trial + ")");
 
             // Negative: tampering the digest must break JSL verification.
-            byte[] tampered = org.openssl.jostle.util.Arrays.clone(digest);
+            byte[] tampered = Arrays.clone(digest);
             tampered[sr.nextInt(tampered.length)] ^= 0x01;
             Signature joVerifyBad = Signature.getInstance("NoneWithECDSA", JostleProvider.PROVIDER_NAME);
             joVerifyBad.initVerify(joKeyPair.getPublic());

@@ -102,6 +102,7 @@ public class FIPSKMACTest
             throws Exception
     {
         Mac mac = Mac.getInstance(name, BC);
+        // KMACParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         mac.init(key, new org.bouncycastle.jcajce.spec.KMACParameterSpec(bits, custom));
         return mac.doFinal(msg);
     }

@@ -31,6 +31,7 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.spec.X509EncodedKeySpec;
 
 /**
  * MT-10: a key produced by {@code Cipher.unwrap} belongs to the provider that
@@ -212,7 +213,7 @@ public class UnwrappedKeyBindingTest
             Signature verifier = Signature.getInstance("SHA256withECDSA", jsl);
             verifier.initVerify(
                     KeyFactory.getInstance("EC", jsl).generatePublic(
-                            new java.security.spec.X509EncodedKeySpec(
+                            new X509EncodedKeySpec(
                                     kp.getPublic().getEncoded())));
             verifier.update(msg);
             Assertions.assertTrue(verifier.verify(sig),
@@ -226,7 +227,7 @@ public class UnwrappedKeyBindingTest
             Signature tampered = Signature.getInstance("SHA256withECDSA", jsl);
             tampered.initVerify(
                     KeyFactory.getInstance("EC", jsl).generatePublic(
-                            new java.security.spec.X509EncodedKeySpec(
+                            new X509EncodedKeySpec(
                                     kp.getPublic().getEncoded())));
             tampered.update(msg);
             Assertions.assertFalse(tampered.verify(sig),

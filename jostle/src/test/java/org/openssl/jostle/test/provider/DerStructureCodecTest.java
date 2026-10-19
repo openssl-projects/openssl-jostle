@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.util.asn1.Der;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.Date;
 
@@ -225,7 +226,7 @@ public class DerStructureCodecTest
         // A 33-bit magnitude -- beyond readImplicitSmallInteger's 31-bit bound.
         // Built by hand (0x80: primitive context tag [0]) since
         // Der.implicitInteger's int parameter cannot express it.
-        byte[] content = java.math.BigInteger.ONE.shiftLeft(32).toByteArray();
+        byte[] content = BigInteger.ONE.shiftLeft(32).toByteArray();
         byte[] wrapped = Der.tlv(0x80, content);
         Assertions.assertThrows(IOException.class,
                 () -> new Der.Reader(wrapped).readImplicitSmallInteger(0, "test"));

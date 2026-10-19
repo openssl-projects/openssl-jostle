@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.bcfks;
 
 import org.junit.jupiter.api.Assertions;
+import org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf;
 import org.openssl.jostle.jcajce.provider.kdf.KdfNI;
 import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.util.asn1.Der;
@@ -31,6 +32,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Shared instrument for the BCFKS limit classes: it builds the hostile inputs
@@ -719,7 +721,7 @@ final class BcFKSLimitDriver
                     }
                 }));
         t.put("PbkdKeyData", new DecodeSite("PbkdKeyData",
-                BcFKSFormat.writePbkdKeyData("PBKDF2", "password".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                BcFKSFormat.writePbkdKeyData("PBKDF2", "password".getBytes(StandardCharsets.UTF_8),
                         new byte[16], 2048, new byte[32]),
                 "PbkdKeyData", new Decoder()
                 {
@@ -754,14 +756,14 @@ final class BcFKSLimitDriver
         byte[] storeData = BcFKSFormat.writeObjectStoreData(integrityAlgorithmTlv, FIXED_DATE,
                 FIXED_DATE, entryTlvs, null);
         byte[] encrypted = spi.encryptEntry(storeData,
-                org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, password);
+                BytePasswordKdf.PURPOSE_STORE_ENCRYPTION, password);
 
         byte[] kdfTlv = Der.algorithmIdentifier(PBKDF2_OID, Der.pbkdf2Params(new byte[64], 2048,
                 Integer.valueOf(64), Der.algorithmIdentifier(HMAC_SHA512_OID, Der.nullValue())));
         Der.AlgorithmIdentifier kdfAlgorithm =
                 new Der.Reader(kdfTlv).readAlgorithmIdentifier("forged integrity check");
         byte[] macKey = spi.deriveKey(kdfAlgorithm,
-                org.openssl.jostle.jcajce.provider.kdf.BytePasswordKdf.PURPOSE_INTEGRITY_CHECK,
+                BytePasswordKdf.PURPOSE_INTEGRITY_CHECK,
                 password, Integer.valueOf(64), false);
 
         Mac mac = Mac.getInstance(HMAC_SHA512_OID, provider);

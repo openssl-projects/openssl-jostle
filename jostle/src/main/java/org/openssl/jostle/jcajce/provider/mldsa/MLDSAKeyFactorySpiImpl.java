@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.util.Arrays;
@@ -346,8 +347,8 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
             // unbound direct-SPI realm. This family matches the INTERFACE
             // types, not the concrete JO* classes as RSA/EC/DH/Ed do, so the
             // OSSLKey cast is what reaches the spec.
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.

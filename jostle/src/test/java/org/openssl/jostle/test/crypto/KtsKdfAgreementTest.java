@@ -22,7 +22,9 @@ import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.digests.SHA384Digest;
 import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.crypto.digests.SHAKEDigest;
+import org.bouncycastle.crypto.generators.HKDFBytesGenerator;
 import org.bouncycastle.crypto.generators.KDF2BytesGenerator;
+import org.bouncycastle.crypto.params.HKDFParameters;
 import org.bouncycastle.crypto.params.KDFParameters;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
@@ -43,6 +45,8 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 
 /**
  * The KTS ciphers' KDF derivations against BouncyCastle, over all eleven KDF
@@ -124,6 +128,7 @@ public class KtsKdfAgreementTest
     }
 
     /** For driving BouncyCastle's own Cipher — BC's spec type, not ours. */
+    // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
     private static org.bouncycastle.jcajce.spec.KTSParameterSpec bcSpec(AlgorithmIdentifier kdf, byte[] otherInfo)
     {
         return new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AESWRAP", 256, otherInfo)
@@ -192,9 +197,9 @@ public class KtsKdfAgreementTest
         byte[] priv = kp.getPrivate().getEncoded();
         java.security.KeyFactory bcKf = java.security.KeyFactory.getInstance("ML-KEM-768", BC);
         java.security.PublicKey bcPub =
-                bcKf.generatePublic(new java.security.spec.X509EncodedKeySpec(pub));
+                bcKf.generatePublic(new X509EncodedKeySpec(pub));
         java.security.PrivateKey bcPriv =
-                bcKf.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(priv));
+                bcKf.generatePrivate(new PKCS8EncodedKeySpec(priv));
 
         int driven = 0;
         for (Object[] row : kdfs())
@@ -301,9 +306,9 @@ public class KtsKdfAgreementTest
 
             byte[] ours = KtsKdf.derive(jsl, KtsKdf.Kind.HKDF, names[i], z, info, outLen);
             byte[] theirs = new byte[outLen];
-            org.bouncycastle.crypto.generators.HKDFBytesGenerator g =
-                    new org.bouncycastle.crypto.generators.HKDFBytesGenerator(digests[i]);
-            g.init(new org.bouncycastle.crypto.params.HKDFParameters(z, null, info));
+            HKDFBytesGenerator g =
+                    new HKDFBytesGenerator(digests[i]);
+            g.init(new HKDFParameters(z, null, info));
             g.generateBytes(theirs, 0, outLen);
             Assertions.assertTrue(Arrays.areEqual(ours, theirs), "HKDF-" + names[i] + " diverged from BC");
         }

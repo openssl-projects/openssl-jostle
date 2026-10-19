@@ -12,6 +12,7 @@
 package org.openssl.jostle.test.util;
 
 import org.junit.jupiter.api.Assertions;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.spec.GCMParameterSpec;
@@ -27,6 +28,8 @@ import java.security.spec.PSSParameterSpec;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.security.spec.DSAParameterSpec;
+import javax.crypto.spec.DHParameterSpec;
 
 /**
  * Drives one registered {@code AlgorithmParameters} name, for both providers'
@@ -265,13 +268,13 @@ public final class AlgorithmParametersSurfaceDriver
             return dhSpec;
         }
 
-        String jsl = org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME;
+        String jsl = JostleProvider.PROVIDER_NAME;
         AlgorithmParameterGenerator g = AlgorithmParameterGenerator.getInstance(family, jsl);
         g.init(dsa ? 2048 : 1024);
         AlgorithmParameters p = g.generateParameters();
         AlgorithmParameterSpec spec = dsa
-                ? p.getParameterSpec(java.security.spec.DSAParameterSpec.class)
-                : p.getParameterSpec(javax.crypto.spec.DHParameterSpec.class);
+                ? p.getParameterSpec(DSAParameterSpec.class)
+                : p.getParameterSpec(DHParameterSpec.class);
 
         if (dsa)
         {

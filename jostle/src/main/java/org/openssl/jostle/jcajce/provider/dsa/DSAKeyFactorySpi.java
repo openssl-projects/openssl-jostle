@@ -20,12 +20,14 @@ import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.ASN1Encoder;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 
 import java.math.BigInteger;
 import java.security.Key;
 import java.security.KeyFactorySpi;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.interfaces.DSAParams;
 import java.security.spec.DSAPrivateKeySpec;
 import java.security.spec.DSAPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
@@ -180,7 +182,7 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
             }
             if (DSAPublicKeySpec.class.isAssignableFrom(keySpec))
             {
-                java.security.interfaces.DSAParams params = pub.getParams();
+                DSAParams params = pub.getParams();
                 return keySpec.cast(new DSAPublicKeySpec(
                         pub.getY(), params.getP(), params.getQ(), params.getG()));
             }
@@ -195,7 +197,7 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
             }
             if (DSAPrivateKeySpec.class.isAssignableFrom(keySpec))
             {
-                java.security.interfaces.DSAParams params = priv.getParams();
+                DSAParams params = priv.getParams();
                 return keySpec.cast(new DSAPrivateKeySpec(
                         priv.getX(), params.getP(), params.getQ(), params.getG()));
             }
@@ -210,8 +212,8 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof JODSAPublicKey || key instanceof JODSAPrivateKey)
         {
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.

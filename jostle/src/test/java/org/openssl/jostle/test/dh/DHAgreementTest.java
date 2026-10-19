@@ -226,6 +226,7 @@ public class DHAgreementTest
         }
         else
         {
+            // UserKeyingMaterialSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             ka.init(bcPriv, new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm));
         }
         ka.doPhase(bcPeer, true);

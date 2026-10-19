@@ -11,8 +11,12 @@
 
 package org.openssl.jostle.jcajce.provider.bcfks;
 
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.crypto.util.PBKDF2Config;
+import org.bouncycastle.crypto.util.ScryptConfig;
 import org.junit.jupiter.api.Assertions;
 import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
+import org.openssl.jostle.util.asn1.Der;
 
 import java.security.Key;
 import java.security.KeyPair;
@@ -51,6 +55,7 @@ public final class BcFKSWriterOptions
      */
     public interface ConfigureBc
     {
+        // BCFKSLoadStoreParameter is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder apply(
                 org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder builder);
     }
@@ -153,7 +158,7 @@ public final class BcFKSWriterOptions
                         org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder b)
                 {
                     return b.withStorePBKDFConfig(
-                            new org.bouncycastle.crypto.util.PBKDF2Config.Builder()
+                            new PBKDF2Config.Builder()
                                     .withIterationCount(2048).withPRF(bcPrf(prf)).build());
                 }
             }));
@@ -174,22 +179,22 @@ public final class BcFKSWriterOptions
                     org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder b)
             {
                 return b.withStorePBKDFConfig(
-                        new org.bouncycastle.crypto.util.ScryptConfig.Builder(1024, 8, 1).build());
+                        new ScryptConfig.Builder(1024, 8, 1).build());
             }
         }));
         return t;
     }
 
     /** Our PRF name to BouncyCastle's AlgorithmIdentifier constant for the same PRF. */
-    static org.bouncycastle.asn1.x509.AlgorithmIdentifier bcPrf(
+    static AlgorithmIdentifier bcPrf(
             BCFKSLoadStoreParameter.PBKDF2Config.PRF prf)
     {
         switch (prf)
         {
         case SHA512:
-            return org.bouncycastle.crypto.util.PBKDF2Config.PRF_SHA512;
+            return PBKDF2Config.PRF_SHA512;
         case SHA3_512:
-            return org.bouncycastle.crypto.util.PBKDF2Config.PRF_SHA3_512;
+            return PBKDF2Config.PRF_SHA3_512;
         default:
             return Assertions.fail("no BouncyCastle PRF constant for " + prf);
         }
@@ -314,9 +319,9 @@ public final class BcFKSWriterOptions
     /** A well-formed {@code EncryptedPrivateKeyInfo}; the shape is all that is checked. */
     static byte[] protectedPrivateKeyBytes()
     {
-        return org.openssl.jostle.util.asn1.Der.encryptedPrivateKeyInfo(
-                org.openssl.jostle.util.asn1.Der.algorithmIdentifier("1.2.840.113549.1.5.13",
-                        org.openssl.jostle.util.asn1.Der.nullValue()),
+        return Der.encryptedPrivateKeyInfo(
+                Der.algorithmIdentifier("1.2.840.113549.1.5.13",
+                        Der.nullValue()),
                 new byte[32]);
     }
 

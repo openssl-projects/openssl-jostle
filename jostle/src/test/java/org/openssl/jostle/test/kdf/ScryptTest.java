@@ -96,6 +96,7 @@ public class ScryptTest
         SecretKeyFactory kfBc = SecretKeyFactory.getInstance("SCRYPT", BouncyCastleProvider.PROVIDER_NAME);
 
         SecretKey joKey = kfJostle.generateSecret(new ScryptKeySpec(passphrase, salt, 2, 1, 1, 512));
+        // ScryptKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         SecretKey bcKey = kfBc.generateSecret(new org.bouncycastle.jcajce.spec.ScryptKeySpec(passphrase, salt, 2, 1, 1, 512));
 
         Assertions.assertArrayEquals(joKey.getEncoded(), bcKey.getEncoded(), "SCRYPT");
@@ -119,7 +120,7 @@ public class ScryptTest
         org.bouncycastle.jcajce.spec.ScryptKeySpec foreign =
                 new org.bouncycastle.jcajce.spec.ScryptKeySpec(passphrase, salt, n, r, p, 512);
 
-        java.security.spec.InvalidKeySpecException e = Assertions.assertThrows(
+        InvalidKeySpecException e = Assertions.assertThrows(
                 java.security.spec.InvalidKeySpecException.class, () -> kfJostle.generateSecret(foreign));
         Assertions.assertTrue(e.getMessage().contains("org.openssl.jostle.jcajce.spec.ScryptKeySpec"),
                 "message must name the Jostle class: " + e.getMessage());

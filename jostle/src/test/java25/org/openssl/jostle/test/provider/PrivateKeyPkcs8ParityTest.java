@@ -312,7 +312,9 @@ public class PrivateKeyPkcs8ParityTest
             Assertions.assertNotNull(expanded, alg + ": no expanded private data to share");
             assertCell(alg + " (expanded)", alg,
                     new MLDSAPrivateKeySpec(MLDSAParameterSpec.fromName(alg), expanded, null),
+                    // MLDSAPrivateKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                     new org.bouncycastle.jcajce.spec.MLDSAPrivateKeySpec(
+                            // MLDSAParameterSpec: BouncyCastle's is qualified, jostle's is imported
                             org.bouncycastle.jcajce.spec.MLDSAParameterSpec.fromName(alg), expanded, null));
         }
 
@@ -324,7 +326,9 @@ public class PrivateKeyPkcs8ParityTest
             Assertions.assertNotNull(expanded, alg + ": no expanded private data to share");
             assertCell(alg + " (expanded)", alg,
                     new MLKEMPrivateKeySpec(MLKEMParameterSpec.fromName(alg), expanded, null),
+                    // MLKEMPrivateKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                     new org.bouncycastle.jcajce.spec.MLKEMPrivateKeySpec(
+                            // MLKEMParameterSpec: BouncyCastle's is qualified, jostle's is imported
                             org.bouncycastle.jcajce.spec.MLKEMParameterSpec.fromName(alg), expanded, null));
         }
     }

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.test.TestUtil;
 
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
@@ -113,7 +114,7 @@ final class FIPSTestUtil
     static boolean moduleServesSignature(String name)
     {
         return FIPSNISelector.OpenSSLFIPSNI.canFetch(
-                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_SIGNATURE, name) != 0;
+                OpenSSLFIPSNI.OP_SIGNATURE, name) != 0;
     }
 
     /**
@@ -128,7 +129,7 @@ final class FIPSTestUtil
     static boolean moduleServesKeyMgmt(String name)
     {
         return FIPSNISelector.OpenSSLFIPSNI.canFetch(
-                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_KEYMGMT, name) != 0;
+                OpenSSLFIPSNI.OP_KEYMGMT, name) != 0;
     }
 
     /**
@@ -416,7 +417,7 @@ final class FIPSTestUtil
     static boolean moduleServesTripleDes()
     {
         return FIPSNISelector.OpenSSLFIPSNI.canFetch(
-                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_CIPHER, "DES-EDE3-CBC") != 0;
+                OpenSSLFIPSNI.OP_CIPHER, "DES-EDE3-CBC") != 0;
     }
 
     /**
@@ -430,7 +431,7 @@ final class FIPSTestUtil
     static boolean moduleServesCipher(String evpName)
     {
         return FIPSNISelector.OpenSSLFIPSNI.canFetch(
-                org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI.OP_CIPHER, evpName) != 0;
+                OpenSSLFIPSNI.OP_CIPHER, evpName) != 0;
     }
 
     /**

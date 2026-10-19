@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -99,11 +100,11 @@ public class CbcAutoIvColdCacheTest
         // property above is not diluted by a second test warming the JVM:
         // a tampered ciphertext must not decrypt back to the plaintext
         // (NoPadding CBC decrypts without error but diverges).
-        byte[] tampered = org.openssl.jostle.util.Arrays.clone(ct);
+        byte[] tampered = Arrays.clone(ct);
         tampered[0] ^= (byte) 0x01;
         Cipher bcDec2 = Cipher.getInstance(CBC, BouncyCastleProvider.PROVIDER_NAME);
         bcDec2.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(iv));
-        Assertions.assertFalse(org.openssl.jostle.util.Arrays.areEqual(msg, bcDec2.doFinal(tampered)),
+        Assertions.assertFalse(Arrays.areEqual(msg, bcDec2.doFinal(tampered)),
                 "tampered ciphertext must not round-trip");
     }
 }

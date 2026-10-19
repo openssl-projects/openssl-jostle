@@ -22,6 +22,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.CertificateParsingException;
+import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
@@ -224,7 +225,7 @@ public final class X509FactoryRefusalCells
             }
         });
         withProperty(CONTAINER_PROP, String.valueOf(crl.length), () ->
-                Assertions.assertArrayEquals(crl, ((java.security.cert.X509CRL) cf.generateCRL(in(crl))).getEncoded()));
+                Assertions.assertArrayEquals(crl, ((X509CRL) cf.generateCRL(in(crl))).getEncoded()));
         withProperty(CONTAINER_PROP, String.valueOf(crl.length - 1), () ->
         {
             CRLException e = Assertions.assertThrows(CRLException.class, () -> cf.generateCRL(in(crl)));
@@ -275,7 +276,7 @@ public final class X509FactoryRefusalCells
                 in(X509Fixtures.certificate(fits, null, null)))).getNonCriticalExtensionOIDs());
         Assertions.assertEquals(fits, ((X509Certificate) cf.generateCertificate(
                 in(X509Fixtures.certificate(null, fits, null)))).getSigAlgOID());
-        Assertions.assertEquals(fits, ((java.security.cert.X509CRL) cf.generateCRL(
+        Assertions.assertEquals(fits, ((X509CRL) cf.generateCRL(
                 in(X509Fixtures.crl(fits)))).getSigAlgOID());
         Assertions.assertNotNull(cf.generateCertificate(in(X509Fixtures.certificate(null, null, fits))));
 

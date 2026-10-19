@@ -56,7 +56,9 @@ public class KemExtractLengthTest
 
             KeyPair theirs = KeyPairGenerator.getInstance(name, bc).generateKeyPair();
             KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", bc);
+            // KEMGenerateSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             bcGen.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec(theirs.getPublic(), "AES", 256));
+            // SecretKeyWithEncapsulation is qualified where BouncyCastle's is meant: jostle's of that name is imported
             byte[] bcEnc = ((org.bouncycastle.jcajce.SecretKeyWithEncapsulation) bcGen.generateKey())
                     .getEncapsulation();
 
@@ -70,6 +72,7 @@ public class KemExtractLengthTest
 
                 // BouncyCastle's half, measured live.
                 KeyGenerator x = KeyGenerator.getInstance("ML-KEM", bc);
+                // KEMExtractSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 x.init(new org.bouncycastle.jcajce.spec.KEMExtractSpec(theirs.getPrivate(),
                         Arrays.copyOf(bcEnc, bcEnc.length + delta), "AES", 256));
                 Assertions.assertThrows(IllegalArgumentException.class, x::generateKey, "BC " + name);

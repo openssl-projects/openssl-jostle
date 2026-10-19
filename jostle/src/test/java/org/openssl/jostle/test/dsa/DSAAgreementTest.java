@@ -31,6 +31,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.interfaces.DSAPublicKey;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -468,7 +469,7 @@ public class DSAAgreementTest
 
     private static DSAParameterSpec domainOf(KeyPair pair)
     {
-        java.security.interfaces.DSAPublicKey pub = (java.security.interfaces.DSAPublicKey) pair.getPublic();
+        DSAPublicKey pub = (DSAPublicKey) pair.getPublic();
         return new DSAParameterSpec(pub.getParams().getP(), pub.getParams().getQ(), pub.getParams().getG());
     }
 

@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.openssl.jostle.jcajce.PKCS12LoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.io.ByteArrayInputStream;
@@ -42,6 +43,7 @@ import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Date;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Cross-validates Jostle's PKCS#12 KeyStore against BouncyCastle: for every
@@ -440,11 +442,11 @@ public class KSServiceAgreementTest
     {
         byte[] k = new byte[len];
         new java.security.SecureRandom().nextBytes(k);
-        return new javax.crypto.spec.SecretKeySpec(k, algorithm);
+        return new SecretKeySpec(k, algorithm);
     }
 
     private static byte[] storeSecrets(KeyStore ks, javax.crypto.SecretKey[] keys,
-                                       org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm form)
+                                       PKCS12LoadStoreParameter.SecretKeyBagForm form)
         throws Exception
     {
         ks.load(null, null);
@@ -459,7 +461,7 @@ public class KSServiceAgreementTest
         }
         else
         {
-            ks.store(new org.openssl.jostle.jcajce.PKCS12LoadStoreParameter(out,
+            ks.store(new PKCS12LoadStoreParameter(out,
                     new KeyStore.PasswordProtection(SK_PASSWORD), form));
         }
         return out.toByteArray();
@@ -549,7 +551,7 @@ public class KSServiceAgreementTest
         java.security.Provider bc = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME);
         java.security.Provider[] before = Security.getProviders();
         byte[] jslFile = storeSecrets(KeyStore.getInstance("PKCS12", jsl), keys,
-                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
+                PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
         byte[] sunFile = storeSecrets(sunKeyStore(), keys, null);
         if (jdkFeature() < 17)
         {
@@ -655,7 +657,7 @@ public class KSServiceAgreementTest
     {
         javax.crypto.SecretKey[] keys = sunStorable(supportedKeys());
         byte[] jslFile = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys,
-                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
+                PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
         assertSunReadsLikeItsOwn(jslFile, keys, "JSL(SUNJCE)->SUN");
     }
 
@@ -680,9 +682,9 @@ public class KSServiceAgreementTest
                 KeyStore.getInstance(BC_READABLE_TYPES[0], BouncyCastleProvider.PROVIDER_NAME), keys, null)),
                 SK_PASSWORD);
         out = new ByteArrayOutputStream();
-        jsl.store(new org.openssl.jostle.jcajce.PKCS12LoadStoreParameter(out,
+        jsl.store(new PKCS12LoadStoreParameter(out,
                 new KeyStore.PasswordProtection(SK_PASSWORD),
-                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE));
+                PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE));
         assertSunReadsLikeItsOwn(out.toByteArray(), keys, "BC->JSL(SUNJCE)->SUN");
     }
 
@@ -718,7 +720,7 @@ public class KSServiceAgreementTest
     {
         javax.crypto.SecretKey[] keys = {secret("HmacSHA256", 32)};
         byte[] p12 = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys,
-                org.openssl.jostle.jcajce.PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
+                PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
         String before = System.getProperty(BC_ALLOW_SUN);
         try
         {

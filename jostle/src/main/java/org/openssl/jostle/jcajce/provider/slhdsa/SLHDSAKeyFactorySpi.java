@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.interfaces.SLHDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.SLHDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
@@ -314,8 +315,8 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
     {
         if (key instanceof SLHDSAPrivateKey || key instanceof SLHDSAPublicKey)
         {
-            org.openssl.jostle.jcajce.spec.PKEYKeySpec s =
-                    ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec();
+            PKEYKeySpec s =
+                    ((OSSLKey) key).getSpec();
             // INSTANCE check only, deliberately — no library half here.
             // translateKey never had one, and for anything a provider made the
             // instance check subsumes it: same instance implies same library.

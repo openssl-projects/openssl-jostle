@@ -84,6 +84,7 @@ public class AEADParameterSpecRegressionTest
     {
         for (String xform : XFORMS)
         {
+            // AEADParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             org.bouncycastle.jcajce.spec.AEADParameterSpec bcSpec =
                     new org.bouncycastle.jcajce.spec.AEADParameterSpec(nonce(), 128);
 

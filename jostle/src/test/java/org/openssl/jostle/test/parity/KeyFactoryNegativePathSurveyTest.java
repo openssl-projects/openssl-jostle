@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import javax.crypto.spec.DESKeySpec;
 
 /**
  * MT-31 Group B, KeyFactory: 35 names across 10 SPI classes, compared against
@@ -189,9 +190,9 @@ public class KeyFactoryNegativePathSurveyTest
                 case WRONG_SPEC_TYPE_PUBLIC:
                     // A KeySpec class NO KeyFactory serves - DESKeySpec is a
                     // KeySpec, and no asymmetric factory accepts one.
-                    return kf.generatePublic(new javax.crypto.spec.DESKeySpec(new byte[8])).getEncoded();
+                    return kf.generatePublic(new DESKeySpec(new byte[8])).getEncoded();
                 case WRONG_SPEC_TYPE_PRIVATE:
-                    return kf.generatePrivate(new javax.crypto.spec.DESKeySpec(new byte[8])).getEncoded();
+                    return kf.generatePrivate(new DESKeySpec(new byte[8])).getEncoded();
                 case UNDERSIZED_RSA_MODULUS:
                     return kf.generatePublic(new RSAPublicKeySpec(
                             java.math.BigInteger.valueOf(3233), java.math.BigInteger.valueOf(17))).getEncoded();
@@ -222,7 +223,7 @@ public class KeyFactoryNegativePathSurveyTest
                 case GET_KEY_SPEC_UNSUPPORTED_CLASS:
                 {
                     Object o = kf.getKeySpec(kf.generatePublic(new X509EncodedKeySpec(pub)),
-                            javax.crypto.spec.DESKeySpec.class);
+                            DESKeySpec.class);
                     return o == null ? null : new byte[0];
                 }
                 case GET_KEY_SPEC_NULL_KEY:

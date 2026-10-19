@@ -16,10 +16,12 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.certpath.CertPathNI;
+import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.security.Security;
@@ -67,7 +69,7 @@ public class CertPathOpsTest
 {
     private final CertPathNI ni = NISelector.CertPathNI;
     private final OperationsTestNI operationsTestNI =
-            org.openssl.jostle.test.crypto.TestNISelector.getOperationsTestNI();
+            TestNISelector.getOperationsTestNI();
 
     @BeforeAll
     public static void beforeAll()
@@ -285,7 +287,7 @@ public class CertPathOpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
@@ -307,7 +309,7 @@ public class CertPathOpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
@@ -347,7 +349,7 @@ public class CertPathOpsTest
         // carries no such points BY CONSTRUCTION — it receives segments the
         // caller already copied, so there is no load to fail. Without this
         // the cell passes on the JNI leg and fails on the FFM one.
-        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
         Assertions.assertEquals(0, new Path().verify(), "control");
         try

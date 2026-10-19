@@ -27,6 +27,7 @@ import org.openssl.jostle.util.Arrays;
 
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class BridgeRandLimitTest
 {
@@ -286,8 +287,8 @@ public class BridgeRandLimitTest
 
     public static class CountingRandSource implements RandSource
     {
-        final java.util.concurrent.atomic.AtomicInteger calls =
-                new java.util.concurrent.atomic.AtomicInteger();
+        final AtomicInteger calls =
+                new AtomicInteger();
         private final SecureRandom random = new SecureRandom();
 
         @Override

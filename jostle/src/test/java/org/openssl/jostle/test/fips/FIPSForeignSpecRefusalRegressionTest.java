@@ -56,6 +56,7 @@ public class FIPSForeignSpecRefusalRegressionTest
         RANDOM.nextBytes(ikm);
         byte[] salt = new byte[16];
         RANDOM.nextBytes(salt);
+        // HKDFParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.HKDFParameterSpec bcSpec =
                 new org.bouncycastle.jcajce.spec.HKDFParameterSpec(ikm, salt, null, 32);
 

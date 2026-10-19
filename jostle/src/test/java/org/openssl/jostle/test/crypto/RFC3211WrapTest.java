@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.wrap.RFC3211WrapCipherSpi;
 import org.openssl.jostle.test.util.Rfc3211WrapFamilies;
 import org.openssl.jostle.util.Arrays;
 
@@ -277,7 +278,7 @@ public class RFC3211WrapTest
     public void aNullProviderIsRefusedAtConstruction()
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new org.openssl.jostle.jcajce.provider.wrap.RFC3211WrapCipherSpi(
+                () -> new RFC3211WrapCipherSpi(
                         "AES", 16, new int[]{16, 24, 32}, null));
         Assertions.assertEquals("RFC3211WrapCipherSpi requires the provider it belongs to",
                 e.getMessage());

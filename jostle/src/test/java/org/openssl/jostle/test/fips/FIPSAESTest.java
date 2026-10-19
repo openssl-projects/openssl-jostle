@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.test.crypto.CCMCells;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
+import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.BadPaddingException;
@@ -477,7 +478,7 @@ public class FIPSAESTest
             byte[] out = dec.doFinal(tampered);
             // Padding may coincidentally validate; if so, the plaintext must
             // still not equal the original message.
-            Assertions.assertFalse(org.openssl.jostle.util.Arrays.areEqual(m2, out),
+            Assertions.assertFalse(Arrays.areEqual(m2, out),
                     "tampered ciphertext that didn't throw still must not round-trip");
         }
         catch (BadPaddingException expected)

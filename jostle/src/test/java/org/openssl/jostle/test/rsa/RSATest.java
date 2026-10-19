@@ -11,6 +11,10 @@
 
 package org.openssl.jostle.test.rsa;
 
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,6 +37,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
@@ -1756,18 +1761,18 @@ public class RSATest
 
         // Re-wrap the same key bits under the id-RSASSA-PSS OID (params absent),
         // the form TLS rsa_pss_pss_* certificates carry.
-        org.bouncycastle.asn1.x509.SubjectPublicKeyInfo spki =
-                org.bouncycastle.asn1.x509.SubjectPublicKeyInfo.getInstance(bcKp.getPublic().getEncoded());
-        byte[] pssPub = new org.bouncycastle.asn1.x509.SubjectPublicKeyInfo(
-                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                        org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.id_RSASSA_PSS),
+        SubjectPublicKeyInfo spki =
+                SubjectPublicKeyInfo.getInstance(bcKp.getPublic().getEncoded());
+        byte[] pssPub = new SubjectPublicKeyInfo(
+                new AlgorithmIdentifier(
+                        PKCSObjectIdentifiers.id_RSASSA_PSS),
                 spki.getPublicKeyData().getBytes()).getEncoded();
 
-        org.bouncycastle.asn1.pkcs.PrivateKeyInfo pki =
-                org.bouncycastle.asn1.pkcs.PrivateKeyInfo.getInstance(bcKp.getPrivate().getEncoded());
-        byte[] pssPriv = new org.bouncycastle.asn1.pkcs.PrivateKeyInfo(
-                new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                        org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.id_RSASSA_PSS),
+        PrivateKeyInfo pki =
+                PrivateKeyInfo.getInstance(bcKp.getPrivate().getEncoded());
+        byte[] pssPriv = new PrivateKeyInfo(
+                new AlgorithmIdentifier(
+                        PKCSObjectIdentifiers.id_RSASSA_PSS),
                 pki.parsePrivateKey()).getEncoded();
 
         KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
@@ -1778,8 +1783,8 @@ public class RSATest
         Assertions.assertEquals(((RSAPublicKey) bcKp.getPublic()).getModulus(),
                 ((RSAPublicKey) jslPub).getModulus(), "public modulus differs after import");
         Assertions.assertEquals(
-                ((java.security.interfaces.RSAPrivateKey) bcKp.getPrivate()).getModulus(),
-                ((java.security.interfaces.RSAPrivateKey) jslPriv).getModulus(),
+                ((RSAPrivateKey) bcKp.getPrivate()).getModulus(),
+                ((RSAPrivateKey) jslPriv).getModulus(),
                 "private modulus differs after import");
 
         // Round trip: the re-encoded key must carry id-RSASSA-PSS again, byte
@@ -1843,10 +1848,10 @@ public class RSATest
 
         // Strict PKCS#8 parse — would throw on a traditional PKCS#1 RSAPrivateKey
         // (its second SEQUENCE element is the modulus INTEGER, not an AlgorithmIdentifier).
-        org.bouncycastle.asn1.pkcs.PrivateKeyInfo pki =
-                org.bouncycastle.asn1.pkcs.PrivateKeyInfo.getInstance(encoded);
+        PrivateKeyInfo pki =
+                PrivateKeyInfo.getInstance(encoded);
         Assertions.assertEquals(
-                org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers.rsaEncryption,
+                PKCSObjectIdentifiers.rsaEncryption,
                 pki.getPrivateKeyAlgorithm().getAlgorithm(),
                 "PKCS#8 privateKeyAlgorithm should be rsaEncryption");
 
@@ -1854,8 +1859,8 @@ public class RSATest
         KeyFactory kf = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         PrivateKey roundTripped = kf.generatePrivate(new PKCS8EncodedKeySpec(encoded));
         Assertions.assertEquals(
-                ((java.security.interfaces.RSAPrivateKey) priv).getModulus(),
-                ((java.security.interfaces.RSAPrivateKey) roundTripped).getModulus());
+                ((RSAPrivateKey) priv).getModulus(),
+                ((RSAPrivateKey) roundTripped).getModulus());
     }
 
     private static byte[] randomMessage(SecureRandom sr, int len)

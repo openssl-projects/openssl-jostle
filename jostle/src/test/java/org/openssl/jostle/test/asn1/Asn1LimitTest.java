@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.Asn1TrailingDataException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
@@ -150,6 +151,7 @@ public class Asn1LimitTest
     {
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
+        // MLDSAParameterSpec is qualified where jostle's is meant: BouncyCastle's of that name is imported
         keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
         KeyPair keyPair = keyGen.generateKeyPair();
 
@@ -281,8 +283,8 @@ public class Asn1LimitTest
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("Ed25519", JostleProvider.PROVIDER_NAME);
         KeyPair keyPair = keyGen.generateKeyPair();
 
-        org.openssl.jostle.jcajce.interfaces.OSSLKey privateKey =
-                (org.openssl.jostle.jcajce.interfaces.OSSLKey) keyPair.getPrivate();
+        OSSLKey privateKey =
+                (OSSLKey) keyPair.getPrivate();
 
         long asn1Ref = TestNISelector.Asn1NI.allocate();
         try
@@ -793,7 +795,7 @@ public class Asn1LimitTest
     public void encodePrivateKey_seedOnly_seedlessKeyRefusedTyped() throws Exception
     {
         MLDSAPrivateKey key = seedlessMldsaKey();
-        long ref = ((org.openssl.jostle.jcajce.interfaces.OSSLKey) key).getSpec().getReference();
+        long ref = ((OSSLKey) key).getSpec().getReference();
         long asn1Ref = TestNISelector.Asn1NI.allocate();
         try
         {
@@ -829,7 +831,7 @@ public class Asn1LimitTest
     @Test
     public void getData_nullOutputGivesLength_andARepeatGivesTheSameBytes() throws Exception
     {
-        PKEYKeySpec spec = ((org.openssl.jostle.jcajce.interfaces.OSSLKey) generateMldsaKeyPair().getPrivate())
+        PKEYKeySpec spec = ((OSSLKey) generateMldsaKeyPair().getPrivate())
                 .getSpec();
         long asn1Ref = TestNISelector.Asn1NI.allocate();
         try

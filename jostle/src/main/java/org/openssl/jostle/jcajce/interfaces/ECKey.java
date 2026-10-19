@@ -19,6 +19,7 @@ import java.security.Key;
  * from multiple providers (SunEC, BC, Jostle) can dispatch on
  * Jostle-typed keys without picking up other providers' implementations.
  */
+// ECKey is qualified where the JDK's is meant: jostle's of that name is declared here
 public interface ECKey extends Key, java.security.interfaces.ECKey
 {
 }

@@ -29,6 +29,8 @@ import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
 import java.util.Map;
+import java.security.spec.NamedParameterSpec;
+import java.util.Locale;
 
 public class EdDSAKeyPairGenerator extends KeyPairGenerator
 {
@@ -167,9 +169,9 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
         {
             askedName = ((EdDSAParameterSpec) params).getName();
         }
-        else if (params instanceof java.security.spec.NamedParameterSpec)
+        else if (params instanceof NamedParameterSpec)
         {
-            askedName = ((java.security.spec.NamedParameterSpec) params).getName();
+            askedName = ((NamedParameterSpec) params).getName();
         }
         else
         {
@@ -187,7 +189,7 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
         OSSLKeyType newType = paramToTypeMap.get(askedName);
         if (newType == null)
         {
-            newType = paramToTypeMap.get(askedName.toUpperCase(java.util.Locale.ROOT));
+            newType = paramToTypeMap.get(askedName.toUpperCase(Locale.ROOT));
         }
 
         if (newType == null)

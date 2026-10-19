@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.security.spec.AlgorithmParameterSpec;
 
 /**
  * MT-31 Group B, KeyGenerator: 14 names across 5 SPI classes.
@@ -202,7 +203,7 @@ public class KeyGeneratorNegativePathSurveyTest
                     g.init(new IvParameterSpec(new byte[16]));
                     return null;
                 case NULL_SPEC_INIT:
-                    g.init((java.security.spec.AlgorithmParameterSpec) null);
+                    g.init((AlgorithmParameterSpec) null);
                     return null;
                 case NULL_SECURE_RANDOM_INIT:
                     g.init((SecureRandom) null);

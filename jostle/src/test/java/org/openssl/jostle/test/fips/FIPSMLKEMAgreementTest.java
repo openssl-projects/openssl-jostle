@@ -16,12 +16,17 @@ import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.jcajce.spec.KEMExtractSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
+import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
@@ -41,6 +46,9 @@ import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.SortedSet;
+import java.io.IOException;
+import java.security.spec.AlgorithmParameterSpec;
+import java.util.Locale;
 
 /**
  * Cross-provider agreement for the FIPS provider's ML-KEM surface: JSLFIPS vs
@@ -56,7 +64,7 @@ import java.util.SortedSet;
  */
 public class FIPSMLKEMAgreementTest
 {
-    private static final String FIPS = org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider.PROVIDER_NAME;
+    private static final String FIPS = JostleFIPSProvider.PROVIDER_NAME;
     private static final String JSL = JostleProvider.PROVIDER_NAME;
     private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
 
@@ -81,10 +89,11 @@ public class FIPSMLKEMAgreementTest
     private static final AlgorithmIdentifier KDF3_SHA256 = new AlgorithmIdentifier(
             X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(NISTObjectIdentifiers.id_sha256));
 
-    private static java.security.spec.AlgorithmParameterSpec kts(String provider) throws java.io.IOException
+    private static AlgorithmParameterSpec kts(String provider) throws IOException
     {
         if (BC.equals(provider))
         {
+            // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             return new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AES", 256)
                     .withKdfAlgorithm(KDF3_SHA256).build();
         }
@@ -114,7 +123,7 @@ public class FIPSMLKEMAgreementTest
 
     private static void assumeMlKem()
     {
-        org.junit.jupiter.api.Assumptions.assumeTrue(moduleServesMlKem(),
+        Assumptions.assumeTrue(moduleServesMlKem(),
                 "the loaded FIPS module implements no ML-KEM (3.1.2)");
     }
 
@@ -142,6 +151,7 @@ public class FIPSMLKEMAgreementTest
                                                           byte[] encapsulation) throws Exception
     {
         KeyGenerator g = KeyGenerator.getInstance("ML-KEM", provider);
+        // KEMExtractSpec is qualified where jostle's is meant: BouncyCastle's of that name is imported
         g.init(org.openssl.jostle.jcajce.spec.KEMExtractSpec.builder()
                 .withPrivate(priv)
                 .withEncapsulatedKey(encapsulation)
@@ -173,6 +183,7 @@ public class FIPSMLKEMAgreementTest
             KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", BC);
             bcGen.init(new KEMExtractSpec.Builder(importPrivate(BC, kp.getPrivate()),
                     enc.getEncapsulation(), "AES", 256).withKdfAlgorithm(null).build());
+            // SecretKeyWithEncapsulation is qualified where BouncyCastle's is meant: jostle's of that name is imported
             org.bouncycastle.jcajce.SecretKeyWithEncapsulation viaBc =
                     (org.bouncycastle.jcajce.SecretKeyWithEncapsulation) bcGen.generateKey();
             Assertions.assertTrue(Arrays.areEqual(enc.getEncoded(), viaBc.getEncoded()),
@@ -196,6 +207,7 @@ public class FIPSMLKEMAgreementTest
                     paramSet + ": JSLFIPS could not decapsulate a JSL encapsulation");
 
             KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", BC);
+            // KEMGenerateSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             bcGen.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(
                     importPublic(BC, kp.getPublic()), "AES", 256).withKdfAlgorithm(null).build());
             org.bouncycastle.jcajce.SecretKeyWithEncapsulation fromBc =
@@ -314,7 +326,7 @@ public class FIPSMLKEMAgreementTest
                 {
                     public void drive(String type, String alg) throws Exception
                     {
-                        String n = alg.toUpperCase(java.util.Locale.ROOT);
+                        String n = alg.toUpperCase(Locale.ROOT);
                         KeyPair kp = (n.contains("512") || n.endsWith(".4.4.1")) ? k512
                                 : (n.contains("1024") || n.endsWith(".4.4.3")) ? k1024 : k768;
 
@@ -325,7 +337,7 @@ public class FIPSMLKEMAgreementTest
                             if (!(n.contains("512") || n.contains("768") || n.contains("1024")
                                     || n.contains("2.16.840.1.101.3.4.4.")))
                             {
-                                kpg.initialize(org.openssl.jostle.jcajce.spec.MLKEMParameterSpec.ml_kem_768);
+                                kpg.initialize(MLKEMParameterSpec.ml_kem_768);
                             }
                             Assertions.assertNotNull(kpg.generateKeyPair(), alg);
                         }
@@ -371,7 +383,7 @@ public class FIPSMLKEMAgreementTest
     @Test
     public void sharedSeedYieldsByteEqualKeyEncodings() throws Exception
     {
-        org.junit.jupiter.api.Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768"),
+        Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768"),
                 "the loaded FIPS module implements no ML-KEM (3.1.2)");
         SecureRandom sr = seededRandom("sharedSeedYieldsByteEqualKeyEncodings");
 
@@ -380,13 +392,16 @@ public class FIPSMLKEMAgreementTest
             byte[] seed = new byte[64];
             sr.nextBytes(seed);
 
-            org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey fipsPriv =
-                    (org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey) KeyFactory.getInstance(set, FIPS)
-                            .generatePrivate(new org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec(
-                                    org.openssl.jostle.jcajce.spec.MLKEMParameterSpec.fromName(set), seed));
+            MLKEMPrivateKey fipsPriv =
+                    (MLKEMPrivateKey) KeyFactory.getInstance(set, FIPS)
+                            .generatePrivate(new MLKEMPrivateKeySpec(
+                                    MLKEMParameterSpec.fromName(set), seed));
+            // MLKEMPrivateKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
             org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey bcPriv =
                     (org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey) KeyFactory.getInstance(set, BC)
+                            // MLKEMPrivateKeySpec: BouncyCastle's is qualified, jostle's is imported
                             .generatePrivate(new org.bouncycastle.jcajce.spec.MLKEMPrivateKeySpec(
+                                    // MLKEMParameterSpec: BouncyCastle's is qualified, jostle's is imported
                                     org.bouncycastle.jcajce.spec.MLKEMParameterSpec.fromName(set), seed));
 
             Assertions.assertArrayEquals(bcPriv.getPublicKey().getEncoded(), fipsPriv.getPublicKey().getEncoded(),
@@ -397,10 +412,10 @@ public class FIPSMLKEMAgreementTest
             Assertions.assertArrayEquals(bcPriv.getPrivateData(), fipsPriv.getPrivateData(),
                     set + ": one seed expanded to two different private keys");
 
-            org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey jslPriv =
-                    (org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey) KeyFactory.getInstance(set, JSL)
-                            .generatePrivate(new org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec(
-                                    org.openssl.jostle.jcajce.spec.MLKEMParameterSpec.fromName(set), seed));
+            MLKEMPrivateKey jslPriv =
+                    (MLKEMPrivateKey) KeyFactory.getInstance(set, JSL)
+                            .generatePrivate(new MLKEMPrivateKeySpec(
+                                    MLKEMParameterSpec.fromName(set), seed));
             Assertions.assertArrayEquals(jslPriv.getPrivateKey(true).getEncoded(),
                     fipsPriv.getPrivateKey(true).getEncoded(),
                     set + ": JSLFIPS and JSL encoded one seed differently");

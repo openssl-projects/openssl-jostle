@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Source-level parity guard: a test class whose CODE touches the JSLFIPS
@@ -178,7 +179,7 @@ public class FIPSTestNamingParityTest
     private static List<Path> javaSourcesUnder(Path root)
     {
         final List<Path> out = new ArrayList<Path>();
-        try (java.util.stream.Stream<Path> walk = Files.walk(root))
+        try (Stream<Path> walk = Files.walk(root))
         {
             walk.filter(p -> p.getFileName().toString().endsWith(".java")).forEach(out::add);
         }

@@ -30,6 +30,7 @@ import javax.crypto.SecretKeyFactory;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.function.Supplier;
+import java.security.spec.InvalidKeySpecException;
 
 /**
  * HKDF (RFC 5869) coverage for the native {@code EVP_KDF "HKDF"} surface exposed
@@ -287,7 +288,7 @@ public class HkdfTest
         {
             kf.generateSecret(null);
             Assertions.fail("null KeySpec must be rejected");
-        } catch (java.security.spec.InvalidKeySpecException e)
+        } catch (InvalidKeySpecException e)
         {
             Assertions.assertEquals("unsupported KeySpec null", e.getMessage());
         }
@@ -296,7 +297,7 @@ public class HkdfTest
         {
             kf.generateSecret(new HKDFParameterSpec(null, new byte[4], new byte[4], 32));
             Assertions.fail("null IKM must be rejected");
-        } catch (java.security.spec.InvalidKeySpecException e)
+        } catch (InvalidKeySpecException e)
         {
             Assertions.assertEquals("ikm is null", e.getMessage());
         }
@@ -305,7 +306,7 @@ public class HkdfTest
         {
             kf.generateSecret(new HKDFParameterSpec(new byte[16], null, null, 0));
             Assertions.fail("zero output length must be rejected");
-        } catch (java.security.spec.InvalidKeySpecException e)
+        } catch (InvalidKeySpecException e)
         {
             Assertions.assertEquals("output length must be positive", e.getMessage());
         }
@@ -314,7 +315,7 @@ public class HkdfTest
         {
             kf.generateSecret(new HKDFParameterSpec(new byte[16], null, null, -1));
             Assertions.fail("negative output length must be rejected");
-        } catch (java.security.spec.InvalidKeySpecException e)
+        } catch (InvalidKeySpecException e)
         {
             Assertions.assertEquals("output length must be positive", e.getMessage());
         }
@@ -325,7 +326,7 @@ public class HkdfTest
         {
             kf.generateSecret(new javax.crypto.spec.PBEKeySpec("pwd".toCharArray()));
             Assertions.fail("structurally-incompatible KeySpec must be rejected");
-        } catch (java.security.spec.InvalidKeySpecException e)
+        } catch (InvalidKeySpecException e)
         {
             Assertions.assertTrue(e.getMessage().startsWith("unsupported KeySpec "),
                     "unexpected message: " + e.getMessage());
@@ -354,7 +355,7 @@ public class HkdfTest
         {
             kf.generateSecret(new HKDFParameterSpec(ikm, salt, null, max + 1));
             Assertions.fail("output length past 255 * HashLen must be rejected");
-        } catch (java.security.spec.InvalidKeySpecException e)
+        } catch (InvalidKeySpecException e)
         {
             Assertions.assertTrue(e.getMessage().startsWith("output length exceeds RFC 5869 limit"),
                     "unexpected message: " + e.getMessage());
@@ -377,9 +378,10 @@ public class HkdfTest
         byte[] info = random(sr.nextInt(32), sr);
         int len = 1 + sr.nextInt(96);
 
+        // HKDFParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
         org.bouncycastle.jcajce.spec.HKDFParameterSpec foreign =
                 new org.bouncycastle.jcajce.spec.HKDFParameterSpec(ikm, salt, info, len);
-        java.security.spec.InvalidKeySpecException e = Assertions.assertThrows(
+        InvalidKeySpecException e = Assertions.assertThrows(
                 java.security.spec.InvalidKeySpecException.class, () -> kf.generateSecret(foreign));
         Assertions.assertTrue(e.getMessage().contains("org.openssl.jostle.jcajce.spec.HKDFParameterSpec"),
                 "message must name the Jostle class: " + e.getMessage());

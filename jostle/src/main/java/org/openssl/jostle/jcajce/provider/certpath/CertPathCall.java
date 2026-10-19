@@ -22,6 +22,8 @@ import java.security.cert.CertStore;
 import java.security.cert.CertStoreException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509CRL;
@@ -337,15 +339,15 @@ final class CertPathCall
      *           not whatever JCA order offers; the SPI resolves it once and
      *           reuses it for the CertPath.
      */
-    List<java.security.cert.X509Certificate> builtCertificates(
-            java.security.cert.CertificateFactory cf)
-            throws java.security.cert.CertificateException
+    List<X509Certificate> builtCertificates(
+            CertificateFactory cf)
+            throws CertificateException
     {
-        List<java.security.cert.X509Certificate> out =
-                new ArrayList<java.security.cert.X509Certificate>();
+        List<X509Certificate> out =
+                new ArrayList<X509Certificate>();
         for (byte[] der : builtChain())
         {
-            out.add((java.security.cert.X509Certificate) cf.generateCertificate(
+            out.add((X509Certificate) cf.generateCertificate(
                     new java.io.ByteArrayInputStream(der)));
         }
         return out;

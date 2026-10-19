@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.asn1.Der;
 
@@ -218,6 +219,7 @@ public class BcFKSAgreementTest
                 bcStore.setCertificateEntry("cert", certificate);
                 ByteArrayOutputStream bcOut = new ByteArrayOutputStream();
                 bcStore.store(option.configureBc.apply(
+                        // BCFKSLoadStoreParameter: BouncyCastle's is qualified, jostle's is imported
                         new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(bcOut, password))
                         .build());
 
@@ -614,10 +616,10 @@ public class BcFKSAgreementTest
     {
         char[] password = password();
         BcFKSKeyStoreSpi spi = new BcFKSKeyStoreSpi(jsl,
-                org.openssl.jostle.jcajce.provider.NISelector.KdfNI,
-                org.openssl.jostle.jcajce.provider.NISelector.MemoryHardKdfNI,
-                org.openssl.jostle.jcajce.provider.NISelector.Asn1NI,
-                org.openssl.jostle.jcajce.provider.NISelector.SpecNI);
+                NISelector.KdfNI,
+                NISelector.MemoryHardKdfNI,
+                NISelector.Asn1NI,
+                NISelector.SpecNI);
 
         // getKey on a certificate entry: the JCA contract says null.
         byte[] certificateEntry = BcFKSLimitDriver.forge(jsl, spi, password,

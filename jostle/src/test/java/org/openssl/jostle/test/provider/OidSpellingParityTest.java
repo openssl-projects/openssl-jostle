@@ -19,6 +19,7 @@ import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -104,7 +105,7 @@ public class OidSpellingParityTest
         for (Object key : provider.keySet())
         {
             String k = (String) key;
-            int at = k.toUpperCase(java.util.Locale.ROOT).indexOf(".OID.");
+            int at = k.toUpperCase(Locale.ROOT).indexOf(".OID.");
             if (k.startsWith("Alg.Alias.") && at >= 0 && provider.getProperty(k).matches("\\d+(\\.\\d+)+"))
             {
                 oidValued.add(k + " = " + provider.getProperty(k));

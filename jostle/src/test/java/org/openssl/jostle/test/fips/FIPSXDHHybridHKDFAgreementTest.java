@@ -155,7 +155,9 @@ public class FIPSXDHHybridHKDFAgreementTest
             KeyAgreement ka = KeyAgreement.getInstance(name, fips());
             Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
                     ka.init(kp.getPrivate(),
+                            // HybridValueParameterSpec: BouncyCastle's is qualified, jostle's is imported
                             new org.bouncycastle.jcajce.spec.HybridValueParameterSpec(new byte[16], true,
+                                    // UserKeyingMaterialSpec: BouncyCastle's is qualified, jostle's is imported
                                     new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(info(curve)))),
                     name + ": BC's own HybridValueParameterSpec must be refused typed under JSLFIPS");
         }

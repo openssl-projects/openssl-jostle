@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.xec.XECKeyPairGenerator;
 import org.openssl.jostle.test.multirelease.MultiReleaseOverrides;
 import org.openssl.jostle.util.Arrays;
 
@@ -127,7 +128,7 @@ public class NamedParameterSpecAcceptanceTest
     private static boolean supportLoaded()
     {
         return MultiReleaseOverrides.overrideActive(
-                org.openssl.jostle.jcajce.provider.xec.XECKeyPairGenerator.class,
+                XECKeyPairGenerator.class,
                 "java.security.spec.NamedParameterSpec");
     }
 

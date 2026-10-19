@@ -669,7 +669,7 @@ public class SM4AgreementTest
 
         try {
             Cipher cipher = Cipher.getInstance("SM4/CBC/NoPadding",JostleProvider.PROVIDER_NAME);
-            org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+            DummyParams params = new DummyParams();
             params.init(new byte[16]);
             cipher.init(Cipher.ENCRYPT_MODE, wrongSpec, params);
             Assertions.fail("Should have thrown an exception");
@@ -686,7 +686,7 @@ public class SM4AgreementTest
         cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "SM4"), new IvParameterSpec(new byte[16]));
 
         cipher = Cipher.getInstance("SM4/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
-        org.openssl.jostle.test.crypto.DummyParams params = new org.openssl.jostle.test.crypto.DummyParams();
+        DummyParams params = new DummyParams();
         params.init(new byte[16]);
         cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "SM4"), params);
     }

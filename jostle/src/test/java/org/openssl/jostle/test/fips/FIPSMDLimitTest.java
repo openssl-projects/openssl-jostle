@@ -11,6 +11,7 @@
 package org.openssl.jostle.test.fips;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
@@ -53,7 +54,7 @@ public class FIPSMDLimitTest
         // initialised (allocateDigest needs it). Assumption in @BeforeAll
         // aborts before any test instance is constructed, so the mdNI field
         // initialiser below only runs when the module is present.
-        org.junit.jupiter.api.Assumptions.assumeFalse(TestUtil.skipFipsTests(),
+        Assumptions.assumeFalse(TestUtil.skipFipsTests(),
                 "TEST_FIPS_LIB not set (full path to the FIPS module library)");
         TestUtil.addFipsProvider();
     }

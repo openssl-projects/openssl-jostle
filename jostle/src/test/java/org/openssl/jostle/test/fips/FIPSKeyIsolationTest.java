@@ -11,9 +11,17 @@
 package org.openssl.jostle.test.fips;
 
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.openssl.jostle.jcajce.spec.DHDomainParameterSpec;
+import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
+import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 
+import javax.crypto.interfaces.DHPublicKey;
 import javax.crypto.spec.DHParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -339,16 +347,16 @@ public class FIPSKeyIsolationTest
             // The KTS cipher validates its parameter spec before looking at
             // the key, so a bare init(UNWRAP_MODE, key) fails on the missing
             // spec and never reaches the isolation check.
-            org.openssl.jostle.jcajce.spec.KTSParameterSpec kts =
-                    new org.openssl.jostle.jcajce.spec.KTSParameterSpec.Builder("AES", 256, new byte[16])
-                            .withKdfAlgorithm(new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                    org.bouncycastle.asn1.x9.X9ObjectIdentifiers.id_kdf_kdf3,
-                                    new org.bouncycastle.asn1.x509.AlgorithmIdentifier(
-                                            org.bouncycastle.asn1.nist.NISTObjectIdentifiers.id_sha256)).getEncoded())
+            KTSParameterSpec kts =
+                    new KTSParameterSpec.Builder("AES", 256, new byte[16])
+                            .withKdfAlgorithm(new AlgorithmIdentifier(
+                                    X9ObjectIdentifiers.id_kdf_kdf3,
+                                    new AlgorithmIdentifier(
+                                            NISTObjectIdentifiers.id_sha256)).getEncoded())
                             .build();
             PrivKeyOp mlkemOp = (p, k) ->
                     javax.crypto.Cipher.getInstance("ML-KEM", p)
-                            .init(javax.crypto.Cipher.UNWRAP_MODE, k, kts);
+                            .init(Cipher.UNWRAP_MODE, k, kts);
             assertPrivateIsolatedBothDirections(jslMlKem.getPrivate(), fipsMlKem.getPrivate(), mlkemOp);
 
             // MT-8: the KTS Cipher above was the family's ONLY isolated
@@ -390,7 +398,7 @@ public class FIPSKeyIsolationTest
             KeyPair fipsRsaKem = genKp("RSA", fips, 2048);
             PrivKeyOp rsaKemOp = (p, k) ->
                     javax.crypto.Cipher.getInstance("RSA-KTS-KEM-KWS", p)
-                            .init(javax.crypto.Cipher.UNWRAP_MODE, k, kts);
+                            .init(Cipher.UNWRAP_MODE, k, kts);
             assertPrivateIsolatedBothDirections(jslRsaKem.getPrivate(), fipsRsaKem.getPrivate(), rsaKemOp);
         }
 
@@ -430,8 +438,8 @@ public class FIPSKeyIsolationTest
         //    through the other provider's KeyFactory. Hybrid keys have no
         //    encoding at all, so that advice would be a dead end; the message
         //    names the only remedy that exists.
-        for (org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec hybrid
-                : org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec.all())
+        for (MLXKEMParameterSpec hybrid
+                : MLXKEMParameterSpec.all())
         {
             if (Security.getProvider(fips).getService("KeyPairGenerator", hybrid.getName()) == null)
             {
@@ -477,7 +485,7 @@ public class FIPSKeyIsolationTest
         // produce a working key here, and only the OID assertion catches it.
         // The module's named-group parameters carry q, so they are the cheap
         // source of an approved X9.42 group.
-        DHParameterSpec x942 = ((javax.crypto.interfaces.DHPublicKey) fipsDh.getPublic()).getParams();
+        DHParameterSpec x942 = ((DHPublicKey) fipsDh.getPublic()).getParams();
         Assertions.assertTrue(x942 instanceof DHDomainParameterSpec,
                 "the module's named-group parameters are expected to carry q");
         KeyPair jslX942 = genDhKp(jsl, x942);
@@ -550,7 +558,7 @@ public class FIPSKeyIsolationTest
         javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
         java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 java.security.InvalidAlgorithmParameterException.class,
-                () -> kg.init(org.openssl.jostle.jcajce.spec.KEMGenerateSpec.builder()
+                () -> kg.init(KEMGenerateSpec.builder()
                         .withPublicKey(foreign)
                         .withAlgorithmName("AES")
                         .withKeySizeInBits(keySizeInBits)
@@ -571,7 +579,7 @@ public class FIPSKeyIsolationTest
         throws Exception
     {
         javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
-        kg.init(org.openssl.jostle.jcajce.spec.KEMGenerateSpec.builder()
+        kg.init(KEMGenerateSpec.builder()
                 .withPublicKey(own)
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(keySizeInBits)
@@ -588,7 +596,7 @@ public class FIPSKeyIsolationTest
         javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
         java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
                 java.security.InvalidAlgorithmParameterException.class,
-                () -> kg.init(org.openssl.jostle.jcajce.spec.KEMExtractSpec.builder()
+                () -> kg.init(KEMExtractSpec.builder()
                         .withPrivate(foreign)
                         .withAlgorithmName("AES")
                         .withKeySizeInBits(keySizeInBits)

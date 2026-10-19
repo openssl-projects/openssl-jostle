@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.security.cert.CertificateFactory;
 
 /**
  * Registration is not usability: every service JSLFIPS registers must actually
@@ -467,7 +468,7 @@ public class FIPSServedSurfaceSmokeTest
             case "AlgorithmParameterGenerator":
                 return java.security.AlgorithmParameterGenerator.getInstance(alg, FIPS);
             case "CertificateFactory":
-                return java.security.cert.CertificateFactory.getInstance(alg, FIPS);
+                return CertificateFactory.getInstance(alg, FIPS);
             default:
                 return null;
         }

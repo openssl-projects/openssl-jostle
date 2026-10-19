@@ -29,6 +29,7 @@ import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
+import javax.security.auth.Destroyable;
 
 /**
  * JCE-level tests for the JSL {@code SecretKeyFactory.ARGON2} (RFC 9106).
@@ -254,12 +255,12 @@ public class Argon2Test
         Assertions.assertEquals("RAW", key.getFormat());
         Assertions.assertEquals(32, key.getEncoded().length);
 
-        javax.crypto.interfaces.PBEKey pbe = (javax.crypto.interfaces.PBEKey) key;
+        PBEKey pbe = (PBEKey) key;
         Assertions.assertEquals(3, pbe.getIterationCount(), "Argon2 time cost is the iteration count");
         Assertions.assertArrayEquals(salt, pbe.getSalt());
 
-        ((javax.security.auth.Destroyable) key).destroy();
-        Assertions.assertTrue(((javax.security.auth.Destroyable) key).isDestroyed());
+        ((Destroyable) key).destroy();
+        Assertions.assertTrue(((Destroyable) key).isDestroyed());
         Assertions.assertThrows(IllegalStateException.class, key::getEncoded,
                 "a destroyed key must not hand back material");
     }
@@ -375,6 +376,7 @@ public class Argon2Test
                                    int iterations, int memory, int lanes, int keyBits) throws Exception
     {
         return SecretKeyFactory.getInstance("ARGON2", BC).generateSecret(
+                // Argon2KeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
                 new org.bouncycastle.jcajce.spec.Argon2KeySpec(
                         type, version, password, salt, iterations, memory, lanes, keyBits)).getEncoded();
     }

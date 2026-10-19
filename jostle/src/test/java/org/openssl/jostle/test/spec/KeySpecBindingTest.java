@@ -15,7 +15,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.test.crypto.TestNISelector;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -70,7 +74,7 @@ public class KeySpecBindingTest
      */
     private static PKEYKeySpec unboundSpec() throws Exception
     {
-        KeyPair kp = new org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator(
+        KeyPair kp = new MLKEMKeyPairGenerator(
                 "ML-KEM-768").generateKeyPair();
         return ((OSSLKey) kp.getPublic()).getSpec();
     }
@@ -178,9 +182,9 @@ public class KeySpecBindingTest
      */
     private static PKEYKeySpec boundSpec(Provider p)
     {
-        org.openssl.jostle.jcajce.spec.SpecNI specNI =
-                org.openssl.jostle.test.crypto.TestNISelector.getSpecNI();
+        SpecNI specNI =
+                TestNISelector.getSpecNI();
         return new PKEYKeySpec(specNI, specNI.allocate(),
-                org.openssl.jostle.jcajce.spec.OSSLKeyType.ML_KEM_768, p);
+                OSSLKeyType.ML_KEM_768, p);
     }
 }

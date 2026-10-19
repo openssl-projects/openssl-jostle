@@ -61,7 +61,7 @@ public class KeyAgreementKDFTest
      * (MT-5). These are unit tests of the KDF recurrence itself, so the base
      * provider is the natural choice - the vectors are provider-independent.
      */
-    private static final String JSL = org.openssl.jostle.jcajce.provider.JostleProvider.PROVIDER_NAME;
+    private static final String JSL = JostleProvider.PROVIDER_NAME;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -326,6 +326,7 @@ public class KeyAgreementKDFTest
         }
         else
         {
+            // UserKeyingMaterialSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
             ka.init(priv, new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(ukm));
         }
         ka.doPhase(peer, true);

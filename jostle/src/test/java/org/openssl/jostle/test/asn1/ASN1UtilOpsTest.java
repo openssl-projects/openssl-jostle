@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.OverflowException;
+import org.openssl.jostle.jcajce.provider.UnexpectedPointerChangeException;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
@@ -220,7 +221,7 @@ public class ASN1UtilOpsTest
 
 
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        keyGen.initialize(org.openssl.jostle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44);
+        keyGen.initialize(MLDSAParameterSpec.ml_dsa_44);
         KeyPair keyPair = keyGen.generateKeyPair();
 
         MLDSAPrivateKey privateKey = (MLDSAPrivateKey) keyPair.getPrivate();
@@ -472,7 +473,7 @@ public class ASN1UtilOpsTest
             keyRef = asn1NI.fromPrivateKeyInfo(pkcs8, 0, pkcs8.length);
             Assertions.fail();
         }
-        catch (org.openssl.jostle.jcajce.provider.UnexpectedPointerChangeException e)
+        catch (UnexpectedPointerChangeException e)
         {
             // baseErrorHandler maps JO_UNEXPECTED_POINTER_CHANGE to this
             // typed exception with a fixed message. Pin it — a silent
@@ -506,7 +507,7 @@ public class ASN1UtilOpsTest
             keyRef = asn1NI.fromPublicKeyInfo(x509, 0, x509.length);
             Assertions.fail();
         }
-        catch (org.openssl.jostle.jcajce.provider.UnexpectedPointerChangeException e)
+        catch (UnexpectedPointerChangeException e)
         {
             // baseErrorHandler maps JO_UNEXPECTED_POINTER_CHANGE to this
             // typed exception with a fixed message. Pin it — a silent

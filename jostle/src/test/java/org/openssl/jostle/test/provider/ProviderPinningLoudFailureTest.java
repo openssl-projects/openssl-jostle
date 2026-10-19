@@ -23,6 +23,7 @@ import org.openssl.jostle.jcajce.provider.kdf.KeyAgreementKDF;
 import org.openssl.jostle.jcajce.provider.wrap.UnwrappedKeys;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKTSCipherSpi;
+import org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -160,7 +161,7 @@ public class ProviderPinningLoudFailureTest
         // provider, so both sides live in the unbound realm; a key from the
         // registered provider would be refused by MT-14 instance binding
         // before the wrap path this test exists to drive was ever reached.
-        KeyPair kp = new org.openssl.jostle.jcajce.provider.mlkem.MLKEMKeyPairGenerator(
+        KeyPair kp = new MLKEMKeyPairGenerator(
                 "ML-KEM-768").generateKeyPair();
 
         Probe unbound = new Probe();
