@@ -55,11 +55,13 @@ import java.util.List;
 
 /**
  * JCE-level tests for the JSL {@code CertificateFactory.X.509} SPI
- * ({@code X509CertificateFactorySpi} + {@code JSLKeyX509Certificate}).
+ * ({@code X509CertificateFactorySpi}).
  *
- * <p>The factory delegates the ASN.1 parsing to the JDK "SUN" factory but
- * re-wraps each {@link X509Certificate} so that {@code getPublicKey()} returns
- * a JSL-provider key usable directly in JSL's Signature SPIs. These tests
+ * <p>The factory parses through OpenSSL and builds its own certificate and CRL
+ * objects; {@code getPublicKey()} rebuilds the key through the factory's own
+ * provider from the SubjectPublicKeyInfo, so the key is usable directly in
+ * JSL's Signature SPIs. Comparisons against other providers live in
+ * {@link X509AgreementTest} and {@link X509PemAgreementTest}. These tests
  * confirm:
  * <ol>
  *   <li>the factory resolves against the JSL provider by both "X.509" and the
@@ -639,22 +641,16 @@ public class X509CertificateFactoryTest
         Assertions.assertNotNull(own);
         Assertions.assertNull(own.getCertificateIssuer(),
                 "must be the entry under the CRL's own issuer, not the delegated one");
-
-        // Control: the same bytes through SUN agree, so this pins a contract
-        // rather than our own reading of one.
-        X509CRL sun = (X509CRL) CertificateFactory.getInstance("X.509", "SUN")
-                .generateCRL(new ByteArrayInputStream(der));
-        Assertions.assertNull(sun.getRevokedCertificate(INDIRECT_SERIAL).getCertificateIssuer());
     }
 
-    private static final java.math.BigInteger INDIRECT_SERIAL = java.math.BigInteger.valueOf(4242);
+    static final java.math.BigInteger INDIRECT_SERIAL = java.math.BigInteger.valueOf(4242);
 
     /**
      * A v2 indirect CRL whose two entries share {@link #INDIRECT_SERIAL}, the
      * second delegated to another CA by a certificateIssuer extension. Built
      * with bcprov's ASN.1 layer as test scaffolding only.
      */
-    private static byte[] indirectCrlDer() throws Exception
+    static byte[] indirectCrlDer() throws Exception
     {
         java.security.KeyPairGenerator g =
                 java.security.KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
@@ -716,82 +712,5 @@ public class X509CertificateFactoryTest
         crl.add(new org.bouncycastle.asn1.DERBitString(sig.sign()));
         return new org.bouncycastle.asn1.DERSequence(crl)
                 .getEncoded(org.bouncycastle.asn1.ASN1Encoding.DER);
-    }
-
-    /**
-     * {@code getRevocationReason} is OURS, not the inherited default.
-     *
-     * <p>The base class implementation re-parses {@code getEncoded()} through
-     * {@code sun.security.x509.X509CRLEntryImpl}, so inheriting it would have
-     * the reason read by the JDK while every other field on the entry is read
-     * by OpenSSL — a second parser inside one object, and the exact shape this
-     * whole work removes.
-     *
-     * <p>Swept over the committed PKITS CRL corpus against SUN rather than
-     * pinned to one vector: measured 173 CRLs, 32 comparable entries, four
-     * distinct reason codes, zero disagreements. The vacuity floors matter
-     * because most PKITS CRLs revoke nothing — a corpus walk that found no
-     * reasons at all would otherwise pass.
-     */
-    @Test
-    public void crlEntryRevocationReason_agreesWithSunAcrossTheCorpus() throws Exception
-    {
-        CertificateFactory jsl = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
-        CertificateFactory sun = CertificateFactory.getInstance("X.509", "SUN");
-
-        java.io.File dir = new java.io.File("src/test/resources/pkits/crls");
-        if (!dir.isDirectory())
-        {
-            dir = new java.io.File("jostle/src/test/resources/pkits/crls");
-        }
-        Assertions.assertTrue(dir.isDirectory(), "PKITS CRL corpus not found at " + dir);
-
-        int compared = 0;
-        java.util.Set<String> distinctReasons = new java.util.TreeSet<String>();
-        for (java.io.File f : dir.listFiles())
-        {
-            byte[] der = java.nio.file.Files.readAllBytes(f.toPath());
-            X509CRL ours;
-            X509CRL theirs;
-            try
-            {
-                ours = (X509CRL) jsl.generateCRL(new ByteArrayInputStream(der));
-                theirs = (X509CRL) sun.generateCRL(new ByteArrayInputStream(der));
-            }
-            catch (Exception notACrl)
-            {
-                continue;
-            }
-            java.util.Set<? extends X509CRLEntry> theirEntries = theirs.getRevokedCertificates();
-            if (theirEntries == null)
-            {
-                continue;
-            }
-            for (X509CRLEntry their : theirEntries)
-            {
-                X509CRLEntry our = ours.getRevokedCertificate(their.getSerialNumber());
-                if (our == null)
-                {
-                    // Delegated to another issuer on an indirect CRL, so the
-                    // serial-only overload correctly does not find it here.
-                    continue;
-                }
-                java.security.cert.CRLReason mine = our.getRevocationReason();
-                Assertions.assertEquals(their.getRevocationReason(), mine,
-                        f.getName() + " serial " + their.getSerialNumber());
-                compared++;
-                if (mine != null)
-                {
-                    distinctReasons.add(mine.name());
-                }
-            }
-        }
-
-        Assertions.assertTrue(compared >= 25,
-                "only " + compared + " entries compared — the corpus walk is not reaching them,"
-                        + " and a zero-entry sweep would pass while measuring nothing");
-        Assertions.assertTrue(distinctReasons.size() >= 3,
-                "only " + distinctReasons + " reason codes seen — the sweep must exercise more"
-                        + " than one arm of the enum mapping");
     }
 }

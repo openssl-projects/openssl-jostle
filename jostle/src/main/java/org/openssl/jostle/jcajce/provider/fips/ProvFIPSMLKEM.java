@@ -119,7 +119,7 @@ class ProvFIPSMLKEM
         // SPKI OID aliases (NIST CSOR id-alg-ml-kem-*, RFC 9814; note the .4.4
         // "kems" arc, not the .4.3 "sigAlgs" arc) so a certificate's public key
         // can be re-derived through the JSL KeyFactory keyed on the
-        // SubjectPublicKeyInfo algorithm OID (see JSLKeyX509Certificate).
+        // SubjectPublicKeyInfo algorithm OID (see CertKeys).
         provider.addAlias("KeyFactory", "ML-KEM-512", NISTObjectIdentifiers.id_alg_ml_kem_512);
         provider.addAlias("KeyFactory", "ML-KEM-768", NISTObjectIdentifiers.id_alg_ml_kem_768);
         provider.addAlias("KeyFactory", "ML-KEM-1024", NISTObjectIdentifiers.id_alg_ml_kem_1024);

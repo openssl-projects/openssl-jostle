@@ -46,12 +46,12 @@ import java.util.Date;
 /**
  * PEM input to the X.509 {@code CertificateFactory} — certificates and CRLs,
  * singular and plural, and the negative paths RFC 7468 and the JDK/BC
- * behaviour define.
+ * behaviour define. The same inputs against SUN and BouncyCastle are in
+ * {@link X509PemAgreementTest}.
  */
 public class X509PemInputTest
 {
     private static final String JSL = JostleProvider.PROVIDER_NAME;
-    private static final String SUN = "SUN";
     private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
 
     @BeforeAll
@@ -173,7 +173,7 @@ public class X509PemInputTest
         KeyPair kp = KeyPairGenerator.getInstance("RSA", JSL).generateKeyPair();
         X509Certificate cert = selfSignedCert("Jostle PEM Blank Preamble Test", kp);
         byte[] der = cert.getEncoded();
-        assertParsesLikeSun(utf8("\n" + pem("CERTIFICATE", der)), der);
+        assertParses(utf8("\n" + pem("CERTIFICATE", der)), der);
     }
 
     /** SUN and BC both tolerate prose before the BEGIN line (e.g. an "openssl x509 -text" dump). */
@@ -185,7 +185,7 @@ public class X509PemInputTest
         byte[] der = cert.getEncoded();
         String preamble = "Certificate:\n    Data:\n        Version: 3 (0x2)\n"
                 + "        Serial Number: 1 (0x1)\n";
-        assertParsesLikeSun(utf8(preamble + pem("CERTIFICATE", der)), der);
+        assertParses(utf8(preamble + pem("CERTIFICATE", der)), der);
     }
 
     /** A bundle with comment lines between two blocks still yields both certificates. */
@@ -203,49 +203,34 @@ public class X509PemInputTest
 
         Collection<? extends Certificate> ours = CertificateFactory.getInstance("X.509", JSL)
                 .generateCertificates(new ByteArrayInputStream(bundle));
-        Collection<? extends Certificate> sun = CertificateFactory.getInstance("X.509", SUN)
-                .generateCertificates(new ByteArrayInputStream(bundle));
-        Assertions.assertEquals(sun.size(), ours.size());
         Assertions.assertEquals(2, ours.size());
         Assertions.assertTrue(ours.stream().anyMatch(c -> c.equals(c1)));
         Assertions.assertTrue(ours.stream().anyMatch(c -> c.equals(c2)));
     }
 
     /**
-     * Text with no PEM block anywhere: both singular and plural refuse, on
-     * both providers. Measured (this JDK 25/Zulu install): {@code SUN}'s
-     * {@code engineGenerateCertificates} does not loop the same
-     * {@code readOneBlock} the singular form uses — it reaches
-     * {@code X509Factory.parseX509orPKCS7Cert}, which throws
-     * {@code CertificateException("No certificate data found")} for
-     * unreadable input rather than returning an empty collection. An empty
-     * collection is reserved for a genuinely EMPTY stream (0 bytes), which is
-     * a different input and not this cell.
+     * Text with no PEM block anywhere: both singular and plural refuse. An
+     * empty collection is reserved for a genuinely EMPTY stream (0 bytes),
+     * which is a different input and not this cell.
      */
     @Test
     public void noBlockAtAllRefusesBothSingularAndPlural()
     {
         byte[] noBlock = utf8("just some text\nwith no PEM block in it at all\n");
 
-        for (String provider : new String[]{JSL, SUN})
-        {
-            Assertions.assertThrows(CertificateException.class, () ->
-                    CertificateFactory.getInstance("X.509", provider)
-                            .generateCertificate(new ByteArrayInputStream(noBlock)));
-            Assertions.assertThrows(CertificateException.class, () ->
-                    CertificateFactory.getInstance("X.509", provider)
-                            .generateCertificates(new ByteArrayInputStream(noBlock)));
-        }
+        Assertions.assertThrows(CertificateException.class, () ->
+                CertificateFactory.getInstance("X.509", JSL)
+                        .generateCertificate(new ByteArrayInputStream(noBlock)));
+        Assertions.assertThrows(CertificateException.class, () ->
+                CertificateFactory.getInstance("X.509", JSL)
+                        .generateCertificates(new ByteArrayInputStream(noBlock)));
     }
 
-    private static void assertParsesLikeSun(byte[] input, byte[] expectedDer) throws Exception
+    private static void assertParses(byte[] input, byte[] expectedDer) throws Exception
     {
         X509Certificate ours = (X509Certificate) CertificateFactory.getInstance("X.509", JSL)
                 .generateCertificate(new ByteArrayInputStream(input));
-        X509Certificate sun = (X509Certificate) CertificateFactory.getInstance("X.509", SUN)
-                .generateCertificate(new ByteArrayInputStream(input));
         Assertions.assertArrayEquals(expectedDer, ours.getEncoded());
-        Assertions.assertArrayEquals(sun.getEncoded(), ours.getEncoded());
     }
 
     // ----- positive: plural, bundles and mixed DER/PEM -----
@@ -271,11 +256,11 @@ public class X509PemInputTest
 
     /**
      * A DER certificate immediately followed by a PEM one, and the reverse
-     * order, both accepted — matched against SUN, since {@code readOne}
-     * treats each unit independently regardless of what came before it.
+     * order, both accepted, since {@code readOne} treats each unit
+     * independently regardless of what came before it.
      */
     @Test
-    public void mixedDerThenPemAndPemThenDerBothParseLikeSun() throws Exception
+    public void mixedDerThenPemAndPemThenDerBothParse() throws Exception
     {
         KeyPair kp1 = KeyPairGenerator.getInstance("RSA", JSL).generateKeyPair();
         KeyPair kp2 = KeyPairGenerator.getInstance("RSA", JSL).generateKeyPair();
@@ -294,20 +279,17 @@ public class X509PemInputTest
         {
             Collection<? extends Certificate> ours = CertificateFactory.getInstance("X.509", JSL)
                     .generateCertificates(new ByteArrayInputStream(stream));
-            Collection<? extends Certificate> sun = CertificateFactory.getInstance("X.509", SUN)
-                    .generateCertificates(new ByteArrayInputStream(stream));
-            Assertions.assertEquals(sun.size(), ours.size());
             Assertions.assertEquals(2, ours.size());
         }
     }
 
-    // ----- negative: exception TYPE parity with SUN and BC, our own text -----
+    // ----- negative: refused with the JCA type, our own text -----
 
     @Test
     public void garbageBetweenMarkersIsRefusedTyped()
     {
         byte[] bad = utf8("-----BEGIN CERTIFICATE-----\nnot base64 at all!!\n-----END CERTIFICATE-----\n");
-        assertAllThreeRefuseTyped(bad);
+        assertRefusedTyped(bad);
     }
 
     @Test
@@ -317,7 +299,7 @@ public class X509PemInputTest
         X509Certificate cert = selfSignedCert("Jostle PEM No Footer Test", kp);
         String body = Base64.getMimeEncoder(64, new byte[]{'\n'}).encodeToString(cert.getEncoded());
         byte[] noFooter = utf8("-----BEGIN CERTIFICATE-----\n" + body + "\n");
-        assertAllThreeRefuseTyped(noFooter);
+        assertRefusedTyped(noFooter);
     }
 
     @Test
@@ -348,12 +330,7 @@ public class X509PemInputTest
         X509CRL crl = selfSignedCrl(issuer, kp);
         byte[] wrongLabelPem = utf8(pem("CERTIFICATE", crl.getEncoded()));
 
-        for (String provider : new String[]{JSL, SUN, BC})
-        {
-            Assertions.assertThrows(CertificateException.class, () ->
-                    CertificateFactory.getInstance("X.509", provider)
-                            .generateCertificate(new ByteArrayInputStream(wrongLabelPem)));
-        }
+        assertRefusedTyped(wrongLabelPem);
     }
 
     /**
@@ -374,13 +351,10 @@ public class X509PemInputTest
                         .generateCertificate(new ByteArrayInputStream(oversized)));
     }
 
-    private static void assertAllThreeRefuseTyped(byte[] input)
+    private static void assertRefusedTyped(byte[] input)
     {
-        for (String provider : new String[]{JSL, SUN, BC})
-        {
-            Assertions.assertThrows(CertificateException.class, () ->
-                    CertificateFactory.getInstance("X.509", provider)
-                            .generateCertificate(new ByteArrayInputStream(input)));
-        }
+        Assertions.assertThrows(CertificateException.class, () ->
+                CertificateFactory.getInstance("X.509", JSL)
+                        .generateCertificate(new ByteArrayInputStream(input)));
     }
 }

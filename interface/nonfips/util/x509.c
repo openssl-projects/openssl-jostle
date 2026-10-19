@@ -407,7 +407,13 @@ static int32_t gather(X509 *cert, cert_slots *s)
 
     X509_ALGOR_get0(&alg_oid, &ptype, &pval, alg);
     len = OBJ_obj2txt((char *) s->oid_text, OID_TEXT_MAX, alg_oid, 1);
-    if (len <= 0 || len >= OID_TEXT_MAX)
+    /* An OID longer than the text bound is refused on our bound, not reported as an OpenSSL failure. */
+    if (len >= OID_TEXT_MAX)
+    {
+        slots_free(s);
+        return JO_CERT_DECODE_FAILED;
+    }
+    if (len <= 0)
     {
         goto fail;
     }
@@ -468,7 +474,12 @@ static int32_t gather(X509 *cert, cert_slots *s)
                 && spki_alg != NULL)
         {
             len = OBJ_obj2txt((char *) s->spki_oid_text, OID_TEXT_MAX, spki_alg, 1);
-            if (len > 0 && len < OID_TEXT_MAX)
+            if (len >= OID_TEXT_MAX)
+            {
+                slots_free(s);
+                return JO_CERT_DECODE_FAILED;
+            }
+            if (len > 0)
             {
                 s->data[X509_SLOT_SPKI_ALG_OID] = s->spki_oid_text;
                 s->len[X509_SLOT_SPKI_ALG_OID] = len;
@@ -840,7 +851,12 @@ static int32_t each_extension(const STACK_OF(X509_EXTENSION) *exts,
             return JO_OPENSSL_ERROR;
         }
         oid_len = OBJ_obj2txt(oid, OID_TEXT_MAX, obj, 1);
-        if (oid_len <= 0 || oid_len >= OID_TEXT_MAX)
+        if (oid_len >= OID_TEXT_MAX)
+        {
+            OPENSSL_free(seen);
+            return JO_CERT_EXTENSION_INVALID;
+        }
+        if (oid_len <= 0)
         {
             OPENSSL_free(seen);
             return JO_OPENSSL_ERROR;
@@ -1187,7 +1203,12 @@ static int32_t crl_gather(X509_CRL *crl, crl_slots *s)
 
     X509_ALGOR_get0(&alg_oid, &ptype, &pval, algor);
     len = OBJ_obj2txt((char *) s->oid_text, OID_TEXT_MAX, alg_oid, 1);
-    if (len <= 0 || len >= OID_TEXT_MAX)
+    if (len >= OID_TEXT_MAX)
+    {
+        crl_slots_free(s);
+        return JO_CRL_DECODE_FAILED;
+    }
+    if (len <= 0)
     {
         crl_slots_free(s);
         return JO_OPENSSL_ERROR;

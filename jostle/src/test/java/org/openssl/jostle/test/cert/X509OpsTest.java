@@ -77,7 +77,7 @@ public class X509OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/util/x509.c, offset 7000
+            // Exercises interface/nonfips/util/x509.c:100
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int[] err = new int[1];
             byte[] der = cert();
@@ -96,7 +96,7 @@ public class X509OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/util/x509.c, offset 7005
+            // Exercises interface/nonfips/util/x509.c:1010
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int[] err = new int[1];
             byte[] der = crl();
@@ -135,7 +135,7 @@ public class X509OpsTest
             Assertions.assertNotEquals(0L, ref);
             x509NI.ni_dispose(ref);
 
-            // Exercises interface/nonfips/util/x509.c d2i_X509 arm (no offset)
+            // Exercises interface/nonfips/util/x509.c:104
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int[] err = new int[1];
             x509NI.ni_allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1], err);
@@ -156,7 +156,7 @@ public class X509OpsTest
         {
             byte[] der = cert();
             ref = x509NI.allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
-            // Exercises interface/nonfips/util/x509.c, offset 7003
+            // Exercises interface/nonfips/util/x509.c:246
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             Assertions.assertEquals(-7005, x509NI.ni_fieldsLen(ref));
         }
@@ -179,7 +179,7 @@ public class X509OpsTest
         {
             byte[] der = cert();
             ref = x509NI.allocate(der, 0, der.length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
-            // Exercises interface/nonfips/util/x509.c, offset 7001
+            // Exercises interface/nonfips/util/x509.c:167
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             Assertions.assertEquals(-7003, x509NI.ni_fieldsLen(ref));
         }
@@ -204,7 +204,7 @@ public class X509OpsTest
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
         try
         {
-            // Exercises interface/nonfips/jni/x509_ni_jni.c input load arm
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:99
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int[] err = new int[1];
             byte[] der = cert();
@@ -232,7 +232,7 @@ public class X509OpsTest
         byte[] der = cert();
         try
         {
-            // Exercises interface/nonfips/util/x509.c, offset 7000, through the SPI
+            // Exercises interface/nonfips/util/x509.c:100
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             CertificateException e = Assertions.assertThrows(CertificateException.class,
                     () -> cf.generateCertificate(new ByteArrayInputStream(der)));
@@ -260,7 +260,7 @@ public class X509OpsTest
         try
         {
             ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
-            // Exercises interface/nonfips/util/x509.c, offset 7002
+            // Exercises interface/nonfips/util/x509.c:172
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(-7004, x509NI.ni_fieldsLen(ref));
         }
@@ -284,7 +284,7 @@ public class X509OpsTest
             ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             int need = x509NI.ni_fieldsLen(ref);
             Assertions.assertTrue(need > 0, "control: the length query must succeed first");
-            // Exercises interface/nonfips/util/x509.c, offset 7004
+            // Exercises interface/nonfips/util/x509.c:268
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             Assertions.assertEquals(-7006, x509NI.ni_fields(ref, new byte[need],
                     new int[X509NI.SLOT_COUNT], new int[X509NI.INFO_COUNT]));
@@ -307,7 +307,7 @@ public class X509OpsTest
         try
         {
             ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
-            // Exercises interface/nonfips/util/x509.c composed-encoding size guard
+            // Exercises interface/nonfips/util/x509.c:259
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             Assertions.assertEquals(-20, x509NI.ni_fieldsLen(ref), "JO_OUTPUT_TOO_LONG_INT32");
         }
@@ -329,7 +329,7 @@ public class X509OpsTest
         try
         {
             ref = x509NI.allocateCrl(crl(), 0, crl().length, X509NI.maxContainerBytes(), new int[1]);
-            // Exercises interface/nonfips/util/x509.c, offset 7009
+            // Exercises interface/nonfips/util/x509.c:1388
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             Assertions.assertEquals(-7011, x509NI.ni_crlEntriesLen(ref));
         }
@@ -353,7 +353,7 @@ public class X509OpsTest
             ref = x509NI.allocateCrl(crl(), 0, crl().length, X509NI.maxContainerBytes(), new int[1]);
             int need = x509NI.ni_crlFieldsLen(ref);
             Assertions.assertTrue(need > 0, "control: the length query must succeed first");
-            // Exercises interface/nonfips/util/x509.c, offset 7007
+            // Exercises interface/nonfips/util/x509.c:1105
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             Assertions.assertEquals(-7009, x509NI.ni_crlFields(ref, new byte[need],
                     new int[X509NI.CRL_SLOT_COUNT], new int[X509NI.CRL_INFO_COUNT]));
@@ -376,7 +376,7 @@ public class X509OpsTest
         try
         {
             ref = x509NI.allocateCrl(crl(), 0, crl().length, X509NI.maxContainerBytes(), new int[1]);
-            // Exercises interface/nonfips/util/x509.c CRL composed-encoding size guard
+            // Exercises interface/nonfips/util/x509.c:1097
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             Assertions.assertEquals(-20, x509NI.ni_crlFieldsLen(ref), "JO_OUTPUT_TOO_LONG_INT32");
         }
@@ -404,7 +404,7 @@ public class X509OpsTest
         {
             ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             int need = x509NI.ni_fieldsLen(ref);
-            // Exercises interface/nonfips/jni/x509_ni_jni.c sizes/info load arm
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:221
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             Assertions.assertEquals(-23, x509NI.ni_fields(ref, new byte[need],
                     new int[X509NI.SLOT_COUNT], new int[X509NI.INFO_COUNT]),
@@ -435,7 +435,7 @@ public class X509OpsTest
             ref = x509NI.allocate(cert(), 0, cert().length, X509NI.DEFAULT_MAX_CERT_BYTES, new int[1]);
             int count = x509NI.ni_extensionsLen(ref);
             Assertions.assertTrue(count > 0, "control: the fixture must carry extensions");
-            // Exercises interface/nonfips/jni/x509_ni_jni.c extension arrays load arm
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:334
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             Assertions.assertEquals(-23, x509NI.ni_extensions(ref, new byte[4096],
                     new int[count], new int[count], new int[count]),
@@ -448,6 +448,140 @@ public class X509OpsTest
             {
                 x509NI.ni_dispose(ref);
             }
+        }
+    }
+
+    /** The CRL d2i arm: discriminated by the flag, as the certificate one is. */
+    @Test
+    public void crlDecode_injectedD2iFailureIsToldApartByTheFlag() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        byte[] der = crl();
+        try
+        {
+            int[] errClear = new int[1];
+            long ref = x509NI.ni_allocateCrl(der, 0, der.length, 1 << 26, new int[1], errClear);
+            Assertions.assertEquals(0, errClear[0], "a valid CRL must decode with no flag set");
+            x509NI.ni_disposeCrl(ref);
+
+            // Exercises interface/nonfips/util/x509.c:1014
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            int[] err = new int[1];
+            x509NI.ni_allocateCrl(der, 0, der.length, 1 << 26, new int[1], err);
+            Assertions.assertEquals(-176, err[0], "JO_CRL_DECODE_FAILED, injected");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void crlFields_forcedTbsReEncodeFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        byte[] der = crl();
+        long ref = x509NI.allocateCrl(der, 0, der.length, 1 << 26, new int[1]);
+        try
+        {
+            // Exercises interface/nonfips/util/x509.c:1071
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+            Assertions.assertEquals(-7008, x509NI.ni_crlFieldsLen(ref));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            x509NI.ni_disposeCrl(ref);
+        }
+    }
+
+    @Test
+    public void certificateExtensions_valueEncodeFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        byte[] der = cert();
+        long ref = x509NI.allocate(der, 0, der.length, 1 << 20, new int[1]);
+        try
+        {
+            // Exercises interface/nonfips/util/x509.c:877
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
+            Assertions.assertEquals(-7010, x509NI.ni_extensionsLen(ref));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            x509NI.ni_dispose(ref);
+        }
+    }
+
+    /** JNI only: the FFM bridge receives copied segments and has no load to fail. */
+    @Test
+    public void jniOutputLoadFailures_eachRefusedTyped() throws Exception
+    {
+        Assumptions.assumeFalse(org.openssl.jostle.Loader.isFFM(), "JNI only");
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        byte[] certDer = cert();
+        byte[] crlDer = crl();
+        long c = x509NI.allocate(certDer, 0, certDer.length, 1 << 20, new int[1]);
+        long r = x509NI.allocateCrl(crlDer, 0, crlDer.length, 1 << 26, new int[1]);
+        try
+        {
+            int certLen = x509NI.fieldsLen(c);
+            int[] info = new int[11];
+            x509NI.fields(c, new byte[certLen], new int[12], info);
+            int extLen = x509NI.extensionsLen(c);
+            int n = info[10];
+            int crlLen = x509NI.crlFieldsLen(r);
+            int[] crlInfo = new int[8];
+            x509NI.crlFields(r, new byte[crlLen], new int[6], crlInfo);
+            int crlExtLen = x509NI.crlExtensionsLen(r);
+            int m = crlInfo[6];
+            int entriesLen = x509NI.crlEntriesLen(r);
+            int e = crlInfo[7];
+            Assertions.assertTrue(n > 0 && m > 0 && e > 0, "fixtures must carry extensions and entries");
+
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:191
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(-23, x509NI.ni_fields(c, new byte[certLen], new int[12], new int[11]));
+            operationsTestNI.resetFlags();
+
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:296
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(-23, x509NI.ni_extensions(c, new byte[extLen], new int[n], new int[n], new int[n]));
+            operationsTestNI.resetFlags();
+
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:415
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
+            Assertions.assertEquals(-23, x509NI.ni_crlFields(r, new byte[crlLen], new int[6], new int[8]));
+            operationsTestNI.resetFlags();
+
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:480
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            int[] err = new int[1];
+            x509NI.ni_allocateCrl(crlDer, 0, crlDer.length, 1 << 26, new int[1], err);
+            Assertions.assertEquals(-22, err[0], "JO_FAILED_ACCESS_INPUT");
+            operationsTestNI.resetFlags();
+
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:562
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(-23, x509NI.ni_crlFields(r, new byte[crlLen], new int[6], new int[8]));
+            operationsTestNI.resetFlags();
+
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:628
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(-23,
+                    x509NI.ni_crlExtensions(r, new byte[crlExtLen], new int[m], new int[m], new int[m]));
+            operationsTestNI.resetFlags();
+
+            // Exercises interface/nonfips/jni/x509_ni_jni.c:713
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            Assertions.assertEquals(-23, x509NI.ni_crlEntries(r, new byte[entriesLen], new int[e], new int[2 * e]));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            x509NI.ni_dispose(c);
+            x509NI.ni_disposeCrl(r);
         }
     }
 }

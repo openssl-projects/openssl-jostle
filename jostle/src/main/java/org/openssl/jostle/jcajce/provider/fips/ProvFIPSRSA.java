@@ -78,7 +78,7 @@ class ProvFIPSRSA
         // (probe-confirmed) — only the names were missing, so a caller asking
         // by either got NoSuchAlgorithmException, and the provider-bound
         // CertificateFactory's OID-keyed key re-derivation failed loud
-        // (JSLKeyX509Certificate), surfacing to TLS as bad_certificate(42).
+        // (CertKeys), surfacing to TLS as bad_certificate(42).
         provider.addAlias("KeyFactory", "RSA", PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "RSASSA-PSS");
 
         registerPkcs1Signature(provider, attr, "SHA1withRSA", "SHA-1", PKCSObjectIdentifiers.sha1WithRSAEncryption.getId());

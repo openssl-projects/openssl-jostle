@@ -145,25 +145,56 @@ public class X509LimitTest
     }
 
     /**
-     * Disposing through the wrong family frees NOTHING, so the handle is still
-     * live and its own dispose still works. Asserted by USING the handle after
-     * the refused dispose: a free that happened anyway would fault or answer
-     * rubbish here, where a bare "it did not throw" would not notice.
+     * An OID whose dotted text exceeds the parser's bound is refused typed at
+     * the accessor that renders it, and one character less is served. A
+     * wrong-kind dispose aborts, so it is a row in NativeAbortProbeRunner.
      */
     @Test
-    public void aWrongKindDisposeFreesNothingAndTheCorrectOneStillWorks() throws Exception
+    public void overlongOidText_refusedTypedAtTheRenderingAccessor() throws Exception
     {
-        long c = cert();
-        ni.disposeCrl(c);
-        Assertions.assertTrue(ni.fieldsLen(c) > 0,
-                "the certificate was damaged by a CRL dispose");
-        ni.dispose(c);
+        String fits = X509Fixtures.oidOfLength(127);
+        String over = X509Fixtures.oidOfLength(128);
+        String cert = "input did not decode as an X.509 certificate";
 
-        long r = crl();
-        ni.dispose(r);
-        Assertions.assertTrue(ni.crlFieldsLen(r) > 0,
-                "the CRL was damaged by a certificate dispose");
-        ni.disposeCrl(r);
+        long e = allocate(X509Fixtures.certificate(over, null, null));
+        long s = allocate(X509Fixtures.certificate(null, over, null));
+        long k = allocate(X509Fixtures.certificate(null, null, over));
+        long l = allocateCrl(X509Fixtures.crl(over));
+        long ok = allocate(X509Fixtures.certificate(fits, fits, fits));
+        long okCrl = allocateCrl(X509Fixtures.crl(fits));
+        try
+        {
+            Assertions.assertAll(
+                    () -> assertTyped(CertificateParseException.class,
+                            "certificate extension is duplicated, undecodable, or declares too many key usage bits",
+                            () -> ni.extensionsLen(e)),
+                    () -> assertTyped(CertificateParseException.class, cert, () -> ni.fieldsLen(s)),
+                    () -> assertTyped(CertificateParseException.class, cert, () -> ni.fieldsLen(k)),
+                    () -> assertTyped(CertificateParseException.class, "input did not decode as an X.509 CRL",
+                            () -> ni.crlFieldsLen(l)),
+                    () -> Assertions.assertTrue(ni.fieldsLen(ok) > 3 * 127),
+                    () -> Assertions.assertTrue(ni.extensionsLen(ok) > 127),
+                    () -> Assertions.assertTrue(ni.crlFieldsLen(okCrl) > 127));
+        }
+        finally
+        {
+            ni.dispose(e);
+            ni.dispose(s);
+            ni.dispose(k);
+            ni.disposeCrl(l);
+            ni.dispose(ok);
+            ni.disposeCrl(okCrl);
+        }
+    }
+
+    private long allocate(byte[] der)
+    {
+        return ni.allocate(der, 0, der.length, MAX, new int[1]);
+    }
+
+    private long allocateCrl(byte[] der)
+    {
+        return ni.allocateCrl(der, 0, der.length, CRL_MAX, new int[1]);
     }
 
     // -----------------------------------------------------------------

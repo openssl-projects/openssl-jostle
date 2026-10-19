@@ -103,7 +103,7 @@ class ProvSLHDSA
         // SPKI / signature-algorithm OID aliases (NIST CSOR id-slh-dsa-*, RFC 9814),
         // aligned 1:1 with algNames above. Required so an X.509 certificate whose
         // SubjectPublicKeyInfo / signature carries the OID resolves to the JSL
-        // KeyFactory and Signature (see JSLKeyX509Certificate), rather than falling
+        // KeyFactory and Signature (see CertKeys), rather than falling
         // back to the JDK default.
         ASN1ObjectIdentifier[] oids = new ASN1ObjectIdentifier[]
                 {

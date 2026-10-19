@@ -60,6 +60,7 @@ public final class NativeAbortProbeRunner
     private static final String CELL = "--cell";
     private static final String OK = "CONTROL-OK";
     private static final String CERT = "ValidCertificatePathTest1EE.crt";
+    private static final String CRL = "indirectCRLCA5CRL.crl";
     // The native keystore serves PKCS#12 only; BCFKS is implemented in Java
     // and never reaches this NI. The abort rows would pass with any string,
     // since the assert precedes the type check — the control would not.
@@ -136,6 +137,15 @@ public final class NativeAbortProbeRunner
                 consumedJni, jniDir + "x509_ni_jni.c",
                 consumedFfm, ffmDir + "x509_ni_ffm.c");
         controlRow(rows, p + "x509-control");
+        // A dispose of the other kind is a jostle fault: it aborts on the free's
+        // result rather than freeing nothing in silence. Zero stays a no-op.
+        abortRow(rows, p + "x509-dispose-crl-handle",
+                "rc == JO_SUCCESS", jniDir + "x509_ni_jni.c",
+                "rc == JO_SUCCESS", ffmDir + "x509_ni_ffm.c");
+        abortRow(rows, p + "x509-disposecrl-cert-handle",
+                "rc == JO_SUCCESS", jniDir + "x509_ni_jni.c",
+                "rc == JO_SUCCESS", ffmDir + "x509_ni_ffm.c");
+        controlRow(rows, p + "x509-dispose-zero");
 
         abortRow(rows, p + "md-null-err",
                 "_err != NULL", jniDir + "md_jni.c",
@@ -314,6 +324,22 @@ public final class NativeAbortProbeRunner
             long ref = x509.ni_allocate(der, 0, der.length, 1 << 20, consumed, err);
             report(ref != 0 && err[0] == 0, "x509 ref=" + (ref != 0) + " err=" + err[0]);
         }
+        else if ("x509-dispose-crl-handle".equals(c))
+        {
+            x509.ni_dispose(crlRef(x509));
+        }
+        else if ("x509-disposecrl-cert-handle".equals(c))
+        {
+            byte[] der = PkitsCertificates.der(CERT);
+            int[] err = new int[1];
+            x509.ni_disposeCrl(x509.ni_allocate(der, 0, der.length, 1 << 20, new int[1], err));
+        }
+        else if ("x509-dispose-zero".equals(c))
+        {
+            x509.ni_dispose(0);
+            x509.ni_disposeCrl(0);
+            report(true, "x509 dispose(0) and disposeCrl(0) returned");
+        }
         else if ("md-null-err".equals(c))
         {
             md.ni_allocateDigest("SHA-256", 0, null);
@@ -364,6 +390,19 @@ public final class NativeAbortProbeRunner
         // Reached only when the row did NOT abort. The parent judges on the
         // exit code and the text, so say plainly that nothing aborted.
         System.out.println("NO-ABORT: returned normally");
+    }
+
+    private static long crlRef(X509NI x509) throws Exception
+    {
+        byte[] der = PkitsCertificates.crlDer(CRL);
+        int[] err = new int[1];
+        long ref = x509.ni_allocateCrl(der, 0, der.length, 1 << 26, new int[1], err);
+        if (ref == 0)
+        {
+            System.out.println("CONTROL-FAILED: crl err=" + err[0]);
+            System.exit(3);
+        }
+        return ref;
     }
 
     private static void report(boolean ok, String detail)

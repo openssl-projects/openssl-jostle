@@ -50,7 +50,7 @@ class ProvRSA
         // (probe-confirmed) — only the names were missing, so a caller asking
         // by either got NoSuchAlgorithmException, and the provider-bound
         // CertificateFactory's OID-keyed key re-derivation failed loud
-        // (JSLKeyX509Certificate), surfacing to TLS as bad_certificate(42).
+        // (CertKeys), surfacing to TLS as bad_certificate(42).
         provider.addAlias("KeyFactory", "RSA", PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "RSASSA-PSS");
 
         // PKCS#1 v1.5 Signature variants. MD5 is registered for legacy

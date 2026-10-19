@@ -159,11 +159,16 @@ int32_t JoX509_extensions(int64_t ref, uint8_t *blob, int32_t blob_len,
 
 void JoX509_dispose(int64_t ref)
 {
+    int32_t rc;
+
     if (ref == 0)
     {
         return;
     }
-    x509_cert_free((x509_handle *) (intptr_t) ref);
+    /* A wrong kind is a jostle fault, the handle being the factory's own local: it aborts rather than
+     * freeing nothing in silence. */
+    rc = x509_cert_free((x509_handle *) (intptr_t) ref);
+    jo_assert(rc == JO_SUCCESS);
 }
 
 /* ---------------------------------------------------------------- CRLs --- */
@@ -318,9 +323,14 @@ int32_t JoX509_crlEntries(int64_t ref, uint8_t *blob, int32_t blob_len, int32_t 
 
 void JoX509_disposeCrl(int64_t ref)
 {
+    int32_t rc;
+
     if (ref == 0)
     {
         return;
     }
-    x509_crl_free((x509_handle *) (intptr_t) ref);
+    /* A wrong kind is a jostle fault, the handle being the factory's own local: it aborts rather than
+     * freeing nothing in silence. */
+    rc = x509_crl_free((x509_handle *) (intptr_t) ref);
+    jo_assert(rc == JO_SUCCESS);
 }

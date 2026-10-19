@@ -140,7 +140,7 @@ class ProvFIPSMLDSA
 
         // SPKI OID aliases (NIST CSOR id-ml-dsa-44/65/87) so a certificate's
         // public key can be re-derived through the JSL KeyFactory keyed on the
-        // SubjectPublicKeyInfo algorithm OID (see JSLKeyX509Certificate).
+        // SubjectPublicKeyInfo algorithm OID (see CertKeys).
         provider.addAlias("KeyFactory", "ML-DSA-44", NISTObjectIdentifiers.id_ml_dsa_44);
         provider.addAlias("KeyFactory", "ML-DSA-65", NISTObjectIdentifiers.id_ml_dsa_65);
         provider.addAlias("KeyFactory", "ML-DSA-87", NISTObjectIdentifiers.id_ml_dsa_87);

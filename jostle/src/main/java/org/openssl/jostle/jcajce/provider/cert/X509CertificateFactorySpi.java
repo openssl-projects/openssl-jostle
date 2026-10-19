@@ -134,12 +134,13 @@ public class X509CertificateFactorySpi
         {
             throw new CertificateException("Missing input stream");
         }
-        byte[] der = readOne(inStream, X509NI.maxCertificateBytes());
+        int ceiling = certificateCeiling();
+        byte[] der = readOne(inStream, ceiling, X509NI.MAX_CERT_BYTES_PROPERTY);
         if (der == null)
         {
             throw new CertificateException("Empty input");
         }
-        return parse(der);
+        return parse(der, ceiling);
     }
 
     public Collection<? extends Certificate> engineGenerateCertificates(InputStream inStream)
@@ -149,22 +150,22 @@ public class X509CertificateFactorySpi
         {
             throw new CertificateException("Missing input stream");
         }
+        int ceiling = certificateCeiling();
+        int members = memberCeiling();
         List<Certificate> out = new ArrayList<Certificate>();
         while (true)
         {
             byte[] der;
             try
             {
-                der = readOne(inStream, X509NI.maxCertificateBytes());
+                der = readOne(inStream, ceiling, X509NI.MAX_CERT_BYTES_PROPERTY);
             }
             catch (CertificateException unreadable)
             {
-                // Measured on both references: trailing garbage AFTER at least
-                // one certificate returns what was parsed, and only a FIRST
-                // object that cannot be read throws. An earlier draft threw in
-                // both cases, which would have refused a stream the JDK and
-                // BouncyCastle both accept.
-                if (out.isEmpty())
+                // Text after at least one certificate returns what was parsed on
+                // both references; a truncated DER object there is refused by both,
+                // and returns what was parsed here. A ceiling refusal always throws.
+                if (out.isEmpty() || unreadable instanceof CeilingExceededException)
                 {
                     throw unreadable;
                 }
@@ -174,14 +175,14 @@ public class X509CertificateFactorySpi
             {
                 break;
             }
-            if (out.size() + 1 > X509NI.maxMembers())
+            if (out.size() + 1 > members)
             {
                 // Before the parse, so the cap costs nothing to enforce and
                 // nothing is allocated for the member that breaks it.
-                throw new CertificateException("certificate stream carries more than " + X509NI.maxMembers()
+                throw new CertificateException("certificate stream carries more than " + members
                         + " members; raise " + X509NI.MAX_MEMBERS_PROPERTY);
             }
-            out.add(parse(der));
+            out.add(parse(der, ceiling));
         }
         // An empty stream yields an EMPTY COLLECTION, not an exception — the
         // opposite of the singular form above, and what both references do.
@@ -201,7 +202,7 @@ public class X509CertificateFactorySpi
      *
      * @return the object's octets, or null at end of stream
      */
-    private byte[] readOne(InputStream in, int ceiling)
+    private byte[] readOne(InputStream in, int ceiling, String property)
         throws CertificateException
     {
         try
@@ -217,7 +218,7 @@ public class X509CertificateFactorySpi
                 // prose before a PEM block, so scan forward to the BEGIN line
                 // rather than refusing on the first octet; content with no
                 // block at all is refused, as SUN refuses it.
-                return readPem(in, first, ceiling);
+                return readPem(in, first, ceiling, property);
             }
             ByteArrayOutputStream header = new ByteArrayOutputStream();
             header.write(first);
@@ -259,13 +260,10 @@ public class X509CertificateFactorySpi
                 }
             }
 
-            if (contentLen > ceiling)
+            // The whole encoding, header included: the same bytes the bridge bounds.
+            if (header.size() + contentLen > ceiling)
             {
-                throw new CertificateParseException(
-                        "object exceeds the configured ceiling; raise "
-                                + (ceiling == X509NI.maxCertificateBytes()
-                                   ? X509NI.MAX_CERT_BYTES_PROPERTY
-                                   : X509NI.MAX_CONTAINER_BYTES_PROPERTY));
+                throw new CeilingExceededException("object exceeds the configured ceiling; raise " + property);
             }
 
             byte[] head = header.toByteArray();
@@ -303,7 +301,7 @@ public class X509CertificateFactorySpi
      * here and is refused later, when the bytes fail to parse as the
      * structure this call site wants, exactly as wrong-type DER input is.
      */
-    private byte[] readPem(InputStream in, int first, int ceiling)
+    private byte[] readPem(InputStream in, int first, int ceiling, String property)
         throws CertificateException
     {
         // Base64 expands by 4/3; doubling the DER ceiling is a generous
@@ -332,11 +330,8 @@ public class X509CertificateFactorySpi
                 scanned += line.length();
                 if (scanned > bodyCeiling)
                 {
-                    throw new CertificateParseException(
-                            "PEM preamble exceeds the configured ceiling; raise "
-                                    + (ceiling == X509NI.maxCertificateBytes()
-                                       ? X509NI.MAX_CERT_BYTES_PROPERTY
-                                       : X509NI.MAX_CONTAINER_BYTES_PROPERTY));
+                    throw new CeilingExceededException(
+                            "PEM preamble exceeds the configured ceiling; raise " + property);
                 }
             }
             String label = pemLabel(line, "BEGIN", "header");
@@ -356,11 +351,8 @@ public class X509CertificateFactorySpi
                 body.append(line);
                 if (body.length() > bodyCeiling)
                 {
-                    throw new CertificateParseException(
-                            "PEM body exceeds the configured ceiling; raise "
-                                    + (ceiling == X509NI.maxCertificateBytes()
-                                       ? X509NI.MAX_CERT_BYTES_PROPERTY
-                                       : X509NI.MAX_CONTAINER_BYTES_PROPERTY));
+                    throw new CeilingExceededException(
+                            "PEM body exceeds the configured ceiling; raise " + property);
                 }
             }
             String footerLabel = pemLabel(line, "END", "footer");
@@ -370,14 +362,20 @@ public class X509CertificateFactorySpi
                         "malformed PEM data: header and footer do not match: "
                                 + label + " / " + footerLabel);
             }
+            byte[] decoded;
             try
             {
-                return java.util.Base64.getMimeDecoder().decode(body.toString());
+                decoded = java.util.Base64.getMimeDecoder().decode(body.toString());
             }
             catch (IllegalArgumentException e)
             {
                 throw new CertificateException("malformed PEM data: invalid base64", e);
             }
+            if (decoded.length > ceiling)
+            {
+                throw new CeilingExceededException("object exceeds the configured ceiling; raise " + property);
+            }
+            return decoded;
         }
         catch (IOException e)
         {
@@ -456,14 +454,24 @@ public class X509CertificateFactorySpi
         return sb.toString();
     }
 
-    private Certificate parse(byte[] der)
+    private Certificate parse(byte[] der, int ceiling)
         throws CertificateException
     {
+        if (der.length > ceiling)
+        {
+            throw new CeilingExceededException(
+                    "object exceeds the configured ceiling; raise " + X509NI.MAX_CERT_BYTES_PROPERTY);
+        }
         long ref = 0;
         try
         {
             int[] consumed = new int[1];
-            ref = ni.allocate(der, 0, der.length, X509NI.maxCertificateBytes(), consumed);
+            ref = ni.allocate(der, 0, der.length, ceiling, consumed);
+            if (consumed[0] != der.length)
+            {
+                // Only a PEM body can carry more than one object here; both references refuse it.
+                throw new CertificateException("trailing data after the certificate");
+            }
 
             int blobLen = ni.fieldsLen(ref);
             byte[] blob = new byte[blobLen];
@@ -532,10 +540,12 @@ public class X509CertificateFactorySpi
         {
             throw new CRLException("Missing input stream");
         }
+        int ceiling;
         byte[] der;
         try
         {
-            der = readOne(inStream, X509NI.maxContainerBytes());
+            ceiling = containerCeiling();
+            der = readOne(inStream, ceiling, X509NI.MAX_CONTAINER_BYTES_PROPERTY);
         }
         catch (CertificateException e)
         {
@@ -545,7 +555,7 @@ public class X509CertificateFactorySpi
         {
             throw new CRLException("Empty input");
         }
-        return parseCrl(der);
+        return parseCrl(der, ceiling);
     }
 
     public Collection<? extends CRL> engineGenerateCRLs(InputStream inStream)
@@ -555,19 +565,29 @@ public class X509CertificateFactorySpi
         {
             throw new CRLException("Missing input stream");
         }
+        int ceiling;
+        int members;
+        try
+        {
+            ceiling = containerCeiling();
+            members = memberCeiling();
+        }
+        catch (CertificateException e)
+        {
+            throw new CRLException(e.getMessage(), e);
+        }
         List<CRL> out = new ArrayList<CRL>();
         while (true)
         {
             byte[] der;
             try
             {
-                der = readOne(inStream, X509NI.maxContainerBytes());
+                der = readOne(inStream, ceiling, X509NI.MAX_CONTAINER_BYTES_PROPERTY);
             }
             catch (CertificateException unreadable)
             {
-                // Same rule as the certificate collection: only a FIRST object
-                // that cannot be read throws.
-                if (out.isEmpty())
+                // Same rule as the certificate collection.
+                if (out.isEmpty() || unreadable instanceof CeilingExceededException)
                 {
                     throw new CRLException(unreadable.getMessage(), unreadable);
                 }
@@ -577,26 +597,35 @@ public class X509CertificateFactorySpi
             {
                 break;
             }
-            if (out.size() + 1 > X509NI.maxMembers())
+            if (out.size() + 1 > members)
             {
                 // Before the parse, so the cap costs nothing to enforce and
                 // nothing is allocated for the member that breaks it.
-                throw new CRLException("CRL stream carries more than " + X509NI.maxMembers()
+                throw new CRLException("CRL stream carries more than " + members
                         + " members; raise " + X509NI.MAX_MEMBERS_PROPERTY);
             }
-            out.add(parseCrl(der));
+            out.add(parseCrl(der, ceiling));
         }
         return Collections.unmodifiableList(out);
     }
 
-    private CRL parseCrl(byte[] der)
+    private CRL parseCrl(byte[] der, int ceiling)
         throws CRLException
     {
+        if (der.length > ceiling)
+        {
+            throw new CRLException(
+                    "object exceeds the configured ceiling; raise " + X509NI.MAX_CONTAINER_BYTES_PROPERTY);
+        }
         long ref = 0;
         try
         {
             int[] consumed = new int[1];
-            ref = ni.allocateCrl(der, 0, der.length, X509NI.maxContainerBytes(), consumed);
+            ref = ni.allocateCrl(der, 0, der.length, ceiling, consumed);
+            if (consumed[0] != der.length)
+            {
+                throw new CRLException("trailing data after the CRL");
+            }
 
             int blobLen = ni.crlFieldsLen(ref);
             byte[] blob = new byte[blobLen];
@@ -671,8 +700,15 @@ public class X509CertificateFactorySpi
         }
 
         // One container, bounded by the container ceiling rather than the
-        // certificate one: a path is many certificates.
-        byte[] der = readOne(inStream, X509NI.maxContainerBytes());
+        // certificate one: a path is many certificates. The member ceiling is
+        // read here so a non-numeric value is refused typed before the decode.
+        int ceiling = certificateCeiling();
+        memberCeiling();
+        byte[] der = readOne(inStream, containerCeiling(), X509NI.MAX_CONTAINER_BYTES_PROPERTY);
+        if (der == null)
+        {
+            throw new CertificateException("Empty input");
+        }
 
         List<byte[]> members;
         try
@@ -689,7 +725,7 @@ public class X509CertificateFactorySpi
         {
             // Through our own parser, so every member of the path is ours and
             // answers with our keys — the whole point of the exercise.
-            certs.add((X509Certificate) parse(member));
+            certs.add((X509Certificate) parse(member, ceiling));
         }
         return new JOCertPath(certs);
     }
@@ -701,10 +737,11 @@ public class X509CertificateFactorySpi
         {
             throw new CertificateException("certificate list is null");
         }
-        if (certificates.size() > X509NI.maxMembers())
+        int members = memberCeiling();
+        if (certificates.size() > members)
         {
             throw new CertificateException("certificate list carries more than "
-                    + X509NI.maxMembers() + " members; raise " + X509NI.MAX_MEMBERS_PROPERTY);
+                    + members + " members; raise " + X509NI.MAX_MEMBERS_PROPERTY);
         }
         List<X509Certificate> certs = new ArrayList<X509Certificate>(certificates.size());
         int position = 0;
@@ -763,7 +800,61 @@ public class X509CertificateFactorySpi
                     "certificate in the list does not support encoding, so it cannot be"
                             + " rebuilt through provider " + binding.name());
         }
-        return (X509Certificate) parse(der);
+        return (X509Certificate) parse(der, certificateCeiling());
+    }
+
+    /** A ceiling refusal: always thrown, never read as the end of a collection. */
+    private static final class CeilingExceededException
+        extends CertificateException
+    {
+        CeilingExceededException(String message)
+        {
+            super(message);
+        }
+    }
+
+    private static int certificateCeiling()
+        throws CertificateException
+    {
+        try
+        {
+            return X509NI.maxCertificateBytes();
+        }
+        catch (NumberFormatException e)
+        {
+            throw notAnInteger(X509NI.MAX_CERT_BYTES_PROPERTY, e);
+        }
+    }
+
+    private static int containerCeiling()
+        throws CertificateException
+    {
+        try
+        {
+            return X509NI.maxContainerBytes();
+        }
+        catch (NumberFormatException e)
+        {
+            throw notAnInteger(X509NI.MAX_CONTAINER_BYTES_PROPERTY, e);
+        }
+    }
+
+    private static int memberCeiling()
+        throws CertificateException
+    {
+        try
+        {
+            return X509NI.maxMembers();
+        }
+        catch (NumberFormatException e)
+        {
+            throw notAnInteger(X509NI.MAX_MEMBERS_PROPERTY, e);
+        }
+    }
+
+    private static CertificateException notAnInteger(String property, NumberFormatException e)
+    {
+        return new CertificateException(property + " is not an integer", e);
     }
 
     /**

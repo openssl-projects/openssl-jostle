@@ -28,8 +28,8 @@
  * raises the configurable property gets a refusal, never an abort.
  */
 
-/* The x509_handle a caller hands back. Null and kind are checked in util at
- * every entry point, never asserted: it is caller data. */
+/* The x509_handle a caller hands back. Null and kind are refused typed by every
+ * accessor; a dispose of zero is a no-op and a dispose of the wrong kind aborts. */
 static x509_handle *handle_of(jlong ref)
 {
     return (x509_handle *) (intptr_t) ref;
@@ -369,11 +369,16 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509ServiceJ
     UNUSED(env);
     UNUSED(jo);
 
+    int32_t rc;
+
     if (ref == 0)
     {
         return;
     }
-    x509_cert_free(handle_of(ref));
+    /* A wrong kind is a jostle fault, the handle being the factory's own local: it aborts rather than
+     * freeing nothing in silence. */
+    rc = x509_cert_free(handle_of(ref));
+    jo_assert(rc == JO_SUCCESS);
 }
 
 /* ---------------------------------------------------------------- CRLs --- */
@@ -748,9 +753,14 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_cert_X509ServiceJ
     UNUSED(env);
     UNUSED(jo);
 
+    int32_t rc;
+
     if (ref == 0)
     {
         return;
     }
-    x509_crl_free(crl_of(ref));
+    /* A wrong kind is a jostle fault, the handle being the factory's own local: it aborts rather than
+     * freeing nothing in silence. */
+    rc = x509_crl_free(crl_of(ref));
+    jo_assert(rc == JO_SUCCESS);
 }
