@@ -28,6 +28,19 @@
 /* No representable Date equals this, so it cannot collide with a caller's. */
 #define CERTPATH_TIME_NOW INT64_MIN
 
+/*
+ * policy_flags bits. Policy processing itself is always on; these are the
+ * three PKIX inputs that tighten it.
+ */
+#define CERTPATH_POLICY_NONE 0
+#define CERTPATH_POLICY_EXPLICIT 1
+#define CERTPATH_POLICY_INHIBIT_ANY 2
+#define CERTPATH_POLICY_INHIBIT_MAP 4
+#define CERTPATH_POLICY_ALL (CERTPATH_POLICY_EXPLICIT | CERTPATH_POLICY_INHIBIT_ANY | CERTPATH_POLICY_INHIBIT_MAP)
+
+/* Most initial-policy OIDs one call takes: an allocation bound, not a functional limit. */
+#define CERTPATH_MAX_POLICIES 256
+
 typedef struct {
     int32_t error;        /* X509_V_* code; 0 is X509_V_OK */
     int32_t depth;        /* error depth, -1 when there was no error */
@@ -44,6 +57,9 @@ typedef struct {
  * strict:     non-zero adds X509_V_FLAG_X509_STRICT.
  * revocation: non-zero adds CRL_CHECK | CRL_CHECK_ALL | EXTENDED_CRL_SUPPORT.
  *             The three go together; see certpath.c for what each decides.
+ * policy_flags: CERTPATH_POLICY_* bits.
+ * policies:   policy_count DER OBJECT IDENTIFIER TLVs, concatenated: the
+ *             initial policy set. policy_count 0 means any policy.
  *
  * Returns JO_SUCCESS when the verification RAN (whatever its verdict — read
  * result->error for that) and a JO_* error when it could not be attempted;
@@ -53,7 +69,18 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
                         const int32_t *sizes, int32_t count, int32_t crl_count,
                         int32_t anchor_count,
                         int64_t time_secs, int32_t strict, int32_t revocation,
+                        int32_t policy_flags, const uint8_t *policies,
+                        size_t policies_len, int32_t policy_count,
                         certpath_result *result);
+
+/*
+ * The bridges' shared check of the caller's policy list: policy_count TLVs,
+ * each tagged OBJECT IDENTIFIER with a non-empty, minimally encoded length
+ * inside the buffer, and nothing after the last. JO_SUCCESS or
+ * JO_INPUT_OUT_OF_RANGE.
+ */
+int32_t certpath_policies_check(const uint8_t *policies, size_t policies_len,
+                                int32_t policy_count);
 
 void certpath_result_free(certpath_result *result);
 

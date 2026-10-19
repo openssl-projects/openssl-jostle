@@ -102,31 +102,58 @@ public class CertPathContractTest
         validator().validate(goodPath(), anchoredAtRoot());
     }
 
-    /** P2: the policy inputs are refused, not ignored. */
+    /**
+     * P2: the policy inputs are honoured. Each one on its own leaves this path
+     * valid (it asserts NIST-test-policy-1 throughout), and an initial set
+     * that excludes that policy under explicit policy refuses it, so the
+     * inputs reach the check rather than being ignored. A PKIXCertPathChecker
+     * is still refused.
+     */
     @Test
-    public void policyInputsAreRefusedRatherThanIgnored() throws Exception
+    public void policyInputsAreHonouredAndCheckersRefused() throws Exception
     {
         PKIXParameters explicit = anchoredAtRoot();
         explicit.setExplicitPolicyRequired(true);
-        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                () -> validator().validate(goodPath(), explicit));
+        validator().validate(goodPath(), explicit);
 
         PKIXParameters mapping = anchoredAtRoot();
         mapping.setPolicyMappingInhibited(true);
-        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                () -> validator().validate(goodPath(), mapping));
+        validator().validate(goodPath(), mapping);
 
         PKIXParameters any = anchoredAtRoot();
         any.setAnyPolicyInhibited(true);
-        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                () -> validator().validate(goodPath(), any));
+        validator().validate(goodPath(), any);
 
         PKIXParameters initial = anchoredAtRoot();
         Set<String> policies = new HashSet<String>();
         policies.add("2.16.840.1.101.3.2.1.48.1");
         initial.setInitialPolicies(policies);
-        Assertions.assertThrows(InvalidAlgorithmParameterException.class,
-                () -> validator().validate(goodPath(), initial));
+        validator().validate(goodPath(), initial);
+
+        PKIXParameters excluded = anchoredAtRoot();
+        excluded.setExplicitPolicyRequired(true);
+        excluded.setInitialPolicies(Collections.singleton("2.16.840.1.101.3.2.1.48.2"));
+        Assertions.assertThrows(CertPathValidatorException.class,
+                () -> validator().validate(goodPath(), excluded));
+
+        PKIXParameters notAnOid = anchoredAtRoot();
+        notAnOid.setInitialPolicies(Collections.singleton("not.an.oid"));
+        InvalidAlgorithmParameterException bad = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
+                () -> validator().validate(goodPath(), notAnOid));
+        Assertions.assertEquals("an initial policy is not an object identifier: not.an.oid", bad.getMessage());
+
+        PKIXParameters tooMany = anchoredAtRoot();
+        Set<String> many = new HashSet<String>();
+        for (int i = 0; i < 257; i++)
+        {
+            many.add("1.2.3." + i);
+        }
+        tooMany.setInitialPolicies(many);
+        InvalidAlgorithmParameterException over = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
+                () -> validator().validate(goodPath(), tooMany));
+        Assertions.assertEquals("too many initial policies: 257 exceeds the limit of 256", over.getMessage());
 
         PKIXParameters checkers = anchoredAtRoot();
         checkers.addCertPathChecker(new PKIXCertPathChecker()
@@ -279,7 +306,7 @@ public class CertPathContractTest
         int[] info = new int[3 + 3];
 
         int rc = NISelector.CertPathNI.ni_verify(der, sizes, 3, 0, 1,
-                CertPathNI.TIME_NOW, 1, 0, new byte[der.length], info);
+                CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[der.length], info);
 
         Assertions.assertEquals(-175, rc, "JO_CERT_DECODE_FAILED");
         Assertions.assertEquals(-175, info[0], "the code must be reported in outInfo too");

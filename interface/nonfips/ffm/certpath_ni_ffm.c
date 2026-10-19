@@ -30,6 +30,8 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
                           const int32_t *sizes, int32_t sizes_len,
                           int32_t count, int32_t crl_count, int32_t anchor_count,
                           int64_t time_secs, int32_t strict, int32_t revocation,
+                          int32_t policy_flags, const uint8_t *policies,
+                          int32_t policies_len, int32_t policy_count,
                           uint8_t *chain_out, int32_t chain_out_len,
                           int32_t *out_info, int32_t out_info_len)
 {
@@ -65,6 +67,22 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     if (out_info_len < count + 3) {
         return JO_OUTPUT_OUT_OF_RANGE;
     }
+    if ((policy_flags & ~CERTPATH_POLICY_ALL) != 0 || policy_count < 0) {
+        return JO_INPUT_OUT_OF_RANGE;
+    }
+    if (policy_count > CERTPATH_MAX_POLICIES) {
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+    if (policies == NULL && policy_count > 0) {
+        return JO_INPUT_IS_NULL;
+    }
+    if (policies_len < 0) {
+        return JO_INPUT_LEN_IS_NEGATIVE;
+    }
+    ret = certpath_policies_check(policies, (size_t) policies_len, policy_count);
+    if (ret != JO_SUCCESS) {
+        return ret;
+    }
     if (chain_out_len < 0) {
         return JO_OUTPUT_LEN_IS_NEGATIVE;
     }
@@ -79,7 +97,8 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     }
 
     ret = certpath_verify(der, (size_t) der_len, sizes, count, crl_count, anchor_count,
-                          time_secs, strict, revocation, &result);
+                          time_secs, strict, revocation,
+                          policy_flags, policies, (size_t) policies_len, policy_count, &result);
     if (ret != JO_SUCCESS) {
         if (ret == JO_CERT_DECODE_FAILED || ret == JO_CRL_DECODE_FAILED) {
             out_info[0] = ret;

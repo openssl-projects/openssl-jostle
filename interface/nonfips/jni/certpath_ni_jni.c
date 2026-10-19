@@ -42,11 +42,13 @@
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPathServiceJNI_ni_1verify
 (JNIEnv *env, jobject jo, jbyteArray _der, jintArray _sizes, jint count, jint crlCount,
  jint anchorCount, jlong timeSecs, jint strict, jint revocation,
+ jint policyFlags, jbyteArray _policies, jint policyCount,
  jbyteArray _chainOut, jintArray _outInfo)
 {
     UNUSED(jo);
 
     java_bytearray_ctx der;
+    java_bytearray_ctx policies;
     java_bytearray_ctx chainOut;
     jint ret = JO_FAIL;
     jint *sizes = NULL;
@@ -56,6 +58,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
     int32_t i;
 
     init_bytearray_ctx(&der);
+    init_bytearray_ctx(&policies);
     init_bytearray_ctx(&chainOut);
     memset(&result, 0, sizeof(result));
 
@@ -95,6 +98,31 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
     if ((*env)->GetArrayLength(env, _outInfo) < count + 3)
     {
         ret = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+    if ((policyFlags & ~CERTPATH_POLICY_ALL) != 0 || policyCount < 0)
+    {
+        ret = JO_INPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+    if (policyCount > CERTPATH_MAX_POLICIES)
+    {
+        ret = JO_INPUT_TOO_LONG_INT32;
+        goto exit;
+    }
+    if (_policies == NULL && policyCount > 0)
+    {
+        ret = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+    if (!load_bytearray_ctx(&policies, env, _policies))
+    {
+        ret = JO_FAILED_ACCESS_INPUT;
+        goto exit;
+    }
+    ret = certpath_policies_check(policies.bytearray, policies.size, policyCount);
+    if (ret != JO_SUCCESS)
+    {
         goto exit;
     }
 
@@ -154,7 +182,8 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
     }
 
     ret = certpath_verify(der.bytearray, der.size, native_sizes, count, crlCount,
-                          anchorCount, (int64_t) timeSecs, strict, revocation, &result);
+                          anchorCount, (int64_t) timeSecs, strict, revocation,
+                          policyFlags, policies.bytearray, policies.size, policyCount, &result);
     if (ret != JO_SUCCESS)
     {
         if (ret == JO_CERT_DECODE_FAILED || ret == JO_CRL_DECODE_FAILED)
@@ -200,6 +229,7 @@ exit:
         (*env)->ReleaseIntArrayElements(env, _sizes, sizes, JNI_ABORT);
     }
     release_bytearray_ctx(&chainOut);
+    release_bytearray_ctx(&policies);
     release_bytearray_ctx(&der);
     return ret;
 }

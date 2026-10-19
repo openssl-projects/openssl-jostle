@@ -13,9 +13,11 @@ import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
 import java.security.cert.PKIXParameters;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Every PKITS row against its expected outcome, on this provider, the JDK's
@@ -117,6 +119,14 @@ public class PkitsThreeWayAgreementTest
                 "BC returns valid where PKITS, SUN and this provider all report the "
                         + "certificate revoked (KEY_COMPROMISE)"));
 
+        // Self-issued policy rows. BC refuses them unless the path certificates
+        // are also in a CertStore, which holds only the non-path ones here;
+        // measured both ways. SUN and this provider validate them.
+        EXCLUSIONS.add(new Exclusion("4.9.6", BC, "BC: \"Cannot verify CRL.\" at index 0"));
+        EXCLUSIONS.add(new Exclusion("4.11.7", BC, "BC: \"Cannot verify CRL.\" at index 1"));
+        EXCLUSIONS.add(new Exclusion("4.12.7", BC, "BC: \"Cannot verify CRL.\" at index 1"));
+        EXCLUSIONS.add(new Exclusion("4.12.9", BC, "BC: \"Cannot verify CRL.\" at index 2"));
+
         // The delta-CRL pair. We honour deltas (X509_V_FLAG_USE_DELTAS) and
         // agree with PKITS on both; neither the JDK nor BouncyCastle does, so
         // all four triples here are foreign. Our side is pinned against the
@@ -195,7 +205,37 @@ public class PkitsThreeWayAgreementTest
      */
     private static PKIXParameters params(PkitsCertificates.Case c) throws Exception
     {
+        if (isPolicyRow(c))
+        {
+            return PkitsPhase3Test.params(c);
+        }
         return isPhase1(c) ? PkitsPhase1Test.params() : PkitsPhase2Test.params(c);
+    }
+
+    /** The row numbers of {@code cases_policy.txt}; the partition cell keeps them apart from cases.txt's. */
+    private static Set<String> policyRows;
+
+    /** A row of {@code cases_policy.txt}, decided by membership in that table. */
+    private static synchronized boolean isPolicyRow(PkitsCertificates.Case c) throws Exception
+    {
+        if (policyRows == null)
+        {
+            Set<String> rows = new HashSet<String>();
+            for (PkitsCertificates.Case p : PkitsCertificates.policyCases())
+            {
+                rows.add(p.number);
+            }
+            policyRows = rows;
+        }
+        return policyRows.contains(c.number);
+    }
+
+    /** Both tables: {@code cases.txt}, then the policy variants. */
+    private static List<PkitsCertificates.Case> allCases() throws Exception
+    {
+        List<PkitsCertificates.Case> all = new ArrayList<PkitsCertificates.Case>(PkitsCertificates.cases());
+        all.addAll(PkitsCertificates.policyCases());
+        return all;
     }
 
     /**
@@ -232,7 +272,7 @@ public class PkitsThreeWayAgreementTest
     private static Map<String, Map<String, Boolean>> sweep() throws Exception
     {
         Map<String, Map<String, Boolean>> raw = new LinkedHashMap<String, Map<String, Boolean>>();
-        for (PkitsCertificates.Case c : PkitsCertificates.cases())
+        for (PkitsCertificates.Case c : allCases())
         {
             Map<String, Boolean> byProvider = new LinkedHashMap<String, Boolean>();
             for (String p : PROVIDERS)
@@ -252,7 +292,7 @@ public class PkitsThreeWayAgreementTest
     @Test
     public void everyRowAgreesWithPkitsOnEveryProviderExceptWhereSanctioned() throws Exception
     {
-        List<PkitsCertificates.Case> cases = PkitsCertificates.cases();
+        List<PkitsCertificates.Case> cases = allCases();
         Map<String, Map<String, Boolean>> raw = sweep();
 
         List<String> failures = new ArrayList<String>();
@@ -328,7 +368,7 @@ public class PkitsThreeWayAgreementTest
     public void everyExclusionMatchesARealRowExactlyOnce() throws Exception
     {
         List<String> known = new ArrayList<String>();
-        for (PkitsCertificates.Case c : PkitsCertificates.cases())
+        for (PkitsCertificates.Case c : allCases())
         {
             known.add(c.number);
         }
@@ -450,7 +490,7 @@ public class PkitsThreeWayAgreementTest
 
     private static PkitsCertificates.Case find(String number) throws Exception
     {
-        for (PkitsCertificates.Case c : PkitsCertificates.cases())
+        for (PkitsCertificates.Case c : allCases())
         {
             if (c.number.equals(number))
             {

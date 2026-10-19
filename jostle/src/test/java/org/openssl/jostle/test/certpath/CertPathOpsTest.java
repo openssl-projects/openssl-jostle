@@ -152,7 +152,7 @@ public class CertPathOpsTest
         int verify()
         {
             return NISelector.CertPathNI.ni_verify(der, sizes, count, crlCount, anchorCount,
-                    CertPathNI.TIME_NOW, 0, revocation, chainOut, outInfo);
+                    CertPathNI.TIME_NOW, 0, revocation, CertPathNI.POLICY_NONE, null, 0, chainOut, outInfo);
         }
     }
 
@@ -231,7 +231,7 @@ public class CertPathOpsTest
     @Test
     public void storeAllocationFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:173
+        // Exercises interface/nonfips/util/certpath.c:275
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1,
                 "the store/untrusted/crls allocation arm");
     }
@@ -239,7 +239,7 @@ public class CertPathOpsTest
     @Test
     public void storeAddCertFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:200
+        // Exercises interface/nonfips/util/certpath.c:302
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7,
                 "the X509_STORE_add_cert arm");
     }
@@ -247,7 +247,7 @@ public class CertPathOpsTest
     @Test
     public void storeCtxAllocationOrInitFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:246
+        // Exercises interface/nonfips/util/certpath.c:348
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2,
                 "the store-ctx allocate-and-init arm");
     }
@@ -292,7 +292,7 @@ public class CertPathOpsTest
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
         {
-            // Exercises interface/nonfips/jni/certpath_ni_jni.c:101
+            // Exercises interface/nonfips/jni/certpath_ni_jni.c:129
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_4);
             Assertions.assertEquals(-22, new Path().verify(), "JO_FAILED_ACCESS_INPUT");
         }
@@ -314,7 +314,7 @@ public class CertPathOpsTest
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
         {
-            // Exercises interface/nonfips/jni/certpath_ni_jni.c:113
+            // Exercises interface/nonfips/jni/certpath_ni_jni.c:141
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_5);
             Assertions.assertEquals(-23, new Path().verify(), "JO_FAILED_ACCESS_OUTPUT");
         }
@@ -327,7 +327,7 @@ public class CertPathOpsTest
     @Test
     public void untrustedPushFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:211
+        // Exercises interface/nonfips/util/certpath.c:313
         assertFlagBreaksVerification(WITH_INTERMEDIATE,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8,
                 "the sk_X509_push arm, which only a path WITH an intermediate reaches");
@@ -336,7 +336,7 @@ public class CertPathOpsTest
     @Test
     public void crlPushFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:238
+        // Exercises interface/nonfips/util/certpath.c:340
         assertFlagBreaksVerification(WITH_CRLS,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9,
                 "the sk_X509_CRL_push arm, which only a call carrying CRLs reaches");
@@ -354,7 +354,7 @@ public class CertPathOpsTest
         Assertions.assertEquals(0, new Path().verify(), "control");
         try
         {
-            // Exercises interface/nonfips/jni/certpath_ni_jni.c:125
+            // Exercises interface/nonfips/jni/certpath_ni_jni.c:153
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_6);
             Assertions.assertEquals(-22, new Path().verify(), "JO_FAILED_ACCESS_INPUT");
         }
@@ -396,7 +396,7 @@ public class CertPathOpsTest
         Assertions.assertNotNull(validator.validate(path, vp), "control");
         try
         {
-            // Exercises interface/nonfips/util/certpath.c:173
+            // Exercises interface/nonfips/util/certpath.c:275
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             CertPathValidatorException v = Assertions.assertThrows(
                     CertPathValidatorException.class, () -> validator.validate(path, vp));

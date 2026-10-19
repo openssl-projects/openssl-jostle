@@ -199,13 +199,17 @@ public class PkitsPhase2Test
      * The vacuity guard on the table itself. A selection that silently
      * narrowed — a section renamed, a row dropped by the generator — would
      * make the sweep above pass over fewer cases with nothing to say so, so
-     * the two phases must PARTITION the table: every row claimed, none twice.
+     * the three phases must PARTITION the two tables: every row claimed, none
+     * twice. Phase 3 owns {@code cases_policy.txt}, phases 1 and 2 split
+     * {@code cases.txt}.
      */
     @Test
     public void thePhasesPartitionTheCaseTableExactly() throws Exception
     {
         List<PkitsCertificates.Case> all = PkitsCertificates.cases();
-        Assertions.assertEquals(121, all.size(), "the committed table must hold 121 rows");
+        Assertions.assertEquals(161, all.size(), "the committed table must hold 161 rows");
+        List<PkitsCertificates.Case> policy = PkitsCertificates.policyCases();
+        Assertions.assertEquals(86, policy.size(), "the policy table must hold 86 rows");
 
         Set<String> phase1 = new HashSet<String>();
         for (PkitsCertificates.Case c : PkitsPhase1Test.selected())
@@ -231,8 +235,22 @@ public class PkitsPhase2Test
             }
         }
         Assertions.assertTrue(unclaimed.isEmpty(), "a case is claimed by neither phase: " + unclaimed);
-        Assertions.assertEquals(50, phase1.size());
+        Assertions.assertEquals(90, phase1.size());
         Assertions.assertEquals(71, phase2.size());
+
+        Set<String> phase3 = new HashSet<String>();
+        for (PkitsCertificates.Case c : PkitsPhase3Test.selected())
+        {
+            Assertions.assertTrue(phase3.add(c.number), "phase 3 claims a row twice: " + c.number);
+            Assertions.assertFalse(phase1.contains(c.number) || phase2.contains(c.number),
+                    "a policy row is also claimed by phase 1 or 2: " + c.number);
+        }
+        Set<String> policyRows = new HashSet<String>();
+        for (PkitsCertificates.Case c : policy)
+        {
+            policyRows.add(c.number);
+        }
+        Assertions.assertEquals(policyRows, phase3, "phase 3 must claim exactly the policy table");
     }
 
     /**

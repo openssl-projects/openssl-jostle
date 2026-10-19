@@ -41,18 +41,23 @@ import org.openssl.jostle.jcajce.provider.OpenSSLException;
  * the caller's {@code CertStore}s supply. A certificate in the path with no
  * usable CRL is an UNDETERMINED_REVOCATION_STATUS failure, not a pass.
  * <p>
- * <b>Refused typed</b>, rather than ignored, because ignoring them would return
- * a green result for a check that never ran: any initial policy set,
- * explicit-policy / policy-mapping-inhibited / any-policy-inhibited set away
- * from their defaults, and a non-empty {@code PKIXCertPathChecker} list —
- * which is also what keeps {@code PKIXRevocationChecker}, and so OCSP, out.
+ * <b>Also honoured: certificate policies.</b> Policy processing runs on every
+ * validation, so the policy constraints the certificates carry are always
+ * evaluated. The initial policy set, explicitPolicyRequired,
+ * policyMappingInhibited and anyPolicyInhibited are passed to OpenSSL; an empty
+ * initial set means any policy.
+ * <p>
+ * <b>Refused typed</b>, rather than ignored, because ignoring it would return
+ * a green result for a check that never ran: a non-empty
+ * {@code PKIXCertPathChecker} list, which is also what keeps
+ * {@code PKIXRevocationChecker}, and so OCSP, out.
  * <p>
  * <b>sigProvider</b> is accepted only when null or this provider's name, and
  * refused typed otherwise: OpenSSL performs the signature verification, so no
  * other JCA provider can be honoured. {@code targetCertConstraints} is applied
  * to the target certificate before anything is verified. Without effect:
- * {@code policyQualifiersRejected}, which only matters once policies are
- * processed.
+ * {@code policyQualifiersRejected}, because OpenSSL has no control for it and
+ * never rejects a qualifier.
  * <p>
  * <b>The CertStores are read, and never for path members.</b> With revocation
  * on, their CRLs AND their certificates are handed to OpenSSL — the
@@ -63,8 +68,9 @@ import org.openssl.jostle.jcajce.provider.OpenSSLException;
  * given, so a store certificate turning up IN the chain is a failure, not a
  * silent substitution. {@code maxPathLength} belongs to the BUILDER and is honoured
  * there; this validator takes the path as given and does not choose its
- * length. The result's policy tree is {@code null}: this phase does no
- * policy processing, and a fabricated tree would be worse than none.
+ * length. The result's policy tree is {@code null}: OpenSSL's tree is not yet
+ * mapped to a {@code PolicyNode}, and a fabricated tree would
+ * be worse than none.
  * <p>
  * <b>One consequence of building through OpenSSL:</b> a SELF-ISSUED
  * certificate that OpenSSL leaves out of its chain is not validated at all —
@@ -131,7 +137,8 @@ public class JostleCertPathValidatorSpi
         CertPathCall call = CertPathCall.build(pkix, certs, CertPathCall.crlsFrom(pkix),
                 CertPathCall.extraCertsFrom(pkix, certs));
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
-                call.timeSecs, 1, call.revocation, call.chainOut, call.outInfo);
+                call.timeSecs, 1, call.revocation, call.policyFlags, call.policies, call.policyCount,
+                call.chainOut, call.outInfo);
 
         if (rc == ErrorCode.JO_CRL_DECODE_FAILED.getCode())
         {

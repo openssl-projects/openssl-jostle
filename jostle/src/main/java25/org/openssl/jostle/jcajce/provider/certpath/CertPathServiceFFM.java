@@ -55,6 +55,7 @@ public class CertPathServiceFFM implements CertPathNI
     {
         // int32_t JoCertPath_verify(const uint8_t*, int32_t, const int32_t*, int32_t,
         //                           int32_t, int32_t, int32_t, int64_t, int32_t, int32_t,
+        //                           int32_t, const uint8_t*, int32_t, int32_t,
         //                           uint8_t*, int32_t, int32_t*, int32_t)
         verifyH = linker.downcallHandle(
                 lookup.find(symPrefix + "JoCertPath_verify").orElseThrow(),
@@ -70,6 +71,10 @@ public class CertPathServiceFFM implements CertPathNI
                         ValueLayout.JAVA_LONG,     // time_secs
                         ValueLayout.JAVA_INT,      // strict
                         ValueLayout.JAVA_INT,      // revocation
+                        ValueLayout.JAVA_INT,      // policy_flags
+                        ValueLayout.ADDRESS,       // policies
+                        ValueLayout.JAVA_INT,      // policies_len
+                        ValueLayout.JAVA_INT,      // policy_count
                         ValueLayout.ADDRESS,       // chain_out
                         ValueLayout.JAVA_INT,      // chain_out_len
                         ValueLayout.ADDRESS,       // out_info
@@ -84,6 +89,7 @@ public class CertPathServiceFFM implements CertPathNI
     @Override
     public int ni_verify(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
                          long timeSecs, int strict, int revocation,
+                         int policyFlags, byte[] policies, int policyCount,
                          byte[] chainOut, int[] outInfo)
     {
         try (Arena arena = Arena.ofConfined())
@@ -96,6 +102,8 @@ public class CertPathServiceFFM implements CertPathNI
                     ? MemorySegment.NULL : arena.allocateFrom(ValueLayout.JAVA_BYTE, der);
             MemorySegment sizesSeg = sizes == null
                     ? MemorySegment.NULL : arena.allocateFrom(ValueLayout.JAVA_INT, sizes);
+            MemorySegment policiesSeg = policies == null
+                    ? MemorySegment.NULL : arena.allocateFrom(ValueLayout.JAVA_BYTE, policies);
             MemorySegment chainSeg = chainOut == null
                     ? MemorySegment.NULL : arena.allocate(Math.max(chainOut.length, 1));
             // outInfo is copied IN as well as back, so the entries C does not
@@ -109,6 +117,7 @@ public class CertPathServiceFFM implements CertPathNI
             int rc = (int) verifyH.invokeExact(derSeg, der == null ? 0 : der.length,
                     sizesSeg, sizes == null ? 0 : sizes.length,
                     count, crlCount, anchorCount, timeSecs, strict, revocation,
+                    policyFlags, policiesSeg, policies == null ? 0 : policies.length, policyCount,
                     chainSeg, chainOut == null ? 0 : chainOut.length,
                     infoSeg, outInfo == null ? 0 : outInfo.length);
 

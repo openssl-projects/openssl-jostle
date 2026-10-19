@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.certpath;
 
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.asn1.Der;
 
 import java.security.InvalidAlgorithmParameterException;
 import java.security.cert.CRL;
@@ -31,6 +32,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Marshals a path for {@link CertPathNI#ni_verify}: anchors first, then the
@@ -46,6 +48,8 @@ final class CertPathCall
      */
     static final int MAX_CERTS = 256;
     static final int MAX_CRLS = 256;
+    /** Mirrors CERTPATH_MAX_POLICIES in certpath.h: an allocation bound, not a functional limit. */
+    static final int MAX_POLICIES = 256;
 
     final byte[] der;
     final int[] sizes;
@@ -56,11 +60,17 @@ final class CertPathCall
     final int extraCount;
     final long timeSecs;
     final int revocation;
+    /** {@code CertPathNI.POLICY_*} bits from the PKIX parameters. */
+    final int policyFlags;
+    /** The initial policy set as concatenated DER OIDs; empty means any policy. */
+    final byte[] policies;
+    final int policyCount;
     final byte[] chainOut;
     final int[] outInfo;
 
     private CertPathCall(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
-                         int extraCount, long timeSecs, int revocation, int certBytes)
+                         int extraCount, long timeSecs, int revocation, int certBytes,
+                         int policyFlags, byte[] policies, int policyCount)
     {
         this.der = der;
         this.sizes = sizes;
@@ -70,6 +80,9 @@ final class CertPathCall
         this.extraCount = extraCount;
         this.timeSecs = timeSecs;
         this.revocation = revocation;
+        this.policyFlags = policyFlags;
+        this.policies = policies;
+        this.policyCount = policyCount;
         // The built chain can only be a subset of the CERTIFICATES supplied,
         // so their combined length is a sound and cheap bound — the CRL bytes
         // in `der` can never appear in it.
@@ -136,6 +149,7 @@ final class CertPathCall
      */
     private static CertPathCall assemble(List<byte[]> certs, List<byte[]> crls,
                                          int anchors, int extras, PKIXParameters pkix)
+            throws InvalidAlgorithmParameterException
     {
         int certBytes = 0;
         for (byte[] b : certs)
@@ -165,8 +179,63 @@ final class CertPathCall
         }
         long when = pkix.getDate() == null
                 ? CertPathNI.TIME_NOW : pkix.getDate().getTime() / 1000L;
+        Set<String> initial = pkix.getInitialPolicies();
         return new CertPathCall(der, sizes, certs.size(), crls.size(), anchors, extras, when,
-                pkix.isRevocationEnabled() ? 1 : 0, certBytes);
+                pkix.isRevocationEnabled() ? 1 : 0, certBytes,
+                policyFlags(pkix), encodePolicies(initial), initial.size());
+    }
+
+    private static int policyFlags(PKIXParameters pkix)
+    {
+        int flags = CertPathNI.POLICY_NONE;
+        if (pkix.isExplicitPolicyRequired())
+        {
+            flags |= CertPathNI.POLICY_EXPLICIT;
+        }
+        if (pkix.isAnyPolicyInhibited())
+        {
+            flags |= CertPathNI.POLICY_INHIBIT_ANY;
+        }
+        if (pkix.isPolicyMappingInhibited())
+        {
+            flags |= CertPathNI.POLICY_INHIBIT_MAP;
+        }
+        return flags;
+    }
+
+    /** The initial policy set as concatenated DER OBJECT IDENTIFIER TLVs. */
+    private static byte[] encodePolicies(Set<String> initial) throws InvalidAlgorithmParameterException
+    {
+        if (initial.size() > MAX_POLICIES)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "too many initial policies: " + initial.size() + " exceeds the limit of " + MAX_POLICIES);
+        }
+        List<byte[]> encoded = new ArrayList<byte[]>();
+        int total = 0;
+        for (String oid : initial)
+        {
+            byte[] tlv;
+            try
+            {
+                tlv = Der.objectIdentifier(oid);
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "an initial policy is not an object identifier: " + oid, e);
+            }
+            encoded.add(tlv);
+            total += tlv.length;
+        }
+        byte[] out = new byte[total];
+        int off = 0;
+        for (byte[] tlv : encoded)
+        {
+            System.arraycopy(tlv, 0, out, off, tlv.length);
+            off += tlv.length;
+        }
+        return out;
     }
 
     private static List<byte[]> encodeCrls(List<X509CRL> crls) throws CertPathValidatorException

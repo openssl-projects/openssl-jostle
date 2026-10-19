@@ -140,10 +140,109 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
     return JO_SUCCESS;
 }
 
+int32_t certpath_policies_check(const uint8_t *policies, size_t policies_len,
+                                int32_t policy_count)
+{
+    size_t off = 0;
+    int32_t i;
+
+    if (policy_count > 0 && policies == NULL)
+    {
+        return JO_INPUT_OUT_OF_RANGE;
+    }
+    for (i = 0; i < policy_count; i++)
+    {
+        size_t len;
+
+        if (policies_len - off < 2 || policies[off] != V_ASN1_OBJECT)
+        {
+            return JO_INPUT_OUT_OF_RANGE;
+        }
+        len = policies[off + 1];
+        off += 2;
+        if (len == 0x81)
+        {
+            if (policies_len - off < 1 || policies[off] < 0x80)
+            {
+                return JO_INPUT_OUT_OF_RANGE;
+            }
+            len = policies[off];
+            off += 1;
+        }
+        else if (len >= 0x80)
+        {
+            /* An OID longer than 255 octets is not a policy; refuse the form. */
+            return JO_INPUT_OUT_OF_RANGE;
+        }
+        if (len == 0 || len > policies_len - off)
+        {
+            return JO_INPUT_OUT_OF_RANGE;
+        }
+        off += len;
+    }
+    if (off != policies_len)
+    {
+        return JO_INPUT_OUT_OF_RANGE;
+    }
+    return JO_SUCCESS;
+}
+
+/*
+ * The initial policy set as OpenSSL takes it. An empty JCA set means any
+ * policy and must cross as the anyPolicy OID: an empty stack leaves OpenSSL's
+ * user set empty and fails every path under explicit policy.
+ */
+static int32_t set_policies(X509_VERIFY_PARAM *param, const uint8_t *policies,
+                            size_t policies_len, int32_t policy_count)
+{
+    STACK_OF(ASN1_OBJECT) *oids = sk_ASN1_OBJECT_new_null();
+    const unsigned char *p = policies;
+    int32_t ret = JO_OPENSSL_ERROR;
+    int32_t i;
+
+    if (oids == NULL)
+    {
+        return JO_OPENSSL_ERROR;
+    }
+    if (policy_count == 0)
+    {
+        if (sk_ASN1_OBJECT_push(oids, OBJ_nid2obj(NID_any_policy)) <= 0)
+        {
+            goto exit;
+        }
+    }
+    for (i = 0; i < policy_count; i++)
+    {
+        ASN1_OBJECT *oid = d2i_ASN1_OBJECT(NULL, &p, (long) (policies_len - (size_t) (p - policies)));
+
+        if (oid == NULL)
+        {
+            ret = JO_INPUT_OUT_OF_RANGE;
+            goto exit;
+        }
+        if (sk_ASN1_OBJECT_push(oids, oid) <= 0)
+        {
+            ASN1_OBJECT_free(oid);
+            goto exit;
+        }
+    }
+    if (X509_VERIFY_PARAM_set1_policies(param, oids) != 1)
+    {
+        goto exit;
+    }
+    ret = JO_SUCCESS;
+
+exit:
+    sk_ASN1_OBJECT_pop_free(oids, ASN1_OBJECT_free);
+    return ret;
+}
+
 int32_t certpath_verify(const uint8_t *der, size_t der_len,
                         const int32_t *sizes, int32_t count, int32_t crl_count,
                         int32_t anchor_count,
                         int64_t time_secs, int32_t strict, int32_t revocation,
+                        int32_t policy_flags, const uint8_t *policies,
+                        size_t policies_len, int32_t policy_count,
                         certpath_result *result)
 {
     X509_STORE *store = NULL;
@@ -163,6 +262,9 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     jo_assert(count >= 2);
     jo_assert(crl_count >= 0);
     jo_assert(anchor_count >= 1 && anchor_count < count);
+    jo_assert((policy_flags & ~CERTPATH_POLICY_ALL) == 0);
+    jo_assert(policy_count >= 0 && policy_count <= CERTPATH_MAX_POLICIES);
+    jo_assert(certpath_policies_check(policies, policies_len, policy_count) == JO_SUCCESS);
 
     memset(result, 0, sizeof(*result));
     result->depth = -1;
@@ -286,7 +388,29 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
                      | X509_V_FLAG_EXTENDED_CRL_SUPPORT
                      | X509_V_FLAG_USE_DELTAS;
         }
+        /*
+         * POLICY_CHECK is unconditional: without it the policy constraints
+         * the certificates themselves carry are never evaluated.
+         */
+        flags |= X509_V_FLAG_POLICY_CHECK;
+        if ((policy_flags & CERTPATH_POLICY_EXPLICIT) != 0)
+        {
+            flags |= X509_V_FLAG_EXPLICIT_POLICY;
+        }
+        if ((policy_flags & CERTPATH_POLICY_INHIBIT_ANY) != 0)
+        {
+            flags |= X509_V_FLAG_INHIBIT_ANY;
+        }
+        if ((policy_flags & CERTPATH_POLICY_INHIBIT_MAP) != 0)
+        {
+            flags |= X509_V_FLAG_INHIBIT_MAP;
+        }
         X509_VERIFY_PARAM_set_flags(param, flags);
+        ret = set_policies(param, policies, policies_len, policy_count);
+        if (ret != JO_SUCCESS)
+        {
+            goto exit;
+        }
         if (time_secs != CERTPATH_TIME_NOW)
         {
             X509_STORE_CTX_set_time(ctx, 0, (time_t) time_secs);

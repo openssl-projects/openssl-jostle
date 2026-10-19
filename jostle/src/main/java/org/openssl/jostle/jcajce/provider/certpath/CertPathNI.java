@@ -36,6 +36,12 @@ public interface CertPathNI
      */
     long TIME_NOW = Long.MIN_VALUE;
 
+    /** {@code policyFlags} bits, matching {@code CERTPATH_POLICY_*} in certpath.h. */
+    int POLICY_NONE = 0;
+    int POLICY_EXPLICIT = 1;
+    int POLICY_INHIBIT_ANY = 2;
+    int POLICY_INHIBIT_MAP = 4;
+
     /**
      * @param der         concatenated DER: anchors, untrusted, target, CRLs
      * @param sizes       one length per entry, {@code count + crlCount} of them
@@ -45,6 +51,10 @@ public interface CertPathNI
      * @param timeSecs    validation time in seconds since the epoch, or {@link #TIME_NOW}
      * @param strict      non-zero adds {@code X509_V_FLAG_X509_STRICT}
      * @param revocation  non-zero turns CRL checking on for the WHOLE path
+     * @param policyFlags {@code POLICY_*} bits; policy processing itself is always on
+     * @param policies    {@code policyCount} DER OBJECT IDENTIFIER TLVs, concatenated:
+     *                    the initial policy set; may be null when the count is 0
+     * @param policyCount how many initial policies; 0 means any policy
      * @param chainOut    receives the built chain's concatenated DER
      * @param outInfo     {@code [error, depth, chainCount, size0 … sizeN-1]},
      *                    so at least {@code OUT_INFO_HEADER + count} entries;
@@ -55,7 +65,9 @@ public interface CertPathNI
      *         {@code JO_*} when it could not be attempted
      */
     int ni_verify(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
-                  long timeSecs, int strict, int revocation, byte[] chainOut, int[] outInfo);
+                  long timeSecs, int strict, int revocation,
+                  int policyFlags, byte[] policies, int policyCount,
+                  byte[] chainOut, int[] outInfo);
 
     /**
      * OpenSSL's own text for an {@code X509_V_*} code, from the linked library.

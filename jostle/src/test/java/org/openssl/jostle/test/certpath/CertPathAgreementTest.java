@@ -19,7 +19,6 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.util.Arrays;
 
 import java.io.ByteArrayInputStream;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.CertPath;
@@ -43,7 +42,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -76,6 +77,8 @@ public class CertPathAgreementTest
     private static final String JSL = JostleProvider.PROVIDER_NAME;
     private static final String BC = BouncyCastleProvider.PROVIDER_NAME;
     private static final String SUN = "SUN";
+
+    private static final String EXPLICIT_ANY = "explicit policy, any-policy initial set";
 
     /**
      * Shapes on which the two providers are MEASURED to disagree, so the
@@ -405,9 +408,9 @@ public class CertPathAgreementTest
     /**
      * The policy tree, pinned in both halves.
      * <p>
-     * This provider does no policy processing and says so: the result's
-     * policy tree is always null, because a fabricated tree would be worse
-     * than none. So there is nothing to compare, and the cell pins the
+     * This provider does not yet map OpenSSL's policy tree, and says so: the
+     * result's policy tree is always null, because a fabricated tree would be
+     * worse than none. So there is nothing to compare, and the cell pins the
      * absence against a reference that does build one — ours null on every
      * family AND on the chain that carries an explicit policy with a mapping,
      * BouncyCastle's non-null on that chain.
@@ -418,7 +421,7 @@ public class CertPathAgreementTest
         for (BcBuiltChains.Family f : BcBuiltChains.families())
         {
             Assertions.assertNull(result(JSL, f).getPolicyTree(),
-                    f.label + ": we now report a policy tree, having done no policy processing");
+                    f.label + ": we now report a policy tree; re-pin this cell against BouncyCastle's");
         }
 
         BcBuiltChains.Shape policy = BcBuiltChains.shape("policy-mapping");
@@ -438,44 +441,125 @@ public class CertPathAgreementTest
     }
 
     /**
-     * Asking for policy processing is refused by name, not ignored.
-     * <p>
-     * Ignoring would return a green result for a check that never ran, which
-     * is the failure this provider is built to avoid. Each of the four
-     * parameters is pinned by its exact message, because a refusal moving to
-     * a different arm keeps the type and changes what the caller is told.
+     * Policy mapping inhibited, against SUN on PKITS 4.10.1: both refuse
+     * sub-test 3 and both validate the same path and inputs with mapping
+     * allowed, which PKITS gives no sub-test for.
      */
     @Test
-    public void everyPolicyParameterIsRefusedByItsOwnMessage() throws Exception
+    public void policyMappingInhibitionAgreesWithSunOnPkits4101() throws Exception
+    {
+        PkitsCertificates.Case inhibited = PkitsPhase3Test.find("4.10.1#3");
+        for (String provider : new String[]{JSL, SUN})
+        {
+            Assertions.assertFalse(PkitsPhase3Test.validates(provider, PkitsPhase2Test.path(inhibited),
+                    PkitsPhase3Test.params(inhibited)), provider + " validates 4.10.1#3");
+            Assertions.assertTrue(PkitsPhase3Test.validates(provider, PkitsPhase2Test.path(inhibited),
+                    PkitsPhase3Test.mappingAllowed(inhibited)), provider + " refuses 4.10.1 with mapping allowed");
+        }
+    }
+
+    /**
+     * The references' half of two refusals this provider makes on purpose:
+     * SUN and BouncyCastle both validate PKITS 4.1.1 with an initial policy
+     * that is not an object identifier, and with 257 initial policies. Ours
+     * refuses both typed, pinned in CertPathContractTest. A non-OID cannot be
+     * passed to OpenSSL, and dropping it would empty the set, which then means
+     * any policy; the 256 ceiling is an allocation bound.
+     */
+    @Test
+    public void theReferencesAcceptTheInitialPoliciesThisProviderRefuses() throws Exception
+    {
+        Set<String> many = new HashSet<String>();
+        for (int i = 0; i < 257; i++)
+        {
+            many.add("1.2.3." + i);
+        }
+        List<Set<String>> inputs = new ArrayList<Set<String>>();
+        inputs.add(Collections.singleton("not.an.oid"));
+        inputs.add(many);
+
+        List<X509Certificate> chain = new ArrayList<X509Certificate>();
+        chain.add(PkitsCertificates.certificate("ValidCertificatePathTest1EE.crt"));
+        chain.add(PkitsCertificates.certificate("GoodCACert.crt"));
+        for (Set<String> initial : inputs)
+        {
+            for (String provider : new String[]{SUN, BC})
+            {
+                PKIXParameters p = new PKIXParameters(Collections.singleton(
+                        new TrustAnchor(PkitsCertificates.certificate(PkitsCertificates.ANCHOR), null)));
+                p.setRevocationEnabled(false);
+                p.setInitialPolicies(initial);
+                CertPathValidator.getInstance("PKIX", provider).validate(path(chain), p);
+            }
+        }
+    }
+
+    /**
+     * Each policy parameter is honoured, and decides the same verdict here as
+     * in SUN on the chain that asserts a policy and maps it, and as in
+     * BouncyCastle on every setting but one. The settings must include a
+     * refusal and an acceptance, or the comparison could not tell honoured
+     * inputs from ignored ones.
+     * <p>
+     * The exception is explicit policy with the default, any-policy, initial
+     * set: BouncyCastle refuses it, SUN and this provider accept it, and PKITS
+     * 4.8.1 sub-test 1 expects it to validate. BouncyCastle's half is pinned
+     * by its message so a bcprov change is seen.
+     */
+    @Test
+    public void everyPolicyParameterAgreesWithTheReferences() throws Exception
     {
         BcBuiltChains.Shape s = BcBuiltChains.shape("policy-mapping");
+        Map<String, PKIXParameters> settings = new LinkedHashMap<String, PKIXParameters>();
+
+        settings.put("defaults", plain(s));
 
         PKIXParameters explicitPolicy = plain(s);
         explicitPolicy.setExplicitPolicyRequired(true);
-        refused(explicitPolicy, s,
-                "explicit policy is not supported: this provider does no policy processing");
+        settings.put(EXPLICIT_ANY, explicitPolicy);
 
         PKIXParameters mappingInhibited = plain(s);
+        mappingInhibited.setExplicitPolicyRequired(true);
         mappingInhibited.setPolicyMappingInhibited(true);
-        refused(mappingInhibited, s,
-                "policy mapping inhibition is not supported: this provider does no policy processing");
+        settings.put("explicit, mapping inhibited", mappingInhibited);
 
         PKIXParameters anyInhibited = plain(s);
         anyInhibited.setAnyPolicyInhibited(true);
-        refused(anyInhibited, s,
-                "any-policy inhibition is not supported: this provider does no policy processing");
+        settings.put("any policy inhibited", anyInhibited);
 
-        PKIXParameters initial = plain(s);
-        initial.setInitialPolicies(new HashSet<String>(
-                Collections.singletonList(BcBuiltChains.POLICY_ASSERTED)));
-        refused(initial, s,
-                "an initial policy set is not supported: this provider does no policy processing");
+        PKIXParameters asserted = plain(s);
+        asserted.setExplicitPolicyRequired(true);
+        asserted.setInitialPolicies(Collections.singleton(BcBuiltChains.POLICY_ASSERTED));
+        settings.put("explicit, initial set {asserted}", asserted);
 
-        // The control: the same chain with none of them set validates, so the
-        // four refusals are attributable to the parameter and not the fixture.
-        Assertions.assertTrue(validate(JSL, s.root, s.chain, s.crls, null).valid,
-                "the policy chain does not validate without policy parameters, so the "
-                        + "refusals above prove nothing about the parameters");
+        PKIXParameters mapped = plain(s);
+        mapped.setExplicitPolicyRequired(true);
+        mapped.setInitialPolicies(Collections.singleton(BcBuiltChains.POLICY_MAPPED));
+        settings.put("explicit, initial set {mapped}", mapped);
+
+        List<String> disagreements = new ArrayList<String>();
+        Set<Boolean> seen = new HashSet<Boolean>();
+        for (Map.Entry<String, PKIXParameters> e : settings.entrySet())
+        {
+            boolean ours = validates(JSL, s, e.getValue());
+            seen.add(Boolean.valueOf(ours));
+            if (ours != validates(SUN, s, e.getValue()))
+            {
+                disagreements.add(e.getKey() + ": ours " + ours + ", SUN differs");
+            }
+            if (!EXPLICIT_ANY.equals(e.getKey()) && ours != validates(BC, s, e.getValue()))
+            {
+                disagreements.add(e.getKey() + ": ours " + ours + ", BouncyCastle differs");
+            }
+        }
+        Assertions.assertTrue(disagreements.isEmpty(), disagreements.toString());
+        Assertions.assertEquals(2, seen.size(),
+                "the settings produced one verdict only, so they cannot show the inputs are honoured");
+
+        Assertions.assertTrue(validates(JSL, s, settings.get(EXPLICIT_ANY)));
+        CertPathValidatorException bc = Assertions.assertThrows(CertPathValidatorException.class,
+                () -> CertPathValidator.getInstance("PKIX", BC).validate(path(s.chain), plain(s, true)));
+        Assertions.assertEquals("Explicit policy requested but none available.", bc.getMessage());
     }
 
     // -----------------------------------------------------------------
@@ -624,13 +708,25 @@ public class CertPathAgreementTest
         return params(s.root, s.crls, s.validAt);
     }
 
-    private static void refused(PKIXParameters p, BcBuiltChains.Shape s, String message)
+    private static PKIXParameters plain(BcBuiltChains.Shape s, boolean explicitPolicy) throws Exception
+    {
+        PKIXParameters p = plain(s);
+        p.setExplicitPolicyRequired(explicitPolicy);
+        return p;
+    }
+
+    private static boolean validates(String provider, BcBuiltChains.Shape s, PKIXParameters p)
             throws Exception
     {
-        InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                InvalidAlgorithmParameterException.class,
-                () -> CertPathValidator.getInstance("PKIX", JSL).validate(path(s.chain), p));
-        Assertions.assertEquals(message, e.getMessage());
+        try
+        {
+            CertPathValidator.getInstance("PKIX", provider).validate(path(s.chain), p);
+            return true;
+        }
+        catch (CertPathValidatorException e)
+        {
+            return false;
+        }
     }
 
     private static PKIXCertPathValidatorResult result(String provider, BcBuiltChains.Family f)

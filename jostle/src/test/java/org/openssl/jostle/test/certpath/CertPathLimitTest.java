@@ -63,6 +63,14 @@ public class CertPathLimitTest
                              int anchorCount, int[] sizesOverride, int[] outInfoOverride,
                              int revocation)
     {
+        return drive(certs, crls, count, crlCount, anchorCount, sizesOverride, outInfoOverride,
+                revocation, CertPathNI.POLICY_NONE, null, 0);
+    }
+
+    private static int drive(byte[][] certs, byte[][] crls, int count, int crlCount,
+                             int anchorCount, int[] sizesOverride, int[] outInfoOverride,
+                             int revocation, int policyFlags, byte[] policies, int policyCount)
+    {
         int total = 0;
         for (byte[] b : certs)
         {
@@ -93,7 +101,7 @@ public class CertPathLimitTest
         return NISelector.CertPathNI.ni_verify(der,
                 sizesOverride != null ? sizesOverride : sizes,
                 count, crlCount, anchorCount,
-                CertPathNI.TIME_NOW, 1, revocation,
+                CertPathNI.TIME_NOW, 1, revocation, policyFlags, policies, policyCount,
                 new byte[der.length], outInfo);
     }
 
@@ -241,7 +249,8 @@ public class CertPathLimitTest
     public void nullDerIsRefused()
     {
         Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(
-                null, new int[5], 3, 2, 1, CertPathNI.TIME_NOW, 1, 1, new byte[16], new int[6]),
+                null, new int[5], 3, 2, 1, CertPathNI.TIME_NOW, 1, 1, CertPathNI.POLICY_NONE, null, 0,
+                new byte[16], new int[6]),
                 "JO_INPUT_IS_NULL");
     }
 
@@ -250,7 +259,8 @@ public class CertPathLimitTest
     public void nullSizesIsRefused() throws IOException
     {
         Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(
-                new byte[16], null, 3, 2, 1, CertPathNI.TIME_NOW, 1, 1, new byte[16], new int[6]),
+                new byte[16], null, 3, 2, 1, CertPathNI.TIME_NOW, 1, 1, CertPathNI.POLICY_NONE, null, 0,
+                new byte[16], new int[6]),
                 "JO_INPUT_IS_NULL");
     }
 
@@ -264,16 +274,20 @@ public class CertPathLimitTest
         byte[] der = new byte[64];
         Assertions.assertAll(
                 () -> Assertions.assertEquals(-19, NISelector.CertPathNI.ni_verify(der, new int[300], 300, 0, 0,
-                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[303]),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[303]),
                         "count over 256 before the anchor range"),
                 () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 1, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[6]), "empty der before the count range"),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[6]),
+                        "empty der before the count range"),
                 () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 3, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[0]), "empty der before the outInfo length"),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[0]),
+                        "empty der before the outInfo length"),
                 () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 257, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, new byte[64], new int[6]), "empty der before the 256 bound"),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[6]),
+                        "empty der before the 256 bound"),
                 () -> Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(der, null, 257, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, null, null), "null sizes before every other check"));
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, null, null),
+                        "null sizes before every other check"));
     }
 
     /**
@@ -313,5 +327,127 @@ public class CertPathLimitTest
         Assertions.assertEquals(-29,
                 drive(goodCerts(), goodCrls(), 3, 2, 1, null, new int[5], 1),
                 "JO_OUTPUT_OUT_OF_RANGE: 3 certificates need 3 + 3 entries");
+    }
+
+    /** NIST-test-policy-1 as a DER OBJECT IDENTIFIER TLV. */
+    private static final byte[] POLICY_1 = {
+            0x06, 0x0a, 0x60, (byte) 0x86, 0x48, 0x01, 0x65, 0x03, 0x02, 0x01, 0x30, 0x01};
+
+    /** The path asserts NIST-test-policy-1, so every accepted policy input validates it. */
+    private static int drivePolicies(int flags, byte[] policies, int count) throws Exception
+    {
+        int[] outInfo = new int[3 + CertPathNI.OUT_INFO_HEADER];
+        int rc = drive(goodCerts(), new byte[0][], 3, 0, 1, null, outInfo, 0, flags, policies, count);
+        if (rc == 0)
+        {
+            Assertions.assertEquals(0, outInfo[0], "the accepted policy input must validate the path");
+        }
+        return rc;
+    }
+
+    private static byte[] concat(byte[]... parts)
+    {
+        int n = 0;
+        for (byte[] p : parts)
+        {
+            n += p.length;
+        }
+        byte[] out = new byte[n];
+        int off = 0;
+        for (byte[] p : parts)
+        {
+            System.arraycopy(p, 0, out, off, p.length);
+            off += p.length;
+        }
+        return out;
+    }
+
+    /** The accepted shapes: none, any number up to the ceiling, every flag, the long length form. */
+    @Test
+    public void wellFormedPolicyInputsRun() throws Exception
+    {
+        Assertions.assertEquals(0, drivePolicies(CertPathNI.POLICY_NONE, null, 0), "no policies, null");
+        Assertions.assertEquals(0, drivePolicies(CertPathNI.POLICY_NONE, new byte[0], 0), "no policies, empty");
+        Assertions.assertEquals(0, drivePolicies(CertPathNI.POLICY_NONE, POLICY_1, 1), "one policy");
+        int all = CertPathNI.POLICY_EXPLICIT | CertPathNI.POLICY_INHIBIT_ANY | CertPathNI.POLICY_INHIBIT_MAP;
+        Assertions.assertEquals(0, drivePolicies(all, POLICY_1, 1), "every flag");
+
+        byte[][] many = new byte[256][];
+        for (int i = 0; i < many.length; i++)
+        {
+            many[i] = POLICY_1;
+        }
+        Assertions.assertEquals(0, drivePolicies(CertPathNI.POLICY_NONE, concat(many), 256),
+                "256 policies, the ceiling");
+
+        // 128 content octets need the long length form, 0x81 0x80.
+        byte[] longOid = new byte[3 + 128];
+        longOid[0] = 0x06;
+        longOid[1] = (byte) 0x81;
+        longOid[2] = (byte) 0x80;
+        longOid[3] = 0x2b;
+        for (int i = 4; i < longOid.length; i++)
+        {
+            longOid[i] = 0x01;
+        }
+        Assertions.assertEquals(0, drivePolicies(CertPathNI.POLICY_NONE, concat(POLICY_1, longOid), 2),
+                "a long-form OID beside the path's policy");
+    }
+
+    @Test
+    public void anUnknownPolicyFlagIsRefused() throws Exception
+    {
+        Assertions.assertEquals(-28, drivePolicies(8, null, 0), "JO_INPUT_OUT_OF_RANGE");
+        Assertions.assertEquals(-28, drivePolicies(Integer.MIN_VALUE, null, 0), "JO_INPUT_OUT_OF_RANGE");
+    }
+
+    @Test
+    public void aPolicyCountOutOfRangeIsRefused() throws Exception
+    {
+        Assertions.assertEquals(-28, drivePolicies(CertPathNI.POLICY_NONE, POLICY_1, -1), "JO_INPUT_OUT_OF_RANGE");
+        Assertions.assertEquals(-28, drivePolicies(CertPathNI.POLICY_NONE, POLICY_1, Integer.MIN_VALUE),
+                "JO_INPUT_OUT_OF_RANGE");
+        Assertions.assertEquals(-19, drivePolicies(CertPathNI.POLICY_NONE, POLICY_1, 257),
+                "JO_INPUT_TOO_LONG_INT32: one over the ceiling");
+    }
+
+    @Test
+    public void nullPoliciesWithACountAreRefused() throws Exception
+    {
+        Assertions.assertEquals(-16, drivePolicies(CertPathNI.POLICY_NONE, null, 1), "JO_INPUT_IS_NULL");
+    }
+
+    /** Every malformed list is the same code on both bridges. */
+    @Test
+    public void malformedPolicyListsAreRefused() throws Exception
+    {
+        byte[][] lists = {
+                POLICY_1,                                                       // count 0 with bytes
+                {0x06, 0x05, 0x2b, 0x06},                                       // truncated
+                {0x04, 0x03, 0x2b, 0x06, 0x01},                                 // not an OBJECT IDENTIFIER
+                {0x06, 0x00},                                                   // empty content
+                {0x06, (byte) 0x81, 0x05, 0x2b, 0x06, 0x01, 0x05, 0x05},        // long form, not minimal
+                {0x06, (byte) 0x80, 0x2b, 0x06, 0x00, 0x00},                    // indefinite length
+                {0x06, (byte) 0x82, 0x00, 0x03, 0x2b, 0x06, 0x01},              // two length octets
+                concat(POLICY_1, new byte[]{0x00}),                            // a trailing byte
+                {0x06, 0x01, (byte) 0x80},                                      // content OpenSSL refuses
+                {0x06}};                                                        // a tag alone
+        int[] counts = {0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        for (int i = 0; i < lists.length; i++)
+        {
+            Assertions.assertEquals(-28, drivePolicies(CertPathNI.POLICY_NONE, lists[i], counts[i]),
+                    "JO_INPUT_OUT_OF_RANGE for malformed list " + i);
+        }
+        Assertions.assertEquals(-28, drivePolicies(CertPathNI.POLICY_NONE, POLICY_1, 2),
+                "JO_INPUT_OUT_OF_RANGE: two counted, one present");
+    }
+
+    /** The policy checks come after the existing ones, on both bridges. */
+    @Test
+    public void thePolicyChecksFollowTheOutInfoCheck() throws Exception
+    {
+        Assertions.assertEquals(-29,
+                drive(goodCerts(), goodCrls(), 3, 2, 1, null, new int[5], 1, 8, null, 1),
+                "JO_OUTPUT_OUT_OF_RANGE before any policy check");
     }
 }

@@ -6,13 +6,16 @@ import java.io.InputStream;
 import java.security.cert.CRLException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
+import java.security.cert.PKIXParameters;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Loads the committed PKITS corpus from the classpath.
@@ -39,15 +42,41 @@ public final class PkitsCertificates
         public final String endEntity;
         public final List<String> intermediates;
         public final List<String> crls;
+        /** The initial policy set; empty means any policy. */
+        public final Set<String> initialPolicies;
+        public final boolean explicitPolicy;
+        public final boolean inhibitMapping;
+        public final boolean inhibitAnyPolicy;
 
         Case(String number, boolean expectValid, String endEntity, List<String> intermediates,
              List<String> crls)
+        {
+            this(number, expectValid, endEntity, intermediates, crls,
+                    Collections.<String>emptySet(), false, false, false);
+        }
+
+        Case(String number, boolean expectValid, String endEntity, List<String> intermediates,
+             List<String> crls, Set<String> initialPolicies, boolean explicitPolicy,
+             boolean inhibitMapping, boolean inhibitAnyPolicy)
         {
             this.number = number;
             this.expectValid = expectValid;
             this.endEntity = endEntity;
             this.intermediates = Collections.unmodifiableList(intermediates);
             this.crls = Collections.unmodifiableList(crls);
+            this.initialPolicies = Collections.unmodifiableSet(initialPolicies);
+            this.explicitPolicy = explicitPolicy;
+            this.inhibitMapping = inhibitMapping;
+            this.inhibitAnyPolicy = inhibitAnyPolicy;
+        }
+
+        /** Sets this row's policy inputs on {@code p}; the defaults leave it untouched. */
+        public void applyPolicy(PKIXParameters p)
+        {
+            p.setInitialPolicies(initialPolicies);
+            p.setExplicitPolicyRequired(explicitPolicy);
+            p.setPolicyMappingInhibited(inhibitMapping);
+            p.setAnyPolicyInhibited(inhibitAnyPolicy);
         }
 
         /** The section this case belongs to, e.g. "4.14" for 4.14.30. */
@@ -297,10 +326,27 @@ public final class PkitsCertificates
      */
     public static List<Case> cases() throws IOException
     {
-        InputStream in = PkitsCertificates.class.getResourceAsStream(BASE + "cases.txt");
+        return read("cases.txt");
+    }
+
+    /**
+     * The policy table, {@code cases_policy.txt}: one row per PKITS sub-variant
+     * of sections 4.8 to 4.12, generated from PKITS.pdf like {@code cases.txt},
+     * with four more columns: the initial policy OIDs ({@code any} for the
+     * default), then explicit policy, policy mapping inhibited and any policy
+     * inhibited.
+     */
+    public static List<Case> policyCases() throws IOException
+    {
+        return read("cases_policy.txt");
+    }
+
+    private static List<Case> read(String table) throws IOException
+    {
+        InputStream in = PkitsCertificates.class.getResourceAsStream(BASE + table);
         if (in == null)
         {
-            throw new IOException("pkits/cases.txt is not on the classpath");
+            throw new IOException("pkits/" + table + " is not on the classpath");
         }
         List<Case> out = new ArrayList<Case>();
         try
@@ -333,7 +379,21 @@ public final class PkitsCertificates
                 {
                     Collections.addAll(crls, f[4].split(","));
                 }
-                out.add(new Case(f[0], "PASS".equals(f[1]), f[2], inter, crls));
+                if (f.length == 9)
+                {
+                    Set<String> initial = new HashSet<String>();
+                    if (!"any".equals(f[5]))
+                    {
+                        Collections.addAll(initial, f[5].split(","));
+                    }
+                    out.add(new Case(f[0], "PASS".equals(f[1]), f[2], inter, crls, initial,
+                            Boolean.parseBoolean(f[6]), Boolean.parseBoolean(f[7]),
+                            Boolean.parseBoolean(f[8])));
+                }
+                else
+                {
+                    out.add(new Case(f[0], "PASS".equals(f[1]), f[2], inter, crls));
+                }
             }
         }
         finally

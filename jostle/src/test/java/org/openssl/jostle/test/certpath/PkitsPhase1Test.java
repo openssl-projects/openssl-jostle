@@ -14,12 +14,14 @@ import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * NIST PKITS, the 50 cases of sections 4.1, 4.2, 4.3, 4.5, 4.6 and 4.7 that
- * need neither revocation nor policy processing.
+ * NIST PKITS, the 90 cases of sections 4.1, 4.2, 4.3, 4.5, 4.6, 4.7, 4.13
+ * (name constraints) and 4.16 (private certificate extensions) that need
+ * neither revocation nor policy parameters.
  * <p>
  * The expected outcomes come from {@code cases.txt}, generated from PKITS.pdf's
  * own "Expected Result" text, so this class restates nothing. Two cases are
@@ -36,18 +38,18 @@ public class PkitsPhase1Test
 {
     /** Documented divergences, each pinned with its reason in its own test. */
     static final List<String> PINNED_DIVERGENCES =
-            java.util.Arrays.asList("4.1.5", "4.6.4");
+            Arrays.asList("4.1.5", "4.6.4");
 
     /** The sections whose cases need no revocation processing. */
     static final List<String> SECTIONS =
-            java.util.Arrays.asList("4.1", "4.2", "4.3", "4.5", "4.6", "4.7");
+            Arrays.asList("4.1", "4.2", "4.3", "4.5", "4.6", "4.7", "4.13", "4.16");
 
     /**
      * Revocation in disguise: these sit in phase 1's sections but their
      * outcome turns on a CRL, so phase 2 owns them.
      */
     static final List<String> REVOCATION_IN_DISGUISE =
-            java.util.Arrays.asList("4.5.2", "4.5.5", "4.5.7", "4.7.4", "4.7.5");
+            Arrays.asList("4.5.2", "4.5.5", "4.5.7", "4.7.4", "4.7.5");
 
     /** The rows this class owns. */
     static List<PkitsCertificates.Case> selected() throws Exception
@@ -119,7 +121,7 @@ public class PkitsPhase1Test
     public void everyPhase1CaseAgreesWithPkits() throws Exception
     {
         List<PkitsCertificates.Case> cases = selected();
-        Assertions.assertEquals(50, cases.size(), "phase 1 must select 50 rows from the table");
+        Assertions.assertEquals(90, cases.size(), "phase 1 must select 90 rows from the table");
 
         List<String> failures = new ArrayList<String>();
         int checked = 0;
@@ -138,7 +140,7 @@ public class PkitsPhase1Test
                         + (got ? "valid" : "invalid"));
             }
         }
-        Assertions.assertEquals(48, checked, "50 cases minus the 2 pinned divergences");
+        Assertions.assertEquals(88, checked, "90 cases minus the 2 pinned divergences");
         Assertions.assertTrue(failures.isEmpty(), "PKITS disagreements: " + failures);
     }
 

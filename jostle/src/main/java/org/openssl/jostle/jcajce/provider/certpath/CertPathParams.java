@@ -35,26 +35,6 @@ final class CertPathParams
 
     static void refuseUnsupported(PKIXParameters pkix) throws InvalidAlgorithmParameterException
     {
-        if (pkix.isExplicitPolicyRequired())
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "explicit policy is not supported: this provider does no policy processing");
-        }
-        if (pkix.isPolicyMappingInhibited())
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "policy mapping inhibition is not supported: this provider does no policy processing");
-        }
-        if (pkix.isAnyPolicyInhibited())
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "any-policy inhibition is not supported: this provider does no policy processing");
-        }
-        if (pkix.getInitialPolicies() != null && !pkix.getInitialPolicies().isEmpty())
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "an initial policy set is not supported: this provider does no policy processing");
-        }
         if (pkix.getCertPathCheckers() != null && !pkix.getCertPathCheckers().isEmpty())
         {
             throw new InvalidAlgorithmParameterException(

@@ -31,7 +31,7 @@ class ProvX509
 
         // PKIX certification path validation over OpenSSL's X509_verify_cert,
         // JSL only. Revocation is honoured over the CertStores' CRLs and is on
-        // by default; policy processing is refused typed (see
+        // by default; policy processing is honoured too (see
         // JostleCertPathValidatorSpi).
         provider.addAlgorithmImplementation("CertPathValidator", "PKIX",
                 JostleCertPathValidatorSpi.class.getName(), attr,

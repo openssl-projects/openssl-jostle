@@ -256,7 +256,8 @@ public class JostleCertPathBuilderSpi
 
         CertPathCall call = CertPathCall.forBuild(pkix, untrusted, target, crls);
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
-                call.timeSecs, 1, call.revocation, call.chainOut, call.outInfo);
+                call.timeSecs, 1, call.revocation, call.policyFlags, call.policies, call.policyCount,
+                call.chainOut, call.outInfo);
         if (rc == ErrorCode.JO_CERT_DECODE_FAILED.getCode())
         {
             throw new CertPathValidatorException("a supplied certificate is not valid DER X.509");

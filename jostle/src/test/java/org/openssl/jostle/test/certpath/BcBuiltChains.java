@@ -460,10 +460,9 @@ public final class BcBuiltChains
     /**
      * A root and an intermediate asserting {@link #POLICY_ASSERTED}, the
      * intermediate mapping it to {@link #POLICY_MAPPED}, and an end entity
-     * asserting the mapped policy. PKITS has policy rows, but none this
-     * provider can be driven through: it refuses an initial policy set
-     * outright, so the shape exists to measure that refusal and the empty
-     * policy tree beside a reference that builds one.
+     * asserting the mapped policy. The shape measures the policy parameters,
+     * and the policy tree this provider does not yet return, beside references
+     * that build one.
      */
     private static Shape policyMapping() throws Exception
     {
