@@ -36,6 +36,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import javax.crypto.spec.DESKeySpec;
+import java.math.BigInteger;
+import java.security.Key;
+import java.util.Arrays;
 
 /**
  * MT-31 Group B, KeyFactory: 35 names across 10 SPI classes, compared against
@@ -195,17 +198,17 @@ public class KeyFactoryNegativePathSurveyTest
                     return kf.generatePrivate(new DESKeySpec(new byte[8])).getEncoded();
                 case UNDERSIZED_RSA_MODULUS:
                     return kf.generatePublic(new RSAPublicKeySpec(
-                            java.math.BigInteger.valueOf(3233), java.math.BigInteger.valueOf(17))).getEncoded();
+                            BigInteger.valueOf(3233), BigInteger.valueOf(17))).getEncoded();
                 case X509_INTO_GENERATE_PRIVATE:
                     return kf.generatePrivate(new PKCS8EncodedKeySpec(pub)).getEncoded();
                 case PKCS8_INTO_GENERATE_PUBLIC:
                     return kf.generatePublic(new X509EncodedKeySpec(prv)).getEncoded();
                 case TRUNCATED_DER_PUBLIC:
                     return kf.generatePublic(new X509EncodedKeySpec(
-                            java.util.Arrays.copyOf(pub, pub.length - 1))).getEncoded();
+                            Arrays.copyOf(pub, pub.length - 1))).getEncoded();
                 case TRUNCATED_DER_PRIVATE:
                     return kf.generatePrivate(new PKCS8EncodedKeySpec(
-                            java.util.Arrays.copyOf(prv, prv.length - 1))).getEncoded();
+                            Arrays.copyOf(prv, prv.length - 1))).getEncoded();
                 case GARBAGE_DER_PUBLIC:
                 {
                     byte[] junk = new byte[pub.length];
@@ -233,13 +236,13 @@ public class KeyFactoryNegativePathSurveyTest
                 }
                 case TRANSLATE_NULL_KEY:
                 {
-                    java.security.Key k = kf.translateKey(null);
+                    Key k = kf.translateKey(null);
                     return k == null ? null : k.getEncoded();
                 }
                 case TRANSLATE_FOREIGN_KEY:
                 {
                     // A SecretKeySpec is not an asymmetric key of any family.
-                    java.security.Key k = kf.translateKey(new SecretKeySpec(new byte[16], "AES"));
+                    Key k = kf.translateKey(new SecretKeySpec(new byte[16], "AES"));
                     return k == null ? null : k.getEncoded();
                 }
                 default:

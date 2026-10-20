@@ -24,9 +24,11 @@ import org.openssl.jostle.test.parity.SurveyReport;
 import org.openssl.jostle.test.parity.ThreeWay;
 
 import java.security.AlgorithmParameterGenerator;
+import java.security.InvalidParameterException;
 import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
@@ -196,7 +198,7 @@ public class FIPSAlgorithmParameterGeneratorNegativePathSurveyTest
         Observation o = initWith(name, size);
         Assertions.assertTrue(o.isThrow(),
                 "JSLFIPS " + name + " init(" + size + ") must be refused at init");
-        Assertions.assertEquals(java.security.InvalidParameterException.class, o.thrown().getClass(),
+        Assertions.assertEquals(InvalidParameterException.class, o.thrown().getClass(),
                 "JSLFIPS " + name + " init(" + size + "): wrong refusal type ("
                         + o.message() + ")");
     }
@@ -217,7 +219,7 @@ public class FIPSAlgorithmParameterGeneratorNegativePathSurveyTest
     public void fipsNameAccountingIsComplete()
     {
         TreeSet<String> live = new TreeSet<String>(names());
-        Assertions.assertEquals(new TreeSet<String>(java.util.Arrays.asList("DH", "DSA")), live,
+        Assertions.assertEquals(new TreeSet<String>(Arrays.asList("DH", "DSA")), live,
                 "the JSLFIPS AlgorithmParameterGenerator primaries changed; measured against"
                         + " the module this run is configured with");
         for (String n : live)

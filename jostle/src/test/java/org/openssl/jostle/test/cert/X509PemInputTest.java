@@ -41,6 +41,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
@@ -346,7 +347,7 @@ public class X509PemInputTest
     {
         int ceiling = X509NI.maxCertificateBytes();
         char[] filler = new char[2 * ceiling + 4096];
-        java.util.Arrays.fill(filler, 'A');
+        Arrays.fill(filler, 'A');
         byte[] oversized = utf8("-----BEGIN CERTIFICATE-----\n" + new String(filler) + "\n-----END CERTIFICATE-----\n");
         Assertions.assertThrows(CertificateException.class, () ->
                 CertificateFactory.getInstance("X.509", JSL)

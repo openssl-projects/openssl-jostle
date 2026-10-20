@@ -27,6 +27,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -47,7 +48,7 @@ public class ECPublicKeySpecEncodingParityTest
      * SM2 is the only built-in curve affected;
      * skipped explicitly rather than absorbed into a broad catch.
      */
-    private static final Set<String> KNOWN_INTROSPECTION_GAPS = new HashSet<>(java.util.Arrays.asList("SM2"));
+    private static final Set<String> KNOWN_INTROSPECTION_GAPS = new HashSet<>(Arrays.asList("SM2"));
 
     @BeforeAll
     static void ensureProviders()

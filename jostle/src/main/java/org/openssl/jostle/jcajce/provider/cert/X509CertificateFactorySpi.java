@@ -29,6 +29,7 @@ import java.security.cert.CertificateFactorySpi;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -365,7 +366,7 @@ public class X509CertificateFactorySpi
             byte[] decoded;
             try
             {
-                decoded = java.util.Base64.getMimeDecoder().decode(body.toString());
+                decoded = Base64.getMimeDecoder().decode(body.toString());
             }
             catch (IllegalArgumentException e)
             {

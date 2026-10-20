@@ -82,10 +82,10 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
      * The provider INSTANCE this SPI belongs to, or null when constructed
      * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public SLHDSAKeyFactorySpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
-                               OSSLKeyType keyType, java.security.Provider providerInstance)
+                               OSSLKeyType keyType, Provider providerInstance)
     {
         this.slhdsaServiceNI = slhdsaServiceNI;
         this.specNI = specNI;
@@ -105,7 +105,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
     }
 
     /** The provider instance this factory belongs to; null when unbound. */
-    java.security.Provider ownProviderInstance()
+    Provider ownProviderInstance()
     {
         return providerInstance;
     }

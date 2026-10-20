@@ -32,6 +32,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.PrivateKey;
 
 /**
  * MT-10, FIPS half: a key produced by a JSLFIPS {@code Cipher.unwrap} is
@@ -205,7 +206,7 @@ public class FIPSUnwrappedKeyBindingTest
             RANDOM.nextBytes(msg);
 
             Signature signer = Signature.getInstance("SHA256withECDSA", fips);
-            signer.initSign((java.security.PrivateKey) back, RANDOM);
+            signer.initSign((PrivateKey) back, RANDOM);
             signer.update(msg);
             byte[] sig = signer.sign();
 

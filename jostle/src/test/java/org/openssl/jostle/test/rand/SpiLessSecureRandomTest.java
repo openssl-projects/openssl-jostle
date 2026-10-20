@@ -26,6 +26,7 @@ import java.security.Security;
 import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -79,7 +80,7 @@ public class SpiLessSecureRandomTest
         @Override
         public void nextBytes(byte[] bytes)
         {
-            java.util.Arrays.fill(bytes, (byte) 7);
+            Arrays.fill(bytes, (byte) 7);
         }
     }
 

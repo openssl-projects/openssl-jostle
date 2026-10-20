@@ -31,6 +31,7 @@ import java.security.KeyPairGenerator;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * KeyPairGenerator for finite-field Diffie-Hellman.
@@ -97,14 +98,14 @@ public class DHKeyPairGenerator extends KeyPairGenerator
      * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public DHKeyPairGenerator(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
         this(dhServiceNI, specNI, asn1NI, null);
     }
 
-    public DHKeyPairGenerator(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
+    public DHKeyPairGenerator(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI, Provider providerInstance)
     {
         super("DH");
         this.providerInstance = providerInstance;

@@ -15,9 +15,11 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.util.ConfigParser;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +44,7 @@ public class ConfigParserTest
         Assertions.assertEquals("1", map.get("a"));
         Assertions.assertEquals("2", map.get("b"));
         Assertions.assertEquals("3", map.get("c"));
-        Assertions.assertEquals(new ArrayList<String>(java.util.Arrays.asList("a", "b", "c")),
+        Assertions.assertEquals(new ArrayList<String>(Arrays.asList("a", "b", "c")),
                 new ArrayList<String>(map.keySet()));
     }
 
@@ -122,7 +124,7 @@ public class ConfigParserTest
         // java.io.File.toURI() produces the single-slash file:/path form -
         // it must resolve like the file:///path form, not fall through as a
         // raw literal.
-        java.io.File file = new java.io.File(System.getProperty("java.io.tmpdir"), "fips.dylib");
+        File file = new File(System.getProperty("java.io.tmpdir"), "fips.dylib");
         String url = file.toURI().toString();
         Assertions.assertTrue(url.startsWith("file:/"));
         Assertions.assertEquals(file.toPath().toString(),

@@ -26,6 +26,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
@@ -104,7 +105,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
      * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public MLDSAKeyPairGeneratorImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
     {
@@ -112,7 +113,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
     }
 
     public MLDSAKeyPairGeneratorImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm,
-                                     java.security.Provider providerInstance)
+                                     Provider providerInstance)
     {
         super(algorithm.toString());
         this.providerInstance = providerInstance;

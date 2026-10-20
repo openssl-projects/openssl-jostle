@@ -25,6 +25,7 @@ import java.security.AlgorithmParameterGeneratorSpi;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
+import java.security.Provider;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
@@ -54,7 +55,7 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
      * The provider this generator belongs to, or null when it was constructed
      * directly rather than through a provider (MT-14's unbound realm).
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     /**
      * The sizes this generator accepts, or null for any size in
@@ -78,7 +79,7 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
      * @param providerInstance the provider this generator belongs to; its own
      *                         AlgorithmParameters serve the generated parameters.
      */
-    public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI, java.security.Provider providerInstance)
+    public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI, Provider providerInstance)
     {
         this(dsaServiceNI, specNI, null, providerInstance);
     }
@@ -89,7 +90,7 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
      */
     public DSAAlgorithmParameterGenerator(DSAServiceNI dsaServiceNI, SpecNI specNI,
                                           int[] acceptedPBits,
-                                          java.security.Provider providerInstance)
+                                          Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.dsaServiceNI = dsaServiceNI;

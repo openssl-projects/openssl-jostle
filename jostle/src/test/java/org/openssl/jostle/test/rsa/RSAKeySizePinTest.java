@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.math.BigInteger;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
@@ -181,7 +182,7 @@ public class RSAKeySizePinTest
         for (int bits : bad)
         {
             KeyPairGenerator g = KeyPairGenerator.getInstance("RSA", jsl);
-            Assertions.assertThrows(java.security.InvalidParameterException.class,
+            Assertions.assertThrows(InvalidParameterException.class,
                     () -> g.initialize(bits),
                     "RSA key size " + bits + " must be refused by the sanity bound, "
                             + "which MT-66 did NOT remove");

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.util.asn1.ASN1ObjectIdentifier;
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 import java.math.BigInteger;
+import java.util.Arrays;
 
 /**
  * Gates and {@code intern()} behaviour of {@link ASN1ObjectIdentifier}, exercised
@@ -66,14 +67,14 @@ public class ASN1ObjectIdentifierTest
         // 4097 single-octet sub-identifiers: each octet is a valid, minimal
         // sub-identifier, so only the MAX_CONTENTS_LENGTH (4096) gate trips.
         byte[] tooLong = new byte[4097];
-        java.util.Arrays.fill(tooLong, (byte) 0x01);
+        Arrays.fill(tooLong, (byte) 0x01);
         IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
                 () -> ASN1ObjectIdentifier.fromContents(tooLong, 0, tooLong.length));
         Assertions.assertTrue(ex.getMessage().contains("length limit"), ex.getMessage());
 
         // Exactly at the limit is accepted.
         byte[] atLimit = new byte[4096];
-        java.util.Arrays.fill(atLimit, (byte) 0x01);
+        Arrays.fill(atLimit, (byte) 0x01);
         ASN1ObjectIdentifier.fromContents(atLimit, 0, atLimit.length);
     }
 
@@ -112,15 +113,15 @@ public class ASN1ObjectIdentifierTest
         // so we just assert the result is well-formed "2.<bigdecimal>" and that the
         // arc is the BigInteger of the 84-bit big-endian base-128 number minus 80.
         byte[] contents = new byte[12];
-        java.util.Arrays.fill(contents, (byte) 0xFF);
+        Arrays.fill(contents, (byte) 0xFF);
         contents[11] = 0x7F;
 
         BigInteger acc = BigInteger.ZERO;
         for (byte b : contents)
         {
-            acc = acc.shiftLeft(7).or(java.math.BigInteger.valueOf(b & 0x7F));
+            acc = acc.shiftLeft(7).or(BigInteger.valueOf(b & 0x7F));
         }
-        String expected = "2." + acc.subtract(java.math.BigInteger.valueOf(80));
+        String expected = "2." + acc.subtract(BigInteger.valueOf(80));
 
         Assertions.assertEquals(expected,
                 ASN1ObjectIdentifier.fromContents(contents, 0, contents.length).getId());

@@ -24,6 +24,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
@@ -136,14 +137,14 @@ public class ECKeyPairGenerator extends KeyPairGenerator
      * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public ECKeyPairGenerator(ECServiceNI ecServiceNI, SpecNI specNI, Asn1Ni asn1NI)
     {
         this(ecServiceNI, specNI, asn1NI, null);
     }
 
-    public ECKeyPairGenerator(ECServiceNI ecServiceNI, SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
+    public ECKeyPairGenerator(ECServiceNI ecServiceNI, SpecNI specNI, Asn1Ni asn1NI, Provider providerInstance)
     {
         super("EC");
         this.providerInstance = providerInstance;

@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.security.InvalidParameterException;
 
 /**
  * MT-68: a symmetric Cipher a caller can ask for should come with a way to make
@@ -149,7 +150,7 @@ public class SymmetricKeyGeneratorCompletenessTest
         }
 
         KeyGenerator bad = KeyGenerator.getInstance(algorithm, jsl);
-        Assertions.assertThrows(java.security.InvalidParameterException.class, () -> bad.init(64),
+        Assertions.assertThrows(InvalidParameterException.class, () -> bad.init(64),
                 algorithm + ": an unsupported size must be refused with the JCA-named type");
     }
 

@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.KeyStore;
 import java.security.Provider;
 import java.security.Security;
@@ -103,7 +104,7 @@ public class KeyStoreNegativePathSurveyTest
         SETCERT_NULL_CERT
     }
 
-    private static final TreeSet<Fault> CONTROL_FAULTS = new TreeSet<Fault>(java.util.Arrays.asList(
+    private static final TreeSet<Fault> CONTROL_FAULTS = new TreeSet<Fault>(Arrays.asList(
             Fault.UNINIT_GETKEY, Fault.UNINIT_ALIASES, Fault.UNINIT_SIZE, Fault.UNINIT_STORE));
 
     /**
@@ -417,7 +418,7 @@ public class KeyStoreNegativePathSurveyTest
         //    password is required but not given". We take the strict reading;
         //    the JDK takes the lenient one. BouncyCastle's raw NPE is legal on
         //    neither reading - the bundle row.
-        refuses(jsl, "PKCS12", Fault.LOAD_NULL_PASSWORD, java.io.IOException.class);
+        refuses(jsl, "PKCS12", Fault.LOAD_NULL_PASSWORD, IOException.class);
         accepts(jdk, "PKCS12", Fault.LOAD_NULL_PASSWORD);
         refuses(bc, "PKCS12", Fault.LOAD_NULL_PASSWORD, NullPointerException.class);
 
@@ -429,7 +430,7 @@ public class KeyStoreNegativePathSurveyTest
         //    the safe direction; lenient acceptance masks corruption.
         for (String name : names())
         {
-            refuses(jsl, name, Fault.LOAD_TRAILING_GARBAGE, java.io.IOException.class);
+            refuses(jsl, name, Fault.LOAD_TRAILING_GARBAGE, IOException.class);
         }
         accepts(bc, "PKCS12", Fault.LOAD_TRAILING_GARBAGE);
         accepts(jdk, "PKCS12", Fault.LOAD_TRAILING_GARBAGE);
@@ -437,7 +438,7 @@ public class KeyStoreNegativePathSurveyTest
         // 3. A null output stream. store declares IOException; both references
         //    raise an undeclared unchecked NPE. The BC-parity boundary applies -
         //    where the references diverge from the contract, JCE-canonical wins.
-        refuses(jsl, "PKCS12", Fault.STORE_NULL_STREAM, java.io.IOException.class);
+        refuses(jsl, "PKCS12", Fault.STORE_NULL_STREAM, IOException.class);
         refuses(bc, "PKCS12", Fault.STORE_NULL_STREAM, NullPointerException.class);
         refuses(jdk, "PKCS12", Fault.STORE_NULL_STREAM, NullPointerException.class);
     }

@@ -653,7 +653,7 @@ public class X509CertificateFactoryTest
                 "must be the entry under the CRL's own issuer, not the delegated one");
     }
 
-    static final java.math.BigInteger INDIRECT_SERIAL = java.math.BigInteger.valueOf(4242);
+    static final BigInteger INDIRECT_SERIAL = BigInteger.valueOf(4242);
 
     /**
      * A v2 indirect CRL whose two entries share {@link #INDIRECT_SERIAL}, the
@@ -662,10 +662,10 @@ public class X509CertificateFactoryTest
      */
     static byte[] indirectCrlDer() throws Exception
     {
-        java.security.KeyPairGenerator g =
-                java.security.KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        KeyPairGenerator g =
+                KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         g.initialize(2048);
-        java.security.KeyPair kp = g.generateKeyPair();
+        KeyPair kp = g.generateKeyPair();
 
         ASN1EncodableVector entries =
                 new ASN1EncodableVector();
@@ -710,8 +710,8 @@ public class X509CertificateFactoryTest
         tbs.add(new DERTaggedObject(true, 0, crlExt.generate()));
         DERSequence tbsSeq = new DERSequence(tbs);
 
-        java.security.Signature sig =
-                java.security.Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        Signature sig =
+                Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
         sig.initSign(kp.getPrivate());
         sig.update(tbsSeq.getEncoded(ASN1Encoding.DER));
 

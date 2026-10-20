@@ -35,6 +35,7 @@ public final class Arrays
 
     public static boolean areEqual(boolean[] a, boolean[] b)
     {
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is declared here
         return java.util.Arrays.equals(a, b);
     }
 
@@ -1159,6 +1160,7 @@ public final class Arrays
      * Iterator backed by a specific array.
      */
     public static class Iterator<T>
+            // Iterator is qualified where the JDK's is meant: jostle's of that name is declared here
             implements java.util.Iterator<T>
     {
         private final T[] dataArray;

@@ -28,6 +28,8 @@ import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Security;
+import java.io.IOException;
+import java.security.SecureRandom;
 
 /**
  * MT-37: the two KTS ciphers have no streaming surface.
@@ -53,7 +55,7 @@ public class KtsStreamingRefusalTest
         }
     }
 
-    private static KTSParameterSpec kts() throws java.io.IOException
+    private static KTSParameterSpec kts() throws IOException
     {
         return new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3,
@@ -151,7 +153,7 @@ public class KtsStreamingRefusalTest
     public void anOrdinaryCipherDoesNotRefuseTheStreamingSurface() throws Exception
     {
         byte[] k = new byte[16];
-        new java.security.SecureRandom().nextBytes(k);
+        new SecureRandom().nextBytes(k);
         Cipher c = Cipher.getInstance("AES/ECB/NoPadding", JSL);
         c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(k, "AES"));
         Assertions.assertNotNull(c.update(new byte[16], 0, 16),

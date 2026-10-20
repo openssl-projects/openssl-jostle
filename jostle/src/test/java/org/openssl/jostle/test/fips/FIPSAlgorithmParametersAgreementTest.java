@@ -25,6 +25,7 @@ import java.security.AlgorithmParameters;
 import java.security.Provider;
 import java.security.Security;
 import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * JSLFIPS's {@code AlgorithmParameters} codecs against BouncyCastle and
@@ -83,7 +84,7 @@ public class FIPSAlgorithmParametersAgreementTest
         Provider fips = Security.getProvider(FIPS);
         Provider jsl = Security.getProvider(JSL);
 
-        SortedSet<String> shared = new java.util.TreeSet<String>(
+        SortedSet<String> shared = new TreeSet<String>(
                 ProviderSurfaceGuard.registeredSurface(fips,
                         AlgorithmParametersSurfaceDriver.PREFIX,
                         new String[]{"AlgorithmParameters"}));
@@ -165,7 +166,7 @@ public class FIPSAlgorithmParametersAgreementTest
         }
 
         // (b) nothing absent is unexplained.
-        SortedSet<String> absent = new java.util.TreeSet<String>(jslSurface);
+        SortedSet<String> absent = new TreeSet<String>(jslSurface);
         absent.removeAll(fipsSurface);
         for (String entry : absent)
         {

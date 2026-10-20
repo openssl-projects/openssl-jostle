@@ -14,6 +14,7 @@ package org.openssl.jostle.test.provider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -94,7 +95,7 @@ public class NoReflectiveSpecAccessInProductionTest
                     sawJava25 = true;
                 }
                 String path = file.toString();
-                boolean isLoader = path.replace(java.io.File.separatorChar, '/')
+                boolean isLoader = path.replace(File.separatorChar, '/')
                         .endsWith("java/org/openssl/jostle/Loader.java");
                 String source = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
 

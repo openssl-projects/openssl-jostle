@@ -23,8 +23,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -199,8 +201,8 @@ public class ObjectIdentifierProvenanceTest
         throws Exception
     {
         List<String> problems = new ArrayList<String>();
-        java.util.Set<String> aliasesSeen = new java.util.LinkedHashSet<String>();
-        java.util.Set<String> unreadableSeen = new java.util.LinkedHashSet<String>();
+        Set<String> aliasesSeen = new LinkedHashSet<String>();
+        Set<String> unreadableSeen = new LinkedHashSet<String>();
         int checked = 0;
 
         for (Map.Entry<String, String> e : BC_CLASSES.entrySet())

@@ -42,6 +42,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.HashSet;
 import java.util.Set;
 import java.security.spec.AlgorithmParameterSpec;
+import java.io.IOException;
 
 /**
  * Contract coverage for the four TLS hybrid KEM groups: the properties a
@@ -131,7 +132,7 @@ public class MLXKEMTest
         {
             // Expected: the key class is not Serializable at all.
         }
-        catch (java.io.IOException e)
+        catch (IOException e)
         {
             // A KeyRep-based failure surfaces as some other IOException;
             // either way the object did not serialize.

@@ -30,6 +30,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.PublicKey;
+import java.security.Security;
 import java.security.interfaces.DSAPublicKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.EdECPublicKey;
@@ -100,6 +101,7 @@ public class PublicKeySpkiParityTest
     private static Provider bc;
 
     /** Families compared byte-for-byte. */
+    // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
     private static final TreeSet<String> CELLS = new TreeSet<String>(java.util.Arrays.asList(
             "RSA", "DSA", "DH", "EC", "ED25519", "ED448", "X25519", "X448",
             "ML-DSA-44", "ML-DSA-65", "ML-DSA-87",
@@ -139,8 +141,8 @@ public class PublicKeySpkiParityTest
     {
         jsl = new JostleProvider();
         bc = new BouncyCastleProvider();
-        java.security.Security.addProvider(jsl);
-        java.security.Security.addProvider(bc);
+        Security.addProvider(jsl);
+        Security.addProvider(bc);
     }
 
     private static TreeSet<String> kpgNames(Provider p)

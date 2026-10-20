@@ -25,6 +25,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import java.io.ByteArrayOutputStream;
+import javax.crypto.AEADBadTagException;
 
 /**
  * MT-70: AAD supplied AFTER plaintext has been consumed.
@@ -210,7 +212,7 @@ public class AeadAadOrderTest
 
             // The update() is what sets the flag; without it this test passes
             // against the broken build.
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] partial = dec.update(first, 0, first.length - 4);
             if (partial != null)
             {
@@ -262,7 +264,7 @@ public class AeadAadOrderTest
                     specFor(transformation, nonce));
             dec.updateAAD(aad);
             dec.update(tampered, 0, tampered.length - 4);   // sets the flag
-            Assertions.assertThrows(javax.crypto.AEADBadTagException.class,
+            Assertions.assertThrows(AEADBadTagException.class,
                     () -> dec.doFinal(tampered, tampered.length - 4, 4),
                     transformation + ": a flipped tag byte must fail authentication");
 

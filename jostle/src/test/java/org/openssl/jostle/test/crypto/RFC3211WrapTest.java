@@ -16,6 +16,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.AlgorithmParameters;
 
 /**
  * RFC 3211 password-based key wrap, the CMS PasswordRecipientInfo construction.
@@ -253,7 +254,7 @@ public class RFC3211WrapTest
         Assertions.assertNotNull(iv, "WRAP with no parameters must generate an IV");
         Assertions.assertEquals(16, iv.length);
 
-        java.security.AlgorithmParameters ap = c.getParameters();
+        AlgorithmParameters ap = c.getParameters();
         Assertions.assertNotNull(ap, "the generated IV must be reportable");
         Assertions.assertArrayEquals(iv, ap.getParameterSpec(IvParameterSpec.class).getIV(),
                 "getParameters() must carry the IV getIV() reports");

@@ -30,6 +30,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 public class MLKEMKeyGenerator extends KeyGeneratorSpi
 {
@@ -75,10 +76,10 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     }
 
     /** The provider instance this SPI belongs to; null when unbound. MT-14. */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public MLKEMKeyGenerator(SpecNI specNI, MLKEMParameterSpec spec,
-                             java.security.Provider providerInstance)
+                             Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.specNI = specNI;
@@ -93,10 +94,10 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
     public MLKEMKeyGenerator(SpecNI specNI)
     {
-        this(specNI, (java.security.Provider) null);
+        this(specNI, (Provider) null);
     }
 
-    public MLKEMKeyGenerator(SpecNI specNI, java.security.Provider providerInstance)
+    public MLKEMKeyGenerator(SpecNI specNI, Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.specNI = specNI;

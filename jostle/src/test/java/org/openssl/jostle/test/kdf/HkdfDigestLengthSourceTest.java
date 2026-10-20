@@ -25,6 +25,7 @@ import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 
 /**
  * MT-11: the HKDF output ceiling comes from OpenSSL, not from whichever JCA
@@ -122,7 +123,7 @@ public class HkdfDigestLengthSourceTest
             SecretKeyFactory factory = SecretKeyFactory.getInstance(algorithm, jsl);
 
             byte[] ikm = new byte[32];
-            java.util.Arrays.fill(ikm, (byte) 0x0b);
+            Arrays.fill(ikm, (byte) 0x0b);
 
             byte[] atCeiling = factory.generateSecret(
                     new HKDFParameterSpec(ikm.clone(), null, null, ceiling)).getEncoded();

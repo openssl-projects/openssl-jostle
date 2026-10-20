@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import java.security.Provider;
+
 /**
  * SM4-CCM Cipher SPI. Subclass of {@link CCMCipherSpi} that pre-binds
  * the cipher family to SM4. JCE callers reach this via
@@ -23,7 +25,7 @@ public class SM4CCMCipherSpi extends CCMCipherSpi
         super(CipherFamily.SM4);
     }
 
-    public SM4CCMCipherSpi(java.security.Provider providerInstance)
+    public SM4CCMCipherSpi(Provider providerInstance)
     {
         super(CipherFamily.SM4, providerInstance);
     }

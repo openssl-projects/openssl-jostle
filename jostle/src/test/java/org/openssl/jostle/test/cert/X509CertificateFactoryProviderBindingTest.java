@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi;
 import org.openssl.jostle.test.certpath.PkitsCertificates;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,7 +33,9 @@ import java.security.cert.CertPath;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -180,7 +183,7 @@ public class X509CertificateFactoryProviderBindingTest
     {
         IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
                 () -> new X509CertificateFactorySpi(
-                        (java.security.Provider) null, false));
+                        (Provider) null, false));
 
         Assertions.assertEquals(
                 "X509CertificateFactorySpi requires the provider it belongs to;"
@@ -224,7 +227,7 @@ public class X509CertificateFactoryProviderBindingTest
                 "org.openssl.jostle.jcajce.provider.certpath.JostleCertPathBuilderSpi",
         };
 
-        java.util.List<String> offenders = new java.util.ArrayList<String>();
+        List<String> offenders = new ArrayList<String>();
         int fieldsSeen = 0;
         int ctorsSeen = 0;
 
@@ -242,7 +245,7 @@ public class X509CertificateFactoryProviderBindingTest
             // added to the BASELINE copy left the reflective check green on
             // JDK 25, because the java9 copy is what ran. A guard that can
             // only see one copy reports "clean" for the others.
-            java.util.List<String> carriers = fieldsCarryingAProvider(cn);
+            List<String> carriers = fieldsCarryingAProvider(cn);
             fieldsSeen += carriers.size();
             if (carriers.isEmpty())
             {
@@ -292,9 +295,9 @@ public class X509CertificateFactoryProviderBindingTest
      * halves read this rather than reflecting, so neither can be blind to a
      * copy the running JVM does not load.
      */
-    private static java.util.List<String> sourcesOf(String className) throws java.io.IOException
+    private static List<String> sourcesOf(String className) throws IOException
     {
-        java.util.List<String> out = new java.util.ArrayList<String>();
+        List<String> out = new ArrayList<String>();
         for (String base : new String[]{"jostle/src/main", "src/main"})
         {
             for (String level : new String[]{"java", "java9", "java11", "java15", "java17",
@@ -316,13 +319,13 @@ public class X509CertificateFactoryProviderBindingTest
     }
 
     /** Declared fields that carry a provider identity, across every copy. */
-    private static java.util.List<String> fieldsCarryingAProvider(String className)
-            throws java.io.IOException
+    private static List<String> fieldsCarryingAProvider(String className)
+            throws IOException
     {
         Pattern field = Pattern.compile(
                 "(?m)^\\s*(?:private|protected|public)\\s+(?:static\\s+)?(?:final\\s+)?"
                         + "([\\w.]+)\\s+(\\w+)\\s*[;=]");
-        java.util.List<String> out = new java.util.ArrayList<String>();
+        List<String> out = new ArrayList<String>();
         for (String code : sourcesOf(className))
         {
             Matcher m = field.matcher(code);
@@ -345,13 +348,13 @@ public class X509CertificateFactoryProviderBindingTest
     }
 
     /** Parameter lists of every declared constructor, read from the source. */
-    private static java.util.List<String> constructorParameterLists(String className)
-            throws java.io.IOException
+    private static List<String> constructorParameterLists(String className)
+            throws IOException
     {
         String simple = className.substring(className.lastIndexOf('.') + 1);
         String code = String.join("\n", sourcesOf(className));
 
-        java.util.List<String> out = new java.util.ArrayList<String>();
+        List<String> out = new ArrayList<String>();
         Matcher m = Pattern
                 .compile("\\b" + simple + "\\s*\\(").matcher(code);
         while (m.find())

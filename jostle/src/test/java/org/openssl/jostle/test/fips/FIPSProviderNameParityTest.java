@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -248,7 +249,7 @@ public class FIPSProviderNameParityTest
             }
             try (Stream<Path> walk = Files.walk(root))
             {
-                java.util.Optional<Path> hit = walk
+                Optional<Path> hit = walk
                         .filter(p -> p.getFileName().toString().equals(simpleName + ".java"))
                         .findFirst();
                 if (hit.isPresent())

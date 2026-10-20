@@ -25,6 +25,7 @@ import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.security.Security;
+import java.util.Arrays;
 
 /**
  * Fault-injection coverage for the Argon2 error paths that cannot be reached
@@ -265,7 +266,7 @@ public class Argon2OpsTest
                     operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
                 }
                 byte[] out = new byte[64];
-                java.util.Arrays.fill(out, (byte) 0xAA);
+                Arrays.fill(out, (byte) 0xAA);
                 byte[] expected = out.clone();
                 Assertions.assertEquals(codes[i], kdfNI.argon2(new byte[8], new byte[16], TYPE, VERSION, ITER, MEMORY,
                         LANES, out, 8, outLen[i]));

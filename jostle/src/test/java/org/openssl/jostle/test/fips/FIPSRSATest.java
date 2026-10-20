@@ -53,6 +53,7 @@ import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.GeneralSecurityException;
 
 /**
  * RSA through the FIPS provider ("JSLFIPS"): keygen from the module, PKCS#1
@@ -142,6 +143,7 @@ public class FIPSRSATest
         Signature truncated = Signature.getInstance("SHA512/224withRSA", JostleFIPSProvider.PROVIDER_NAME);
         truncated.initSign(kp.getPrivate());
         truncated.update(msg);
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertFalse(java.util.Arrays.equals(full.sign(), truncated.sign()),
                 "SHA512/224withRSA must not be an alias of SHA512withRSA");
     }
@@ -299,8 +301,8 @@ public class FIPSRSATest
         // keygen below 2048 - and it now has its own message, separate from the
         // provider-independent sanity bound.
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
-        java.security.InvalidParameterException ipe = Assertions.assertThrows(
-                java.security.InvalidParameterException.class, () -> kpg.initialize(1024),
+        InvalidParameterException ipe = Assertions.assertThrows(
+                InvalidParameterException.class, () -> kpg.initialize(1024),
                 "1024-bit RSA generation must be rejected at initialize");
         Assertions.assertTrue(ipe.getMessage().contains("below this provider's floor of 2048"),
                 "message must name the JSLFIPS floor, got: " + ipe.getMessage());
@@ -319,7 +321,7 @@ public class FIPSRSATest
         // NoSuchPaddingException — i.e. PKCS#1 v1.5 encryption is unobtainable.
         // (Common supertype since form-4 rejection surfaces as NoSuchPadding,
         // not NoSuchAlgorithm.) The non-FIPS provider still serves it.
-        Assertions.assertThrows(java.security.GeneralSecurityException.class,
+        Assertions.assertThrows(GeneralSecurityException.class,
                 () -> Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleFIPSProvider.PROVIDER_NAME),
                 "PKCS#1 v1.5 RSA encryption must be absent from JSLFIPS (non-approved)");
         Assertions.assertNotNull(Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME),

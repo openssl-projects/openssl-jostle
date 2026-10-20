@@ -43,6 +43,7 @@ import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -501,7 +502,7 @@ public class KSTest
         throws Exception
     {
         Set<String> aliases = new HashSet<String>();
-        java.util.Enumeration<String> enumeration = keyStore.aliases();
+        Enumeration<String> enumeration = keyStore.aliases();
         while (enumeration.hasMoreElements())
         {
             aliases.add(enumeration.nextElement());

@@ -10,6 +10,8 @@
 
 package org.openssl.jostle.util;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -243,8 +245,8 @@ public final class ConfigParser
      *
      * @throws java.io.IOException if the resource or file cannot be opened
      */
-    public static java.io.InputStream openLocator(String locator)
-            throws java.io.IOException
+    public static InputStream openLocator(String locator)
+            throws IOException
     {
         if (locator == null)
         {
@@ -257,10 +259,10 @@ public final class ConfigParser
             {
                 resource = "/" + resource;
             }
-            java.io.InputStream in = ConfigParser.class.getResourceAsStream(resource);
+            InputStream in = ConfigParser.class.getResourceAsStream(resource);
             if (in == null)
             {
-                throw new java.io.IOException("classpath resource not found: " + resource);
+                throw new IOException("classpath resource not found: " + resource);
             }
             return in;
         }

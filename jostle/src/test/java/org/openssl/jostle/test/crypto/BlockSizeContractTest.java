@@ -29,6 +29,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.TreeSet;
+import javax.crypto.NoSuchPaddingException;
 
 /**
  * MT-57: {@code Cipher.getBlockSize()} answers WITHOUT initialisation, and a
@@ -208,7 +213,7 @@ public class BlockSizeContractTest
                 Cipher.getInstance(name, jsl).getBlockSize();
                 checked++;
             }
-            catch (java.security.NoSuchAlgorithmException | javax.crypto.NoSuchPaddingException absent)
+            catch (NoSuchAlgorithmException | NoSuchPaddingException absent)
             {
                 // A bare primary that needs a mode/padding to resolve is not a
                 // block-size question; skip rather than fabricate a failure.
@@ -323,7 +328,7 @@ public class BlockSizeContractTest
     }
 
     /** Every registered key wrap, measured: the AES wrap modes, their NIST OIDs and the RFC 3211 wraps. */
-    static final java.util.Set<String> WRAP_NAMES = new java.util.TreeSet<String>(java.util.Arrays.asList(
+    static final Set<String> WRAP_NAMES = new TreeSet<String>(Arrays.asList(
             "2.16.840.1.101.3.4.1.5", "2.16.840.1.101.3.4.1.8", "2.16.840.1.101.3.4.1.25",
             "2.16.840.1.101.3.4.1.28", "2.16.840.1.101.3.4.1.45", "2.16.840.1.101.3.4.1.48",
             "AESWRAP", "AESWRAPPAD", "AESWRAPINV", "AESRFC3211WRAP", "CAMELLIARFC3211WRAP", "DESEDERFC3211WRAP"));
@@ -342,7 +347,7 @@ public class BlockSizeContractTest
     @Test
     public void everyKeyWrapReportsZero() throws Exception
     {
-        java.util.Set<String> seen = new java.util.TreeSet<String>();
+        Set<String> seen = new TreeSet<String>();
         List<String> failures = new ArrayList<String>();
         for (Provider.Service sv : jsl.getServices())
         {

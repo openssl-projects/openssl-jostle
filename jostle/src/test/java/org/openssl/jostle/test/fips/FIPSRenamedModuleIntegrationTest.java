@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.test.TestUtil;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -55,7 +56,7 @@ public class FIPSRenamedModuleIntegrationTest
         {
             Files.createSymbolicLink(link, module.toPath().toAbsolutePath());
         }
-        catch (UnsupportedOperationException | java.io.IOException e)
+        catch (UnsupportedOperationException | IOException e)
         {
             Assumptions.assumeTrue(false, "cannot create a symbolic link here: " + e);
         }

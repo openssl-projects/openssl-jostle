@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -208,7 +209,7 @@ public class VersionTest
                 }
                 return out.toByteArray();
             }
-            catch (java.io.IOException e)
+            catch (IOException e)
             {
                 throw new ClassNotFoundException("Version.class unreadable", e);
             }

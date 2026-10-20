@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.kdf.MemoryHardKdfNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Arrays;
 
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -397,7 +398,7 @@ public class Argon2LimitTest
                 argon2(password, salt, TYPE, VERSION, ITER, MEMORY, LANES, reference, 0, 32));
 
         byte[] big = new byte[80];
-        new java.security.SecureRandom().nextBytes(big);
+        new SecureRandom().nextBytes(big);
         byte[] expectedPrefix = new byte[24];
         System.arraycopy(big, 0, expectedPrefix, 0, expectedPrefix.length);
         byte[] expectedSuffix = new byte[big.length - 24 - 32];

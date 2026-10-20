@@ -27,6 +27,10 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import java.security.InvalidKeyException;
 import java.util.Arrays;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.SecureRandom;
+import javax.crypto.BadPaddingException;
+import javax.crypto.ShortBufferException;
 
 /**
  * Input-validation limit tests at the FIPS AES block-cipher NI surface
@@ -63,7 +67,7 @@ public class FIPSBlockCipherLimitTest
     /** CBC-CTS mode ordinal. */
     private static final int CTS = OSSLMode.CTS.ordinal();
 
-    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     @BeforeAll
     public static void beforeAll()
@@ -631,23 +635,23 @@ public class FIPSBlockCipherLimitTest
         final int prefix = 7;
         byte[] big = new byte[prefix + 64 + 9];
         XTS_RANDOM.nextBytes(big);
-        byte[] savedPrefix = java.util.Arrays.copyOf(big, prefix);
-        byte[] savedTail = java.util.Arrays.copyOfRange(big, prefix + 64, big.length);
+        byte[] savedPrefix = Arrays.copyOf(big, prefix);
+        byte[] savedTail = Arrays.copyOfRange(big, prefix + 64, big.length);
 
         int written = xtsEncryptInto(key, tweak, pt, big, prefix);
         Assertions.assertEquals(64, written);
 
-        Assertions.assertArrayEquals(savedPrefix, java.util.Arrays.copyOf(big, prefix),
+        Assertions.assertArrayEquals(savedPrefix, Arrays.copyOf(big, prefix),
                 "prefix region was clobbered");
         Assertions.assertArrayEquals(savedTail,
-                java.util.Arrays.copyOfRange(big, prefix + written, big.length),
+                Arrays.copyOfRange(big, prefix + written, big.length),
                 "bytes past the written region were clobbered");
         Assertions.assertArrayEquals(reference,
-                java.util.Arrays.copyOfRange(big, prefix, prefix + written),
+                Arrays.copyOfRange(big, prefix, prefix + written),
                 "the region written at the offset is not the expected ciphertext");
 
-        byte[] shifted = java.util.Arrays.copyOfRange(big, prefix - 1, prefix - 1 + written);
-        Assertions.assertFalse(java.util.Arrays.equals(pt, xtsDecrypt(key, tweak, shifted)),
+        byte[] shifted = Arrays.copyOfRange(big, prefix - 1, prefix - 1 + written);
+        Assertions.assertFalse(Arrays.equals(pt, xtsDecrypt(key, tweak, shifted)),
                 "a window one byte early round-trips — the write landed before the offset");
     }
 
@@ -677,24 +681,24 @@ public class FIPSBlockCipherLimitTest
         int written = xtsEncryptInto(key, tweak, buf, off, pt.length, buf, off);
         Assertions.assertEquals(64, written);
 
-        Assertions.assertArrayEquals(reference, java.util.Arrays.copyOfRange(buf, off, off + written),
+        Assertions.assertArrayEquals(reference, Arrays.copyOfRange(buf, off, off + written),
                 "in-place output differs from the separate-buffer reference");
-        Assertions.assertArrayEquals(java.util.Arrays.copyOf(snapshot, off),
-                java.util.Arrays.copyOf(buf, off), "bytes before the offset were clobbered");
+        Assertions.assertArrayEquals(Arrays.copyOf(snapshot, off),
+                Arrays.copyOf(buf, off), "bytes before the offset were clobbered");
         Assertions.assertArrayEquals(
-                java.util.Arrays.copyOfRange(snapshot, off + written, snapshot.length),
-                java.util.Arrays.copyOfRange(buf, off + written, buf.length),
+                Arrays.copyOfRange(snapshot, off + written, snapshot.length),
+                Arrays.copyOfRange(buf, off + written, buf.length),
                 "bytes after the written region were clobbered");
     }
 
     // --- XTS NI helpers ---
 
-    private static final java.security.SecureRandom XTS_RANDOM = new java.security.SecureRandom();
+    private static final SecureRandom XTS_RANDOM = new SecureRandom();
 
     private byte[] xtsEncrypt(byte[] key, byte[] tweak, byte[] pt, byte[] out, int outOff) throws Exception
     {
         int n = xtsEncryptInto(key, tweak, pt, out, outOff);
-        return java.util.Arrays.copyOfRange(out, outOff, outOff + n);
+        return Arrays.copyOfRange(out, outOff, outOff + n);
     }
 
     private int xtsEncryptInto(byte[] key, byte[] tweak, byte[] pt, byte[] out, int outOff) throws Exception
@@ -728,7 +732,7 @@ public class FIPSBlockCipherLimitTest
             byte[] out = new byte[ct.length];
             int n = ni.update(ref, out, 0, ct, 0, ct.length);
             n += ni.doFinal(ref, out, n);
-            return java.util.Arrays.copyOf(out, n);
+            return Arrays.copyOf(out, n);
         }
         finally
         {
@@ -807,7 +811,7 @@ public class FIPSBlockCipherLimitTest
             {
                 Exception e = Assertions.assertThrows(Exception.class,
                         () -> ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], iv, 0));
-                Assertions.assertTrue(e instanceof java.security.InvalidAlgorithmParameterException);
+                Assertions.assertTrue(e instanceof InvalidAlgorithmParameterException);
                 Assertions.assertEquals("iv is null", e.getMessage());
             }
             finally
@@ -823,7 +827,7 @@ public class FIPSBlockCipherLimitTest
             {
                 Exception e = Assertions.assertThrows(Exception.class,
                         () -> ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[len], 0));
-                Assertions.assertTrue(e instanceof java.security.InvalidAlgorithmParameterException,
+                Assertions.assertTrue(e instanceof InvalidAlgorithmParameterException,
                         "type for len " + len);
                 Assertions.assertEquals("invalid iv length", e.getMessage());
             }
@@ -862,7 +866,7 @@ public class FIPSBlockCipherLimitTest
         {
             Exception e = Assertions.assertThrows(Exception.class,
                     () -> ni.init(ref, Cipher.DECRYPT_MODE, new byte[24], new byte[DES_BLOCK], 0));
-            Assertions.assertTrue(e instanceof java.security.InvalidAlgorithmParameterException);
+            Assertions.assertTrue(e instanceof InvalidAlgorithmParameterException);
             Assertions.assertEquals("mode not supported for cipher", e.getMessage());
         }
         finally
@@ -1028,7 +1032,7 @@ public class FIPSBlockCipherLimitTest
                 off += take;
             }
             int n = ni.doFinal(ref, out, 0);
-            return java.util.Arrays.copyOf(out, n);
+            return Arrays.copyOf(out, n);
         }
         finally
         {
@@ -1058,8 +1062,8 @@ public class FIPSBlockCipherLimitTest
 
         byte[] key = new byte[32];
         byte[] cek = new byte[32];
-        new java.security.SecureRandom().nextBytes(key);
-        new java.security.SecureRandom().nextBytes(cek);
+        new SecureRandom().nextBytes(key);
+        new SecureRandom().nextBytes(cek);
 
         byte[] wrapped;
         long wref = ni.makeInstance(aes256, wrapPad, 0);
@@ -1088,8 +1092,8 @@ public class FIPSBlockCipherLimitTest
         {
             ni.init(ref, Cipher.DECRYPT_MODE, key, null, 0);
             ni.update(ref, new byte[damaged.length - 8], 0, damaged, 0, damaged.length);
-            javax.crypto.ShortBufferException e = Assertions.assertThrows(
-                    javax.crypto.ShortBufferException.class,
+            ShortBufferException e = Assertions.assertThrows(
+                    ShortBufferException.class,
                     () -> ni.doFinal(ref, new byte[damaged.length - 8], 0),
                     "a (len - 8) unwrap buffer was accepted \u2014 this build overflows by 8 bytes");
             Assertions.assertEquals("output too small", e.getMessage());
@@ -1108,10 +1112,10 @@ public class FIPSBlockCipherLimitTest
             ni.update(ok, new byte[damaged.length], 0, damaged, 0, damaged.length);
             Exception e = Assertions.assertThrows(Exception.class,
                     () -> ni.doFinal(ok, new byte[damaged.length], 0));
-            Assertions.assertFalse(e instanceof javax.crypto.ShortBufferException,
+            Assertions.assertFalse(e instanceof ShortBufferException,
                     "a buffer of exactly the input length was called too small: " + e.getMessage());
             // The integrity failure's own type, matching BouncyCastle.
-            Assertions.assertTrue(e instanceof javax.crypto.BadPaddingException,
+            Assertions.assertTrue(e instanceof BadPaddingException,
                     "expected BadPaddingException, got " + e.getClass().getName());
             Assertions.assertEquals("invalid cipher text", e.getMessage());
         }

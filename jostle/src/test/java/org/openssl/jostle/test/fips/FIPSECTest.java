@@ -48,6 +48,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.MessageDigest;
 
 /**
  * EC through the FIPS provider ("JSLFIPS"): keygen on the NIST curves,
@@ -250,6 +251,7 @@ public class FIPSECTest
         KeyPair carol = generate("secp256r1");
         fipsKa.init(alice.getPrivate());
         fipsKa.doPhase(carol.getPublic(), true);
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertFalse(java.util.Arrays.equals(fipsSecret, fipsKa.generateSecret()),
                 "different peer produced identical secret");
     }
@@ -1410,7 +1412,7 @@ public class FIPSECTest
         SecureRandom sr = seededRandom("noneWithECDSA_servedBothDirectionsOverSuppliedDigest");
         byte[] msg = new byte[1 + sr.nextInt(512)];
         sr.nextBytes(msg);
-        byte[] hash = java.security.MessageDigest.getInstance("SHA-256", FIPS).digest(msg);
+        byte[] hash = MessageDigest.getInstance("SHA-256", FIPS).digest(msg);
 
         Signature none = Signature.getInstance("NoneWithECDSA", FIPS);
         none.initSign(kp.getPrivate());

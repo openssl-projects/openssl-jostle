@@ -23,9 +23,11 @@ import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 
 import java.math.BigInteger;
+import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyFactorySpi;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.InvalidKeySpecException;
@@ -51,7 +53,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
      * every foreign key it is handed is checked against it. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public RSAKeyFactorySpi()
     {
@@ -64,7 +66,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
     }
 
     public RSAKeyFactorySpi(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
-                            java.security.Provider providerInstance)
+                            Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.rsaServiceNI = rsaServiceNI;
@@ -76,7 +78,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
      * The NI backend this factory allocates keys in - used by the import
      * helpers to reject keys created by the other Jostle provider.
      */
-    java.security.Provider ownProviderInstance()
+    Provider ownProviderInstance()
     {
         return providerInstance;
     }
@@ -288,7 +290,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
     }
 
     @Override
-    protected Key engineTranslateKey(Key key) throws java.security.InvalidKeyException
+    protected Key engineTranslateKey(Key key) throws InvalidKeyException
     {
         if (key instanceof JORSAPublicKey || key instanceof JORSAPrivateKey)
         {
@@ -310,7 +312,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             // re-decode rather than refuse.
             if (!spec.usableBy(providerInstance))
             {
-                throw new java.security.InvalidKeyException(
+                throw new InvalidKeyException(
                         "key was created by a different Jostle provider instance; encode it "
                                 + "with getEncoded() and decode it through this provider's "
                                 + "KeyFactory");
@@ -345,7 +347,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             encoded = key.getEncoded();
             if (encoded == null)
             {
-                throw new java.security.InvalidKeyException("foreign key has no encoded form");
+                throw new InvalidKeyException("foreign key has no encoded form");
             }
             if (key instanceof PrivateKey)
             {
@@ -355,13 +357,13 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         }
         catch (InvalidKeySpecException e)
         {
-            throw new java.security.InvalidKeyException(e.getMessage(), e);
+            throw new InvalidKeyException(e.getMessage(), e);
         }
         catch (RuntimeException e)
         {
             // A hostile/broken foreign key can throw from getEncoded();
             // surface the typed exception the translate contract requires.
-            throw new java.security.InvalidKeyException("unable to translate key", e);
+            throw new InvalidKeyException("unable to translate key", e);
         }
         finally
         {

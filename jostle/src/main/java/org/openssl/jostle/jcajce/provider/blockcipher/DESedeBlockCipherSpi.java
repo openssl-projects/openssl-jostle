@@ -23,6 +23,7 @@ import java.security.Key;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
+import java.security.Provider;
 
 /**
  * JCE Cipher SPI for 3-key Triple DES (DES-EDE3). Only ECB and CBC
@@ -77,26 +78,26 @@ public class DESedeBlockCipherSpi extends BlockCipherSpi
     //
     // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
     //
-    public DESedeBlockCipherSpi(java.security.Provider providerInstance)
+    public DESedeBlockCipherSpi(Provider providerInstance)
     {
         this(NISelector.BlockCipherNI, providerInstance);
     }
 
     public DESedeBlockCipherSpi(OSSLCipher cipher, OSSLMode mode,
-                                java.security.Provider providerInstance)
+                                Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, cipher, mode, DESEDE, providerInstance);
     }
 
     public DESedeBlockCipherSpi(BlockCipherNI blockCipherNi,
-                                java.security.Provider providerInstance)
+                                Provider providerInstance)
     {
         super(blockCipherNi, null, null, DESEDE, providerInstance);
         osslMode = OSSLMode.ECB;
     }
 
     public DESedeBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode,
-                                java.security.Provider providerInstance)
+                                Provider providerInstance)
     {
         super(blockCipherNi, cipher, mode, DESEDE, providerInstance);
     }

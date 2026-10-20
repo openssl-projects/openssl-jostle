@@ -19,8 +19,12 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
@@ -160,7 +164,7 @@ public class FIPSCrossInstanceKeyTest
         return bound;
     }
 
-    private static Provider instanceOf(java.security.Key key)
+    private static Provider instanceOf(Key key)
     {
         return ((OSSLKey) key).getSpec().getProviderInstance();
     }
@@ -206,7 +210,7 @@ public class FIPSCrossInstanceKeyTest
                         + "registrations pass their provider instance, all at once.");
     }
 
-    private static String providerOf(java.security.Key key)
+    private static String providerOf(Key key)
     {
         PKEYKeySpec spec = ((OSSLKey) key).getSpec();
         return spec.getSpecNI().getKeyProvider(spec.getReference());
@@ -297,10 +301,10 @@ public class FIPSCrossInstanceKeyTest
     {
         try
         {
-            java.security.KeyFactory kf = java.security.KeyFactory.getInstance(alg, user);
+            KeyFactory kf = KeyFactory.getInstance(alg, user);
             // engineTranslateKey is the narrowest surface that takes a key
             // object and hands back the one the provider would actually use.
-            java.security.Key adopted = kf.translateKey(foreign);
+            Key adopted = kf.translateKey(foreign);
             String served = providerOf(adopted);
             if (!wanted.equals(served))
             {
@@ -308,11 +312,11 @@ public class FIPSCrossInstanceKeyTest
                         + "and it is served by \"" + served + "\", not \"" + wanted + "\"");
             }
         }
-        catch (java.security.InvalidKeyException e)
+        catch (InvalidKeyException e)
         {
             // Refused, typed. That is the post-fix contract and a pass.
         }
-        catch (java.security.NoSuchAlgorithmException e)
+        catch (NoSuchAlgorithmException e)
         {
             // NOT a refusal. sharedFamilies() established that both providers
             // offer this KeyFactory, so this means the probe could not run —

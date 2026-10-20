@@ -36,6 +36,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.io.IOException;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 /**
  * RSA-KEM key transport (ISO 18033-2 / RFC 9690) through {@code RSA-KTS-KEM-KWS}.
@@ -633,7 +635,7 @@ public class RSAKEMCipherTest
      * do not share key objects and the public half has to be re-decoded before
      * use — so the wrapping key is not the one in the caller's KeyPair.
      */
-    protected byte[] wrap(String provider, java.security.PublicKey pub, KtsSpec spec, SecretKey cek)
+    protected byte[] wrap(String provider, PublicKey pub, KtsSpec spec, SecretKey cek)
         throws Exception
     {
         Cipher c = Cipher.getInstance(XFORM, provider);
@@ -648,7 +650,7 @@ public class RSAKEMCipherTest
     }
 
     /** Key-level overload; see {@link #wrap(String, java.security.PublicKey, KtsSpec, SecretKey)}. */
-    protected Key unwrap(String provider, java.security.PrivateKey priv, KtsSpec spec, byte[] wrapped)
+    protected Key unwrap(String provider, PrivateKey priv, KtsSpec spec, byte[] wrapped)
         throws Exception
     {
         Cipher c = Cipher.getInstance(XFORM, provider);

@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
+import java.security.InvalidParameterException;
+import java.util.Arrays;
 
 /**
  * MT-31 Group C, arc 3a: our exception type against BouncyCastle's and the
@@ -257,7 +259,7 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
         //    fails the 512 row, and one that vanished fails the 511 row.
         for (String name : names())
         {
-            refuses(jsl, name, Fault.INIT_BELOW_FLOOR, java.security.InvalidParameterException.class);
+            refuses(jsl, name, Fault.INIT_BELOW_FLOOR, InvalidParameterException.class);
             accepts(jsl, name, Fault.INIT_AT_FLOOR);
             accepts(bc, name, Fault.INIT_AT_FLOOR);
         }
@@ -277,9 +279,9 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
             accepts(jsl, name, Fault.INIT_UNALIGNED_LARGE);
             accepts(jsl, name, Fault.INIT_ABOVE_BC_CEILING);
         }
-        refuses(bc, "DSA", Fault.INIT_UNALIGNED, java.security.InvalidParameterException.class);
-        refuses(bc, "DSA", Fault.INIT_UNALIGNED_LARGE, java.security.InvalidParameterException.class);
-        refuses(bc, "DSA", Fault.INIT_ABOVE_BC_CEILING, java.security.InvalidParameterException.class);
+        refuses(bc, "DSA", Fault.INIT_UNALIGNED, InvalidParameterException.class);
+        refuses(bc, "DSA", Fault.INIT_UNALIGNED_LARGE, InvalidParameterException.class);
+        refuses(bc, "DSA", Fault.INIT_ABOVE_BC_CEILING, InvalidParameterException.class);
 
         //    The CEILING is inherited too, and is the one bound OpenSSL does not
         //    enforce at paramgen: OPENSSL_DSA_MAX_MODULUS_BITS
@@ -292,7 +294,7 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
         //    OpenSSL's number, not a jostle policy number.
         for (String name : names())
         {
-            refuses(jsl, name, Fault.INIT_ABOVE_CEILING, java.security.InvalidParameterException.class);
+            refuses(jsl, name, Fault.INIT_ABOVE_CEILING, InvalidParameterException.class);
         }
 
         // 2. BouncyCastle accepts every illegal DH size while REFUSING the same
@@ -303,12 +305,12 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
         for (Fault f : new Fault[]{Fault.INIT_NEGATIVE, Fault.INIT_ZERO,
                 Fault.INIT_MIN_VALUE, Fault.INIT_ABSURD})
         {
-            refuses(jsl, "DH", f, java.security.InvalidParameterException.class);
-            refuses(jsl, "DSA", f, java.security.InvalidParameterException.class);
+            refuses(jsl, "DH", f, InvalidParameterException.class);
+            refuses(jsl, "DSA", f, InvalidParameterException.class);
             accepts(bc, "DH", f);
-            refuses(bc, "DSA", f, java.security.InvalidParameterException.class);
-            refuses(dhJdk, "DH", f, java.security.InvalidParameterException.class);
-            refuses(dsaJdk, "DSA", f, java.security.InvalidParameterException.class);
+            refuses(bc, "DSA", f, InvalidParameterException.class);
+            refuses(dhJdk, "DH", f, InvalidParameterException.class);
+            refuses(dsaJdk, "DSA", f, InvalidParameterException.class);
         }
 
         // 3. The two positive cells. A fault survey is structurally blind to an
@@ -384,7 +386,7 @@ public class AlgorithmParameterGeneratorNegativePathSurveyTest
         Assertions.assertEquals(live.size(), cell.size() + PINNED.size() + BLOCKED.size(),
                 "tri-state tally does not equal the live count; live=" + live
                         + " cell=" + cell + " pinned=" + PINNED + " blocked=" + BLOCKED);
-        Assertions.assertEquals(new TreeSet<String>(java.util.Arrays.asList("DH", "DSA")), live,
+        Assertions.assertEquals(new TreeSet<String>(Arrays.asList("DH", "DSA")), live,
                 "the registered AlgorithmParameterGenerator primaries changed");
         for (String n : cell)
         {

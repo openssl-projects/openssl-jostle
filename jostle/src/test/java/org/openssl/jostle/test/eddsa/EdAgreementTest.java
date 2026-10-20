@@ -116,6 +116,7 @@ public class EdAgreementTest
      */
     private static final SortedSet<String> BC_LIGHTWEIGHT_ONLY =
             Collections.unmodifiableSortedSet(new TreeSet<String>(
+                    // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                     java.util.Arrays.asList("ED25519PH", "ED25519CTX", "ED448PH")));
 
     /** The two curves, by the name {@code ProvED} registers a KeyPairGenerator under. */

@@ -47,6 +47,10 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.io.IOException;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 /**
  * The KTS ciphers' KDF derivations against BouncyCastle, over all eleven KDF
@@ -136,7 +140,7 @@ public class KtsKdfAgreementTest
     }
 
     /** For driving Jostle's Cipher — the same kdf/otherInfo, our own spec type. */
-    private static KTSParameterSpec spec(AlgorithmIdentifier kdf, byte[] otherInfo) throws java.io.IOException
+    private static KTSParameterSpec spec(AlgorithmIdentifier kdf, byte[] otherInfo) throws IOException
     {
         return new KTSParameterSpec.Builder("AESWRAP", 256, otherInfo).withKdfAlgorithm(kdf.getEncoded()).build();
     }
@@ -195,10 +199,10 @@ public class KtsKdfAgreementTest
         KeyPair kp = kpg.generateKeyPair();
         byte[] pub = kp.getPublic().getEncoded();
         byte[] priv = kp.getPrivate().getEncoded();
-        java.security.KeyFactory bcKf = java.security.KeyFactory.getInstance("ML-KEM-768", BC);
-        java.security.PublicKey bcPub =
+        KeyFactory bcKf = KeyFactory.getInstance("ML-KEM-768", BC);
+        PublicKey bcPub =
                 bcKf.generatePublic(new X509EncodedKeySpec(pub));
-        java.security.PrivateKey bcPriv =
+        PrivateKey bcPriv =
                 bcKf.generatePrivate(new PKCS8EncodedKeySpec(priv));
 
         int driven = 0;

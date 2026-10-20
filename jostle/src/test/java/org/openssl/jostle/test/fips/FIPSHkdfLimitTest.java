@@ -57,6 +57,7 @@ public class FIPSHkdfLimitTest
     private static byte[] conformingIkm()
     {
         byte[] ikm = new byte[FIPSTestUtil.HMAC_MIN_KEY_BYTES];
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         java.util.Arrays.fill(ikm, (byte) 0x0b);
         return ikm;
     }

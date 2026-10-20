@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.spec.EdDSAPublicKeySpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 
+import java.security.Key;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -29,6 +30,9 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -111,7 +115,7 @@ public class FIPSEdRawSpecLibraryTest
      */
     private static void assertEd25519AbsentEntirely()
     {
-        java.util.List<String> present = new java.util.ArrayList<String>();
+        List<String> present = new ArrayList<String>();
         for (Provider.Service svc : fips.getServices())
         {
             String alg = svc.getAlgorithm().toUpperCase(Locale.ROOT);
@@ -141,7 +145,7 @@ public class FIPSEdRawSpecLibraryTest
     }
 
     /** The Ed OIDs, which carry no ED prefix and so need explicit probing. */
-    private static final java.util.List<String> ED_OIDS = java.util.Arrays.asList(
+    private static final List<String> ED_OIDS = Arrays.asList(
             "1.3.101.112", "1.3.101.113");
 
     /**
@@ -250,7 +254,7 @@ public class FIPSEdRawSpecLibraryTest
      * that gap into a guaranteed {@code ClassCastException} through
      * {@code translateKey}.
      */
-    private static String providerOf(java.security.Key key)
+    private static String providerOf(Key key)
     {
         PKEYKeySpec spec = ((OSSLKey) key).getSpec();
         return spec.getSpecNI().getKeyProvider(spec.getReference());

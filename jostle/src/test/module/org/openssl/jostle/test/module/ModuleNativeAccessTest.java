@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.security.MessageDigest;
 import java.security.Security;
+import java.util.Arrays;
 
 /**
  * A named module calling a restricted method, with and without
@@ -79,7 +80,7 @@ public class ModuleNativeAccessTest
         byte[] two = md.digest(new byte[]{1, 2, 4});
 
         Assertions.assertEquals(32, one.length);
-        Assertions.assertFalse(java.util.Arrays.equals(one, two),
+        Assertions.assertFalse(Arrays.equals(one, two),
                 "two different inputs digested identically");
     }
 }

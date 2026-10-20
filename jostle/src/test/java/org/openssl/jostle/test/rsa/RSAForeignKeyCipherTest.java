@@ -39,6 +39,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Date;
 import java.security.spec.ECGenParameterSpec;
+import java.security.InvalidKeyException;
 
 /**
  * Regression for the RSA-Cipher foreign-key gap: the PKCS#1 and OAEP Cipher
@@ -181,7 +182,7 @@ public class RSAForeignKeyCipherTest
             enc.init(Cipher.WRAP_MODE, ecPub);
             Assertions.fail("expected InvalidKeyException for a non-RSA key");
         }
-        catch (java.security.InvalidKeyException e)
+        catch (InvalidKeyException e)
         {
             Assertions.assertEquals("encrypt/wrap requires an RSAPublicKey", e.getMessage());
         }

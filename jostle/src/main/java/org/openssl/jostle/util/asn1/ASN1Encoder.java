@@ -13,6 +13,7 @@ package org.openssl.jostle.util.asn1;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import java.security.Provider;
 
 public class ASN1Encoder
 {
@@ -147,7 +148,7 @@ public class ASN1Encoder
      * provider then refuses — the sanctioned crossing would not work.
      */
     public static PKEYKeySpec fromPrivateKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len,
-                                                 java.security.Provider providerInstance)
+                                                 Provider providerInstance)
     {
         long ref = asn1NI.fromPrivateKeyInfo(data, start, len);
         return new PKEYKeySpec(specNI, ref, providerInstance);
@@ -166,7 +167,7 @@ public class ASN1Encoder
 
     /** As above, additionally BINDING the decoded spec (see fromPrivateKeyInfo). */
     public static PKEYKeySpec fromSubjectPublicKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start,
-                                                       int len, java.security.Provider providerInstance)
+                                                       int len, Provider providerInstance)
     {
         long ref = asn1NI.fromPublicKeyInfo(data, start, len);
         return new PKEYKeySpec(specNI, ref, providerInstance);

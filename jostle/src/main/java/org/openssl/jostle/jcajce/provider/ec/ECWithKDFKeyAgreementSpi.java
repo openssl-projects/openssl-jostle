@@ -24,6 +24,7 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * ECDH key agreement followed by the ANSI X9.63 KDF (= ISO-18033 KDF2) — the
@@ -75,7 +76,7 @@ public class ECWithKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
     // the agreement, not from whatever answers to its name.
     //
     public ECWithKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, String digest,
-            java.security.Provider providerInstance)
+            Provider providerInstance)
     {
         super(ecServiceNI, keyFactory);
         this.digest = digest;

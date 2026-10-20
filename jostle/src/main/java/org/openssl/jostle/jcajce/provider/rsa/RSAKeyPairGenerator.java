@@ -25,6 +25,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.RSAKeyGenParameterSpec;
@@ -93,7 +94,7 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
      * every foreign key it is handed is checked against it. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public RSAKeyPairGenerator()
     {
@@ -121,7 +122,7 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
      * OpenSSLException from inside the module.
      */
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
-                               java.security.Provider providerInstance)
+                               Provider providerInstance)
     {
         this(rsaServiceNI, specNI, asn1NI, NO_POLICY_FLOOR, providerInstance);
     }
@@ -132,7 +133,7 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     }
 
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
-                               int minKeySizeBits, java.security.Provider providerInstance)
+                               int minKeySizeBits, Provider providerInstance)
     {
         super("RSA");
         this.providerInstance = providerInstance;

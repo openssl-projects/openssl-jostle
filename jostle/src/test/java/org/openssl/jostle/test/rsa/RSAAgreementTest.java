@@ -46,6 +46,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.Key;
+import java.security.MessageDigest;
 
 /**
  * Cross-implementation agreement for Jostle's RSA surface: JSL against
@@ -426,7 +428,7 @@ public class RSAAgreementTest
         }
     }
 
-    private static void initCipher(Cipher c, int mode, java.security.Key key,
+    private static void initCipher(Cipher c, int mode, Key key,
                                    boolean oaep, SecureRandom sr) throws Exception
     {
         if (oaep)
@@ -656,7 +658,7 @@ public class RSAAgreementTest
     /** A SHA-256 DigestInfo, which is what NONEwithRSA expects to be handed. */
     private static byte[] digestInfoSha256(byte[] msg) throws Exception
     {
-        byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(msg);
+        byte[] h = MessageDigest.getInstance("SHA-256").digest(msg);
         byte[] prefix = Hex.decode(
                 "3031300d060960864801650304020105000420");
         byte[] out = new byte[prefix.length + h.length];

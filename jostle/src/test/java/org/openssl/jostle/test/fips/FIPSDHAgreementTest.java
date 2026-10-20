@@ -35,6 +35,9 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.Provider;
 import java.util.Locale;
+import java.security.AlgorithmParameters;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Cross-provider agreement for the FIPS provider's DH (Diffie-Hellman)
@@ -423,25 +426,25 @@ public class FIPSDHAgreementTest
         DHParameterSpec keyDerived = ffdhe2048Spec(sr);
         DHParameterSpec domain = new DHParameterSpec(keyDerived.getP(), keyDerived.getG());
 
-        java.security.AlgorithmParameters fipsAp =
-                java.security.AlgorithmParameters.getInstance("DH", FIPS);
+        AlgorithmParameters fipsAp =
+                AlgorithmParameters.getInstance("DH", FIPS);
         fipsAp.init(domain);
 
-        java.security.AlgorithmParameters jslAp =
-                java.security.AlgorithmParameters.getInstance("DH", JSL);
+        AlgorithmParameters jslAp =
+                AlgorithmParameters.getInstance("DH", JSL);
         jslAp.init(domain);
         Assertions.assertArrayEquals(jslAp.getEncoded(), fipsAp.getEncoded(),
                 "JSLFIPS and JSL encode the same DH parameters differently");
 
-        java.security.AlgorithmParameters bcAp =
-                java.security.AlgorithmParameters.getInstance("DH", BC);
+        AlgorithmParameters bcAp =
+                AlgorithmParameters.getInstance("DH", BC);
         bcAp.init(domain);
         Assertions.assertArrayEquals(bcAp.getEncoded(), fipsAp.getEncoded(),
                 "JSLFIPS and BC encode the same DH parameters differently");
 
         // And JSLFIPS reads the peer's encoding back to the same components.
-        java.security.AlgorithmParameters reread =
-                java.security.AlgorithmParameters.getInstance("DH", FIPS);
+        AlgorithmParameters reread =
+                AlgorithmParameters.getInstance("DH", FIPS);
         reread.init(bcAp.getEncoded());
         DHParameterSpec back = reread.getParameterSpec(DHParameterSpec.class);
         Assertions.assertEquals(domain.getP(), back.getP(), "p differs after re-reading BC's encoding");
@@ -462,9 +465,10 @@ public class FIPSDHAgreementTest
     @Test
     public void everyRegisteredDhServiceIsCovered()
     {
-        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
 
-        java.util.SortedSet<String> covered = new java.util.TreeSet<String>(java.util.Arrays.asList(
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
+        SortedSet<String> covered = new TreeSet<String>(java.util.Arrays.asList(
                 "KeyAgreement.DH",
                 "KeyAgreement.DHWITHRFC2631KDF",
                 "KeyFactory.DH",
@@ -472,7 +476,7 @@ public class FIPSDHAgreementTest
                 "AlgorithmParameters.DH",
                 "AlgorithmParameterGenerator.DH"));
 
-        java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
+        SortedSet<String> registered = new TreeSet<String>();
         for (Provider.Service svc : provider.getServices())
         {
             String cn = svc.getClassName();
@@ -483,12 +487,12 @@ public class FIPSDHAgreementTest
         }
         Assertions.assertFalse(registered.isEmpty(), "JSLFIPS registered no DH services");
 
-        java.util.SortedSet<String> uncovered = new java.util.TreeSet<String>(registered);
+        SortedSet<String> uncovered = new TreeSet<String>(registered);
         uncovered.removeAll(covered);
         Assertions.assertTrue(uncovered.isEmpty(),
                 "JSLFIPS registers DH services with no agreement coverage: " + uncovered);
 
-        java.util.SortedSet<String> stale = new java.util.TreeSet<String>(covered);
+        SortedSet<String> stale = new TreeSet<String>(covered);
         stale.removeAll(registered);
         Assertions.assertTrue(stale.isEmpty(),
                 "this class names DH services JSLFIPS does not register: " + stale);

@@ -674,6 +674,7 @@ public class FIPSSLHDSALimitTest
             int prefix = 37;
             byte[] big = new byte[prefix + len + 11];
             sr.nextBytes(big);
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             byte[] expectedPrefix = java.util.Arrays.copyOf(big, prefix);
             byte[] expectedSuffix = java.util.Arrays.copyOfRange(big, prefix + len, big.length);
 

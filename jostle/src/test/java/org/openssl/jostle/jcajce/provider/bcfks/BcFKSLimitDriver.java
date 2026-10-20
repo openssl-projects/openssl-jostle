@@ -33,6 +33,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * Shared instrument for the BCFKS limit classes: it builds the hostile inputs
@@ -418,7 +420,7 @@ final class BcFKSLimitDriver
         {
             KeyStore store = KeyStore.getInstance("BCFKS", provider);
             store.load(new ByteArrayInputStream(bytes), password);
-            return new Outcome(null, null, java.util.Collections.list(store.aliases()).size());
+            return new Outcome(null, null, Collections.list(store.aliases()).size());
         }
         catch (Throwable t)
         {
@@ -479,11 +481,11 @@ final class BcFKSLimitDriver
 
         Map<String, Malformation> t = new LinkedHashMap<String, Malformation>();
 
-        byte[] trailingByte = java.util.Arrays.copyOf(store, store.length + 1);
+        byte[] trailingByte = Arrays.copyOf(store, store.length + 1);
         put(t, new Malformation("trailing zero byte after the outer SEQUENCE",
                 trailingByte, password, "trailing bytes after ObjectStore"));
 
-        byte[] trailingTlv = java.util.Arrays.copyOf(store, store.length + 2);
+        byte[] trailingTlv = Arrays.copyOf(store, store.length + 2);
         trailingTlv[store.length] = (byte) Der.NULL;
         put(t, new Malformation("trailing NULL TLV after the outer SEQUENCE",
                 trailingTlv, password, "trailing bytes after ObjectStore"));

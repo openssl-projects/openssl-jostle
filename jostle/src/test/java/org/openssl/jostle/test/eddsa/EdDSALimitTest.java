@@ -22,7 +22,9 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 public class EdDSALimitTest
 {
@@ -48,7 +50,7 @@ public class EdDSALimitTest
         // random-filled buffer; the bytes outside the written window must be
         // preserved and the signature at the offset must verify. Runs on JNI
         // and FFM via TestNISelector; only the FFM path exhibited the clobber.
-        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        SecureRandom rnd = new SecureRandom();
         String name = OSSLKeyType.ED25519.getTypeName();
         long keyRef = edServiceNI.generateKeyPair(OSSLKeyType.ED25519.getKsType(), TestUtil.RNDSrc);
         long signer = edServiceNI.allocateSigner();
@@ -72,12 +74,12 @@ public class EdDSALimitTest
             int written = (int) edServiceNI.sign(signer, big, prefix, TestUtil.RNDSrc);
             Assertions.assertEquals(sigLen, written);
 
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, 0, prefix),
-                    java.util.Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, prefix + written, big.length),
-                    java.util.Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(snapshot, 0, prefix),
+                    Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(snapshot, prefix + written, big.length),
+                    Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
 
-            byte[] sig = java.util.Arrays.copyOfRange(big, prefix, prefix + written);
+            byte[] sig = Arrays.copyOfRange(big, prefix, prefix + written);
             edServiceNI.initVerify(verifier, keyRef, name, null, 0);
             edServiceNI.update(verifier, msg, 0, msg.length);
             Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), edServiceNI.verify(verifier, sig, sig.length));

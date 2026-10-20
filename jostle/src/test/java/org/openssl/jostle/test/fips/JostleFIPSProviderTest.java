@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 /**
  * Lifecycle test of JostleFIPSProvider ("JSLFIPS"): configuration parsing and
@@ -147,7 +148,7 @@ public class JostleFIPSProviderTest
         other[0] ^= (byte) 0x01;
         byte[] otherDigest = MessageDigest.getInstance("SHA-256", JostleProvider.PROVIDER_NAME)
                 .digest(other);
-        Assertions.assertFalse(java.util.Arrays.equals(digest, otherDigest),
+        Assertions.assertFalse(Arrays.equals(digest, otherDigest),
                 "distinct inputs must produce distinct digests");
     }
 }

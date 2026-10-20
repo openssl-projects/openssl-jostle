@@ -45,6 +45,7 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Date;
+import java.io.IOException;
 
 /**
  * Regression for CMS_FOREIGN_KEY_KEM_EC_GAP.md: the ML-KEM KTS cipher and the
@@ -101,7 +102,7 @@ public class ForeignKeyKemEcXdhTest
     // ----- ML-KEM KTS -----
 
     private static KTSParameterSpec ktsKdf3Spec(int keyBits, byte[] otherInfo, ASN1ObjectIdentifier digestOid)
-        throws java.io.IOException
+        throws IOException
     {
         return new KTSParameterSpec.Builder("AES", keyBits, otherInfo)
                 .withKdfAlgorithm(new AlgorithmIdentifier(

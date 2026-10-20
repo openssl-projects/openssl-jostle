@@ -24,7 +24,9 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 public class MLDSALimitTest
 {
@@ -76,7 +78,7 @@ public class MLDSALimitTest
         // random-filled buffer; the bytes outside the written window must be
         // preserved and the signature at the offset must verify. Runs on JNI
         // and FFM via TestNISelector; only the FFM path exhibited the clobber.
-        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        SecureRandom rnd = new SecureRandom();
         long keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
         long signer = mldsaServiceNI.allocateSigner();
         long verifier = mldsaServiceNI.allocateSigner();
@@ -99,12 +101,12 @@ public class MLDSALimitTest
             int written = (int) mldsaServiceNI.sign(signer, big, prefix, TestUtil.RNDSrc);
             Assertions.assertEquals(sigLen, written);
 
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, 0, prefix),
-                    java.util.Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, prefix + written, big.length),
-                    java.util.Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(snapshot, 0, prefix),
+                    Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(snapshot, prefix + written, big.length),
+                    Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
 
-            byte[] sig = java.util.Arrays.copyOfRange(big, prefix, prefix + written);
+            byte[] sig = Arrays.copyOfRange(big, prefix, prefix + written);
             mldsaServiceNI.initVerify(verifier, keyRef, new byte[0], 0, 0);
             mldsaServiceNI.update(verifier, msg, 0, msg.length);
             Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), mldsaServiceNI.verify(verifier, sig, sig.length));

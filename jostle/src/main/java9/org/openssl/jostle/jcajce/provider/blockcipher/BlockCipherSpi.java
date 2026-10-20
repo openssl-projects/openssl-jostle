@@ -93,7 +93,7 @@ class BlockCipherSpi extends CipherSpi
      * unwrapped it rather than through whatever JCA order picks (MT-10). The
      * instance, not the name - see {@code UnwrappedKeys}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     /**
      * The parameter specs {@link #engineInit(int, Key, AlgorithmParameters,
@@ -130,7 +130,7 @@ class BlockCipherSpi extends CipherSpi
     }
 
     BlockCipherSpi(BlockCipherNI blockCipherNi, Object params, String expectedKeyAlgorithm,
-                   java.security.Provider providerInstance)
+                   Provider providerInstance)
     {
         this.blockCipherNi = blockCipherNi;
         this.providerInstance = providerInstance;
@@ -150,7 +150,7 @@ class BlockCipherSpi extends CipherSpi
     }
 
     BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, String expectedKeyAlgorithm,
-                   java.security.Provider providerInstance)
+                   Provider providerInstance)
     {
         this.blockCipherNi = blockCipherNi;
         this.providerInstance = providerInstance;
@@ -170,7 +170,7 @@ class BlockCipherSpi extends CipherSpi
     }
 
     BlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher osslCipher, OSSLMode osslMode,
-                   String expectedKeyAlgorithm, java.security.Provider providerInstance)
+                   String expectedKeyAlgorithm, Provider providerInstance)
     {
         this.blockCipherNi = blockCipherNi;
         this.providerInstance = providerInstance;

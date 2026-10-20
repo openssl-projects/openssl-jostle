@@ -87,6 +87,7 @@ public class CertPathAgreementTest
      * {@link #everyPinnedDivergenceIsStillEarnt}.
      */
     private static final Set<String> PINNED_DIVERGENCES =
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             new TreeSet<String>(java.util.Arrays.asList("dsa-inherited-parameters"));
 
     @BeforeAll

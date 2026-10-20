@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.security.AlgorithmParameterGenerator;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -334,9 +335,9 @@ public class DSATest
     public void testSignature_nullKey_rejected() throws Exception
     {
         Signature s = Signature.getInstance("SHA256withDSA", JostleProvider.PROVIDER_NAME);
-        Assertions.assertThrows(java.security.InvalidKeyException.class,
+        Assertions.assertThrows(InvalidKeyException.class,
                 () -> s.initVerify((PublicKey) null), "initVerify(null) must throw InvalidKeyException");
-        Assertions.assertThrows(java.security.InvalidKeyException.class,
+        Assertions.assertThrows(InvalidKeyException.class,
                 () -> s.initSign((PrivateKey) null), "initSign(null) must throw InvalidKeyException");
     }
 

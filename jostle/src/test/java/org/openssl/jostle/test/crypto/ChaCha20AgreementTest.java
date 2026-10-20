@@ -30,6 +30,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.io.ByteArrayOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -153,7 +154,7 @@ public class ChaCha20AgreementTest
     {
         Cipher c = Cipher.getInstance(JSL_NAME, JSL);
         c.init(Cipher.ENCRYPT_MODE, key, iv);
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         for (int off = 0; off < msg.length; off += chunk)
         {
             int len = Math.min(chunk, msg.length - off);
@@ -171,7 +172,7 @@ public class ChaCha20AgreementTest
     {
         Cipher c = Cipher.getInstance(JSL_NAME, JSL);
         c.init(Cipher.ENCRYPT_MODE, key, iv);
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         int off = 0;
         while (off < msg.length)
         {

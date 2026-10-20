@@ -384,7 +384,7 @@ public class DSASignatureSpi extends SignatureSpi
         }
         catch (Exception e)
         {
-            throw new java.security.ProviderException("unable to reinitialise DSA signature engine", e);
+            throw new ProviderException("unable to reinitialise DSA signature engine", e);
         }
     }
 

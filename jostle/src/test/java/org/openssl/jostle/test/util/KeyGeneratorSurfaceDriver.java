@@ -22,6 +22,8 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidParameterException;
 import java.security.SecureRandom;
 import java.util.Locale;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Drives one registered symmetric {@code KeyGenerator} name, for every
@@ -232,7 +234,7 @@ public final class KeyGeneratorSurfaceDriver
         {
             bc = KeyGenerator.getInstance(base, BC);
         }
-        catch (java.security.NoSuchAlgorithmException absent)
+        catch (NoSuchAlgorithmException absent)
         {
             return;
         }
@@ -273,7 +275,7 @@ public final class KeyGeneratorSurfaceDriver
         {
             ours = doFinal(xform, provider, Cipher.ENCRYPT_MODE, key, iv, pt);
         }
-        catch (java.security.InvalidKeyException e)
+        catch (InvalidKeyException e)
         {
             // tdes-encrypt-disabled is a fipsinstall switch: the module may
             // refuse encryption while still decrypting. Accepted only with its

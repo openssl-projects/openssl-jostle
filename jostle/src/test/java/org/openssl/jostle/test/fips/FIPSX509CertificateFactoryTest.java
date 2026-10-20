@@ -35,8 +35,13 @@ import org.junit.jupiter.api.Assumptions;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.ProviderException;
 import java.security.PublicKey;
@@ -53,8 +58,10 @@ import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 /**
  * JCE-level tests for the JSLFIPS {@code CertificateFactory.X.509} registration
@@ -290,7 +297,7 @@ public class FIPSX509CertificateFactoryTest
                 "precondition: the JSL wrapper resolves the key");
 
         CertificateFactory fips = CertificateFactory.getInstance("X.509", FIPS);
-        CertPath path = fips.generateCertPath(java.util.Collections.singletonList(jslWrapped));
+        CertPath path = fips.generateCertPath(Collections.singletonList(jslWrapped));
         X509Certificate element = (X509Certificate) path.getCertificates().get(0);
         try
         {
@@ -379,6 +386,7 @@ public class FIPSX509CertificateFactoryTest
         Certificate ec = fips.generateCertificate(new ByteArrayInputStream(
                 selfSigned(generate("EC", 256), "SHA256withECDSA", SHA256_ECDSA_OID)));
 
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         CertPath path = fips.generateCertPath(java.util.Arrays.asList(rsa, ec));
         List<? extends Certificate> certs = path.getCertificates();
         Assertions.assertEquals(2, certs.size());
@@ -464,7 +472,7 @@ public class FIPSX509CertificateFactoryTest
         {
             X509Certificate bound = (X509Certificate) CertificateFactory
                     .getInstance("X.509", providerName)
-                    .generateCertPath(java.util.Collections.singletonList(hsmStyle))
+                    .generateCertPath(Collections.singletonList(hsmStyle))
                     .getCertificates().get(0);
 
             PublicKey rebuilt = bound.getPublicKey();
@@ -499,7 +507,7 @@ public class FIPSX509CertificateFactoryTest
         CertificateException e = Assertions.assertThrows(
                 CertificateException.class,
                 () -> CertificateFactory.getInstance("X.509", FIPS)
-                        .generateCertPath(java.util.Collections.singletonList(unencodable)));
+                        .generateCertPath(Collections.singletonList(unencodable)));
 
         Assertions.assertEquals(
                 "certificate in the list does not support encoding, so it cannot be"
@@ -563,12 +571,12 @@ public class FIPSX509CertificateFactoryTest
             return delegate.getSerialNumber();
         }
 
-        public java.security.Principal getIssuerDN()
+        public Principal getIssuerDN()
         {
             return delegate.getIssuerDN();
         }
 
-        public java.security.Principal getSubjectDN()
+        public Principal getSubjectDN()
         {
             return delegate.getSubjectDN();
         }
@@ -634,15 +642,15 @@ public class FIPSX509CertificateFactoryTest
         }
 
         public void verify(PublicKey key) throws CertificateException,
-                java.security.NoSuchAlgorithmException, java.security.InvalidKeyException,
-                java.security.NoSuchProviderException, SignatureException
+                NoSuchAlgorithmException, InvalidKeyException,
+                NoSuchProviderException, SignatureException
         {
             delegate.verify(key);
         }
 
         public void verify(PublicKey key, String sigProvider) throws CertificateException,
-                java.security.NoSuchAlgorithmException, java.security.InvalidKeyException,
-                java.security.NoSuchProviderException, SignatureException
+                NoSuchAlgorithmException, InvalidKeyException,
+                NoSuchProviderException, SignatureException
         {
             delegate.verify(key, sigProvider);
         }
@@ -657,12 +665,12 @@ public class FIPSX509CertificateFactoryTest
             return delegate.hasUnsupportedCriticalExtension();
         }
 
-        public java.util.Set<String> getCriticalExtensionOIDs()
+        public Set<String> getCriticalExtensionOIDs()
         {
             return delegate.getCriticalExtensionOIDs();
         }
 
-        public java.util.Set<String> getNonCriticalExtensionOIDs()
+        public Set<String> getNonCriticalExtensionOIDs()
         {
             return delegate.getNonCriticalExtensionOIDs();
         }
@@ -719,8 +727,8 @@ public class FIPSX509CertificateFactoryTest
         // provider instance cannot be used there. Before MT-14 this call
         // succeeded — and did the verification in mainline, because the
         // operation follows the KEY's provider, not the Signature's.
-        java.security.InvalidKeyException refused = Assertions.assertThrows(
-                java.security.InvalidKeyException.class,
+        InvalidKeyException refused = Assertions.assertThrows(
+                InvalidKeyException.class,
                 () -> cert.verify(jslKp.getPublic()));
         Assertions.assertEquals(
                 "public key was created by a different Jostle provider instance; encode it "
@@ -807,7 +815,7 @@ public class FIPSX509CertificateFactoryTest
         // Both aliases resolve independently and preserve the identifier too.
         for (String name : new String[]{"RSASSA-PSS", "1.2.840.113549.1.1.10"})
         {
-            PublicKey decoded = java.security.KeyFactory.getInstance(name, FIPS)
+            PublicKey decoded = KeyFactory.getInstance(name, FIPS)
                     .generatePublic(new X509EncodedKeySpec(pssSpki));
             Assertions.assertTrue(Arrays.areEqual(pssSpki, decoded.getEncoded()),
                     name + ": did not round-trip the id-RSASSA-PSS SPKI");

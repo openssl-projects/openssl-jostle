@@ -65,6 +65,7 @@ public class ECPublicKeySpecBeyondSunECTest
      * cofactor) tuple.
      */
     private static final Set<String> SAME_PARAMETER_ALIASES =
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             new HashSet<>(java.util.Arrays.asList("wap-wsg-idm-ecid-wtls5"));
 
     /**

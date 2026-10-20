@@ -17,12 +17,17 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.lang.reflect.Method;
+import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.Security;
+import java.security.Signature;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -67,7 +72,7 @@ public class SigAlgNamesCoverageTest
         Map<String, String> m = new LinkedHashMap<String, String>();
         m.put("1.2.840.113549.1.1.15", "SHA512/224withRSA");
         m.put("1.2.840.113549.1.1.16", "SHA512/256withRSA");
-        return java.util.Collections.unmodifiableMap(m);
+        return Collections.unmodifiableMap(m);
     }
 
 
@@ -103,7 +108,7 @@ public class SigAlgNamesCoverageTest
         List<String> missing = new ArrayList<String>();
         List<String> misspelled = new ArrayList<String>();
         List<String> unusable = new ArrayList<String>();
-        java.util.Set<String> divergentSeen = new java.util.LinkedHashSet<String>();
+        Set<String> divergentSeen = new LinkedHashSet<String>();
         int comparedAgainstJdk = 0;
 
         for (Map.Entry<String, String> e : ourOids.entrySet())
@@ -120,9 +125,9 @@ public class SigAlgNamesCoverageTest
             // what makes arm (c) safe where there is no JDK oracle at all.
             try
             {
-                java.security.Signature.getInstance(ours, jsl);
+                Signature.getInstance(ours, jsl);
             }
-            catch (java.security.NoSuchAlgorithmException noSuch)
+            catch (NoSuchAlgorithmException noSuch)
             {
                 unusable.add(oid + " -> \"" + ours + "\", which " + jsl.getName()
                         + " does not serve");

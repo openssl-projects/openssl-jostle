@@ -41,6 +41,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.security.Key;
 
 /**
  * Cross-provider agreement and capability contract for 3-key Triple DES
@@ -258,6 +259,7 @@ public class FIPSDESedeAgreementTest
             // Kept: the roundtrip below is self-only and would pass a uniformly-wrong cipher.
             if (msg.length >= 8)
             {
+                // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                 Assertions.assertFalse(Arrays.areEqual(msg, java.util.Arrays.copyOf(ct, msg.length)),
                         "encryption must transform its input");
             }
@@ -723,7 +725,7 @@ public class FIPSDESedeAgreementTest
     }
 
     private static byte[] doFinal(String xform, String provider, int mode,
-                                  java.security.Key key, byte[] iv, byte[] in) throws Exception
+                                  Key key, byte[] iv, byte[] in) throws Exception
     {
         Cipher c = Cipher.getInstance(xform, provider);
         if (iv == null)

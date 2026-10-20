@@ -23,6 +23,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.ProviderException;
 import java.security.Security;
+import java.security.SecureRandom;
 
 /**
  * An UNBOUND SPI resolves its parameters from its own provider or from
@@ -111,7 +112,7 @@ public class JostleAlgorithmParametersTest
     public void aDirectlyConstructedSpiFailsRatherThanResolvingElsewhere() throws Exception
     {
         AESCCMCipherSpi spi = new AESCCMCipherSpi();
-        spi.engineInit(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), (java.security.SecureRandom) null);
+        spi.engineInit(Cipher.ENCRYPT_MODE, new SecretKeySpec(new byte[16], "AES"), (SecureRandom) null);
 
         Assertions.assertNotNull(spi.engineGetParameters(),
                 "control: with JSL registered the unbound SPI resolves by name");

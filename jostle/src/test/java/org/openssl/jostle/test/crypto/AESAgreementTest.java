@@ -1537,7 +1537,7 @@ public class AESAgreementTest
         Assertions.assertEquals(0, first == null ? 0 : first.length,
                 "a sub-block update must emit nothing");
 
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] second = c.update(msg, 15, 1);
         if (second != null)
         {
@@ -2100,7 +2100,7 @@ public class AESAgreementTest
                 Assertions.fail("AES-OCB must reject nonce length " + badLen);
             }
             catch (InvalidAlgorithmParameterException expected) { }
-            catch (java.security.InvalidKeyException expected) { }
+            catch (InvalidKeyException expected) { }
         }
     }
 
@@ -2245,7 +2245,7 @@ public class AESAgreementTest
             byte[] ct = enc.doFinal(msg);
 
             // The SPI must have generated a nonce and exposed the AEAD parameters.
-            java.security.AlgorithmParameters params = enc.getParameters();
+            AlgorithmParameters params = enc.getParameters();
             Assertions.assertNotNull(params, "trial=" + trial + ": OCB must expose generated parameters");
 
             Cipher dec = Cipher.getInstance(xform, JostleProvider.PROVIDER_NAME);
@@ -3930,6 +3930,7 @@ public class AESAgreementTest
         int written = enc.doFinal(buf, off, msg.length, buf, off);
         Assertions.assertEquals(outLen, written, "in-place ct+tag length");
         Assertions.assertArrayEquals(reference,
+                // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                 java.util.Arrays.copyOfRange(buf, off, off + outLen),
                 "in-place output diverged from separate-buffer reference");
         Assertions.assertArrayEquals(java.util.Arrays.copyOf(snapshot, off),

@@ -26,6 +26,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import javax.crypto.CipherSpi;
 
 /**
  * MT-10, wiring half: EVERY registered Cipher whose {@code engineUnwrap} can
@@ -228,7 +229,7 @@ public class CipherProviderBindingSweepTest
      */
     private static boolean overridesEngineUnwrap(Class<?> type)
     {
-        for (Class<?> c = type; c != null && c != javax.crypto.CipherSpi.class; c = c.getSuperclass())
+        for (Class<?> c = type; c != null && c != CipherSpi.class; c = c.getSuperclass())
         {
             for (Method m : c.getDeclaredMethods())
             {

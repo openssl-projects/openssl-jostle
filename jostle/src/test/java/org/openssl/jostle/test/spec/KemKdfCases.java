@@ -37,6 +37,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 
 /**
  * The KEM {@code KeyGenerator} key-derivation cells, shared by the base and FIPS test classes so both providers
@@ -256,7 +257,7 @@ public final class KemKdfCases
             KeyGenerator part = KeyGenerator.getInstance(name, ours);
             part.init(ourExtract(kp.getPrivate(), sent.getEncapsulation(), bits, null, null));
             byte[] cut = part.generateKey().getEncoded();
-            Assertions.assertArrayEquals(java.util.Arrays.copyOf(z, (bits + 7) / 8), cut,
+            Assertions.assertArrayEquals(Arrays.copyOf(z, (bits + 7) / 8), cut,
                     name + " " + bits + " bits: not a prefix of the secret");
             rows.add("no KDF, " + bits + ": prefix, " + bothHalves(ours, kp, name, bits, null, null).length
                     + " bytes on both halves");

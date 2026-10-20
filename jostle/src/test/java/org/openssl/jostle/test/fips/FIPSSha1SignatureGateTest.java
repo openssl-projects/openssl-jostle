@@ -23,6 +23,7 @@ import java.security.Security;
 import java.security.Signature;
 import java.security.SecureRandom;
 import java.security.spec.ECGenParameterSpec;
+import java.security.InvalidKeyException;
 
 /**
  * Hard guard for the SHA-1 signature boundary of the FIPS module.
@@ -125,7 +126,7 @@ public class FIPSSha1SignatureGateTest
             // cause. This helper used to accept either shape, which is how RSA
             // translating and EC/DSA not went unnoticed; accepting either is
             // what would let the inconsistency return.
-            Assertions.assertTrue(ex instanceof java.security.InvalidKeyException,
+            Assertions.assertTrue(ex instanceof InvalidKeyException,
                     sigAlg + ": the module's refusal must reach the caller as InvalidKeyException"
                             + " - the JCE-canonical init failure and the provider-fallback"
                             + " trigger - got: " + ex.getClass().getName());
@@ -207,8 +208,8 @@ public class FIPSSha1SignatureGateTest
         if (!FIPSTestUtil.fipsDsaCanSign())
         {
             // The broader gate must cover SHA-1 too: no DSA digest may sign.
-            java.security.InvalidKeyException e = Assertions.assertThrows(
-                    java.security.InvalidKeyException.class,
+            InvalidKeyException e = Assertions.assertThrows(
+                    InvalidKeyException.class,
                     () -> Signature.getInstance("SHA1withDSA", FIPS).initSign(dsa.getPrivate()),
                     "a verify-only module must refuse SHA1withDSA signing too");
             Assertions.assertEquals(FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE, e.getMessage());

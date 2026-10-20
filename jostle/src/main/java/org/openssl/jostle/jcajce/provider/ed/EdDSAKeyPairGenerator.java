@@ -29,6 +29,7 @@ import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
 import java.util.Map;
+import java.security.Provider;
 
 public class EdDSAKeyPairGenerator extends KeyPairGenerator
 {
@@ -73,14 +74,14 @@ public class EdDSAKeyPairGenerator extends KeyPairGenerator
      * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public EdDSAKeyPairGenerator(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
     {
         this(edServiceNI, specNI, asn1NI, algorithm, null);
     }
 
-    public EdDSAKeyPairGenerator(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm, java.security.Provider providerInstance)
+    public EdDSAKeyPairGenerator(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm, Provider providerInstance)
     {
         super(algorithmName(algorithm));
         this.providerInstance = providerInstance;

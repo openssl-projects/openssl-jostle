@@ -400,6 +400,7 @@ public class ETSIKEMAgreementTest
             // this file: 33-byte compressed point, 16-byte wrapped key,
             // 16-byte tag. Our wrap output is already the flat v||c||t form
             // JcaETSIDataDecryptor expects — no ASN.1 round trip needed here.
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             byte[] v = java.util.Arrays.copyOfRange(wrapped, 0, 33);
             byte[] wrappedKey = java.util.Arrays.copyOfRange(wrapped, 33, 33 + 16);
             byte[] tag = java.util.Arrays.copyOfRange(wrapped, 33 + 16, 33 + 16 + 16);

@@ -32,6 +32,9 @@ import java.security.spec.MGF1ParameterSpec;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.GeneralSecurityException;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
 
 /**
  * JCE-level tests for the RSA-PKCS#1 v1.5 cipher: round-trips, BC parity,
@@ -100,6 +103,7 @@ public class RSAPKCS1CipherTest
         // PKCS#1 v1.5 encryption uses random PS padding bytes; two
         // ciphertexts must differ even for identical plaintexts, and
         // certainly for different ones.
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertFalse(java.util.Arrays.equals(ctA, ctB),
                 "two PKCS#1 ciphertexts must differ");
 
@@ -149,7 +153,7 @@ public class RSAPKCS1CipherTest
         // implicit-rejection plaintext path. Either BadPaddingException or
         // IllegalBlockSizeException is acceptable depending on which check
         // fires first.
-        Assertions.assertThrows(java.security.GeneralSecurityException.class,
+        Assertions.assertThrows(GeneralSecurityException.class,
                 () -> dec.doFinal(new byte[good.length + 1]));
 
         byte[] pt = dec.doFinal(good);
@@ -288,7 +292,7 @@ public class RSAPKCS1CipherTest
         {
             return dec.doFinal(tampered);
         }
-        catch (javax.crypto.BadPaddingException bpe)
+        catch (BadPaddingException bpe)
         {
             // If the underlying OpenSSL message is "data too large for
             // modulus" the failure is STRUCTURAL (c >= n), not a padding
@@ -659,7 +663,7 @@ public class RSAPKCS1CipherTest
         {
             result = dec.doFinal(tampered);
         }
-        catch (javax.crypto.BadPaddingException e)
+        catch (BadPaddingException e)
         {
             // Acceptable: implicit rejection disabled or padding-check
             // surfaces. Implicit-rejection-on (the OpenSSL 3.x default)
@@ -737,7 +741,7 @@ public class RSAPKCS1CipherTest
             enc.doFinal(msg);
             Assertions.fail("encrypt of 246 bytes must be rejected");
         }
-        catch (javax.crypto.IllegalBlockSizeException expected) {}
+        catch (IllegalBlockSizeException expected) {}
     }
 
 

@@ -82,11 +82,11 @@ public class SLHDSASignatureSpi extends SignatureSpi
      * so unlike the RSA/EC/DH consumers it cannot read the binding off a bound
      * factory — it carries its own. MT-14.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public SLHDSASignatureSpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, OSSLKeyType forcedType,
                               MessageEncoding messageEncoding, Deterministic deterministic,
-                              java.security.Provider providerInstance)
+                              Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.slhdsaServiceNI = slhdsaServiceNI;

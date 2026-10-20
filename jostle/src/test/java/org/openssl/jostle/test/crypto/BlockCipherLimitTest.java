@@ -32,6 +32,8 @@ import java.security.InvalidKeyException;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
+import javax.crypto.AEADBadTagException;
 
 /**
  * Tests for triggering error codes mostly
@@ -1083,8 +1085,8 @@ public class BlockCipherLimitTest
 
         Assertions.assertEquals(oneShotLen, splitLen, "split total length must match one-shot");
         Assertions.assertArrayEquals(
-                java.util.Arrays.copyOf(oneShot, oneShotLen),
-                java.util.Arrays.copyOf(split, splitLen),
+                Arrays.copyOf(oneShot, oneShotLen),
+                Arrays.copyOf(split, splitLen),
                 "15+1 must produce the same block as a single 16-byte update");
     }
 
@@ -2072,7 +2074,7 @@ public class BlockCipherLimitTest
         for (int[] split : new int[][]{{32, 32}, {16, 16, 32}, {1, 63}, {63, 1}, {15, 17, 32}})
         {
             Assertions.assertArrayEquals(oneShot, xtsEncryptChunked(key, iv, pt, split),
-                    "split " + java.util.Arrays.toString(split) + " diverged from the one-shot result");
+                    "split " + Arrays.toString(split) + " diverged from the one-shot result");
         }
     }
 
@@ -2298,23 +2300,23 @@ public class BlockCipherLimitTest
         final int prefix = 7;
         byte[] big = new byte[prefix + 64 + 9];
         XTS_RANDOM.nextBytes(big);
-        byte[] savedPrefix = java.util.Arrays.copyOf(big, prefix);
-        byte[] savedTail = java.util.Arrays.copyOfRange(big, prefix + 64, big.length);
+        byte[] savedPrefix = Arrays.copyOf(big, prefix);
+        byte[] savedTail = Arrays.copyOfRange(big, prefix + 64, big.length);
 
         int written = xtsEncryptInto(key, tweak, pt, big, prefix);
         Assertions.assertEquals(64, written);
 
-        Assertions.assertArrayEquals(savedPrefix, java.util.Arrays.copyOf(big, prefix),
+        Assertions.assertArrayEquals(savedPrefix, Arrays.copyOf(big, prefix),
                 "prefix region was clobbered");
         Assertions.assertArrayEquals(savedTail,
-                java.util.Arrays.copyOfRange(big, prefix + written, big.length),
+                Arrays.copyOfRange(big, prefix + written, big.length),
                 "bytes past the written region were clobbered");
         Assertions.assertArrayEquals(reference,
-                java.util.Arrays.copyOfRange(big, prefix, prefix + written),
+                Arrays.copyOfRange(big, prefix, prefix + written),
                 "the region written at the offset is not the expected ciphertext");
 
-        byte[] shifted = java.util.Arrays.copyOfRange(big, prefix - 1, prefix - 1 + written);
-        Assertions.assertFalse(java.util.Arrays.equals(pt, xtsDecrypt(key, tweak, shifted)),
+        byte[] shifted = Arrays.copyOfRange(big, prefix - 1, prefix - 1 + written);
+        Assertions.assertFalse(Arrays.equals(pt, xtsDecrypt(key, tweak, shifted)),
                 "a window one byte early round-trips — the write landed before the offset");
     }
 
@@ -2344,33 +2346,33 @@ public class BlockCipherLimitTest
         int written = xtsEncryptInto(key, tweak, buf, off, pt.length, buf, off);
         Assertions.assertEquals(64, written);
 
-        Assertions.assertArrayEquals(reference, java.util.Arrays.copyOfRange(buf, off, off + written),
+        Assertions.assertArrayEquals(reference, Arrays.copyOfRange(buf, off, off + written),
                 "in-place output differs from the separate-buffer reference");
-        Assertions.assertArrayEquals(java.util.Arrays.copyOf(snapshot, off),
-                java.util.Arrays.copyOf(buf, off), "bytes before the offset were clobbered");
+        Assertions.assertArrayEquals(Arrays.copyOf(snapshot, off),
+                Arrays.copyOf(buf, off), "bytes before the offset were clobbered");
         Assertions.assertArrayEquals(
-                java.util.Arrays.copyOfRange(snapshot, off + written, snapshot.length),
-                java.util.Arrays.copyOfRange(buf, off + written, buf.length),
+                Arrays.copyOfRange(snapshot, off + written, snapshot.length),
+                Arrays.copyOfRange(buf, off + written, buf.length),
                 "bytes after the written region were clobbered");
     }
 
     // --- XTS NI helpers ---
 
-    private static final java.security.SecureRandom XTS_RANDOM = new java.security.SecureRandom();
+    private static final SecureRandom XTS_RANDOM = new SecureRandom();
 
     /** XTS refuses key1 == key2, so the halves must differ. */
     private static byte[] xtsKeyBytes()
     {
         byte[] key = new byte[32];
-        java.util.Arrays.fill(key, 0, 16, (byte) 0x11);
-        java.util.Arrays.fill(key, 16, 32, (byte) 0x22);
+        Arrays.fill(key, 0, 16, (byte) 0x11);
+        Arrays.fill(key, 16, 32, (byte) 0x22);
         return key;
     }
 
     private byte[] xtsEncrypt(byte[] key, byte[] tweak, byte[] pt, byte[] out, int outOff) throws Exception
     {
         int n = xtsEncryptInto(key, tweak, pt, out, outOff);
-        return java.util.Arrays.copyOfRange(out, outOff, outOff + n);
+        return Arrays.copyOfRange(out, outOff, outOff + n);
     }
 
     private int xtsEncryptInto(byte[] key, byte[] tweak, byte[] pt, byte[] out, int outOff) throws Exception
@@ -2404,7 +2406,7 @@ public class BlockCipherLimitTest
             byte[] out = new byte[ct.length];
             int n = blockCipherNI.update(ref, out, 0, ct, 0, ct.length);
             n += blockCipherNI.doFinal(ref, out, n);
-            return java.util.Arrays.copyOf(out, n);
+            return Arrays.copyOf(out, n);
         }
         finally
         {
@@ -2732,7 +2734,7 @@ public class BlockCipherLimitTest
                 off += take;
             }
             int n = blockCipherNI.doFinal(ref, out, 0);
-            return java.util.Arrays.copyOf(out, n);
+            return Arrays.copyOf(out, n);
         }
         finally
         {
@@ -2780,7 +2782,7 @@ public class BlockCipherLimitTest
             int n = blockCipherNI.update(wref, wrapped, 0, cek, 0, cek.length);
             Assertions.assertEquals(0, n, "an accumulating update must emit nothing");
             n = blockCipherNI.doFinal(wref, wrapped, 0);
-            wrapped = java.util.Arrays.copyOf(wrapped, n);
+            wrapped = Arrays.copyOf(wrapped, n);
         }
         finally
         {
@@ -3046,10 +3048,10 @@ public class BlockCipherLimitTest
             blockCipherNI.init(dec, Cipher.DECRYPT_MODE, key, iv, 16);
             byte[] out = new byte[pt.length + 32];
             int m = blockCipherNI.update(dec, out, 0, ct, 0, n);
-            java.util.Arrays.fill(out, m, out.length, (byte) 0x5A);
+            Arrays.fill(out, m, out.length, (byte) 0x5A);
             int from = m;
             long decRef = dec;
-            javax.crypto.AEADBadTagException ex = Assertions.assertThrows(javax.crypto.AEADBadTagException.class,
+            AEADBadTagException ex = Assertions.assertThrows(AEADBadTagException.class,
                     () -> blockCipherNI.doFinal(decRef, out, from));
             Assertions.assertEquals("bad tag", ex.getMessage());
             for (int i = from; i < out.length; i++)
@@ -3105,21 +3107,21 @@ public class BlockCipherLimitTest
             byte[] before = buf.clone();
             blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, iv, tagLen);
             Assertions.assertEquals(refLen, operate(ref, buf, off, buf, off, ptLen), mode + " encrypt length");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOf(reference, refLen),
-                    java.util.Arrays.copyOfRange(buf, off, off + refLen), mode + " in-place ciphertext");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOf(before, off),
-                    java.util.Arrays.copyOf(buf, off), mode + " prefix");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(before, off + refLen, before.length),
-                    java.util.Arrays.copyOfRange(buf, off + refLen, buf.length), mode + " suffix");
+            Assertions.assertArrayEquals(Arrays.copyOf(reference, refLen),
+                    Arrays.copyOfRange(buf, off, off + refLen), mode + " in-place ciphertext");
+            Assertions.assertArrayEquals(Arrays.copyOf(before, off),
+                    Arrays.copyOf(buf, off), mode + " prefix");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(before, off + refLen, before.length),
+                    Arrays.copyOfRange(buf, off + refLen, buf.length), mode + " suffix");
 
             byte[] afterEnc = buf.clone();
             blockCipherNI.init(ref, Cipher.DECRYPT_MODE, key, iv, tagLen);
             Assertions.assertEquals(ptLen, operate(ref, buf, off, buf, off, refLen), mode + " decrypt length");
-            Assertions.assertArrayEquals(pt, java.util.Arrays.copyOfRange(buf, off, off + ptLen), mode + " round trip");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOf(afterEnc, off),
-                    java.util.Arrays.copyOf(buf, off), mode + " decrypt prefix");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(afterEnc, off + refLen, afterEnc.length),
-                    java.util.Arrays.copyOfRange(buf, off + refLen, buf.length), mode + " decrypt suffix");
+            Assertions.assertArrayEquals(pt, Arrays.copyOfRange(buf, off, off + ptLen), mode + " round trip");
+            Assertions.assertArrayEquals(Arrays.copyOf(afterEnc, off),
+                    Arrays.copyOf(buf, off), mode + " decrypt prefix");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(afterEnc, off + refLen, afterEnc.length),
+                    Arrays.copyOfRange(buf, off + refLen, buf.length), mode + " decrypt suffix");
         }
         finally
         {
@@ -3187,7 +3189,7 @@ public class BlockCipherLimitTest
             Assertions.assertEquals(0, blockCipherNI.update(unwrap, new byte[40], 0, good, 0, 40));
             byte[] recovered = new byte[40];
             Assertions.assertEquals(32, blockCipherNI.doFinal(unwrap, recovered, 0));
-            Assertions.assertArrayEquals(keyData, java.util.Arrays.copyOf(recovered, 32));
+            Assertions.assertArrayEquals(keyData, Arrays.copyOf(recovered, 32));
         }
         finally
         {

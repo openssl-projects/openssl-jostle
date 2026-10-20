@@ -40,6 +40,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 
 /**
  * Cross-provider agreement coverage for DESede (3-key Triple DES) —
@@ -617,7 +619,7 @@ public class DESedeAgreementTest
             // Each call returns a freshly-allocated byte[] sized via
             // getUpdateSize internally — this is the exact path that
             // used to throw before the get_update_size fix.
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             for (int i = 0; i < msg.length; i++)
             {
                 byte[] part = c.update(msg, i, 1);
@@ -675,6 +677,7 @@ public class DESedeAgreementTest
 
             // Pattern 1 — byte-by-byte update + doFinal(empty).
             int[] byteByByteSplits = new int[msgLen];
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             java.util.Arrays.fill(byteByByteSplits, 1);
             byte[] byteByByte = chunkEncrypt(xform, key, iv, msg, byteByByteSplits);
             Assertions.assertArrayEquals(oneShot, byteByByte,
@@ -1028,7 +1031,7 @@ public class DESedeAgreementTest
      */
     private static int[] adversarialChunks(int total)
     {
-        java.util.ArrayList<Integer> chunks = new java.util.ArrayList<Integer>();
+        ArrayList<Integer> chunks = new ArrayList<Integer>();
         int remaining = total;
         int[] cycle = {DES_BLOCK - 1, DES_BLOCK, DES_BLOCK + 1};
         int i = 0;

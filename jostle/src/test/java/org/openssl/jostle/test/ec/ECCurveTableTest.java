@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Arrays;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
@@ -521,7 +522,7 @@ public class ECCurveTableTest
             }
             Assertions.assertNotNull(ap.getParameterSpec(ECParameterSpec.class),
                     curve + " must still describe itself");
-            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+            IOException e = Assertions.assertThrows(IOException.class,
                     ap::getEncoded, curve + " has no OID and must refuse to encode");
             Assertions.assertTrue(e.getMessage().contains("has no object identifier"),
                     "expected a message naming the cause, got: " + e.getMessage());

@@ -33,6 +33,8 @@ import java.security.Key;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
+import java.util.Arrays;
 
 /**
  * Cross-provider agreement for the FIPS provider's AES surface.
@@ -315,7 +317,7 @@ public class FIPSAESAgreementTest
             // inputs must produce different bytes. Without this the test would
             // pass against a registration that silently resolved to AESWrap.
             Assertions.assertFalse(
-                    java.util.Arrays.equals(wrap("AESWrap", FIPS, kek, target), wrappedFips),
+                    Arrays.equals(wrap("AESWrap", FIPS, kek, target), wrappedFips),
                     "AESWrapInv produced the same bytes as plain AESWrap");
         }
     }
@@ -529,7 +531,7 @@ public class FIPSAESAgreementTest
     @Test
     public void symmetricKeyGeneratorRegistrationAgreesWithTheModule()
     {
-        java.security.Provider fips = FIPSTestUtil.assumeFipsProvider();
+        Provider fips = FIPSTestUtil.assumeFipsProvider();
 
         assertRegistrationTracksModule(fips, CipherFamilies.SYMMETRIC_KEYGEN_PREFIX,
                 "ARIA, Camellia or SM4",
@@ -541,7 +543,7 @@ public class FIPSAESAgreementTest
                 "ChaCha20", FIPSTestUtil.moduleServesCipher("ChaCha20"));
     }
 
-    private static void assertRegistrationTracksModule(java.security.Provider fips, String prefix,
+    private static void assertRegistrationTracksModule(Provider fips, String prefix,
                                                        String what, boolean servedByModule)
     {
         boolean registered = !ProviderSurfaceGuard.registeredSurface(

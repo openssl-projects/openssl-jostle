@@ -31,6 +31,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
@@ -131,7 +132,7 @@ public class FIPSX509LibraryBindingTest
     {
         try
         {
-            java.security.KeyFactory.getInstance("Ed25519", fips);
+            KeyFactory.getInstance("Ed25519", fips);
             return true;
         }
         catch (Exception absent)

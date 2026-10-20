@@ -21,6 +21,7 @@ import java.io.ByteArrayInputStream;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
+import java.security.Signature;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
@@ -81,7 +82,7 @@ public class FIPSX509CertificateFactoryBindingTest
 
             // Provenance, not equality: the key must be usable by the instance
             // the factory belongs to.
-            java.security.Signature v = java.security.Signature.getInstance("SHA256withRSA", fips);
+            Signature v = Signature.getInstance("SHA256withRSA", fips);
             v.initVerify(key);
         }
         finally

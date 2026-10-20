@@ -19,7 +19,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
+import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Security;
@@ -37,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -163,7 +166,7 @@ public class CertPathStoreCertificateTest
                 new JcaX509ExtensionUtils().createAuthorityKeyIdentifier(issuerKp.getPublic()));
         b.addExtension(Extension.cRLNumber, false, new CRLNumber(BigInteger.ONE));
         return (X509CRL) CertificateFactory.getInstance("X.509").generateCRL(
-                new java.io.ByteArrayInputStream(b.build(signer(issuerKp)).getEncoded()));
+                new ByteArrayInputStream(b.build(signer(issuerKp)).getEncoded()));
     }
 
     private static X509CRL numberedCrl(int number) throws Exception
@@ -175,7 +178,7 @@ public class CertPathStoreCertificateTest
         b.setNextUpdate(new Date(System.currentTimeMillis() + 30 * day));
         b.addExtension(Extension.cRLNumber, false, new CRLNumber(BigInteger.valueOf(number)));
         return (X509CRL) CertificateFactory.getInstance("X.509").generateCRL(
-                new java.io.ByteArrayInputStream(b.build(signer(caKeyPair)).getEncoded()));
+                new ByteArrayInputStream(b.build(signer(caKeyPair)).getEncoded()));
     }
 
     private static ContentSigner signer(KeyPair kp) throws Exception
@@ -266,15 +269,15 @@ public class CertPathStoreCertificateTest
         // validate() adds the fixture's own two CRLs, so 254 lands exactly on
         // the 256 ceiling and 255 is one past it.
         List<Object> at = new ArrayList<Object>(distinctCrls(254));
-        Assertions.assertEquals(254, new java.util.HashSet<Object>(at).size(),
+        Assertions.assertEquals(254, new HashSet<Object>(at).size(),
                 "the CRLs must be distinct or the store collapses them");
         // At the ceiling the parameter check ACCEPTS, and the path then
         // validates normally — the fixture's own CRLs are still present.
         validate(JostleProvider.PROVIDER_NAME, at);
 
         List<Object> over = new ArrayList<Object>(distinctCrls(255));
-        java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                java.security.InvalidAlgorithmParameterException.class,
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
                 () -> validate(JostleProvider.PROVIDER_NAME, over));
         Assertions.assertTrue(e.getMessage().contains("too many CRLs: 257"),
                 "255 store CRLs plus the fixture's two: " + e.getMessage());

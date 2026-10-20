@@ -19,9 +19,12 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.test.spec.KemKdfCases;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -88,10 +91,10 @@ public class KemKdfAgreementTest
     @Test
     public void otherInfoChangesTheKey() throws Exception
     {
-        java.security.KeyPair kp = java.security.KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
+        KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
         byte[] a = KemKdfCases.bothHalves(jsl, kp, "ML-KEM-768", 256, KemKdfCases.KDF3_SHA256, new byte[]{1});
         byte[] b = KemKdfCases.bothHalves(jsl, kp, "ML-KEM-768", 256, KemKdfCases.KDF3_SHA256, new byte[]{2});
-        Assertions.assertFalse(java.util.Arrays.equals(a, b));
+        Assertions.assertFalse(Arrays.equals(a, b));
     }
 
     @Test

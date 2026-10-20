@@ -75,6 +75,10 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Iterator;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 /**
  * BCFKS keystore, read and write: a standalone Jostle implementation of the
@@ -542,8 +546,8 @@ public class BcFKSKeyStoreSpi
             return cipher.doFinal(ciphertext);
         }
         catch (NoSuchAlgorithmException | InvalidKeyException | InvalidAlgorithmParameterException
-                | javax.crypto.NoSuchPaddingException | javax.crypto.IllegalBlockSizeException
-                | javax.crypto.BadPaddingException e)
+                | NoSuchPaddingException | IllegalBlockSizeException
+                | BadPaddingException e)
         {
             throw new IOException("BCFKS KeyStore: unable to decrypt: " + e.getMessage(), e);
         }
@@ -1537,7 +1541,7 @@ public class BcFKSKeyStoreSpi
         return new Object[]{key, chain};
     }
 
-    private javax.crypto.SecretKey decodeSecretKeyEntry(BcFKSFormat.ObjectData entry, char[] password)
+    private SecretKey decodeSecretKeyEntry(BcFKSFormat.ObjectData entry, char[] password)
         throws Exception
     {
         Der.EncryptedPrivateKeyInfo encData = BcFKSFormat.parseEncryptedSecretKeyData(entry.data);
@@ -1916,7 +1920,7 @@ public class BcFKSKeyStoreSpi
     @Override
     public Enumeration<String> engineAliases()
     {
-        final java.util.Iterator<String> it = new ArrayList<String>(entries.keySet()).iterator();
+        final Iterator<String> it = new ArrayList<String>(entries.keySet()).iterator();
         return new Enumeration<String>()
         {
             @Override

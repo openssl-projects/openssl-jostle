@@ -26,6 +26,7 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.util.Arrays;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * SecureRandom and KeyGenerator through the FIPS provider ("JSLFIPS"): every
@@ -122,7 +123,7 @@ public class FIPSRandTest
     {
         for (String name : NOT_SERVED_DRBGS)
         {
-            Assertions.assertThrows(java.security.NoSuchAlgorithmException.class,
+            Assertions.assertThrows(NoSuchAlgorithmException.class,
                     () -> SecureRandom.getInstance(name, JostleFIPSProvider.PROVIDER_NAME),
                     name + " (truncated DRBG digest) must not resolve through JSLFIPS");
         }

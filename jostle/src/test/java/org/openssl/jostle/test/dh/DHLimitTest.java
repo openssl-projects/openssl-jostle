@@ -23,6 +23,7 @@ import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.Arrays;
 
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -751,7 +752,7 @@ public class DHLimitTest
             dh.kexSetPeer(ref, peerRef, TestUtil.RNDSrc);
 
             byte[] buf = new byte[256];
-            new java.security.SecureRandom().nextBytes(buf);
+            new SecureRandom().nextBytes(buf);
             byte[] snapshot = Arrays.clone(buf);
 
             int need = dh.kexDerive(ref, buf, buf.length, TestUtil.RNDSrc);
@@ -799,7 +800,7 @@ public class DHLimitTest
 
             int prefix = 7;
             byte[] big = new byte[need + prefix + 3];
-            new java.security.SecureRandom().nextBytes(big);
+            new SecureRandom().nextBytes(big);
             byte[] expectedPrefix = new byte[prefix];
             System.arraycopy(big, 0, expectedPrefix, 0, prefix);
 

@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.Arrays;
 
 /**
  * MT-31 Group C, arc 3b: our exception type against BouncyCastle's and the
@@ -85,7 +86,7 @@ public class SecureRandomNegativePathSurveyTest
      * reason and a name that gains a reference fails rather than sitting pinned.
      */
     private static final TreeSet<String> PINNED = new TreeSet<String>(
-            java.util.Arrays.asList("HASH-DRBG-SHA1", "HMAC-DRBG-SHA1"));
+            Arrays.asList("HASH-DRBG-SHA1", "HMAC-DRBG-SHA1"));
 
     private static final TreeSet<String> BLOCKED = new TreeSet<String>();
 

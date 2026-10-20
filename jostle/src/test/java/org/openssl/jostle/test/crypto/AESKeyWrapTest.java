@@ -27,6 +27,8 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.Security;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
 
 /**
  * AES key wrap (RFC 3394) and key wrap with padding (RFC 5649), delegated to
@@ -672,21 +674,21 @@ public class AESKeyWrapTest
         for (int len : kwWrapBad)
         {
             assertRaises(AES256_WRAP, Cipher.ENCRYPT_MODE, kek, len,
-                    javax.crypto.IllegalBlockSizeException.class, "KW wrap");
+                    IllegalBlockSizeException.class, "KW wrap");
         }
         for (int len : kwUnwrapBad)
         {
             assertRaises(AES256_WRAP, Cipher.DECRYPT_MODE, kek, len,
-                    javax.crypto.BadPaddingException.class, "KW unwrap");
+                    BadPaddingException.class, "KW unwrap");
         }
         for (int len : kwpUnwrapBad)
         {
             assertRaises(AES256_WRAP_PAD, Cipher.DECRYPT_MODE, kek, len,
-                    javax.crypto.BadPaddingException.class, "KWP unwrap");
+                    BadPaddingException.class, "KWP unwrap");
         }
         // Zero is the only illegal KWP wrap length.
         assertRaises(AES256_WRAP_PAD, Cipher.ENCRYPT_MODE, kek, 0,
-                javax.crypto.IllegalBlockSizeException.class, "KWP wrap");
+                IllegalBlockSizeException.class, "KWP wrap");
     }
 
     private void assertRaises(String transformation, int opMode, Key kek, int len,
@@ -762,7 +764,7 @@ public class AESKeyWrapTest
             Assertions.fail("an 8-byte KW wrap was accepted - we adhere to OpenSSL's "
                     + "RFC 3394 reading (n >= 2 semiblocks) and must refuse it");
         }
-        catch (javax.crypto.IllegalBlockSizeException e)
+        catch (IllegalBlockSizeException e)
         {
             Assertions.assertEquals("invalid key wrap input length", e.getMessage());
         }
@@ -824,7 +826,7 @@ public class AESKeyWrapTest
                     }
                     Assertions.fail(where + ": a damaged wrap must not unwrap");
                 }
-                catch (javax.crypto.BadPaddingException e)
+                catch (BadPaddingException e)
                 {
                     Assertions.assertEquals("invalid cipher text", e.getMessage(), where);
                 }

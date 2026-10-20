@@ -18,6 +18,7 @@
 package org.openssl.jostle.util.io;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Arrays;
 
 /**
  * A {@link ByteArrayOutputStream} that exposes its internal buffer
@@ -102,7 +103,7 @@ public class ExposedByteArrayOutputStream
      */
     public void erase()
     {
-        java.util.Arrays.fill(this.buf, (byte) 0);
+        Arrays.fill(this.buf, (byte) 0);
         this.count = 0;
     }
 }

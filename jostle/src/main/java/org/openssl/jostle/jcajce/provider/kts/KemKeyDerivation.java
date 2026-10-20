@@ -116,6 +116,7 @@ public final class KemKeyDerivation
         }
         if (kind == null)
         {
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             return java.util.Arrays.copyOf(z, keyBytes);
         }
         try

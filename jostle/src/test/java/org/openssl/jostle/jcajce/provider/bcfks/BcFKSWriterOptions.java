@@ -26,6 +26,8 @@ import java.security.cert.Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKeyFactory;
 
 /**
  * The one table the BCFKS agreement classes drive: every writer option, and
@@ -269,8 +271,8 @@ public final class BcFKSWriterOptions
                             public void set(KeyStore store, Certificate certificate, char[] password)
                                 throws Exception
                             {
-                                javax.crypto.KeyGenerator generator =
-                                        javax.crypto.KeyGenerator.getInstance("AES", provider);
+                                KeyGenerator generator =
+                                        KeyGenerator.getInstance("AES", provider);
                                 generator.init(256);
                                 store.setKeyEntry("secret", generator.generateKey(), password, null);
                             }
@@ -305,7 +307,7 @@ public final class BcFKSWriterOptions
                             public void set(KeyStore store, Certificate certificate, char[] password)
                                 throws Exception
                             {
-                                javax.crypto.SecretKeyFactory factory = javax.crypto.SecretKeyFactory
+                                SecretKeyFactory factory = SecretKeyFactory
                                         .getInstance("PBKDF2WITHHMACSHA512", provider);
                                 Key key = factory.generateSecret(new javax.crypto.spec.PBEKeySpec(
                                         "entry password".toCharArray(),

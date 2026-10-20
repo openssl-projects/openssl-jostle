@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Set;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.Provider;
 
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
@@ -132,7 +133,7 @@ public class KSServiceSPI
     }
 
     /** The registered form: bound to the provider that offers this service. */
-    public KSServiceSPI(java.security.Provider providerInstance)
+    public KSServiceSPI(Provider providerInstance)
     {
         this(NISelector.KSServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
                 PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
@@ -155,7 +156,7 @@ public class KSServiceSPI
     }
 
     /** NI-bound and provider-bound; the form a future FIPS registrar needs. */
-    public KSServiceSPI(KSServiceNI ksServiceNI, java.security.Provider providerInstance)
+    public KSServiceSPI(KSServiceNI ksServiceNI, Provider providerInstance)
     {
         this(ksServiceNI, PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
                 PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
@@ -168,7 +169,7 @@ public class KSServiceSPI
     }
 
     protected KSServiceSPI(int keyPbe, int certPbe, int macScheme, int macDigest,
-                           int pbeIter, int macIter, java.security.Provider providerInstance)
+                           int pbeIter, int macIter, Provider providerInstance)
     {
         this(NISelector.KSServiceNI, keyPbe, certPbe, macScheme, macDigest, pbeIter, macIter,
                 providerInstance);
@@ -182,7 +183,7 @@ public class KSServiceSPI
 
     protected KSServiceSPI(KSServiceNI ksServiceNI, int keyPbe, int certPbe, int macScheme,
                            int macDigest, int pbeIter, int macIter,
-                           java.security.Provider providerInstance)
+                           Provider providerInstance)
     {
         this.binding = (providerInstance != null)
                 ? ProviderBinding.of(providerInstance)
@@ -210,7 +211,7 @@ public class KSServiceSPI
                     PBE_ITERATIONS, MAC_ITERATIONS);
         }
 
-        public PKCS12_3DES_3DES(java.security.Provider providerInstance)
+        public PKCS12_3DES_3DES(Provider providerInstance)
         {
             super(PBE_3DES, PBE_3DES, MAC_TRADITIONAL, MD_SHA1,
                     PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
@@ -236,7 +237,7 @@ public class KSServiceSPI
                     PBE_ITERATIONS, MAC_ITERATIONS);
         }
 
-        public PKCS12_AES256_AES128(java.security.Provider providerInstance)
+        public PKCS12_AES256_AES128(Provider providerInstance)
         {
             super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_TRADITIONAL, MD_SHA256,
                     PBE_ITERATIONS, MAC_ITERATIONS, providerInstance);
@@ -262,7 +263,7 @@ public class KSServiceSPI
                     PBE_ITERATIONS, PBMAC1_ITERATIONS);
         }
 
-        public PKCS12_PBMAC1(java.security.Provider providerInstance)
+        public PKCS12_PBMAC1(Provider providerInstance)
         {
             super(PBE_AES256_CBC, PBE_AES128_CBC, MAC_PBMAC1, MD_SHA512,
                     PBE_ITERATIONS, PBMAC1_ITERATIONS, providerInstance);

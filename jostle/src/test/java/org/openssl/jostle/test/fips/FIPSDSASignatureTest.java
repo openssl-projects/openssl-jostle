@@ -27,6 +27,7 @@ import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -184,7 +185,7 @@ public class FIPSDSASignatureTest
             updater.update(new byte[]{1, 2, 3});
             Assertions.fail("update before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -198,7 +199,7 @@ public class FIPSDSASignatureTest
             signer.sign();
             Assertions.fail("sign before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -212,7 +213,7 @@ public class FIPSDSASignatureTest
             verifier.verify(new byte[]{1, 2, 3});
             Assertions.fail("verify before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -278,7 +279,7 @@ public class FIPSDSASignatureTest
         {
             firstVerify = verifier.verify(tampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             firstVerify = false;
         }
@@ -297,7 +298,7 @@ public class FIPSDSASignatureTest
         {
             cached = verifier.verify(tampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             cached = false;
         }
@@ -329,8 +330,8 @@ public class FIPSDSASignatureTest
         {
             // fipsDsaCanSign pinned the type and message; restate the contract
             // here so this test names what it is standing in for.
-            java.security.InvalidKeyException e = Assertions.assertThrows(
-                    java.security.InvalidKeyException.class,
+            InvalidKeyException e = Assertions.assertThrows(
+                    InvalidKeyException.class,
                     () -> Signature.getInstance("SHA256withDSA", FIPS).initSign(kp.getPrivate()));
             Assertions.assertEquals(FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE, e.getMessage());
             return;

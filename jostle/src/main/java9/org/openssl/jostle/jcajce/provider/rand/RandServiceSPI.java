@@ -17,6 +17,8 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.util.Arrays;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.ObjectStreamException;
 import java.lang.ref.Reference;
 import java.security.DrbgParameters;
@@ -414,14 +416,14 @@ public final class RandServiceSPI extends SecureRandomSpi
 
     }
 
-    private void writeObject(java.io.ObjectOutputStream out)
+    private void writeObject(ObjectOutputStream out)
             throws IOException
     {
 
         throw new UnsupportedOperationException("writeObject not implemented on native rand");
     }
 
-    private void readObject(java.io.ObjectInputStream in)
+    private void readObject(ObjectInputStream in)
             throws IOException, ClassNotFoundException
     {
         throw new UnsupportedOperationException("writeObject not implemented on native rand");

@@ -26,6 +26,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.InvalidAlgorithmParameterException;
 
 /**
  * KMAC128 / KMAC256 through JSLFIPS.
@@ -154,7 +155,7 @@ public class FIPSKMACTest
             mac.init(new SecretKeySpec(new byte[32], "KMAC128"),
                     new KMACParameterSpec((SHORT_MAC_FLOOR_BYTES - 1) * 8));
         }
-        catch (InvalidKeyException | java.security.InvalidAlgorithmParameterException e)
+        catch (InvalidKeyException | InvalidAlgorithmParameterException e)
         {
             Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"),
                     "a no-short-mac refusal must surface as the module's OpenSSL error, got: "

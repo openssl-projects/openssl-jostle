@@ -43,14 +43,14 @@ public class CAMELLIABlockCipherSpi extends BlockCipherSpi
     //
     // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
     //
-    public CAMELLIABlockCipherSpi(java.security.Provider providerInstance)
+    public CAMELLIABlockCipherSpi(Provider providerInstance)
     {
         this(null, null, providerInstance);
         osslMode = OSSLMode.ECB;
     }
 
     public CAMELLIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode,
-                                  java.security.Provider providerInstance)
+                                  Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, cipher, mode, "CAMELLIA", providerInstance);
     }

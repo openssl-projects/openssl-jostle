@@ -18,8 +18,11 @@ import org.openssl.jostle.jcajce.provider.OpenSSLNI;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.KeyFactory;
+import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
+import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -27,6 +30,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeSet;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
 
 /**
  * The base provider's PQC registration gate: JSL registers ML-KEM, ML-DSA,
@@ -207,23 +212,23 @@ public class BaseCapabilityGateTest
     {
         if ("KeyPairGenerator".equals(type))
         {
-            return java.security.KeyPairGenerator.getInstance(alg, JSL);
+            return KeyPairGenerator.getInstance(alg, JSL);
         }
         if ("KeyGenerator".equals(type))
         {
-            return javax.crypto.KeyGenerator.getInstance(alg, JSL);
+            return KeyGenerator.getInstance(alg, JSL);
         }
         if ("KeyFactory".equals(type))
         {
-            return java.security.KeyFactory.getInstance(alg, JSL);
+            return KeyFactory.getInstance(alg, JSL);
         }
         if ("Signature".equals(type))
         {
-            return java.security.Signature.getInstance(alg, JSL);
+            return Signature.getInstance(alg, JSL);
         }
         if ("Cipher".equals(type))
         {
-            return javax.crypto.Cipher.getInstance(alg, JSL);
+            return Cipher.getInstance(alg, JSL);
         }
         throw new IllegalStateException("unhandled service type " + type
                 + " for " + alg + "; teach jceLookup about it rather than skipping it");

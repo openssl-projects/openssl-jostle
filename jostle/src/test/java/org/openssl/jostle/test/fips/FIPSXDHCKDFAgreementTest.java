@@ -38,6 +38,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.Locale;
+import java.security.InvalidAlgorithmParameterException;
 
 /**
  * RFC 6637 §7 SP 800-56C one-step KDF for X25519 / X448 under JSLFIPS —
@@ -139,16 +140,16 @@ public class FIPSXDHCKDFAgreementTest
             String name = name(curve, "SHA256");
             KeyPair kp = KeyPairGenerator.getInstance(curve, fips()).generateKeyPair();
 
-            Assertions.assertThrows(java.security.InvalidKeyException.class, () ->
+            Assertions.assertThrows(InvalidKeyException.class, () ->
                     KeyAgreement.getInstance(name, fips()).init(kp.getPrivate()),
                     name + ": init(Key) with no Param must be refused typed under JSLFIPS");
 
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     KeyAgreement.getInstance(name, fips()).init(kp.getPrivate(),
                             new UserKeyingMaterialSpec(null)),
                     name + ": a null Param must be refused typed under JSLFIPS");
 
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     KeyAgreement.getInstance(name, fips()).init(kp.getPrivate(),
                             new UserKeyingMaterialSpec(new byte[0])),
                     name + ": an empty Param must be refused typed under JSLFIPS");
@@ -166,7 +167,7 @@ public class FIPSXDHCKDFAgreementTest
             String name = name(curve, "SHA256");
             KeyPair kp = KeyPairGenerator.getInstance(curve, fips()).generateKeyPair();
             KeyAgreement ka = KeyAgreement.getInstance(name, fips());
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     ka.init(kp.getPrivate(),
                             // UserKeyingMaterialSpec: BouncyCastle's is qualified, jostle's is imported
                             new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(new byte[16])),

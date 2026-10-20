@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.certpath;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.Der;
 
+import java.io.ByteArrayInputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.cert.CRL;
 import java.security.cert.CRLException;
@@ -417,7 +418,7 @@ final class CertPathCall
         for (byte[] der : builtChain())
         {
             out.add((X509Certificate) cf.generateCertificate(
-                    new java.io.ByteArrayInputStream(der)));
+                    new ByteArrayInputStream(der)));
         }
         return out;
     }
@@ -430,6 +431,7 @@ final class CertPathCall
         for (int i = 0; i < outInfo[2]; i++)
         {
             int len = outInfo[CertPathNI.OUT_INFO_HEADER + i];
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             out.add(java.util.Arrays.copyOfRange(chainOut, off, off + len));
             off += len;
         }

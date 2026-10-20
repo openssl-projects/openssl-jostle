@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import java.security.Provider;
+
 /**
  * ARIA-CCM Cipher SPI. Subclass of {@link CCMCipherSpi} that pre-binds
  * the cipher family to ARIA. JCE callers reach this via
@@ -23,7 +25,7 @@ public class ARIACCMCipherSpi extends CCMCipherSpi
         super(CipherFamily.ARIA);
     }
 
-    public ARIACCMCipherSpi(java.security.Provider providerInstance)
+    public ARIACCMCipherSpi(Provider providerInstance)
     {
         super(CipherFamily.ARIA, providerInstance);
     }

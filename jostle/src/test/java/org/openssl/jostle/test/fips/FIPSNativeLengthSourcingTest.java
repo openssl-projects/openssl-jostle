@@ -23,9 +23,12 @@ import javax.crypto.spec.SecretKeySpec;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
+import java.util.Arrays;
 
 /**
  * Behaviour-lock for the "OpenSSL is the single source of truth for fixed
@@ -183,7 +186,7 @@ public class FIPSNativeLengthSourcingTest
         byte[] pt = new byte[64];
         RANDOM.nextBytes(pt);
         byte[] ct = c.doFinal(pt);
-        Assertions.assertFalse(java.util.Arrays.equals(pt, java.util.Arrays.copyOf(ct, pt.length)),
+        Assertions.assertFalse(Arrays.equals(pt, Arrays.copyOf(ct, pt.length)),
                 "GCM ciphertext must differ from plaintext");
         Cipher d = Cipher.getInstance("AES/GCM/NoPadding", JostleFIPSProvider.PROVIDER_NAME);
         d.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
@@ -234,7 +237,7 @@ public class FIPSNativeLengthSourcingTest
         return kpg.generateKeyPair();
     }
 
-    private static byte[] agree(java.security.PrivateKey priv, java.security.PublicKey peerPub)
+    private static byte[] agree(PrivateKey priv, PublicKey peerPub)
         throws Exception
     {
         KeyAgreement ka = KeyAgreement.getInstance("ECDH", JostleFIPSProvider.PROVIDER_NAME);

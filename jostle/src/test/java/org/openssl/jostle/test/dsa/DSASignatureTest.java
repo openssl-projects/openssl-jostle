@@ -26,6 +26,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.interfaces.DSAParams;
 import java.security.interfaces.DSAPublicKey;
 import java.security.spec.DSAParameterSpec;
@@ -243,7 +244,7 @@ public class DSASignatureTest
         {
             verified = verifier.verify(tampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             // OpenSSL may surface DER-decode failures as exceptions —
             // also a correct rejection.
@@ -288,7 +289,7 @@ public class DSASignatureTest
                 Assertions.assertFalse(verifier.verify(sig),
                         "garbage signature must not verify");
             }
-            catch (java.security.SignatureException expected)
+            catch (SignatureException expected)
             {
                 // Correct JCA translation of an improperly-encoded signature.
             }
@@ -462,7 +463,7 @@ public class DSASignatureTest
             signer.update(new byte[]{1, 2, 3});
             Assertions.fail("update before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -480,7 +481,7 @@ public class DSASignatureTest
             signer.sign();
             Assertions.fail("sign before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -498,7 +499,7 @@ public class DSASignatureTest
             verifier.verify(new byte[]{1, 2, 3});
             Assertions.fail("verify before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -585,7 +586,7 @@ public class DSASignatureTest
         {
             firstVerify = verifier.verify(sigBTampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             firstVerify = false;
         }
@@ -627,7 +628,7 @@ public class DSASignatureTest
         {
             cached = verifier.verify(tampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             cached = false;
         }

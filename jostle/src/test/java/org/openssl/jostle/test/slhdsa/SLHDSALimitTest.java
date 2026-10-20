@@ -23,7 +23,9 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 public class SLHDSALimitTest
 {
@@ -76,7 +78,7 @@ public class SLHDSALimitTest
         // and FFM via TestNISelector; only the FFM path exhibited the clobber.
         // SLH_DSA_SHA2_128f is the fast-signing 128-bit variant (keeps the
         // sequential limit-test cost down).
-        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        SecureRandom rnd = new SecureRandom();
         long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
         long signer = slhdsaServiceNI.allocateSigner();
         long verifier = slhdsaServiceNI.allocateSigner();
@@ -99,12 +101,12 @@ public class SLHDSALimitTest
             int written = (int) slhdsaServiceNI.sign(signer, big, prefix, TestUtil.RNDSrc);
             Assertions.assertEquals(sigLen, written);
 
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, 0, prefix),
-                    java.util.Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(snapshot, prefix + written, big.length),
-                    java.util.Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(snapshot, 0, prefix),
+                    Arrays.copyOfRange(big, 0, prefix), "bytes before outOff were clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(snapshot, prefix + written, big.length),
+                    Arrays.copyOfRange(big, prefix + written, big.length), "bytes after the signature were clobbered");
 
-            byte[] sig = java.util.Arrays.copyOfRange(big, prefix, prefix + written);
+            byte[] sig = Arrays.copyOfRange(big, prefix, prefix + written);
             slhdsaServiceNI.initVerify(verifier, keyRef, new byte[0], 0, 0, 0);
             slhdsaServiceNI.update(verifier, msg, 0, msg.length);
             Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), slhdsaServiceNI.verify(verifier, sig, sig.length));
@@ -2331,7 +2333,7 @@ public class SLHDSALimitTest
         // pointer), so reusing that array as the sign output must produce a
         // valid signature and must not corrupt bytes outside the written
         // window. Runs on JNI and FFM via TestNISelector.
-        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        SecureRandom rnd = new SecureRandom();
         final long keyRef = slhdsaServiceNI.generateKeyPair(OSSLKeyType.SLH_DSA_SHA2_128f.getKsType(), TestUtil.RNDSrc);
         final long signer = slhdsaServiceNI.allocateSigner();
         final long verifier = slhdsaServiceNI.allocateSigner();
@@ -2362,12 +2364,12 @@ public class SLHDSALimitTest
 
             // Bytes after the signature window must be untouched.
             Assertions.assertArrayEquals(
-                    java.util.Arrays.copyOfRange(snapshot, written, big.length),
-                    java.util.Arrays.copyOfRange(big, written, big.length),
+                    Arrays.copyOfRange(snapshot, written, big.length),
+                    Arrays.copyOfRange(big, written, big.length),
                     "bytes after the signature were clobbered");
 
             // The signature must verify against the original message.
-            byte[] sig = java.util.Arrays.copyOfRange(big, 0, written);
+            byte[] sig = Arrays.copyOfRange(big, 0, written);
             slhdsaServiceNI.initVerify(verifier, keyRef, new byte[0], 0, 0, 0);
             slhdsaServiceNI.update(verifier, msg, 0, msg.length);
             Assertions.assertEquals(ErrorCode.JO_SUCCESS.getCode(), slhdsaServiceNI.verify(verifier, sig, sig.length));

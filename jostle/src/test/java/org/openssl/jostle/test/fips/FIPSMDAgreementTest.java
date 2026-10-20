@@ -21,6 +21,7 @@ import java.security.MessageDigest;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -122,7 +123,7 @@ public class FIPSMDAgreementTest
     {
         Provider provider = FIPSTestUtil.assumeFipsProvider();
 
-        Set<String> covered = new TreeSet<String>(java.util.Arrays.asList(APPROVED));
+        Set<String> covered = new TreeSet<String>(Arrays.asList(APPROVED));
 
         Set<String> registered = new TreeSet<String>();
         for (Provider.Service service : provider.getServices())
@@ -174,7 +175,7 @@ public class FIPSMDAgreementTest
                 // Differentiator: a one-byte change must change the digest.
                 byte[] tampered = message.clone();
                 tampered[sr.nextInt(tampered.length)] ^= (byte) (1 + sr.nextInt(255));
-                Assertions.assertFalse(java.util.Arrays.equals(fips, digest(name, FIPS, tampered)),
+                Assertions.assertFalse(Arrays.equals(fips, digest(name, FIPS, tampered)),
                         name + ": tampered input produced an identical digest");
             }
         }
@@ -246,7 +247,7 @@ public class FIPSMDAgreementTest
 
             byte[] fipsA = digest(name, FIPS, a);
             byte[] fipsB = digest(name, FIPS, b);
-            Assertions.assertFalse(java.util.Arrays.equals(fipsA, fipsB),
+            Assertions.assertFalse(Arrays.equals(fipsA, fipsB),
                     name + ": distinct inputs produced identical digests");
 
             Assertions.assertArrayEquals(digest(name, JSL, a), fipsA, name + ": digest(a) JSLFIPS vs JSL");

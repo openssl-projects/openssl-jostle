@@ -28,6 +28,7 @@ import java.security.InvalidKeyException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.io.ByteArrayOutputStream;
 
 /**
  * XTS-AES (IEEE Std 1619-2007 / NIST SP 800-38E) through the JSL provider.
@@ -457,7 +458,7 @@ public class AESXTSTest
             Cipher enc = Cipher.getInstance(XFORM, providerName());
             enc.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(tweak));
 
-            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
             int off = 0;
             for (int i = 0; i < split.length - 1; i++)
             {
@@ -471,6 +472,7 @@ public class AESXTSTest
             bos.write(enc.doFinal(pt, off, split[split.length - 1]));
 
             Assertions.assertArrayEquals(reference, bos.toByteArray(),
+                    // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                     "split " + java.util.Arrays.toString(split) + " diverged from the reference");
         }
     }
@@ -631,7 +633,7 @@ public class AESXTSTest
     {
         Cipher c = Cipher.getInstance(XFORM, providerName());
         c.init(opmode, new SecretKeySpec(key, "AES"), new IvParameterSpec(tweak));
-        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
         for (int i = 0; i < in.length - 1; i++)
         {
             byte[] produced = c.update(in, i, 1);

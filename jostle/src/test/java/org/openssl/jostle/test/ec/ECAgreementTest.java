@@ -55,6 +55,12 @@ import java.util.TreeSet;
 import java.security.interfaces.ECPrivateKey;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
+import java.math.BigInteger;
+import java.security.InvalidKeyException;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Cross-provider agreement for the WHOLE base-provider ({@code JSL}) EC
@@ -205,7 +211,7 @@ public class ECAgreementTest
      * curve per algorithm and generating a keypair to find out would dominate
      * its runtime.
      */
-    private static final java.util.Map<String, Integer> ORDER_BITS =
+    private static final Map<String, Integer> ORDER_BITS =
             new ConcurrentHashMap<String, Integer>();
 
     private static int orderBits(String curve) throws Exception
@@ -321,7 +327,8 @@ public class ECAgreementTest
      * {@code engineGenerateSecret(String)} keyed by wrap algorithm, raw
      * {@code generateSecret()} refused.
      */
-    private static final java.util.Set<String> KDF_AGREEMENT_SPIS = new java.util.HashSet<>(java.util.Arrays.asList(
+    // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
+    private static final Set<String> KDF_AGREEMENT_SPIS = new HashSet<>(java.util.Arrays.asList(
             "org.openssl.jostle.jcajce.provider.ec.ECWithKDFKeyAgreementSpi",
             "org.openssl.jostle.jcajce.provider.ec.ECWithCKDFKeyAgreementSpi"));
 
@@ -652,7 +659,7 @@ public class ECAgreementTest
                 {
                     KeyAgreement ka = KeyAgreement.getInstance(alg, JSL);
                     PrivateKey priv = alice.getPrivate();
-                    Assertions.assertThrows(java.security.InvalidKeyException.class,
+                    Assertions.assertThrows(InvalidKeyException.class,
                             () -> ka.init(priv),
                             alg + " trial=" + trial + ": no Param must be refused typed");
                     continue;
@@ -729,9 +736,9 @@ public class ECAgreementTest
                 new X500Name("CN=Jostle EC CMS KDF Foreign Key Test");
         JcaX509v3CertificateBuilder builder =
                 new JcaX509v3CertificateBuilder(
-                        dn, java.math.BigInteger.valueOf(1),
-                        new java.util.Date(System.currentTimeMillis() - 3600_000L),
-                        new java.util.Date(System.currentTimeMillis() + 3600_000L),
+                        dn, BigInteger.valueOf(1),
+                        new Date(System.currentTimeMillis() - 3600_000L),
+                        new Date(System.currentTimeMillis() + 3600_000L),
                         dn, subjectPub);
         ContentSigner signer =
                 new JcaContentSignerBuilder("SHA256withRSA")
@@ -826,7 +833,7 @@ public class ECAgreementTest
     }
 
     /** The scalar {@code d}, read through the JCE interface rather than the encoding. */
-    private static java.math.BigInteger privateValue(PrivateKey key)
+    private static BigInteger privateValue(PrivateKey key)
     {
         return ((ECPrivateKey) key).getS();
     }

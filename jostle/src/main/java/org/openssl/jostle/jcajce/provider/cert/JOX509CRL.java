@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.io.UnsupportedEncodingException;
 
 /**
  * An X.509 CRL parsed by OpenSSL, built the same way as
@@ -130,6 +131,7 @@ class JOX509CRL
             }
             for (int i = 0; i < extCount; i++)
             {
+                // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                 String oid = ascii(java.util.Arrays.copyOfRange(extBlob, oidOff, oidOff + extOidSizes[i]));
                 oidOff += extOidSizes[i];
                 values.put(oid, java.util.Arrays.copyOfRange(extBlob, valOff, valOff + extValSizes[i]));
@@ -298,7 +300,7 @@ class JOX509CRL
         {
             return new String(b, "US-ASCII");
         }
-        catch (java.io.UnsupportedEncodingException e)
+        catch (UnsupportedEncodingException e)
         {
             throw new IllegalStateException("US-ASCII is required of every JVM", e);
         }

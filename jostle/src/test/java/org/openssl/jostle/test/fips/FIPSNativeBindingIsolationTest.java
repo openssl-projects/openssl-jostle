@@ -22,6 +22,7 @@ import java.lang.reflect.Modifier;
 import java.security.Provider;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -183,7 +184,7 @@ public class FIPSNativeBindingIsolationTest
         bindingsSeen = 0;
 
         for (Provider.Service s : new TreeSet<Provider.Service>(
-                java.util.Comparator.comparing(x -> x.getType() + "." + x.getAlgorithm()))
+                Comparator.comparing(x -> x.getType() + "." + x.getAlgorithm()))
         {
             {
                 addAll(provider.getServices());

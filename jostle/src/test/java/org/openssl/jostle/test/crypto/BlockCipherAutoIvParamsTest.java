@@ -23,6 +23,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
 import java.security.SecureRandom;
 import java.security.Security;
+import javax.crypto.BadPaddingException;
 
 /**
  * Regression guard for DESEDE_AUTO_IV_GAP.md: the per-algorithm
@@ -107,7 +108,7 @@ public class BlockCipherAutoIvParamsTest
                 Assertions.assertFalse(Arrays.areEqual(msg, dec2.doFinal(tampered)),
                         transformation + ": tampered ciphertext must not round-trip");
             }
-            catch (javax.crypto.BadPaddingException e)
+            catch (BadPaddingException e)
             {
                 // also acceptable — corruption cascaded into the padding
             }

@@ -43,7 +43,7 @@ public class SM4BlockCipherSpi extends BlockCipherSpi
     //
     // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
     //
-    public SM4BlockCipherSpi(java.security.Provider providerInstance)
+    public SM4BlockCipherSpi(Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, null, null, "SM4", providerInstance);
         osslMode = OSSLMode.ECB;

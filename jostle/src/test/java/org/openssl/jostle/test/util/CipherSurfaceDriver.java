@@ -28,6 +28,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedSet;
+import java.io.ByteArrayOutputStream;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Drives every {@code Cipher} name a provider registers for one family.
@@ -65,8 +70,9 @@ public final class CipherSurfaceDriver
      *
      * id-aes{128,192,256}-wrap and -wrap-pad.
      */
-    private static final java.util.Set<String> NIST_AES_WRAP_OIDS =
-            new java.util.HashSet<String>(java.util.Arrays.asList(
+    private static final Set<String> NIST_AES_WRAP_OIDS =
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
+            new HashSet<String>(java.util.Arrays.asList(
                     "2.16.840.1.101.3.4.1.5", "2.16.840.1.101.3.4.1.8",
                     "2.16.840.1.101.3.4.1.25", "2.16.840.1.101.3.4.1.28",
                     "2.16.840.1.101.3.4.1.45", "2.16.840.1.101.3.4.1.48"));
@@ -78,8 +84,8 @@ public final class CipherSurfaceDriver
      * pinned primaries (MT-72), so each also demands its OWN key length — which
      * {@code CipherFamilies.AES} already derives from the arc number.
      */
-    private static final java.util.Set<String> NIST_AES_CCM_OIDS =
-            new java.util.HashSet<String>(java.util.Arrays.asList(
+    private static final Set<String> NIST_AES_CCM_OIDS =
+            new HashSet<String>(java.util.Arrays.asList(
                     "2.16.840.1.101.3.4.1.7", "2.16.840.1.101.3.4.1.27",
                     "2.16.840.1.101.3.4.1.47"));
 
@@ -182,11 +188,11 @@ public final class CipherSurfaceDriver
     private static void assertWrapRoutingAgreesWithTheRegistrar(Provider provider, String prefix,
                                                                 String keyAlg, SortedSet<String> registered)
     {
-        java.util.Map<String, String> wrapAttr = ProviderSurfaceGuard.registeredAttribute(
+        Map<String, String> wrapAttr = ProviderSurfaceGuard.registeredAttribute(
                 provider, prefix, new String[]{"Cipher"}, JostleProvider.KEY_WRAP_ATTRIBUTE);
 
-        SortedSet<String> byName = new java.util.TreeSet<String>();
-        SortedSet<String> byAttribute = new java.util.TreeSet<String>();
+        SortedSet<String> byName = new TreeSet<String>();
+        SortedSet<String> byAttribute = new TreeSet<String>();
 
         for (String entry : registered)
         {
@@ -373,7 +379,7 @@ public final class CipherSurfaceDriver
             {
                 c.init(Cipher.ENCRYPT_MODE, key, sr);
             }
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] head = c.update(msg, 0, split);
             if (head != null)
             {

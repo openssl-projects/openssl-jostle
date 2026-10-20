@@ -21,10 +21,12 @@ import org.openssl.jostle.util.asn1.Der;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.security.KeyStore;
 import java.security.Provider;
 import java.security.Security;
 import java.security.UnrecoverableKeyException;
+import java.util.Arrays;
 
 /**
  * The BCFKS store's input-validation edges, driven with hostile bytes through
@@ -93,7 +95,7 @@ public class BcFKSLimitTest
         for (int length = 4; length < store.length; length++)
         {
             BcFKSLimitDriver.Outcome outcome = BcFKSLimitDriver.load(provider(),
-                    java.util.Arrays.copyOf(store, length), PASSWORD);
+                    Arrays.copyOf(store, length), PASSWORD);
             Assertions.assertEquals(IOException.class, outcome.type,
                     "raw truncation to " + length + " bytes -> " + outcome);
             if ("truncated content in ObjectStore".equals(outcome.message))
@@ -390,7 +392,7 @@ public class BcFKSLimitTest
                     + " is not supported (expected 1)", e.getMessage());
         }
 
-        byte[] negative = Der.sequence(Der.integer(java.math.BigInteger.valueOf(-1)),
+        byte[] negative = Der.sequence(Der.integer(BigInteger.valueOf(-1)),
                 algorithmIdentifier, Der.generalizedTime(BcFKSLimitDriver.FIXED_DATE),
                 Der.generalizedTime(BcFKSLimitDriver.FIXED_DATE), Der.sequence());
         IOException e = Assertions.assertThrows(IOException.class,

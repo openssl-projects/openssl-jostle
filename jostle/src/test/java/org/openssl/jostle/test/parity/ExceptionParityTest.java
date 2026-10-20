@@ -20,6 +20,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.ShortBufferException;
 import java.util.EnumSet;
 import java.util.Set;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.SignatureException;
 
 /**
  * Falsifies {@link ExceptionParity} directly, on CONSTRUCTED pairs.
@@ -260,7 +262,7 @@ public class ExceptionParityTest
         // returned(true) against a throw is still one side accepting.
         Assertions.assertEquals(ParityVerdict.VERIFICATION_DIVERGENCE, ExceptionParity.classify(
                 Observation.returned(true),
-                Observation.threw(new java.security.SignatureException("bc"))).verdict());
+                Observation.threw(new SignatureException("bc"))).verdict());
     }
 
     @Test
@@ -269,14 +271,14 @@ public class ExceptionParityTest
         // Both REFUSED, so not a decision divergence - but a caller migrating
         // either meets an uncaught exception or takes the wrong branch.
         ParityResult weThrow = ExceptionParity.classify(
-                Observation.threw(new java.security.SignatureException("ours")),
+                Observation.threw(new SignatureException("ours")),
                 Observation.returned(false));
         Assertions.assertEquals(ParityVerdict.REFUSAL_SHAPE_DIVERGENCE, weThrow.verdict());
         Assertions.assertEquals("we-throw-bc-returns-false", weThrow.qualifier());
 
         ParityResult bcThrows = ExceptionParity.classify(
                 Observation.returned(false),
-                Observation.threw(new java.security.SignatureException("bc")));
+                Observation.threw(new SignatureException("bc")));
         Assertions.assertEquals(ParityVerdict.REFUSAL_SHAPE_DIVERGENCE, bcThrows.verdict());
         Assertions.assertEquals("we-return-false-bc-throws", bcThrows.qualifier());
     }
@@ -328,12 +330,12 @@ public class ExceptionParityTest
         // cell a generator survey can produce; it must never be an error.
         ParityResult weProduce = ExceptionParity.classify(
                 Observation.produced("AES/RAW/~16B"),
-                t(new java.security.InvalidAlgorithmParameterException("no")));
+                t(new InvalidAlgorithmParameterException("no")));
         Assertions.assertEquals(ParityVerdict.DECISION_DIVERGENCE, weProduce.verdict());
         Assertions.assertEquals("we-produce-bc-refuses", weProduce.qualifier());
 
         ParityResult bcProduces = ExceptionParity.classify(
-                t(new java.security.InvalidAlgorithmParameterException("no")),
+                t(new InvalidAlgorithmParameterException("no")),
                 Observation.produced("AES/RAW/~16B"));
         Assertions.assertEquals(ParityVerdict.DECISION_DIVERGENCE, bcProduces.verdict());
         Assertions.assertEquals("we-refuse-bc-produces", bcProduces.qualifier());
@@ -376,7 +378,7 @@ public class ExceptionParityTest
         produced.add(ExceptionParity.classifyPinDrift(Observation.accepted(new byte[1]), BadPaddingException.class).verdict());
         produced.add(ExceptionParity.classify(Observation.returned(false), Observation.returned(false)).verdict());
         produced.add(ExceptionParity.classify(Observation.returned(true), Observation.returned(false)).verdict());
-        produced.add(ExceptionParity.classify(t(new java.security.SignatureException("a")), Observation.returned(false)).verdict());
+        produced.add(ExceptionParity.classify(t(new SignatureException("a")), Observation.returned(false)).verdict());
         produced.add(ExceptionParity.classify(Observation.produced("x"), Observation.produced("x")).verdict());
         produced.add(ExceptionParity.classify(Observation.produced("x"), Observation.produced("y")).verdict());
         produced.add(ExceptionParity.classify(Observation.produced("x"), t(new RuntimeException("r"))).verdict());

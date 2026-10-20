@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.rsa;
 
 import java.security.AlgorithmParameters;
+import java.security.ProviderException;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
@@ -308,7 +309,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         }
         catch (Exception e)
         {
-            throw new java.security.ProviderException("unable to reinitialise RSA signature engine", e);
+            throw new ProviderException("unable to reinitialise RSA signature engine", e);
         }
     }
 

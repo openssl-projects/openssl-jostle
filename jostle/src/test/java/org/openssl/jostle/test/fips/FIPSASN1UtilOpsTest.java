@@ -34,6 +34,7 @@ import org.openssl.jostle.util.asn1.Asn1Ni;
 import org.openssl.jostle.util.asn1.PrivateKeyOptions;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import java.security.GeneralSecurityException;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 
@@ -642,7 +643,7 @@ public class FIPSASN1UtilOpsTest
                     ? ((MLDSAPrivateKey) key).getPrivateKey(true)
                     : ((MLKEMPrivateKey) key).getPrivateKey(true);
         }
-        catch (java.security.GeneralSecurityException e)
+        catch (GeneralSecurityException e)
         {
             throw new IllegalStateException(e);
         }

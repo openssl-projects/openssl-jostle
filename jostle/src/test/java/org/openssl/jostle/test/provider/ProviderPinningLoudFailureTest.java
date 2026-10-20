@@ -35,6 +35,7 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
+import java.io.IOException;
 
 /**
  * Pins MT-5's loud-failure contract: when a provider-pinned digest cannot be
@@ -270,7 +271,7 @@ public class ProviderPinningLoudFailureTest
     }
 
     /** A 256-bit KEK derived by KDF3/SHA-256 — what all four arms drive. */
-    private static KTSParameterSpec ktsSpec() throws java.io.IOException
+    private static KTSParameterSpec ktsSpec() throws IOException
     {
         return new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(

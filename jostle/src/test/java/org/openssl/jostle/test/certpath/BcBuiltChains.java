@@ -381,7 +381,7 @@ public final class BcBuiltChains
         // One printable letter for another keeps the DER length and the
         // string's character class, so only the signature can notice.
         copy[at] = (byte) (copy[at] == (byte) 'X' ? 'Y' : 'X');
-        Assertions.assertFalse(java.util.Arrays.equals(der, copy), "the tamper changed nothing");
+        Assertions.assertFalse(Arrays.equals(der, copy), "the tamper changed nothing");
         X509Certificate tampered = (X509Certificate) CertificateFactory.getInstance("X.509")
                 .generateCertificate(new ByteArrayInputStream(copy));
         Assertions.assertNotEquals(ee.getSubjectX500Principal(), tampered.getSubjectX500Principal(),

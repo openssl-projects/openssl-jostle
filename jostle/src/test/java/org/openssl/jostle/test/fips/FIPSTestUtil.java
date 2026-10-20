@@ -39,6 +39,7 @@ import java.security.Signature;
 import java.security.interfaces.DSAPrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.PublicKey;
 
 /**
  * Shared bootstrap for the env-gated FIPS tests. The single switch is the
@@ -536,7 +537,7 @@ final class FIPSTestUtil
      * {@code FIPSMLXKEMAgreementTest}, which carries the raw-share route
      * instead.
      */
-    static java.security.PublicKey crossPublic(java.security.PublicKey key, String kfAlg,
+    static PublicKey crossPublic(PublicKey key, String kfAlg,
                                                String targetProvider)
         throws Exception
     {

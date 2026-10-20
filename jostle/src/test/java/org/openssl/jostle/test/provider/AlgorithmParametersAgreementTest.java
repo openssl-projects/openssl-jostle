@@ -42,6 +42,9 @@ import java.security.spec.ECGenParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * BouncyCastle as a SECOND reference for every bespoke ASN.1 codec, alongside
@@ -341,9 +344,9 @@ public class AlgorithmParametersAgreementTest
     }
 
     /** The registered AlgorithmParameters names, aliases included. */
-    private static java.util.SortedSet<String> surfaceNames()
+    private static SortedSet<String> surfaceNames()
     {
-        java.util.SortedSet<String> out = new java.util.TreeSet<String>();
+        SortedSet<String> out = new TreeSet<String>();
         for (String entry : ProviderSurfaceGuard.registeredSurface(
                 Security.getProvider(JSL), AlgorithmParametersSurfaceDriver.PREFIX,
                 new String[]{"AlgorithmParameters"}))
@@ -588,8 +591,8 @@ public class AlgorithmParametersAgreementTest
     @Test
     public void everySpecTableRowIsReachedByARegisteredName()
     {
-        java.security.Provider jsl = Security.getProvider(JSL);
-        java.util.SortedSet<String> reached = new java.util.TreeSet<String>();
+        Provider jsl = Security.getProvider(JSL);
+        SortedSet<String> reached = new TreeSet<String>();
 
         for (String entry : ProviderSurfaceGuard.registeredSurface(
                 jsl, AlgorithmParametersSurfaceDriver.PREFIX,
@@ -600,8 +603,9 @@ public class AlgorithmParametersAgreementTest
             reached.add(cn.substring(cn.lastIndexOf('.') + 1));
         }
 
-        java.util.SortedSet<String> unreached =
-                new java.util.TreeSet<String>(java.util.Arrays.asList(
+        SortedSet<String> unreached =
+                // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
+                new TreeSet<String>(java.util.Arrays.asList(
                         AlgorithmParametersSurfaceDriver.KNOWN_SPI_CLASSES));
         unreached.removeAll(reached);
 

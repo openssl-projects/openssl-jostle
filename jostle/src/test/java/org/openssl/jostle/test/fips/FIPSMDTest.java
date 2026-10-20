@@ -134,6 +134,7 @@ public class FIPSMDTest
         MessageDigest md = MessageDigest.getInstance("SHA-256", JostleFIPSProvider.PROVIDER_NAME);
         byte[] digestA = md.digest(a);
         byte[] digestB = MessageDigest.getInstance("SHA-256", JostleFIPSProvider.PROVIDER_NAME).digest(b);
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertFalse(java.util.Arrays.equals(digestA, digestB),
                 "distinct inputs produced identical digests");
 

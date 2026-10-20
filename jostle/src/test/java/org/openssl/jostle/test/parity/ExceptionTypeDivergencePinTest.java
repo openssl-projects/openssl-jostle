@@ -30,6 +30,8 @@ import java.security.PrivateKey;
 import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Key;
+import java.security.PublicKey;
 
 /**
  * Divergences from BouncyCastle that are DELIBERATE, pinned in both halves.
@@ -77,7 +79,7 @@ public class ExceptionTypeDivergencePinTest
         }
     }
 
-    private static Throwable initWith(String provider, java.security.Key key,
+    private static Throwable initWith(String provider, Key key,
                                       AlgorithmParameterSpec ps)
     {
         try
@@ -388,7 +390,7 @@ public class ExceptionTypeDivergencePinTest
                 JostleProvider.PROVIDER_NAME, BouncyCastleProvider.PROVIDER_NAME})
         {
             KeyPair local = KeyPairGenerator.getInstance("X25519", provider).generateKeyPair();
-            java.security.PublicKey peer = KeyPairGenerator
+            PublicKey peer = KeyPairGenerator
                     .getInstance("X448", provider).generateKeyPair().getPublic();
 
             KeyAgreement ka = KeyAgreement.getInstance("X25519", provider);

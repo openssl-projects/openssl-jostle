@@ -25,6 +25,7 @@ import org.openssl.jostle.util.asn1.Asn1Ni;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
@@ -97,7 +98,7 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
      * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm)
     {
@@ -105,7 +106,7 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
     }
 
     public SLHDSAKeyPairGenerator(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, Asn1Ni asn1NI, Object algorithm,
-                                  java.security.Provider providerInstance)
+                                  Provider providerInstance)
     {
         super(algorithm.toString());
         this.providerInstance = providerInstance;

@@ -32,6 +32,7 @@ import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.ShortBufferException;
 
 /**
  * RFC 8418 HKDF key agreement for X25519 / X448 — JSL against BouncyCastle.
@@ -223,7 +224,7 @@ public class XDHHKDFAgreementTest
                 {
                     ka.generateSecret(new byte[128], 0);
                 }
-                catch (javax.crypto.ShortBufferException e)
+                catch (ShortBufferException e)
                 {
                     throw new AssertionError(e);
                 }

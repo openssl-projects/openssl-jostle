@@ -163,6 +163,7 @@ class JOX509Certificate
             }
             for (int i = 0; i < extCount; i++)
             {
+                // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                 String oid = ascii(java.util.Arrays.copyOfRange(extBlob, oidOff, oidOff + extOidSizes[i]));
                 oidOff += extOidSizes[i];
                 byte[] value = java.util.Arrays.copyOfRange(extBlob, valOff, valOff + extValSizes[i]);

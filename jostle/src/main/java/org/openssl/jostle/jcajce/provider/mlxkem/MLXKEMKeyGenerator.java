@@ -35,6 +35,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * KEM encapsulate / decapsulate for one hybrid group, driven through the
@@ -79,11 +80,11 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
     }
 
     /** The provider instance this SPI belongs to; null when unbound. MT-14. */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public MLXKEMKeyGenerator(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
                               MLXKEMParameterSpec parameterSpec,
-                              java.security.Provider providerInstance)
+                              Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.mlxkemServiceNI = mlxkemServiceNI;

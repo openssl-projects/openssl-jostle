@@ -19,6 +19,8 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
+import java.security.InvalidParameterException;
+import javax.crypto.IllegalBlockSizeException;
 
 /**
  * RFC 3211 password-based key wrap, for CMS PasswordRecipientInfo.
@@ -141,7 +143,7 @@ public class RFC3211WrapCipherSpi
     {
         if (opmode != Cipher.WRAP_MODE && opmode != Cipher.UNWRAP_MODE)
         {
-            throw new java.security.InvalidParameterException(
+            throw new InvalidParameterException(
                     "RFC 3211 key wrap supports WRAP_MODE and UNWRAP_MODE only");
         }
         if (key == null)
@@ -250,7 +252,7 @@ public class RFC3211WrapCipherSpi
     }
 
     @Override
-    protected byte[] engineWrap(Key key) throws javax.crypto.IllegalBlockSizeException, InvalidKeyException
+    protected byte[] engineWrap(Key key) throws IllegalBlockSizeException, InvalidKeyException
     {
         if (opmode != Cipher.WRAP_MODE)
         {
@@ -264,7 +266,7 @@ public class RFC3211WrapCipherSpi
         if (cek.length < 1 || cek.length > 255)
         {
             // The count is one byte (2.3.1), so it cannot describe more.
-            throw new javax.crypto.IllegalBlockSizeException(
+            throw new IllegalBlockSizeException(
                     "CEK must be 1..255 bytes, got " + cek.length);
         }
 
@@ -306,7 +308,7 @@ public class RFC3211WrapCipherSpi
         }
         catch (GeneralSecurityException e)
         {
-            throw new javax.crypto.IllegalBlockSizeException(e.getMessage());
+            throw new IllegalBlockSizeException(e.getMessage());
         }
         finally
         {

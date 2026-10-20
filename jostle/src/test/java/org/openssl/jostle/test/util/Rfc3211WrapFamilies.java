@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.security.Security;
 
 /**
  * The RFC 3211 family facts, in one place.
@@ -127,7 +128,7 @@ public final class Rfc3211WrapFamilies
     {
         SortedSet<String> out = new TreeSet<String>();
         for (String entry : ProviderSurfaceGuard.registeredSurface(
-                java.security.Security.getProvider(JostleProvider.PROVIDER_NAME),
+                Security.getProvider(JostleProvider.PROVIDER_NAME),
                 PREFIX, new String[]{"Cipher"}))
         {
             out.add(entry.substring("Cipher.".length()));

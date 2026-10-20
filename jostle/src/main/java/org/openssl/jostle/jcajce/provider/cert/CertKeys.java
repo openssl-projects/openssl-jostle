@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.ProviderException;
 import java.security.PublicKey;
+import java.security.Signature;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 
@@ -125,14 +126,14 @@ final class CertKeys
      * A {@link java.security.Signature} from the same provider the key came
      * from, by INSTANCE where there is one.
      */
-    static java.security.Signature signatureFor(ProviderBinding binding, String algorithm)
+    static Signature signatureFor(ProviderBinding binding, String algorithm)
         throws NoSuchAlgorithmException
     {
         try
         {
             return (binding.instance() != null)
-                    ? java.security.Signature.getInstance(algorithm, binding.instance())
-                    : java.security.Signature.getInstance(algorithm, binding.name());
+                    ? Signature.getInstance(algorithm, binding.instance())
+                    : Signature.getInstance(algorithm, binding.name());
         }
         catch (NoSuchProviderException e)
         {

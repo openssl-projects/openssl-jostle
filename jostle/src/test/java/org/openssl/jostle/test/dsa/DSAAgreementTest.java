@@ -36,6 +36,7 @@ import java.security.spec.DSAParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -150,7 +151,7 @@ public class DSAAgreementTest
             }
         }
         Assertions.assertFalse(names.isEmpty(), "JSL registered no DSA Signature services");
-        java.util.Collections.sort(names);
+        Collections.sort(names);
         return names;
     }
 

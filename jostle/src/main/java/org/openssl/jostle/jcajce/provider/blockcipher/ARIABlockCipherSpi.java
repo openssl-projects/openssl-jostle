@@ -43,14 +43,14 @@ public class ARIABlockCipherSpi extends BlockCipherSpi
     //
     // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
     //
-    public ARIABlockCipherSpi(java.security.Provider providerInstance)
+    public ARIABlockCipherSpi(Provider providerInstance)
     {
         this(null, null, providerInstance);
         osslMode = OSSLMode.ECB;
     }
 
     public ARIABlockCipherSpi(OSSLCipher cipher, OSSLMode mode,
-                              java.security.Provider providerInstance)
+                              Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, cipher, mode, "ARIA", providerInstance);
     }

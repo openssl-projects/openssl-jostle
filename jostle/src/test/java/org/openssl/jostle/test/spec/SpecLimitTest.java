@@ -35,7 +35,9 @@ import org.openssl.jostle.test.crypto.TestNISelector;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SpecLimitTest
@@ -82,7 +84,7 @@ public class SpecLimitTest
         // outside each window are preserved. Runs on JNI and FFM via
         // TestNISelector; only the FFM path exhibited the clobber (and it is
         // inherited by the FIPS SpecFIPSFFM).
-        java.security.SecureRandom rnd = new java.security.SecureRandom();
+        SecureRandom rnd = new SecureRandom();
         long spec = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
         try
         {
@@ -110,18 +112,18 @@ public class SpecLimitTest
             int written = specNI.encap(spec, null, secBuf, prefix, secLen, encBuf, prefix, encLen, TestUtil.RNDSrc);
             Assertions.assertEquals(encLen, written);
 
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(encSnap, 0, prefix),
-                    java.util.Arrays.copyOfRange(encBuf, 0, prefix), "encapsulation prefix clobbered");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(encSnap, prefix + encLen, encBuf.length),
-                    java.util.Arrays.copyOfRange(encBuf, prefix + encLen, encBuf.length), "encapsulation suffix clobbered");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(secSnap, 0, prefix),
-                    java.util.Arrays.copyOfRange(secBuf, 0, prefix), "shared-secret prefix clobbered");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(secSnap, prefix + secLen, secBuf.length),
-                    java.util.Arrays.copyOfRange(secBuf, prefix + secLen, secBuf.length), "shared-secret suffix clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(encSnap, 0, prefix),
+                    Arrays.copyOfRange(encBuf, 0, prefix), "encapsulation prefix clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(encSnap, prefix + encLen, encBuf.length),
+                    Arrays.copyOfRange(encBuf, prefix + encLen, encBuf.length), "encapsulation suffix clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(secSnap, 0, prefix),
+                    Arrays.copyOfRange(secBuf, 0, prefix), "shared-secret prefix clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(secSnap, prefix + secLen, secBuf.length),
+                    Arrays.copyOfRange(secBuf, prefix + secLen, secBuf.length), "shared-secret suffix clobbered");
 
             // --- decap the offset-produced ciphertext into a buffer at a
             //     non-zero offset; the recovered secret must match encap's ---
-            byte[] ct = java.util.Arrays.copyOfRange(encBuf, prefix, prefix + encLen);
+            byte[] ct = Arrays.copyOfRange(encBuf, prefix, prefix + encLen);
             byte[] decBuf = new byte[prefix + secLen + suffix];
             rnd.nextBytes(decBuf);
             byte[] decSnap = decBuf.clone();
@@ -129,14 +131,14 @@ public class SpecLimitTest
             int decWritten = specNI.decap(spec, null, ct, 0, ct.length, decBuf, prefix, secLen, TestUtil.RNDSrc);
             Assertions.assertEquals(secLen, decWritten);
 
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(decSnap, 0, prefix),
-                    java.util.Arrays.copyOfRange(decBuf, 0, prefix), "decap secret prefix clobbered");
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(decSnap, prefix + secLen, decBuf.length),
-                    java.util.Arrays.copyOfRange(decBuf, prefix + secLen, decBuf.length), "decap secret suffix clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(decSnap, 0, prefix),
+                    Arrays.copyOfRange(decBuf, 0, prefix), "decap secret prefix clobbered");
+            Assertions.assertArrayEquals(Arrays.copyOfRange(decSnap, prefix + secLen, decBuf.length),
+                    Arrays.copyOfRange(decBuf, prefix + secLen, decBuf.length), "decap secret suffix clobbered");
 
             // Functional: decap(encap ciphertext) recovers encap's shared secret.
-            Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(secBuf, prefix, prefix + secLen),
-                    java.util.Arrays.copyOfRange(decBuf, prefix, prefix + secLen),
+            Assertions.assertArrayEquals(Arrays.copyOfRange(secBuf, prefix, prefix + secLen),
+                    Arrays.copyOfRange(decBuf, prefix, prefix + secLen),
                     "decapsulated shared secret did not match the encapsulated one");
         }
         finally
@@ -1191,7 +1193,7 @@ public class SpecLimitTest
     @Test
     public void getKeyProvider_realKey_namesAProvider() throws Exception
     {
-        java.security.KeyPair kp = java.security.KeyPairGenerator
+        KeyPair kp = KeyPairGenerator
                 .getInstance("ML-KEM-768", JostleProvider.PROVIDER_NAME)
                 .generateKeyPair();
         PKEYKeySpec s =

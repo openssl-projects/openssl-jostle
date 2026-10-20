@@ -101,6 +101,7 @@ public class FIPSAESTest
                 // MT-62: a one-byte compare has a 1-in-256 false failure; sound only at a full block.
                 if (message.length >= 16)
                 {
+                    // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                     Assertions.assertFalse(java.util.Arrays.equals(message,
                                     java.util.Arrays.copyOf(ct, message.length)),
                             "ciphertext must differ from plaintext");

@@ -16,6 +16,7 @@ import org.openssl.jostle.util.asn1.Der;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.security.cert.CertPath;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
@@ -23,6 +24,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -180,7 +182,7 @@ public final class JOCertPath
      * shorter encoding that is a prefix of a longer one sorting first.
      */
     private static final class DerOrder
-        implements java.util.Comparator<byte[]>, java.io.Serializable
+        implements Comparator<byte[]>, Serializable
     {
         private static final long serialVersionUID = 1L;
 

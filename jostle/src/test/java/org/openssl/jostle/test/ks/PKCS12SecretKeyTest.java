@@ -28,6 +28,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
+import java.security.Key;
 
 /**
  * Secret-key entries in JSL's PKCS12 key store and its variants: every algorithm the two PKCS#12 secretBag forms
@@ -272,7 +273,7 @@ public class PKCS12SecretKeyTest
                 KeyStore once = load("PKCS12", store(ks, first, PASSWORD), PASSWORD);
                 KeyStore twice = load("PKCS12", store(once, second, PASSWORD), PASSWORD);
                 String label = s[0] + "/" + s[1] + " " + first + " then " + second;
-                java.security.Key got = twice.getKey("s", PASSWORD);
+                Key got = twice.getKey("s", PASSWORD);
                 Assertions.assertEquals(s[0], got.getAlgorithm(), label);
                 Assertions.assertArrayEquals(key.getEncoded(), got.getEncoded(), label);
             }

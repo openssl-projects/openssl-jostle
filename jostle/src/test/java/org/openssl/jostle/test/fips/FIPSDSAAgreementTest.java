@@ -26,8 +26,10 @@ import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.Provider;
+import java.security.ProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -358,7 +360,7 @@ public class FIPSDSAAgreementTest
             {
                 crossVerify(sigAlg, BC, sr);
             }
-            catch (java.security.InvalidKeyException ex)
+            catch (InvalidKeyException ex)
             {
                 // MT-76: the module's refusal now reaches callers as the
                 // JCE-canonical InvalidKeyException with the OpenSSLException
@@ -457,7 +459,7 @@ public class FIPSDSAAgreementTest
 
         for (int trial = 0; trial < TRIALS; trial++)
         {
-            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+            byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(randomMessage(sr));
             byte[] tampered = digest.clone();
             tampered[sr.nextInt(tampered.length)] ^= 0x01;
@@ -523,7 +525,7 @@ public class FIPSDSAAgreementTest
                 Assertions.assertTrue(verify(sigAlg, BC, bc.pub, msg, sigFips),
                         sigAlg + ": the module signed, so BC must verify the result");
             }
-            catch (java.security.InvalidKeyException ex)
+            catch (InvalidKeyException ex)
             {
                 // MT-76: the module's refusal now reaches callers as the
                 // JCE-canonical InvalidKeyException with the OpenSSLException
@@ -587,7 +589,7 @@ public class FIPSDSAAgreementTest
         {
             params = apg.generateParameters();
         }
-        catch (java.security.ProviderException ex)
+        catch (ProviderException ex)
         {
             // The capability refusal surfaces here per java-spi.md — the
             // generator's contract carries no checked exception.
@@ -616,7 +618,7 @@ public class FIPSDSAAgreementTest
     @Test
     public void everyRegisteredDsaServiceIsCovered()
     {
-        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
 
         SortedSet<String> covered = new TreeSet<String>();
         for (String[] group : new String[][]{SHA2_DSA, SHA3_DSA, SHA1_DSA, NONE_DSA})

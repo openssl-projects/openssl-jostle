@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Locale;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.InvalidKeyException;
 
 /**
  * Cross-provider agreement for the FIPS provider's RSA surface.
@@ -567,7 +568,7 @@ public class FIPSRSAAgreementTest
             v.update(msg);
             Assertions.assertTrue(v.verify(sig), alg + ": did not verify its own signature");
         }
-        catch (java.security.InvalidKeyException e)
+        catch (InvalidKeyException e)
         {
             String m = String.valueOf(e.getMessage());
             if (sha1)
@@ -622,6 +623,7 @@ public class FIPSRSAAgreementTest
         Cipher enc = Cipher.getInstance(alg, FIPS);
         enc.init(Cipher.ENCRYPT_MODE, kp.getPublic(), sr);
         byte[] ct = enc.doFinal(msg);
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertFalse(java.util.Arrays.equals(msg, ct),
                 alg + ": ciphertext equals plaintext — no transform");
         Cipher dec = Cipher.getInstance(alg, FIPS);

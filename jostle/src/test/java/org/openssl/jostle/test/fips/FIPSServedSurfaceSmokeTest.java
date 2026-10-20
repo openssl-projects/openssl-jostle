@@ -33,6 +33,15 @@ import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.security.cert.CertificateFactory;
+import java.security.AlgorithmParameterGenerator;
+import java.security.AlgorithmParameters;
+import java.security.KeyFactory;
+import java.security.Signature;
+import java.util.Arrays;
+import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKeyFactory;
 
 /**
  * Registration is not usability: every service JSLFIPS registers must actually
@@ -147,7 +156,7 @@ public class FIPSServedSurfaceSmokeTest
                 {
                     broken.add(alg + " -> empty digest");
                 }
-                else if (java.util.Arrays.equals(da, db))
+                else if (Arrays.equals(da, db))
                 {
                     broken.add(alg + " -> a one-bit input change did not change the digest");
                 }
@@ -221,7 +230,7 @@ public class FIPSServedSurfaceSmokeTest
                 {
                     broken.add(alg + " -> empty tag");
                 }
-                else if (java.util.Arrays.equals(ta, tb))
+                else if (Arrays.equals(ta, tb))
                 {
                     broken.add(alg + " -> a one-bit message change did not change the tag");
                 }
@@ -266,11 +275,11 @@ public class FIPSServedSurfaceSmokeTest
                 sr.nextBytes(a);
                 sr.nextBytes(b);
 
-                if (java.util.Arrays.equals(a, new byte[32]))
+                if (Arrays.equals(a, new byte[32]))
                 {
                     broken.add(alg + " -> produced all zeros");
                 }
-                else if (java.util.Arrays.equals(a, b))
+                else if (Arrays.equals(a, b))
                 {
                     broken.add(alg + " -> two draws were identical");
                 }
@@ -450,23 +459,23 @@ public class FIPSServedSurfaceSmokeTest
             case "SecureRandom":
                 return SecureRandom.getInstance(alg, FIPS);
             case "Cipher":
-                return javax.crypto.Cipher.getInstance(alg, FIPS);
+                return Cipher.getInstance(alg, FIPS);
             case "Signature":
-                return java.security.Signature.getInstance(alg, FIPS);
+                return Signature.getInstance(alg, FIPS);
             case "KeyFactory":
-                return java.security.KeyFactory.getInstance(alg, FIPS);
+                return KeyFactory.getInstance(alg, FIPS);
             case "KeyPairGenerator":
-                return java.security.KeyPairGenerator.getInstance(alg, FIPS);
+                return KeyPairGenerator.getInstance(alg, FIPS);
             case "KeyGenerator":
-                return javax.crypto.KeyGenerator.getInstance(alg, FIPS);
+                return KeyGenerator.getInstance(alg, FIPS);
             case "KeyAgreement":
-                return javax.crypto.KeyAgreement.getInstance(alg, FIPS);
+                return KeyAgreement.getInstance(alg, FIPS);
             case "SecretKeyFactory":
-                return javax.crypto.SecretKeyFactory.getInstance(alg, FIPS);
+                return SecretKeyFactory.getInstance(alg, FIPS);
             case "AlgorithmParameters":
-                return java.security.AlgorithmParameters.getInstance(alg, FIPS);
+                return AlgorithmParameters.getInstance(alg, FIPS);
             case "AlgorithmParameterGenerator":
-                return java.security.AlgorithmParameterGenerator.getInstance(alg, FIPS);
+                return AlgorithmParameterGenerator.getInstance(alg, FIPS);
             case "CertificateFactory":
                 return CertificateFactory.getInstance(alg, FIPS);
             default:

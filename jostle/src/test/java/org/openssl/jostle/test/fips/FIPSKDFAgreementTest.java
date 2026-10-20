@@ -286,6 +286,7 @@ public class FIPSKDFAgreementTest
         Provider provider = FIPSTestUtil.assumeFipsProvider();
 
         Set<String> covered = new TreeSet<String>();
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         covered.addAll(java.util.Arrays.asList(PBKDF2_8BIT));
         covered.addAll(java.util.Arrays.asList(PBKDF2_THREE_WAY));
         covered.addAll(java.util.Arrays.asList(PBKDF2_TWO_WAY));

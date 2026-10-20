@@ -24,6 +24,7 @@ import org.openssl.jostle.test.crypto.TestNISelector;
 
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 /**
  * NI-layer input-validation tests for the RSA-PKCS#1 v1.5 cipher.
@@ -293,7 +294,7 @@ public class RSAPKCS1CipherLimitTest
             cipherNI.init(decRef, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
 
             byte[] tooLarge = new byte[256];
-            java.util.Arrays.fill(tooLarge, (byte) 0xFF);
+            Arrays.fill(tooLarge, (byte) 0xFF);
 
             int ptLen = cipherNI.doFinal(decRef, tooLarge, 0, tooLarge.length,
                     null, 0, TestUtil.RNDSrc);
@@ -396,7 +397,7 @@ public class RSAPKCS1CipherLimitTest
                         sPt, 0, TestUtil.RNDSrc);
                 byte[] sTrimmed = new byte[sWritten];
                 System.arraycopy(sPt, 0, sTrimmed, 0, sWritten);
-                shiftedDecryptedToOriginal = java.util.Arrays.equals(msg, sTrimmed);
+                shiftedDecryptedToOriginal = Arrays.equals(msg, sTrimmed);
             }
             catch (Exception expected)
             {

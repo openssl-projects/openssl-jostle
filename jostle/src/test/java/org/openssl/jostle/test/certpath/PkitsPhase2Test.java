@@ -17,6 +17,7 @@ import java.security.cert.PKIXParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -41,10 +42,10 @@ import java.util.Set;
 public class PkitsPhase2Test
 {
     /** The revocation sections. */
-    static final List<String> SECTIONS = java.util.Arrays.asList("4.4", "4.14", "4.15");
+    static final List<String> SECTIONS = Arrays.asList("4.4", "4.14", "4.15");
 
     /** Divergences pinned by name, each with its measured mechanism. */
-    static final List<String> PINNED_DIVERGENCES = java.util.Arrays.asList("4.14.30");
+    static final List<String> PINNED_DIVERGENCES = Arrays.asList("4.14.30");
 
     @BeforeAll
     static void before()

@@ -236,7 +236,7 @@ public class DHTest
     public void testInitialize_outOfRangePrime_rejected() throws Exception
     {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
-        java.math.BigInteger g = java.math.BigInteger.valueOf(2);
+        BigInteger g = BigInteger.valueOf(2);
 
         BigInteger pSmall = BigInteger.ONE.shiftLeft(767); // 768-bit
         Assertions.assertThrows(InvalidAlgorithmParameterException.class,

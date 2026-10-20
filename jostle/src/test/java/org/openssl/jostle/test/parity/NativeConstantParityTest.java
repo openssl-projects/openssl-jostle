@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -67,7 +68,7 @@ public class NativeConstantParityTest
 
     /** The only JO_ defines in the error-code headers that are not a numeric value. */
     private static final Set<String> NON_NUMERIC = new HashSet<>(
-            java.util.Arrays.asList("JO_RAND_RESEED", "JO_ERROR_WAS_INJECTED"));
+            Arrays.asList("JO_RAND_RESEED", "JO_ERROR_WAS_INJECTED"));
 
     /** Java's catch-all for a code no entry claims; no C header defines it. */
     private static final String JAVA_SENTINEL = "JO_UNKNOWN";

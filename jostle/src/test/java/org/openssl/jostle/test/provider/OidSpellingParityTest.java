@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
+import java.security.AlgorithmParameters;
 import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKeyFactory;
 
 /**
  * Every object identifier the provider answers to must answer to BOTH of its
@@ -142,15 +145,15 @@ public class OidSpellingParityTest
     {
         if (type.equals("Cipher"))
         {
-            return javax.crypto.Cipher.getInstance(algorithm, provider);
+            return Cipher.getInstance(algorithm, provider);
         }
         if (type.equals("AlgorithmParameters"))
         {
-            return java.security.AlgorithmParameters.getInstance(algorithm, provider);
+            return AlgorithmParameters.getInstance(algorithm, provider);
         }
         if (type.equals("SecretKeyFactory"))
         {
-            return javax.crypto.SecretKeyFactory.getInstance(algorithm, provider);
+            return SecretKeyFactory.getInstance(algorithm, provider);
         }
         throw new IllegalStateException("no getInstance for " + type + " " + algorithm);
     }

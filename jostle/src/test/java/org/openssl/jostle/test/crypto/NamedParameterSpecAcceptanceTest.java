@@ -35,6 +35,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.security.InvalidAlgorithmParameterException;
 
 /**
  * MT-59: the matching {@code NamedParameterSpec} is ACCEPTED and yields a
@@ -150,7 +151,7 @@ public class NamedParameterSpecAcceptanceTest
             for (String alg : new String[]{"X25519", "X448", "Ed25519", "Ed448"})
             {
                 final String a = alg;
-                Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class,
+                Assertions.assertThrows(InvalidAlgorithmParameterException.class,
                         () -> KeyPairGenerator.getInstance(a, jsl).initialize(named(a)),
                         a + ": the Java 8 baseline cannot reference NamedParameterSpec and "
                                 + "must refuse it");
@@ -268,7 +269,7 @@ public class NamedParameterSpecAcceptanceTest
                 KeyPairGenerator.getInstance(p[0], jsl).initialize(named(p[1]));
                 failures.add(p[0] + " accepted a " + p[1] + " spec");
             }
-            catch (java.security.InvalidAlgorithmParameterException expected)
+            catch (InvalidAlgorithmParameterException expected)
             {
                 Assertions.assertNotNull(expected.getMessage(), p[0]);
             }
@@ -286,7 +287,7 @@ public class NamedParameterSpecAcceptanceTest
     {
         for (String alg : new String[]{"X25519", "X448", "Ed25519", "Ed448"})
         {
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class,
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class,
                     () -> KeyPairGenerator.getInstance(alg, jsl).initialize((AlgorithmParameterSpec) null),
                     alg + " must still refuse a null spec");
         }

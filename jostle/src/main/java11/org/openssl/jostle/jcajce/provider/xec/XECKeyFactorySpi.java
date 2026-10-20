@@ -36,6 +36,7 @@ import java.security.spec.XECPublicKeySpec;
 import org.openssl.jostle.util.asn1.Der;
 import org.openssl.jostle.util.asn1.oids.EdECObjectIdentifiers;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * KeyFactorySpi for X25519 / X448. Supports the encoded key-spec forms:
@@ -70,7 +71,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
      * The provider INSTANCE this SPI belongs to, or null when constructed
      * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
     private final OSSLKeyType fixedType;
 
     public XECKeyFactorySpi()
@@ -83,7 +84,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
         this(specNI, asn1NI, null);
     }
 
-    public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
+    public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, Provider providerInstance)
     {
         this(specNI, asn1NI, providerInstance, OSSLKeyType.NONE);
     }
@@ -91,7 +92,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
     /**
      * @param fixedType X25519 or X448 for a factory registered under that name, NONE for one serving both.
      */
-    public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance,
+    public XECKeyFactorySpi(SpecNI specNI, Asn1Ni asn1NI, Provider providerInstance,
                             OSSLKeyType fixedType)
     {
         this.providerInstance = providerInstance;
@@ -104,7 +105,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
      * The NI backend this factory allocates keys in - used by the import
      * helpers to reject keys created by the other Jostle provider.
      */
-    java.security.Provider ownProviderInstance()
+    Provider ownProviderInstance()
     {
         return providerInstance;
     }
@@ -293,7 +294,7 @@ public class XECKeyFactorySpi extends KeyFactorySpi
             // re-decode rather than refuse.
             if (!s.usableBy(providerInstance))
             {
-                throw new java.security.InvalidKeyException(
+                throw new InvalidKeyException(
                         "key was created by a different Jostle provider instance; encode it "
                                 + "with getEncoded() and decode it through this provider's "
                                 + "KeyFactory");

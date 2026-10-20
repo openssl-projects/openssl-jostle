@@ -40,6 +40,8 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.interfaces.RSAKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.math.BigInteger;
+import javax.crypto.IllegalBlockSizeException;
 
 /**
  * RSA-KEM key transport (ISO 18033-2 / RFC 9690), registered as
@@ -265,7 +267,7 @@ public class RSAKEMCipherSpi
             throw new InvalidKeyException("not an RSA key: " + spec.getType().getAlgorithmName());
         }
 
-        java.math.BigInteger modulus = ((RSAKey) key).getModulus();
+        BigInteger modulus = ((RSAKey) key).getModulus();
         if (modulus == null || modulus.signum() <= 0)
         {
             throw new InvalidKeyException("RSA key has no usable modulus");
@@ -302,7 +304,7 @@ public class RSAKEMCipherSpi
 
     @Override
     protected byte[] engineWrap(Key key)
-        throws javax.crypto.IllegalBlockSizeException, InvalidKeyException
+        throws IllegalBlockSizeException, InvalidKeyException
     {
         if (opmode != Cipher.WRAP_MODE)
         {

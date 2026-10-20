@@ -30,8 +30,12 @@ import org.openssl.jostle.test.TestUtil;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStoreException;
+import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Date;
 
 /**
  * NI-layer input-validation tests for the PKCS#12 KeyStore. Calls the
@@ -633,7 +637,7 @@ public class KSServiceLimitTest
 
     static
     {
-        new java.security.SecureRandom().nextBytes(SECRET);
+        new SecureRandom().nextBytes(SECRET);
     }
 
     private void assertSetSecretRefused(long ref, String alias, byte[] key, String rfcOid, String sunOid,
@@ -701,7 +705,7 @@ public class KSServiceLimitTest
         assertSetSecretRefused(validRef, "s", new byte[KSServiceNI.SECRET_MAX_LEN + 1], RFC_AES128, SUN_AES,
                 "key store secret key is longer than 8192 bytes");
         byte[] max = new byte[KSServiceNI.SECRET_MAX_LEN];
-        new java.security.SecureRandom().nextBytes(max);
+        new SecureRandom().nextBytes(max);
         ni.setSecretKey(validRef, "s", max, RFC_AES128, SUN_AES, PASSWORD);
         Assertions.assertArrayEquals(max, (byte[]) decode(ni.getSecretKey(validRef, "s", PASSWORD))[1]);
     }
@@ -839,7 +843,7 @@ public class KSServiceLimitTest
         long loaded = ni.allocateKeyStore("PKCS12");
         try
         {
-            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+            IOException e = Assertions.assertThrows(IOException.class,
                     () -> ni.load(loaded, p12, PASSWORD));
             Assertions.assertEquals("key store load failed", e.getMessage());
         }
@@ -855,7 +859,7 @@ public class KSServiceLimitTest
         throws Exception
     {
         ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
-        java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+        IOException e = Assertions.assertThrows(IOException.class,
                 () -> storeWith(validRef, PASSWORD, 0, KSServiceNI.SECRET_FORM_RFC7292));
         Assertions.assertEquals("key store store failed", e.getMessage());
         Assertions.assertNotNull(storeWith(validRef, PASSWORD, 0, KSServiceNI.SECRET_FORM_SUNJCE));
@@ -868,7 +872,7 @@ public class KSServiceLimitTest
         ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
         for (int form : new int[]{-1, 2, Integer.MIN_VALUE})
         {
-            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+            IOException e = Assertions.assertThrows(IOException.class,
                     () -> storeWith(validRef, PASSWORD, CERT_PBE, form), "form " + form);
             Assertions.assertEquals("key store store failed", e.getMessage());
         }
@@ -889,7 +893,7 @@ public class KSServiceLimitTest
         {
             ni.load(loaded, p12, PASSWORD);
             Assertions.assertEquals("1.2.3.4.5.6.7", decode(ni.getSecretKey(loaded, "s", PASSWORD))[0]);
-            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+            IOException e = Assertions.assertThrows(IOException.class,
                     () -> storeWith(loaded, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_RFC7292));
             Assertions.assertEquals("key store store failed", e.getMessage());
             Assertions.assertNotNull(storeWith(loaded, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_SUNJCE));
@@ -930,18 +934,18 @@ public class KSServiceLimitTest
     {
         assertSetOidsRefused(validRef, "absent", RFC_AES128, SUN_AES, NOT_SECRET);
 
-        java.security.KeyPairGenerator kpg = java.security.KeyPairGenerator.getInstance("RSA",
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA",
                 JostleProvider.PROVIDER_NAME);
         kpg.initialize(2048);
-        java.security.KeyPair pair = kpg.generateKeyPair();
+        KeyPair pair = kpg.generateKeyPair();
         ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD);
         assertSetOidsRefused(validRef, "k", RFC_AES128, SUN_AES, NOT_SECRET);
 
         X500Name name = new X500Name("CN=Jostle KS Limit");
-        java.util.Date now = new java.util.Date();
+        Date now = new Date();
         JcaX509v3CertificateBuilder builder =
                 new JcaX509v3CertificateBuilder(name, BigInteger.ONE,
-                        new java.util.Date(now.getTime() - 3600_000L), new java.util.Date(now.getTime() + 3600_000L),
+                        new Date(now.getTime() - 3600_000L), new Date(now.getTime() + 3600_000L),
                         name, pair.getPublic());
         ContentSigner signer =
                 new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());

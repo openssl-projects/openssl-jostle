@@ -282,6 +282,7 @@ public class SLHDSAAgreementTest
      * and named so the completeness guard reads them as a decision, not a gap.
      */
     private static final SortedSet<String> NO_BC_JCE_NAME =
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             Collections.unmodifiableSortedSet(new TreeSet<String>(java.util.Arrays.asList(
                     "SLH-DSA-NONE", "DET-SLH-DSA-PURE", "DET-SLH-DSA-NONE")));
 

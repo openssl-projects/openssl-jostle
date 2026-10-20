@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 
+import javax.crypto.KeyGenerator;
 import javax.crypto.interfaces.DHPublicKey;
 import javax.crypto.spec.DHParameterSpec;
 import org.junit.jupiter.api.Assertions;
@@ -44,6 +45,8 @@ import java.security.Security;
 import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.PublicKey;
 
 /**
  * Cross-provider key policy, since MT-14: a key OBJECT belongs to the provider
@@ -234,7 +237,7 @@ public class FIPSKeyIsolationTest
     {
         // SecretKeys are raw bytes with no native residency: a key generated
         // by JSL's KeyGenerator works in a JSLFIPS cipher (and vice versa).
-        javax.crypto.KeyGenerator jslKg = javax.crypto.KeyGenerator.getInstance("AES", JostleProvider.PROVIDER_NAME);
+        KeyGenerator jslKg = KeyGenerator.getInstance("AES", JostleProvider.PROVIDER_NAME);
         jslKg.init(256);
         SecretKey key = jslKg.generateKey();
 
@@ -355,7 +358,7 @@ public class FIPSKeyIsolationTest
                                             NISTObjectIdentifiers.id_sha256)).getEncoded())
                             .build();
             PrivKeyOp mlkemOp = (p, k) ->
-                    javax.crypto.Cipher.getInstance("ML-KEM", p)
+                    Cipher.getInstance("ML-KEM", p)
                             .init(Cipher.UNWRAP_MODE, k, kts);
             assertPrivateIsolatedBothDirections(jslMlKem.getPrivate(), fipsMlKem.getPrivate(), mlkemOp);
 
@@ -397,7 +400,7 @@ public class FIPSKeyIsolationTest
             KeyPair jslRsaKem = genKp("RSA", jsl, 2048);
             KeyPair fipsRsaKem = genKp("RSA", fips, 2048);
             PrivKeyOp rsaKemOp = (p, k) ->
-                    javax.crypto.Cipher.getInstance("RSA-KTS-KEM-KWS", p)
+                    Cipher.getInstance("RSA-KTS-KEM-KWS", p)
                             .init(Cipher.UNWRAP_MODE, k, kts);
             assertPrivateIsolatedBothDirections(jslRsaKem.getPrivate(), fipsRsaKem.getPrivate(), rsaKemOp);
         }
@@ -449,8 +452,8 @@ public class FIPSKeyIsolationTest
             KeyPair fipsHybridKp = genPqcKp(hybrid.getName(), fips);
             PrivateKey jslHybrid = jslHybridKp.getPrivate();
             PrivateKey fipsHybrid = fipsHybridKp.getPrivate();
-            java.security.PublicKey jslHybridPub = jslHybridKp.getPublic();
-            java.security.PublicKey fipsHybridPub = fipsHybridKp.getPublic();
+            PublicKey jslHybridPub = jslHybridKp.getPublic();
+            PublicKey fipsHybridPub = fipsHybridKp.getPublic();
             String hybridMsg = "private key was created by a different Jostle provider instance; "
                     + "hybrid KEM keys have no encoding, so generate the keypair through "
                     + "this provider instead";
@@ -550,14 +553,14 @@ public class FIPSKeyIsolationTest
      * not, so the remedy each names differs.
      */
     private static void assertKeyGenPublicRejected(String algorithm, String user,
-                                                   java.security.PublicKey foreign,
+                                                   PublicKey foreign,
                                                    int keySizeInBits,
                                                    String expectedMessage)
         throws Exception
     {
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
-        java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                java.security.InvalidAlgorithmParameterException.class,
+        KeyGenerator kg = KeyGenerator.getInstance(algorithm, user);
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
                 () -> kg.init(KEMGenerateSpec.builder()
                         .withPublicKey(foreign)
                         .withAlgorithmName("AES")
@@ -574,11 +577,11 @@ public class FIPSKeyIsolationTest
      * every public key would pass the refusal assertions.
      */
     private static void assertKeyGenPublicAccepted(String algorithm, String user,
-                                                   java.security.PublicKey own,
+                                                   PublicKey own,
                                                    int keySizeInBits)
         throws Exception
     {
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
+        KeyGenerator kg = KeyGenerator.getInstance(algorithm, user);
         kg.init(KEMGenerateSpec.builder()
                 .withPublicKey(own)
                 .withAlgorithmName("AES")
@@ -593,9 +596,9 @@ public class FIPSKeyIsolationTest
                                                     String expectedMessage)
         throws Exception
     {
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance(algorithm, user);
-        java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                java.security.InvalidAlgorithmParameterException.class,
+        KeyGenerator kg = KeyGenerator.getInstance(algorithm, user);
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
                 () -> kg.init(KEMExtractSpec.builder()
                         .withPrivate(foreign)
                         .withAlgorithmName("AES")

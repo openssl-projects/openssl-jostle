@@ -32,6 +32,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.PrivateKey;
 
 /**
  * MT-10: a key produced by {@code Cipher.unwrap} belongs to the provider that
@@ -206,7 +207,7 @@ public class UnwrappedKeyBindingTest
             RANDOM.nextBytes(msg);
 
             Signature signer = Signature.getInstance("SHA256withECDSA", jsl);
-            signer.initSign((java.security.PrivateKey) back, RANDOM);
+            signer.initSign((PrivateKey) back, RANDOM);
             signer.update(msg);
             byte[] sig = signer.sign();
 

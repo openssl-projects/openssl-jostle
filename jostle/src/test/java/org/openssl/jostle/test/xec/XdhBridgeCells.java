@@ -24,6 +24,7 @@ import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.function.Predicate;
 
 /**
@@ -239,7 +240,7 @@ public final class XdhBridgeCells
                     ec.disposeKex(kex);
                 }
                 byte[] big = new byte[n + 8];
-                java.util.Arrays.fill(big, (byte) 0x5a);
+                Arrays.fill(big, (byte) 0x5a);
                 Assertions.assertEquals(n, derive(a, b, big), curve);
                 for (int i = n; i < big.length; i++)
                 {
@@ -247,7 +248,7 @@ public final class XdhBridgeCells
                 }
                 byte[] exact = new byte[n];
                 Assertions.assertEquals(n, derive(b, a, exact), curve);
-                Assertions.assertArrayEquals(java.util.Arrays.copyOf(big, n), exact, curve);
+                Assertions.assertArrayEquals(Arrays.copyOf(big, n), exact, curve);
             }
             finally
             {

@@ -19,6 +19,7 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * ChaCha20-Poly1305 AEAD (RFC 8439).
@@ -39,13 +40,13 @@ public class ChaCha20Poly1305CipherSpi extends BlockCipherSpi
 {
     public ChaCha20Poly1305CipherSpi()
     {
-        this((java.security.Provider) null);
+        this((Provider) null);
     }
 
     //
     // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
     //
-    public ChaCha20Poly1305CipherSpi(java.security.Provider providerInstance)
+    public ChaCha20Poly1305CipherSpi(Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, OSSLCipher.CHACHA20_POLY1305, OSSLMode.POLY1305,
                 "ChaCha20", providerInstance);

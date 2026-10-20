@@ -157,6 +157,7 @@ public class X509CertificateFactoryWithoutJdkProvidersTest
         CertificateFactory cf = CertificateFactory.getInstance("X.509", jsl);
 
         byte[] garbage = new byte[32];
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         java.util.Arrays.fill(garbage, (byte) 0xFF);
         Assertions.assertThrows(CertificateException.class,
                 () -> cf.generateCertificate(new ByteArrayInputStream(garbage)));

@@ -191,6 +191,7 @@ public class XDHHybridHKDFAgreementTest
         // Raw point, not the SPKI encoding — the RFC's T is the raw
         // ephemeral/recipient point, matching BC's own test fixture shape.
         byte[] encoded = k.getEncoded();
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         return java.util.Arrays.copyOfRange(encoded, encoded.length - 32 <= 0 ? 0 : encoded.length - 32, encoded.length);
     }
 

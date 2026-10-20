@@ -36,6 +36,7 @@ import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 import javax.crypto.spec.PBEParameterSpec;
+import java.io.IOException;
 
 /**
  * Coverage for IV/AEAD parameter handling in {@code BlockCipherSpi}:
@@ -565,6 +566,7 @@ public class AESParametersTest
                 // unsupported long-form length on the outer SEQUENCE
                 concat(new byte[]{0x30, (byte) 0x81, 0x0e}, octetString),
                 // wrong inner tag (INTEGER 0x02 where an OCTET STRING is required)
+                // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                 concat(new byte[]{0x30, 0x0e}, concat(new byte[]{0x02, 0x0c}, java.util.Arrays.copyOfRange(octetString, 2, 14))),
                 // nonce too short (4 bytes < CCM minimum of 7): 30 06 04 04 00 01 02 03
                 {0x30, 0x06, 0x04, 0x04, 0x00, 0x01, 0x02, 0x03},
@@ -579,7 +581,7 @@ public class AESParametersTest
             final byte[] bad = malformed[i];
             AlgorithmParameters params = AlgorithmParameters.getInstance("CCM", JostleProvider.PROVIDER_NAME);
             final int idx = i;
-            Assertions.assertThrows(java.io.IOException.class, () -> params.init(bad),
+            Assertions.assertThrows(IOException.class, () -> params.init(bad),
                     "malformed CCMParameters encoding #" + idx + " must be rejected");
         }
 
@@ -735,11 +737,11 @@ public class AESParametersTest
 
         // Decode side at the same boundaries: 6-byte nonce rejected, 7 accepted,
         // 13 accepted, 14 rejected.
-        Assertions.assertThrows(java.io.IOException.class,
+        Assertions.assertThrows(IOException.class,
                 () -> decodeCcm(derCcm(6)), "6-byte nonce DER must be rejected");
         Assertions.assertEquals(7, decodeCcm(derCcm(7)).getIV().length);
         Assertions.assertEquals(13, decodeCcm(derCcm(13)).getIV().length);
-        Assertions.assertThrows(java.io.IOException.class,
+        Assertions.assertThrows(IOException.class,
                 () -> decodeCcm(derCcm(14)), "14-byte nonce DER must be rejected");
 
         // ICV negatives at spec init: 40 bits (icv 5) and 24 bits (icv 3) are
@@ -830,7 +832,7 @@ public class AESParametersTest
         Assertions.assertThrows(InvalidParameterSpecException.class,
                 () -> fresh.getParameterSpec(GCMParameterSpec.class),
                 "getParameterSpec before init must throw InvalidParameterSpecException");
-        Assertions.assertThrows(java.io.IOException.class, fresh::getEncoded,
+        Assertions.assertThrows(IOException.class, fresh::getEncoded,
                 "getEncoded before init must throw IOException");
     }
 

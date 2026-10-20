@@ -26,6 +26,7 @@ import org.openssl.jostle.util.Arrays;
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -116,6 +117,7 @@ public class RSATest
         Signature truncated = Signature.getInstance("SHA512/224withRSA", JostleProvider.PROVIDER_NAME);
         truncated.initSign(sharedKeyPair.getPrivate());
         truncated.update(msg);
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertFalse(java.util.Arrays.equals(full.sign(), truncated.sign()),
                 "SHA512/224withRSA must not be an alias of SHA512withRSA");
     }
@@ -227,7 +229,7 @@ public class RSATest
                 kpg.initialize(badSize);
                 Assertions.fail("should have rejected key size " + badSize);
             }
-            catch (java.security.InvalidParameterException expected) {}
+            catch (InvalidParameterException expected) {}
 
             try
             {
@@ -255,7 +257,7 @@ public class RSATest
                 kpg.initialize(badSize);
                 Assertions.fail("should have rejected key size " + badSize);
             }
-            catch (java.security.InvalidParameterException expected) {}
+            catch (InvalidParameterException expected) {}
 
             try
             {
@@ -647,7 +649,7 @@ public class RSATest
         {
             shiftedVerified = verifier.verify(shiftedSig);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             // OpenSSL may surface structural errors (e.g. the BER
             // decode fails) as an exception via the verify wrapper —
@@ -1652,7 +1654,7 @@ public class RSATest
             sig.update(new byte[]{1, 2, 3});
             Assertions.fail();
         }
-        catch (IllegalStateException | java.security.SignatureException expected)
+        catch (IllegalStateException | SignatureException expected)
         {
             // The JCE wrapper may translate IllegalStateException into
             // SignatureException for Signature.update; either is acceptable
@@ -1669,7 +1671,7 @@ public class RSATest
             sig.sign();
             Assertions.fail();
         }
-        catch (IllegalStateException | java.security.SignatureException expected) {}
+        catch (IllegalStateException | SignatureException expected) {}
     }
 
     @Test
@@ -1681,7 +1683,7 @@ public class RSATest
             sig.verify(new byte[]{1, 2, 3});
             Assertions.fail();
         }
-        catch (IllegalStateException | java.security.SignatureException expected) {}
+        catch (IllegalStateException | SignatureException expected) {}
     }
 
     @Test
@@ -1693,7 +1695,7 @@ public class RSATest
             sig.update(new byte[]{1, 2, 3});
             Assertions.fail();
         }
-        catch (IllegalStateException | java.security.SignatureException expected) {}
+        catch (IllegalStateException | SignatureException expected) {}
     }
 
     @Test
@@ -1705,7 +1707,7 @@ public class RSATest
             sig.sign();
             Assertions.fail();
         }
-        catch (IllegalStateException | java.security.SignatureException expected) {}
+        catch (IllegalStateException | SignatureException expected) {}
     }
 
 

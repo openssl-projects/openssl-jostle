@@ -98,7 +98,7 @@ public class UnboundParameterGeneratorPinningRegressionTest
         }
 
         Assertions.assertDoesNotThrow(
-                () -> java.security.SecureRandom.getInstance("SHA1PRNG"),
+                () -> SecureRandom.getInstance("SHA1PRNG"),
                 "SHA1PRNG is unavailable after the restore");
     }
 

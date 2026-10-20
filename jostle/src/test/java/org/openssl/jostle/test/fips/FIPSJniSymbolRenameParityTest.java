@@ -21,6 +21,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -82,7 +84,7 @@ public class FIPSJniSymbolRenameParityTest
      * global.
      */
     private static final Set<String> PURPOSE_WRITTEN_GLUE = new LinkedHashSet<String>(
-            java.util.Arrays.asList("OpenSSLFIPSJNI"));
+            Arrays.asList("OpenSSLFIPSJNI"));
 
     /**
      * Classes present only in an operations-test build. Their symbols are
@@ -90,7 +92,7 @@ public class FIPSJniSymbolRenameParityTest
      * rename list legitimately does not carry them.
      */
     private static final Set<String> OPS_ONLY = new LinkedHashSet<String>(
-            java.util.Arrays.asList("OperationsTestFIPSJNI"));
+            Arrays.asList("OperationsTestFIPSJNI"));
 
     private static final Pattern NATIVE_METHOD = Pattern.compile(
             "\\bnative\\s+[\\w.$<>\\[\\]]+(?:\\s*\\[\\s*\\])*\\s+(\\w+)\\s*\\(");
@@ -198,7 +200,7 @@ public class FIPSJniSymbolRenameParityTest
         {
             throw new UncheckedIOException(e);
         }
-        java.util.Collections.sort(out);
+        Collections.sort(out);
         return out;
     }
 

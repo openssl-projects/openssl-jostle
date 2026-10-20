@@ -33,6 +33,10 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.MGF1ParameterSpec;
 import java.nio.charset.StandardCharsets;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.PublicKey;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 /**
  * JCE-level tests for the RSA-OAEP cipher: round-trips, BC parity for
@@ -118,6 +122,7 @@ public class RSAOAEPCipherTest
         Assertions.assertEquals(256, ctB.length);
         // OAEP randomises the seed each call; identical inputs produce
         // distinct ciphertexts. Different inputs definitely should.
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertFalse(java.util.Arrays.equals(ctA, ctB),
                 "two OAEP ciphertexts must differ");
 
@@ -169,7 +174,7 @@ public class RSAOAEPCipherTest
 
         Cipher dec = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
         dec.init(Cipher.DECRYPT_MODE, sharedKeyPair.getPrivate());
-        Assertions.assertThrows(javax.crypto.BadPaddingException.class,
+        Assertions.assertThrows(BadPaddingException.class,
                 () -> dec.doFinal(bad));
 
         // Decryptor must still work after the failure.
@@ -499,9 +504,9 @@ public class RSAOAEPCipherTest
     {
         // Generate an AES key, wrap with OAEP, unwrap, and confirm the
         // unwrapped key matches.
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance("AES");
+        KeyGenerator kg = KeyGenerator.getInstance("AES");
         kg.init(256);
-        javax.crypto.SecretKey aesKey = kg.generateKey();
+        SecretKey aesKey = kg.generateKey();
 
         Cipher wrapper = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
         wrapper.init(Cipher.WRAP_MODE, sharedKeyPair.getPublic());
@@ -520,10 +525,10 @@ public class RSAOAEPCipherTest
     public void testOAEP_WrapUnwrap_PublicKey_roundTrip() throws Exception
     {
         // Generate an EC key, wrap its public side, unwrap as PUBLIC_KEY.
-        java.security.KeyPairGenerator ec = java.security.KeyPairGenerator.getInstance("EC");
+        KeyPairGenerator ec = KeyPairGenerator.getInstance("EC");
         ec.initialize(256);
-        java.security.KeyPair ecKp = ec.generateKeyPair();
-        java.security.PublicKey ecPub = ecKp.getPublic();
+        KeyPair ecKp = ec.generateKeyPair();
+        PublicKey ecPub = ecKp.getPublic();
 
         Cipher wrapper = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
         wrapper.init(Cipher.WRAP_MODE, sharedKeyPair.getPublic());
@@ -542,9 +547,9 @@ public class RSAOAEPCipherTest
         // Tampered wrapped bytes must surface as InvalidKeyException —
         // not BadPaddingException — to avoid Bleichenbacher-style
         // oracles via the wrap/unwrap channel.
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance("AES");
+        KeyGenerator kg = KeyGenerator.getInstance("AES");
         kg.init(128);
-        javax.crypto.SecretKey aesKey = kg.generateKey();
+        SecretKey aesKey = kg.generateKey();
 
         Cipher wrapper = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
         wrapper.init(Cipher.WRAP_MODE, sharedKeyPair.getPublic());
@@ -564,9 +569,9 @@ public class RSAOAEPCipherTest
     @Test
     public void testOAEP_BCWrap_JostleUnwrap_AESKey() throws Exception
     {
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance("AES");
+        KeyGenerator kg = KeyGenerator.getInstance("AES");
         kg.init(256);
-        javax.crypto.SecretKey aesKey = kg.generateKey();
+        SecretKey aesKey = kg.generateKey();
 
         OAEPParameterSpec spec = new OAEPParameterSpec(
                 "SHA-256", "MGF1", new MGF1ParameterSpec("SHA-256"),
@@ -725,7 +730,7 @@ public class RSAOAEPCipherTest
             enc.doFinal(msg);
             Assertions.fail("encrypt of 191 bytes (max + 1) must be rejected");
         }
-        catch (javax.crypto.IllegalBlockSizeException expected) {}
+        catch (IllegalBlockSizeException expected) {}
     }
 
     @Test
@@ -756,7 +761,7 @@ public class RSAOAEPCipherTest
             enc.doFinal(msg);
             Assertions.fail("encrypt of 127 bytes (max + 1) must be rejected");
         }
-        catch (javax.crypto.IllegalBlockSizeException expected) {}
+        catch (IllegalBlockSizeException expected) {}
     }
 
 

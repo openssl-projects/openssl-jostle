@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -28,6 +29,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 
@@ -193,7 +195,7 @@ public class ECDSATest
         {
             verified = verifier.verify(tampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             // OpenSSL may surface DER-decode failures as exceptions —
             // also a correct rejection.
@@ -238,7 +240,7 @@ public class ECDSATest
                 Assertions.assertFalse(verifier.verify(sig),
                         "garbage signature must not verify");
             }
-            catch (java.security.SignatureException expected)
+            catch (SignatureException expected)
             {
                 // Correct JCA translation of an improperly-encoded signature.
             }
@@ -410,7 +412,7 @@ public class ECDSATest
             signer.update(new byte[]{1, 2, 3});
             Assertions.fail("update before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             // The JCE wraps the SPI's IllegalStateException in a
             // SignatureException whose message names the missing init.
@@ -430,7 +432,7 @@ public class ECDSATest
             signer.sign();
             Assertions.fail("sign before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -448,7 +450,7 @@ public class ECDSATest
             verifier.verify(new byte[]{1, 2, 3});
             Assertions.fail("verify before init must throw");
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             Assertions.assertNotNull(expected.getMessage());
             Assertions.assertTrue(
@@ -543,7 +545,7 @@ public class ECDSATest
         {
             firstVerify = verifier.verify(sigBTampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             firstVerify = false;
         }
@@ -591,7 +593,7 @@ public class ECDSATest
         {
             cached = verifier.verify(tampered);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             cached = false;
         }
@@ -784,7 +786,7 @@ public class ECDSATest
             // message — verify the JCE didn't decorate it.
             Assertions.assertNull(expected.getMessage());
         }
-        catch (java.security.InvalidParameterException expected)
+        catch (InvalidParameterException expected)
         {
             // Defensive backup: a future JCE that wraps the SPI's UOE in
             // an IPE would land here. Not expected on current JDKs but
@@ -808,7 +810,7 @@ public class ECDSATest
             // message — verify the JCE didn't decorate it.
             Assertions.assertNull(expected.getMessage());
         }
-        catch (java.security.InvalidParameterException expected)
+        catch (InvalidParameterException expected)
         {
             // Defensive backup: a future JCE that wraps the SPI's UOE in
             // an IPE would land here.
@@ -902,7 +904,7 @@ public class ECDSATest
         {
             shiftedVerified = verifier.verify(shiftedSig);
         }
-        catch (java.security.SignatureException expected)
+        catch (SignatureException expected)
         {
             shiftedVerified = false;
         }

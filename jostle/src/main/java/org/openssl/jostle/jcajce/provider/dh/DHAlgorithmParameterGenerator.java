@@ -28,6 +28,7 @@ import java.security.InvalidParameterException;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * {@code AlgorithmParameterGenerator} for DH. Generates PKCS#3-style
@@ -56,7 +57,7 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
      * The provider this generator belongs to, or null when it was constructed
      * directly rather than through a provider (MT-14's unbound realm).
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public DHAlgorithmParameterGenerator()
     {
@@ -72,7 +73,7 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
      * @param providerInstance the provider this generator belongs to; its own
      *                         AlgorithmParameters serve the generated parameters.
      */
-    public DHAlgorithmParameterGenerator(DHServiceNI dhServiceNI, SpecNI specNI, java.security.Provider providerInstance)
+    public DHAlgorithmParameterGenerator(DHServiceNI dhServiceNI, SpecNI specNI, Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.dhServiceNI = dhServiceNI;

@@ -20,6 +20,8 @@ import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 
 import java.security.Provider;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
@@ -743,11 +745,11 @@ public class FIPSServedSurfaceSnapshotTest
 
     private static Map<String, SortedSet<String>> hybridsByModuleVersion()
     {
-        Map<String, SortedSet<String>> m = new java.util.LinkedHashMap<>();
+        Map<String, SortedSet<String>> m = new LinkedHashMap<>();
         m.put("OpenSSL FIPS Provider 3.1.2", new TreeSet<>());
         m.put("OpenSSL FIPS Provider 3.5.8", new TreeSet<>(Arrays.asList(
                 "SECP256R1MLKEM768", "SECP384R1MLKEM1024", "X25519MLKEM768")));
-        return java.util.Collections.unmodifiableMap(m);
+        return Collections.unmodifiableMap(m);
     }
 
     /**

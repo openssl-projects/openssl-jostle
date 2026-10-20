@@ -170,7 +170,7 @@ public class FIPSXDHKDFTest
 
     private static boolean resolves(String type, String algorithm)
     {
-        return java.security.Security.getProvider(JostleFIPSProvider.PROVIDER_NAME)
+        return Security.getProvider(JostleFIPSProvider.PROVIDER_NAME)
                 .getService(type, algorithm) != null;
     }
 

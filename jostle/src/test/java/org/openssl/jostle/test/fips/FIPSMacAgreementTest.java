@@ -267,6 +267,7 @@ public class FIPSMacAgreementTest
         Provider provider = FIPSTestUtil.assumeFipsProvider();
 
         Set<String> covered = new TreeSet<String>();
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         covered.addAll(java.util.Arrays.asList(HMAC_SHA1_SHA2));
         covered.addAll(java.util.Arrays.asList(HMAC_SHA3));
         covered.addAll(java.util.Arrays.asList(CIPHER_BACKED));

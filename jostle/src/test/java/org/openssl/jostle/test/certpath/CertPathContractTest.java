@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Set;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
+import java.security.Principal;
+import java.security.PublicKey;
 
 /**
  * The validator's parameter contract: what it honours, what it refuses, and the
@@ -334,7 +336,7 @@ public class CertPathContractTest
         }
 
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        CertPath cp = cf.generateCertPath(java.util.Arrays.asList(ee, new CorruptEncoding(ca, corrupt)));
+        CertPath cp = cf.generateCertPath(Arrays.asList(ee, new CorruptEncoding(ca, corrupt)));
 
         CertPathValidatorException e = Assertions.assertThrows(CertPathValidatorException.class,
                 () -> validator().validate(cp, anchoredAtRoot()));
@@ -362,13 +364,13 @@ public class CertPathContractTest
         }
 
         public void checkValidity() { }
-        public void checkValidity(java.util.Date d) { }
+        public void checkValidity(Date d) { }
         public int getVersion() { return delegate.getVersion(); }
-        public java.math.BigInteger getSerialNumber() { return delegate.getSerialNumber(); }
-        public java.security.Principal getIssuerDN() { return delegate.getIssuerDN(); }
-        public java.security.Principal getSubjectDN() { return delegate.getSubjectDN(); }
-        public java.util.Date getNotBefore() { return delegate.getNotBefore(); }
-        public java.util.Date getNotAfter() { return delegate.getNotAfter(); }
+        public BigInteger getSerialNumber() { return delegate.getSerialNumber(); }
+        public Principal getIssuerDN() { return delegate.getIssuerDN(); }
+        public Principal getSubjectDN() { return delegate.getSubjectDN(); }
+        public Date getNotBefore() { return delegate.getNotBefore(); }
+        public Date getNotAfter() { return delegate.getNotAfter(); }
         public byte[] getTBSCertificate() throws CertificateEncodingException
         { return delegate.getTBSCertificate(); }
         public byte[] getSignature() { return delegate.getSignature(); }
@@ -379,13 +381,13 @@ public class CertPathContractTest
         public boolean[] getSubjectUniqueID() { return delegate.getSubjectUniqueID(); }
         public boolean[] getKeyUsage() { return delegate.getKeyUsage(); }
         public int getBasicConstraints() { return delegate.getBasicConstraints(); }
-        public void verify(java.security.PublicKey k) { }
-        public void verify(java.security.PublicKey k, String s) { }
+        public void verify(PublicKey k) { }
+        public void verify(PublicKey k, String s) { }
         public String toString() { return delegate.toString(); }
-        public java.security.PublicKey getPublicKey() { return delegate.getPublicKey(); }
+        public PublicKey getPublicKey() { return delegate.getPublicKey(); }
         public boolean hasUnsupportedCriticalExtension() { return false; }
-        public java.util.Set<String> getCriticalExtensionOIDs() { return delegate.getCriticalExtensionOIDs(); }
-        public java.util.Set<String> getNonCriticalExtensionOIDs() { return delegate.getNonCriticalExtensionOIDs(); }
+        public Set<String> getCriticalExtensionOIDs() { return delegate.getCriticalExtensionOIDs(); }
+        public Set<String> getNonCriticalExtensionOIDs() { return delegate.getNonCriticalExtensionOIDs(); }
         public byte[] getExtensionValue(String oid) { return delegate.getExtensionValue(oid); }
     }
 

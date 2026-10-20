@@ -20,6 +20,8 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.NoSuchProviderException;
+import java.security.Provider;
 
 /**
  * The two single-pass key-derivation functions CMS key agreement layers on
@@ -89,7 +91,7 @@ public final class KeyAgreementKDF
         {
             return MessageDigest.getInstance(digest, providerName);
         }
-        catch (java.security.NoSuchProviderException e)
+        catch (NoSuchProviderException e)
         {
             throw new NoSuchAlgorithmException(
                     "provider " + providerName + " is not installed, so the " + digest
@@ -110,7 +112,7 @@ public final class KeyAgreementKDF
      * one provider and name another in a message — unlike a class that stores
      * both, which must derive one from the other.
      */
-    private static MessageDigest digest(java.security.Provider ownProvider, String providerName,
+    private static MessageDigest digest(Provider ownProvider, String providerName,
                                         String digest)
             throws NoSuchAlgorithmException
     {
@@ -128,7 +130,7 @@ public final class KeyAgreementKDF
     }
 
     /** Instance-bound form; {@code providerName} is the fallback and the message text. */
-    public static byte[] x942(java.security.Provider ownProvider, String providerName,
+    public static byte[] x942(Provider ownProvider, String providerName,
                               String digest, byte[] zz, String wrapOid, int keyLenBytes, byte[] ukm)
             throws NoSuchAlgorithmException
     {
@@ -164,7 +166,7 @@ public final class KeyAgreementKDF
     }
 
     /** Instance-bound form; {@code providerName} is the fallback and the message text. */
-    public static byte[] x963(java.security.Provider ownProvider, String providerName,
+    public static byte[] x963(Provider ownProvider, String providerName,
                               String digest, byte[] zz, int keyLenBytes, byte[] sharedInfo)
             throws NoSuchAlgorithmException
     {

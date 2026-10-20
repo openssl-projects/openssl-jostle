@@ -22,6 +22,7 @@ import java.security.AlgorithmParameters;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.spec.MGF1ParameterSpec;
@@ -102,7 +103,7 @@ public class RSAPSSWithoutJdkProvidersTest
         // the exact lookup whose absence failed 20 tests in RSATest,
         // SLHDSATest and XDHTest when this class first left the registry empty.
         Assertions.assertDoesNotThrow(
-                () -> java.security.SecureRandom.getInstance("SHA1PRNG"),
+                () -> SecureRandom.getInstance("SHA1PRNG"),
                 "SHA1PRNG is unavailable after the restore");
     }
 

@@ -40,6 +40,8 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.AlgorithmParameters;
+import javax.crypto.IllegalBlockSizeException;
 
 /**
  * ML-KEM KTS (key-transport) Cipher for the CMS KEMRecipientInfo path (RFC 9629),
@@ -281,7 +283,7 @@ public class MLKEMKTSCipherSpi
     }
 
     @Override
-    protected void engineInit(int opmode, Key key, java.security.AlgorithmParameters params, SecureRandom random)
+    protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random)
         throws InvalidKeyException, InvalidAlgorithmParameterException
     {
         throw new InvalidAlgorithmParameterException("ML-KEM KTS cipher requires a KTSParameterSpec");
@@ -289,7 +291,7 @@ public class MLKEMKTSCipherSpi
 
     @Override
     protected byte[] engineWrap(Key key)
-        throws javax.crypto.IllegalBlockSizeException, InvalidKeyException
+        throws IllegalBlockSizeException, InvalidKeyException
     {
         if (opmode != Cipher.WRAP_MODE)
         {
@@ -619,7 +621,7 @@ public class MLKEMKTSCipherSpi
     }
 
     @Override
-    protected java.security.AlgorithmParameters engineGetParameters()
+    protected AlgorithmParameters engineGetParameters()
     {
         return null;
     }

@@ -36,6 +36,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.IOException;
 
 /**
  * The digests both KTS ciphers accept as an X9.44 KDF2/KDF3 parameter, and the
@@ -95,7 +96,7 @@ public class KtsKdfDigestPinTest
                 + "; supported: SHA-256, SHA-512, SHAKE128, SHAKE256";
     }
 
-    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest, byte[] otherInfo) throws java.io.IOException
+    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest, byte[] otherInfo) throws IOException
     {
         AlgorithmIdentifier kdf = new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf2,
                 new AlgorithmIdentifier(digest, DERNull.INSTANCE));
@@ -107,7 +108,7 @@ public class KtsKdfDigestPinTest
      * otherInfo feeds the KEK, so two draws would differ whatever the digest
      * did and the comparison would pass vacuously.
      */
-    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest) throws java.io.IOException
+    private static KTSParameterSpec spec(ASN1ObjectIdentifier digest) throws IOException
     {
         byte[] otherInfo = new byte[16];
         RANDOM.nextBytes(otherInfo);

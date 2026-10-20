@@ -45,14 +45,14 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     // order picks. Registrations use these; direct construction stays unbound,
     // and an asymmetric unwrap on an unbound SPI then fails loudly.
     //
-    public AESBlockCipherSpi(java.security.Provider providerInstance)
+    public AESBlockCipherSpi(Provider providerInstance)
     {
         this(null, null, providerInstance);
         osslMode = OSSLMode.ECB;
     }
 
     public AESBlockCipherSpi(OSSLCipher cipher, OSSLMode mode,
-                             java.security.Provider providerInstance)
+                             Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, cipher, mode, "AES", providerInstance);
     }
@@ -75,14 +75,14 @@ public class AESBlockCipherSpi extends BlockCipherSpi
     //
     // The same pair again, NI-bound: what ProvFIPSAES registers.
     //
-    public AESBlockCipherSpi(BlockCipherNI blockCipherNi, java.security.Provider providerInstance)
+    public AESBlockCipherSpi(BlockCipherNI blockCipherNi, Provider providerInstance)
     {
         super(blockCipherNi, null, null, "AES", providerInstance);
         osslMode = OSSLMode.ECB;
     }
 
     public AESBlockCipherSpi(BlockCipherNI blockCipherNi, OSSLCipher cipher, OSSLMode mode,
-                             java.security.Provider providerInstance)
+                             Provider providerInstance)
     {
         super(blockCipherNi, cipher, mode, "AES", providerInstance);
     }

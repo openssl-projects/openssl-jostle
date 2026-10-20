@@ -31,6 +31,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.PublicKey;
 
 /**
  * Regression coverage for {@link KTSParameterSpec}: BouncyCastle's own spec
@@ -245,7 +246,7 @@ public class KTSParameterSpecRegressionTest
         }
     }
 
-    private static void assertRefusedAtInit(String transformation, java.security.PublicKey pub,
+    private static void assertRefusedAtInit(String transformation, PublicKey pub,
                                              byte[] malformedKdfDer) throws Exception
     {
         KTSParameterSpec spec = new KTSParameterSpec.Builder("AESWRAP", 256).withKdfAlgorithm(malformedKdfDer).build();

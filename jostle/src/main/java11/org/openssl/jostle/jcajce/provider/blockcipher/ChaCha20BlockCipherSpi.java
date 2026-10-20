@@ -19,6 +19,7 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * Java 11+ copy of {@link ChaCha20BlockCipherSpi}. Identical to the baseline
@@ -41,13 +42,13 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
 {
     public ChaCha20BlockCipherSpi()
     {
-        this((java.security.Provider) null);
+        this((Provider) null);
     }
 
     //
     // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
     //
-    public ChaCha20BlockCipherSpi(java.security.Provider providerInstance)
+    public ChaCha20BlockCipherSpi(Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, OSSLCipher.CHACHA20, OSSLMode.STREAM, "ChaCha20",
                 providerInstance);

@@ -1,8 +1,11 @@
 package org.openssl.jostle.test.certpath;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.security.cert.CRLException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -10,6 +13,7 @@ import java.security.cert.PKIXParameters;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -129,7 +133,7 @@ public final class PkitsCertificates
         }
         try
         {
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
             int n;
             while ((n = in.read(buf)) > 0)
@@ -233,7 +237,7 @@ public final class PkitsCertificates
         {
             return true;
         }
-        return java.util.Arrays.equals(akid, skid);
+        return Arrays.equals(akid, skid);
     }
 
     /** SKID (2.5.29.14): OCTET STRING wrapping an OCTET STRING. */
@@ -351,8 +355,8 @@ public final class PkitsCertificates
         List<Case> out = new ArrayList<Case>();
         try
         {
-            java.io.BufferedReader r = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(in, "UTF-8"));
+            BufferedReader r = new BufferedReader(
+                    new InputStreamReader(in, "UTF-8"));
             String line;
             while ((line = r.readLine()) != null)
             {

@@ -32,6 +32,7 @@ import java.security.KeyPairGenerator;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.PrivateKey;
 
 /**
  * Cross-implementation agreement for the four TLS hybrid KEM groups: JSL
@@ -273,7 +274,7 @@ public class MLXKEMAgreementTest
     }
 
     private static SecretKeyWithEncapsulation decapsulate(MLXKEMParameterSpec spec,
-                                                          java.security.PrivateKey priv,
+                                                          PrivateKey priv,
                                                           byte[] encapsulation) throws Exception
     {
         KeyGenerator kg = KeyGenerator.getInstance(spec.getName(), JSL);

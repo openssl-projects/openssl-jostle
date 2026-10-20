@@ -25,6 +25,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.Key;
 
 /**
  * AES key wrap on the inverse cipher function, served by JSLFIPS.
@@ -379,7 +380,7 @@ public class FIPSAESKeyWrapInvTest
         // unwrap() THROWS on failure, so non-null asserts nothing: an instance
         // left corrupt that returned the WRONG key would pass. The test is named
         // for staying CORRECT — compare against the CEK that was wrapped.
-        java.security.Key recovered = unwrapper.unwrap(first, "AES", Cipher.SECRET_KEY);
+        Key recovered = unwrapper.unwrap(first, "AES", Cipher.SECRET_KEY);
         Assertions.assertTrue(Arrays.areEqual(firstCek, recovered.getEncoded()),
                 "the failed unwrap left the instance returning the wrong key");
     }

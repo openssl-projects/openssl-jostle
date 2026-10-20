@@ -22,6 +22,7 @@ import javax.crypto.spec.IvParameterSpec;
 import java.security.InvalidKeyException;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.Security;
+import java.security.Key;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -164,7 +165,7 @@ public class BlockCipherNullKeyTest
 
             // 2-arg init.
             assertThrows(InvalidKeyException.class,
-                    () -> cipher.init(Cipher.ENCRYPT_MODE, (java.security.Key) null),
+                    () -> cipher.init(Cipher.ENCRYPT_MODE, (Key) null),
                     xform + ": null key via the 2-arg init");
 
             // 3-arg init, with a VALID spec - the null-key refusal must come
@@ -176,7 +177,7 @@ public class BlockCipherNullKeyTest
                         ? new GCMParameterSpec(128, new byte[ivLen])
                         : new IvParameterSpec(new byte[ivLen]);
                 assertThrows(InvalidKeyException.class,
-                        () -> cipher.init(Cipher.ENCRYPT_MODE, (java.security.Key) null, ps),
+                        () -> cipher.init(Cipher.ENCRYPT_MODE, (Key) null, ps),
                         xform + ": null key via the 3-arg init with a valid spec");
             }
         }
@@ -192,7 +193,7 @@ public class BlockCipherNullKeyTest
     {
         Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding", JostleProvider.PROVIDER_NAME);
         assertThrows(InvalidKeyException.class,
-                () -> cipher.init(Cipher.ENCRYPT_MODE, (java.security.Key) null,
+                () -> cipher.init(Cipher.ENCRYPT_MODE, (Key) null,
                         new IvParameterSpec(new byte[3])),
                 "a null key with a bad IV must still be an InvalidKeyException");
     }

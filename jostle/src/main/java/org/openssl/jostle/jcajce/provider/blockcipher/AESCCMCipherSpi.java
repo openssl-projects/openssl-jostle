@@ -11,6 +11,8 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import java.security.Provider;
+
 /**
  * AES-CCM Cipher SPI. Subclass of {@link CCMCipherSpi} that pre-binds
  * the cipher family to AES. JCE callers reach this via
@@ -23,7 +25,7 @@ public class AESCCMCipherSpi extends CCMCipherSpi
         super(CipherFamily.AES);
     }
 
-    public AESCCMCipherSpi(java.security.Provider providerInstance)
+    public AESCCMCipherSpi(Provider providerInstance)
     {
         super(CipherFamily.AES, providerInstance);
     }
@@ -39,7 +41,7 @@ public class AESCCMCipherSpi extends CCMCipherSpi
         super(CipherFamily.AES, mandatedCipher);
     }
 
-    public AESCCMCipherSpi(OSSLCipher mandatedCipher, java.security.Provider providerInstance)
+    public AESCCMCipherSpi(OSSLCipher mandatedCipher, Provider providerInstance)
     {
         super(CipherFamily.AES, mandatedCipher, providerInstance);
     }
@@ -53,7 +55,7 @@ public class AESCCMCipherSpi extends CCMCipherSpi
         super(cipherNI, CipherFamily.AES);
     }
 
-    public AESCCMCipherSpi(CCMCipherNI cipherNI, java.security.Provider providerInstance)
+    public AESCCMCipherSpi(CCMCipherNI cipherNI, Provider providerInstance)
     {
         super(cipherNI, CipherFamily.AES, providerInstance);
     }
@@ -67,7 +69,7 @@ public class AESCCMCipherSpi extends CCMCipherSpi
     }
 
     public AESCCMCipherSpi(CCMCipherNI cipherNI, OSSLCipher mandatedCipher,
-                           java.security.Provider providerInstance)
+                           Provider providerInstance)
     {
         super(cipherNI, CipherFamily.AES, mandatedCipher, providerInstance);
     }

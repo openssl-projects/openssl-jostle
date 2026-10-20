@@ -30,6 +30,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.SecureRandom;
 import java.security.Security;
+import javax.crypto.KeyGenerator;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -451,7 +452,7 @@ public class ChaCha20Poly1305AgreementTest
         Assertions.assertNotNull(Cipher.getInstance("CHACHA20-POLY1305", JSL));
         Assertions.assertNotNull(Cipher.getInstance("1.2.840.113549.1.9.16.3.18", JSL));
 
-        javax.crypto.KeyGenerator kg = javax.crypto.KeyGenerator.getInstance("ChaCha20-Poly1305", JSL);
+        KeyGenerator kg = KeyGenerator.getInstance("ChaCha20-Poly1305", JSL);
         SecretKey k = kg.generateKey();
         Assertions.assertEquals(32, k.getEncoded().length);
     }

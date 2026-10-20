@@ -22,6 +22,7 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -143,7 +144,7 @@ public class DSANoneWithDSASignatureTest
 
         // BC signs raw → Jostle verifies raw. Use the Jostle private
         // key imported into BC via PKCS#8.
-        java.security.PrivateKey bcPriv = bcKf.generatePrivate(
+        PrivateKey bcPriv = bcKf.generatePrivate(
                 new PKCS8EncodedKeySpec(joKp.getPrivate().getEncoded()));
         Signature bcSigner = Signature.getInstance("NONEwithDSA", BouncyCastleProvider.PROVIDER_NAME);
         bcSigner.initSign(bcPriv);

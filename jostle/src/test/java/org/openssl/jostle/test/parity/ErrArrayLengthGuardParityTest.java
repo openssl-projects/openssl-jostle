@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -146,7 +147,7 @@ public class ErrArrayLengthGuardParityTest
         {
             throw new UncheckedIOException(e);
         }
-        java.util.Collections.sort(out);
+        Collections.sort(out);
         return out;
     }
 

@@ -160,6 +160,7 @@ public final class CCMCells
             int off = 5;
             byte[] out = random(off + pt.length + 7);
             byte[] expected = Arrays.clone(out);
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             java.util.Arrays.fill(expected, off, off + pt.length, (byte) 0);
 
             long ref = ctx(ni);

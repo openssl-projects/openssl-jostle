@@ -78,7 +78,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
      * The provider INSTANCE this SPI belongs to, or null when constructed
      * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public EdKeyFactorySpi()
     {
@@ -90,7 +90,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
         this(edServiceNI, specNI, asn1NI, fixedType, null);
     }
 
-    public EdKeyFactorySpi(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType fixedType, java.security.Provider providerInstance)
+    public EdKeyFactorySpi(EDServiceNI edServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType fixedType, Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         assert fixedType != null;
@@ -373,7 +373,7 @@ public class EdKeyFactorySpi extends KeyFactorySpi
             // re-decode rather than refuse.
             if (!s.usableBy(providerInstance))
             {
-                throw new java.security.InvalidKeyException(
+                throw new InvalidKeyException(
                         "key was created by a different Jostle provider instance; encode it "
                                 + "with getEncoded() and decode it through this provider's "
                                 + "KeyFactory");

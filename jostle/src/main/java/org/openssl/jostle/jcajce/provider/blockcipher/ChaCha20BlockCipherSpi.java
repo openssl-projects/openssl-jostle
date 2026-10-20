@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import java.security.Provider;
 
 /**
  * Raw ChaCha20 stream cipher (RFC 8439) — no authentication.
@@ -32,13 +33,13 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
 {
     public ChaCha20BlockCipherSpi()
     {
-        this((java.security.Provider) null);
+        this((Provider) null);
     }
 
     //
     // Provider-binding constructor (MT-10) - see AESBlockCipherSpi.
     //
-    public ChaCha20BlockCipherSpi(java.security.Provider providerInstance)
+    public ChaCha20BlockCipherSpi(Provider providerInstance)
     {
         super(NISelector.BlockCipherNI, OSSLCipher.CHACHA20, OSSLMode.STREAM, "ChaCha20",
                 providerInstance);

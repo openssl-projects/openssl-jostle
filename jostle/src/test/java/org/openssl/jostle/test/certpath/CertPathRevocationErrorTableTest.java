@@ -10,6 +10,7 @@ import java.security.Security;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -32,7 +33,7 @@ public class CertPathRevocationErrorTableTest
 
     /** X509_V_* codes that mean "revocation status could not be determined". */
     static final Set<Integer> CRL_FAULTS = new HashSet<Integer>(
-            java.util.Arrays.asList(3, 8, 11, 12, 33, 35, 36, 44, 54));
+            Arrays.asList(3, 8, 11, 12, 33, 35, 36, 44, 54));
 
     @BeforeAll
     static void before()

@@ -54,6 +54,7 @@ public class ContextParameterSpec implements AlgorithmParameterSpec
     @Override
     public int hashCode()
     {
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         return java.util.Arrays.hashCode(context);
     }
 }

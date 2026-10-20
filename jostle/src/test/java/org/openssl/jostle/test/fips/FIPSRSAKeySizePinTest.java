@@ -17,9 +17,14 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.math.BigInteger;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
+import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Security;
 import java.security.Signature;
 import java.security.spec.RSAPublicKeySpec;
 
@@ -67,7 +72,7 @@ public class FIPSRSAKeySizePinTest
         // The verify-at-1024 row needs a 1024-bit key, which the module cannot
         // generate; JSL must therefore be registered here to make one.
         jsl = new JostleProvider();
-        java.security.Security.addProvider(jsl);
+        Security.addProvider(jsl);
     }
 
     /** Below the module's keygen floor: measured REFUSE on 3.1.2 and 3.5.8. */
@@ -146,8 +151,8 @@ public class FIPSRSAKeySizePinTest
         // early with a typed exception; the module refuses later. Both refuse
         // 2047 and both accept 2048 - that is the agreement.
         KeyPairGenerator g = KeyPairGenerator.getInstance("RSA", fips);
-        java.security.InvalidParameterException e = Assertions.assertThrows(
-                java.security.InvalidParameterException.class,
+        InvalidParameterException e = Assertions.assertThrows(
+                InvalidParameterException.class,
                 () -> g.initialize(2047),
                 "JSLFIPS must refuse 2047 early and typed");
         // The wording changed deliberately in MT-66: validateKeySize now
@@ -179,10 +184,10 @@ public class FIPSRSAKeySizePinTest
         // DSA generation, and what a real caller on such a module must do.
         KeyPairGenerator jslGen = KeyPairGenerator.getInstance("RSA", jsl);
         jslGen.initialize(1024);
-        java.security.KeyPair kp = jslGen.generateKeyPair();
+        KeyPair kp = jslGen.generateKeyPair();
 
         byte[] msg = new byte[32];
-        new java.security.SecureRandom().nextBytes(msg);
+        new SecureRandom().nextBytes(msg);
 
         Signature signer = Signature.getInstance("SHA256withRSA", jsl);
         signer.initSign(kp.getPrivate());
@@ -192,7 +197,7 @@ public class FIPSRSAKeySizePinTest
         // getEncoded() -> decode through the target provider's KeyFactory is
         // the ONLY sanctioned crossing (MT-14): a key object belongs to the
         // provider instance that made it.
-        java.security.PublicKey fipsPub =
+        PublicKey fipsPub =
                 FIPSTestUtil.crossPublic(kp.getPublic(), "RSA", "JSLFIPS");
         Signature v = Signature.getInstance("SHA256withRSA", fips);
         v.initVerify(fipsPub);

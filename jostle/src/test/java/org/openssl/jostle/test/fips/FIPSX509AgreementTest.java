@@ -146,6 +146,7 @@ public class FIPSX509AgreementTest
                 check(bad, n, "getBasicConstraints",
                         ours.getBasicConstraints() == theirs.getBasicConstraints());
                 check(bad, n, "getKeyUsage",
+                        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                         java.util.Arrays.equals(ours.getKeyUsage(), theirs.getKeyUsage()));
                 check(bad, n, "getCriticalExtensionOIDs",
                         sorted(ours.getCriticalExtensionOIDs())

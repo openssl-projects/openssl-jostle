@@ -24,6 +24,7 @@ import org.openssl.jostle.test.spec.KemKdfCases;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -64,8 +65,8 @@ public class FIPSKemKdfSizingLimitTest
         Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768"),
                 "the loaded FIPS module implements no ML-KEM (3.1.2)");
         List<String> table = new ArrayList<String>();
-        List<String> names = new ArrayList<String>(java.util.Arrays.asList(KemKdfCases.ML_KEM));
-        names.addAll(java.util.Arrays.asList(KemKdfCases.HYBRIDS));
+        List<String> names = new ArrayList<String>(Arrays.asList(KemKdfCases.ML_KEM));
+        names.addAll(Arrays.asList(KemKdfCases.HYBRIDS));
         for (String name : names)
         {
             if (fips.getService("KeyGenerator", name) == null)

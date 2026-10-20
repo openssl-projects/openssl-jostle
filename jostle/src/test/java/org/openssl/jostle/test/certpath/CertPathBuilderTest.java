@@ -7,6 +7,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.test.provider.StrippedJostleProvider;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.Provider;
 import java.security.Security;
 import java.security.cert.CertPathBuilder;
 import java.security.cert.CertPathBuilderException;
@@ -220,7 +221,7 @@ public class CertPathBuilderTest
         Assertions.assertNotNull(Security.getProvider(JostleProvider.PROVIDER_NAME),
                 "the capable provider must be registered, or the test proves nothing");
 
-        java.security.Provider stripped =
+        Provider stripped =
                 new StrippedJostleProvider(
                         "CertificateFactory", "X.509");
         Assertions.assertNull(stripped.getService("CertificateFactory", "X.509"),

@@ -33,6 +33,7 @@ import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.InvalidKeyException;
 
 /**
  * Cross-provider agreement for {@code Cipher.ETSIKEMwithSHA256} on the FIPS
@@ -271,8 +272,8 @@ public class FIPSETSIKEMAgreementTest
         for (int mode : new int[]{Cipher.WRAP_MODE, Cipher.UNWRAP_MODE})
         {
             Key key = mode == Cipher.WRAP_MODE ? jslPair.getPublic() : jslPair.getPrivate();
-            java.security.InvalidKeyException e = Assertions.assertThrows(
-                    java.security.InvalidKeyException.class, () ->
+            InvalidKeyException e = Assertions.assertThrows(
+                    InvalidKeyException.class, () ->
                     {
                         Cipher c = Cipher.getInstance(KEM, fips);
                         c.init(mode, key, new IESKEMParameterSpec(new byte[8]));

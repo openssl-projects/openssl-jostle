@@ -33,6 +33,7 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * JCE-level tests for the DH KeyAgreement SPI.
@@ -465,7 +466,7 @@ public class DHKeyAgreementTest
             ka.generateSecret("   ");
             Assertions.fail("expected NoSuchAlgorithmException for blank algorithm name");
         }
-        catch (java.security.NoSuchAlgorithmException expected)
+        catch (NoSuchAlgorithmException expected)
         {
             Assertions.assertEquals("algorithm name must be non-null and non-blank",
                     expected.getMessage());

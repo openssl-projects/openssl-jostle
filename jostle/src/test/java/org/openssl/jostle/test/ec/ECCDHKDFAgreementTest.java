@@ -30,6 +30,9 @@ import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 
 /**
  * RFC 6637 §7 {@code ECCDHwithSHA{256,384,512}CKDF} — the SP 800-56C one-step
@@ -78,13 +81,13 @@ public class ECCDHKDFAgreementTest
 
     private static PrivateKey bcPrivate(PrivateKey k) throws Exception
     {
-        return java.security.KeyFactory.getInstance("EC", BC)
+        return KeyFactory.getInstance("EC", BC)
                 .generatePrivate(new PKCS8EncodedKeySpec(k.getEncoded()));
     }
 
     private static PublicKey bcPublic(PublicKey k) throws Exception
     {
-        return java.security.KeyFactory.getInstance("EC", BC)
+        return KeyFactory.getInstance("EC", BC)
                 .generatePublic(new X509EncodedKeySpec(k.getEncoded()));
     }
 
@@ -170,16 +173,16 @@ public class ECCDHKDFAgreementTest
         {
             KeyPair alice = generate("P-256");
 
-            Assertions.assertThrows(java.security.InvalidKeyException.class, () ->
+            Assertions.assertThrows(InvalidKeyException.class, () ->
                     KeyAgreement.getInstance(name, JSL).init(alice.getPrivate()),
                     name + ": init(Key) with no Param must be refused typed");
 
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     KeyAgreement.getInstance(name, JSL).init(alice.getPrivate(),
                             new UserKeyingMaterialSpec(null)),
                     name + ": a null Param must be refused typed");
 
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     KeyAgreement.getInstance(name, JSL).init(alice.getPrivate(),
                             new UserKeyingMaterialSpec(new byte[0])),
                     name + ": an empty Param must be refused typed");
@@ -193,7 +196,7 @@ public class ECCDHKDFAgreementTest
         {
             KeyPair alice = generate("P-256");
             KeyAgreement ka = KeyAgreement.getInstance(name, JSL);
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     ka.init(alice.getPrivate(),
                             new org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec(new byte[16])),
                     name + ": BC's own UserKeyingMaterialSpec must be refused typed");

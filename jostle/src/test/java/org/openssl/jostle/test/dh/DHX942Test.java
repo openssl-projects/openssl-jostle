@@ -39,6 +39,8 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
+import java.security.AlgorithmParameters;
+import java.security.InvalidAlgorithmParameterException;
 
 /**
  * X9.42 ({@code dhpublicnumber}) DH, folded into the single {@code DH}
@@ -265,6 +267,7 @@ public class DHX942Test
 
         for (int extra : new int[]{1, 37})
         {
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             byte[] pub = java.util.Arrays.copyOf(spki, spki.length + extra);
             Assertions.assertThrows(InvalidKeySpecException.class,
                     () -> jsl.generatePublic(new X509EncodedKeySpec(pub)),
@@ -292,8 +295,8 @@ public class DHX942Test
         org.bouncycastle.jcajce.spec.DHDomainParameterSpec foreign =
                 new org.bouncycastle.jcajce.spec.DHDomainParameterSpec(x942.getP(), x942.getQ(), x942.getG());
 
-        java.security.AlgorithmParameters params =
-                java.security.AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        AlgorithmParameters params =
+                AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
         InvalidParameterSpecException e = Assertions.assertThrows(
                 InvalidParameterSpecException.class, () -> params.init(foreign));
         Assertions.assertTrue(e.getMessage().contains(foreign.getClass().getName()),
@@ -310,8 +313,8 @@ public class DHX942Test
                 new org.bouncycastle.jcajce.spec.DHDomainParameterSpec(x942.getP(), x942.getQ(), x942.getG());
 
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
-        java.security.InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                java.security.InvalidAlgorithmParameterException.class, () -> kpg.initialize(foreign));
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class, () -> kpg.initialize(foreign));
         Assertions.assertTrue(e.getMessage().contains(foreign.getClass().getName()),
                 "message must name the refused class: " + e.getMessage());
         Assertions.assertTrue(e.getMessage().contains(DHDomainParameterSpec.class.getName())
@@ -329,14 +332,14 @@ public class DHX942Test
     @Test
     public void jostleAndPlainDhParameterSpecsAreStillAcceptedByAlgorithmParameters() throws Exception
     {
-        java.security.AlgorithmParameters x942Params =
-                java.security.AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        AlgorithmParameters x942Params =
+                AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
         x942Params.init(x942);
         Assertions.assertEquals(x942.getQ(),
                 x942Params.getParameterSpec(DHDomainParameterSpec.class).getQ());
 
-        java.security.AlgorithmParameters pkcs3Params =
-                java.security.AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        AlgorithmParameters pkcs3Params =
+                AlgorithmParameters.getInstance("DH", JostleProvider.PROVIDER_NAME);
         pkcs3Params.init(pkcs3);
         Assertions.assertEquals(pkcs3.getP(),
                 pkcs3Params.getParameterSpec(DHParameterSpec.class).getP());

@@ -204,6 +204,7 @@ public class Argon2Test
         Assertions.assertEquals((keyBits * 2) >> 3, longer.length, "key length ignored");
         // Argon2 is not a stream: a longer request is not the short key extended.
         Assertions.assertFalse(
+                // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                 Arrays.areEqual(base, java.util.Arrays.copyOf(longer, base.length)),
                 "a longer key must not be the shorter key extended");
     }

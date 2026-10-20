@@ -23,6 +23,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 
 /**
  * Mac through the FIPS provider ("JSLFIPS"): the approved HMACs and AES-CMAC
@@ -113,7 +114,7 @@ public class FIPSMacTest
                 tampered[RANDOM.nextInt(tampered.length)] ^= (byte) (1 + RANDOM.nextInt(255));
                 Mac fips2 = Mac.getInstance(name, JostleFIPSProvider.PROVIDER_NAME);
                 fips2.init(key);
-                Assertions.assertFalse(java.util.Arrays.equals(tag, fips2.doFinal(tampered)),
+                Assertions.assertFalse(Arrays.equals(tag, fips2.doFinal(tampered)),
                         name + ": tampered message produced identical MAC");
 
                 // Ensure the "different" key genuinely differs. At the 14-byte
@@ -127,10 +128,10 @@ public class FIPSMacTest
                             ? randomKey("AES", key.getEncoded().length)
                             : randomKey(name, key.getEncoded().length);
                 }
-                while (java.util.Arrays.equals(key.getEncoded(), otherKey.getEncoded()));
+                while (Arrays.equals(key.getEncoded(), otherKey.getEncoded()));
                 Mac fips3 = Mac.getInstance(name, JostleFIPSProvider.PROVIDER_NAME);
                 fips3.init(otherKey);
-                Assertions.assertFalse(java.util.Arrays.equals(tag, fips3.doFinal(message)),
+                Assertions.assertFalse(Arrays.equals(tag, fips3.doFinal(message)),
                         name + ": different key produced identical MAC");
             }
         }

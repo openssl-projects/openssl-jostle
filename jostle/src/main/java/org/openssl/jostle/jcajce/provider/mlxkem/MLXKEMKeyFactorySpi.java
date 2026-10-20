@@ -24,6 +24,7 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyFactorySpi;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
@@ -60,11 +61,11 @@ public class MLXKEMKeyFactorySpi extends KeyFactorySpi
     }
 
     /** The provider instance this SPI belongs to; null when unbound. MT-14. */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public MLXKEMKeyFactorySpi(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
                                MLXKEMParameterSpec parameterSpec,
-                               java.security.Provider providerInstance)
+                               Provider providerInstance)
     {
         this.mlxkemServiceNI = mlxkemServiceNI;
         this.specNI = specNI;
@@ -75,7 +76,7 @@ public class MLXKEMKeyFactorySpi extends KeyFactorySpi
     /**
      * The SpecNI this factory's keys are bound to.
      */
-    java.security.Provider ownProviderInstance()
+    Provider ownProviderInstance()
     {
         return providerInstance;
     }

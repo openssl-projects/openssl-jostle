@@ -17,6 +17,8 @@ import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 
 /**
  * Chunking as a contract DIMENSION, swept across every transformation where
@@ -415,7 +417,7 @@ public class ChunkingContractTest
                 failures.add(tf + " initialised without parameters - it is now reachable "
                         + "and needs a chunking row in this matrix");
             }
-            catch (java.security.InvalidKeyException e)
+            catch (InvalidKeyException e)
             {
                 if (!"mode not supported for cipher".equals(e.getMessage()))
                 {
@@ -436,7 +438,7 @@ public class ChunkingContractTest
                 failures.add(tf + " initialised with parameters - it is now reachable "
                         + "and needs a chunking row in this matrix");
             }
-            catch (java.security.InvalidAlgorithmParameterException e)
+            catch (InvalidAlgorithmParameterException e)
             {
                 if (!"mode not supported for cipher".equals(e.getMessage()))
                 {

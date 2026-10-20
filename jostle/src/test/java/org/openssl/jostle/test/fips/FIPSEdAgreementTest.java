@@ -43,7 +43,10 @@ import java.security.Signature;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Cross-provider agreement for the FIPS provider's EdDSA surface.
@@ -418,8 +421,9 @@ public class FIPSEdAgreementTest
      * does not register is simply absent from the registered set, so this is a
      * ceiling on coverage rather than an expectation of registration.
      */
-    private static final java.util.SortedSet<String> COVERED_SIGNATURES =
-            java.util.Collections.unmodifiableSortedSet(new java.util.TreeSet<String>(
+    private static final SortedSet<String> COVERED_SIGNATURES =
+            Collections.unmodifiableSortedSet(new TreeSet<String>(
+                    // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
                     java.util.Arrays.asList(
                             "EDDSA", "ED25519", "ED448",          // BC JCE
                             "ED25519PH", "ED448PH", "ED25519CTX"  // BC lightweight
@@ -525,9 +529,9 @@ public class FIPSEdAgreementTest
     @Test
     public void everyRegisteredEdSignatureIsCovered()
     {
-        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
 
-        java.util.SortedSet<String> registered = new java.util.TreeSet<String>();
+        SortedSet<String> registered = new TreeSet<String>();
         for (Provider.Service svc : provider.getServices())
         {
             String cn = svc.getClassName();
@@ -538,7 +542,7 @@ public class FIPSEdAgreementTest
             }
         }
 
-        java.util.SortedSet<String> uncovered = new java.util.TreeSet<String>(registered);
+        SortedSet<String> uncovered = new TreeSet<String>(registered);
         uncovered.removeAll(COVERED_SIGNATURES);
         Assertions.assertTrue(uncovered.isEmpty(),
                 "JSLFIPS registers Ed Signature services with no agreement coverage in this class: "
@@ -638,7 +642,7 @@ public class FIPSEdAgreementTest
     @Test
     public void everyRegisteredEdKeyServiceIsDriven() throws Exception
     {
-        java.security.Provider provider = FIPSTestUtil.assumeFipsProvider();
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
         final SecureRandom sr = seededRandom("everyRegisteredEdKeyServiceIsDriven");
 
         // EDDSA is jostle's own generic name and not a module algorithm, so

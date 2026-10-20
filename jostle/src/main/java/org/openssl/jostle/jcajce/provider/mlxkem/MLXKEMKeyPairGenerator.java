@@ -24,6 +24,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -69,7 +70,7 @@ public class MLXKEMKeyPairGenerator extends KeyPairGenerator
      * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public MLXKEMKeyPairGenerator(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
                                   MLXKEMParameterSpec parameterSpec)
@@ -78,7 +79,7 @@ public class MLXKEMKeyPairGenerator extends KeyPairGenerator
     }
 
     public MLXKEMKeyPairGenerator(MLXKEMServiceNI mlxkemServiceNI, SpecNI specNI,
-                                  MLXKEMParameterSpec parameterSpec, java.security.Provider providerInstance)
+                                  MLXKEMParameterSpec parameterSpec, Provider providerInstance)
     {
         super(parameterSpec.getName());
         this.providerInstance = providerInstance;

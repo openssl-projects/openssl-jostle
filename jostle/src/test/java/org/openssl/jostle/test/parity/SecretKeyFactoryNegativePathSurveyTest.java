@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import javax.crypto.spec.DESKeySpec;
+import javax.crypto.SecretKey;
 
 /**
  * MT-31 Group B, SecretKeyFactory: 42 names across 7 SPI classes.
@@ -152,12 +153,12 @@ public class SecretKeyFactoryNegativePathSurveyTest
                 }
                 case TRANSLATE_NULL_KEY:
                 {
-                    javax.crypto.SecretKey k = kf.translateKey(null);
+                    SecretKey k = kf.translateKey(null);
                     return k == null ? null : k.getEncoded();
                 }
                 case TRANSLATE_FOREIGN_KEY:
                 {
-                    javax.crypto.SecretKey k = kf.translateKey(new SecretKeySpec(new byte[16], "AES"));
+                    SecretKey k = kf.translateKey(new SecretKeySpec(new byte[16], "AES"));
                     return k == null ? null : k.getEncoded();
                 }
                 // The PBEKeySpec constructor itself rejects some of these, so

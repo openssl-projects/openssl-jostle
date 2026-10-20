@@ -315,6 +315,7 @@ public class KDFAgreementTest
         Assertions.assertNotNull(provider, "JSL provider is not registered");
 
         Set<String> covered = new TreeSet<String>();
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         covered.addAll(java.util.Arrays.asList(PBKDF2_8BIT));
         covered.addAll(java.util.Arrays.asList(PBKDF2_BC_JCE));
         covered.addAll(java.util.Arrays.asList(PBKDF2_BC_LOWLEVEL));

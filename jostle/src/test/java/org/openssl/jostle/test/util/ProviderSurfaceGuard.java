@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.HashMap;
 
 /**
  * The completeness guard a family's agreement class carries: every service the
@@ -48,10 +49,10 @@ public final class ProviderSurfaceGuard
      * ALGORITHM name against what the registrar independently wrote as the
      * CLASS name — two declarations, not the provider compared against itself.
      */
-    public static java.util.Map<String, String> registeredClassNames(Provider provider, String prefix,
+    public static Map<String, String> registeredClassNames(Provider provider, String prefix,
                                                                      String[] types)
     {
-        java.util.Map<String, String> out = new java.util.HashMap<String, String>();
+        Map<String, String> out = new HashMap<String, String>();
         Set<String> wanted = new HashSet<String>(Arrays.asList(types));
 
         for (Provider.Service s : provider.getServices())
@@ -95,10 +96,10 @@ public final class ProviderSurfaceGuard
      * {@code JostleProvider.getService} collects attributes under the name it
      * was ASKED for, so resolving through an alias sees none of the primary's.
      */
-    public static java.util.Map<String, String> registeredAttribute(Provider provider, String prefix,
+    public static Map<String, String> registeredAttribute(Provider provider, String prefix,
                                                                     String[] types, String attribute)
     {
-        java.util.Map<String, String> out = new java.util.HashMap<String, String>();
+        Map<String, String> out = new HashMap<String, String>();
         Set<String> wanted = new HashSet<String>(Arrays.asList(types));
 
         for (Provider.Service s : provider.getServices())

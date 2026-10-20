@@ -22,6 +22,8 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
 import java.security.interfaces.ECPublicKey;
@@ -88,7 +90,7 @@ public class ECKeyFactoryWithoutJdkProvidersRegressionTest
         }
 
         Assertions.assertDoesNotThrow(
-                () -> java.security.SecureRandom.getInstance("SHA1PRNG"),
+                () -> SecureRandom.getInstance("SHA1PRNG"),
                 "SHA1PRNG is unavailable after the restore");
     }
 
@@ -123,7 +125,7 @@ public class ECKeyFactoryWithoutJdkProvidersRegressionTest
             ECPublicKeySpec rawSpec = new ECPublicKeySpec(originalPub.getW(), originalPub.getParams());
 
             KeyFactory kf = KeyFactory.getInstance("EC", "JSL");
-            java.security.PublicKey rebuilt = kf.generatePublic(rawSpec);
+            PublicKey rebuilt = kf.generatePublic(rawSpec);
 
             Assertions.assertTrue(Arrays.areEqual(originalPub.getEncoded(), rebuilt.getEncoded()),
                     curveName + ": rebuilt public key's encoding must match the original's");

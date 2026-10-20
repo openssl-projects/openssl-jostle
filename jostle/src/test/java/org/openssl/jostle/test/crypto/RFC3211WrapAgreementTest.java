@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import javax.crypto.IllegalBlockSizeException;
 
 /**
  * RFC 3211 key wrap against BouncyCastle.
@@ -242,7 +243,7 @@ public class RFC3211WrapAgreementTest
             byte[] iv = rand(Rfc3211WrapFamilies.blockOf(alg));
             byte[] cek = rand(256);
 
-            Assertions.assertThrows(javax.crypto.IllegalBlockSizeException.class,
+            Assertions.assertThrows(IllegalBlockSizeException.class,
                     () -> wrap(JSL, alg, kek, iv, cek),
                     alg + ": a 256-byte CEK must be refused with the declared type");
             Assertions.assertThrows(IllegalArgumentException.class,

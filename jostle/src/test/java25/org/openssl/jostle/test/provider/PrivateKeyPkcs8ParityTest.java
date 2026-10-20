@@ -35,6 +35,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.Provider;
+import java.security.Security;
 import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.EdECPrivateKey;
@@ -109,6 +110,7 @@ public class PrivateKeyPkcs8ParityTest
     private static Provider bc;
 
     /** Byte-identical PKCS#8 from shared material. */
+    // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
     private static final TreeSet<String> CELLS = new TreeSet<String>(java.util.Arrays.asList(
             "RSA", "DSA", "DH",
             "ML-DSA-44", "ML-DSA-65", "ML-DSA-87",
@@ -143,8 +145,8 @@ public class PrivateKeyPkcs8ParityTest
     {
         jsl = new JostleProvider();
         bc = new BouncyCastleProvider();
-        java.security.Security.addProvider(jsl);
-        java.security.Security.addProvider(bc);
+        Security.addProvider(jsl);
+        Security.addProvider(bc);
     }
 
     // ---- the completeness guard -----------------------------------------

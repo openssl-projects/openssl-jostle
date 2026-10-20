@@ -303,7 +303,7 @@ public class ECDSASignatureSpi extends SignatureSpi
         }
         catch (Exception e)
         {
-            throw new java.security.ProviderException("unable to reinitialise ECDSA signature engine", e);
+            throw new ProviderException("unable to reinitialise ECDSA signature engine", e);
         }
     }
 

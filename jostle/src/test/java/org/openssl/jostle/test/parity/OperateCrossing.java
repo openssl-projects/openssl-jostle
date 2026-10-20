@@ -28,6 +28,7 @@ import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.KeyGenerator;
 
 /**
  * The bidirectional operate-crossing for the two generator surfaces.
@@ -201,7 +202,7 @@ public final class OperateCrossing
     {
         try
         {
-            javax.crypto.KeyGenerator g = javax.crypto.KeyGenerator.getInstance(kgAlgorithm, producer);
+            KeyGenerator g = KeyGenerator.getInstance(kgAlgorithm, producer);
             if (keySize > 0)
             {
                 g.init(keySize);
@@ -268,7 +269,7 @@ public final class OperateCrossing
     {
         try
         {
-            javax.crypto.KeyGenerator g = javax.crypto.KeyGenerator.getInstance(kgAlgorithm, producer);
+            KeyGenerator g = KeyGenerator.getInstance(kgAlgorithm, producer);
             if (keySize > 0)
             {
                 g.init(keySize);

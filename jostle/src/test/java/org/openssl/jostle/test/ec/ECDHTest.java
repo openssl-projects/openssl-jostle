@@ -37,6 +37,7 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.interfaces.ECPublicKey;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * JCE-level tests for the ECDH KeyAgreement SPI. Covers:
@@ -611,7 +612,7 @@ public class ECDHTest
                 Assertions.fail("expected NoSuchAlgorithmException for "
                         + (bad == null ? "null" : "\"" + bad + "\""));
             }
-            catch (java.security.NoSuchAlgorithmException expected)
+            catch (NoSuchAlgorithmException expected)
             {
                 Assertions.assertEquals(
                         "algorithm name must be non-null and non-blank",

@@ -26,6 +26,7 @@ import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
 import java.security.Security;
+import java.util.Arrays;
 
 public class ScryptOpsTest
 {
@@ -201,7 +202,7 @@ public class ScryptOpsTest
         for (int i = 0; i != codes.length; i++)
         {
             byte[] out = new byte[64];
-            java.util.Arrays.fill(out, (byte) 0xAA);
+            Arrays.fill(out, (byte) 0xAA);
             byte[] before = out.clone();
             Assertions.assertEquals(codes[i],
                     kdfNI.scrypt(new byte[8], new byte[16], cases[i][0], 1, 1, out, 8, cases[i][1]));

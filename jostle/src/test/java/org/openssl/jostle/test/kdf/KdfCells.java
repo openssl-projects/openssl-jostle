@@ -215,6 +215,7 @@ public final class KdfCells
         byte[] buf = random(len + 16);
         byte[] before = Arrays.clone(buf);
         Assertions.assertEquals(0, d.into(buf, 8, len), what);
+        // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
         Assertions.assertArrayEquals(java.util.Arrays.copyOfRange(before, 0, 8),
                 java.util.Arrays.copyOfRange(buf, 0, 8), what + " prefix");
         Assertions.assertArrayEquals(alone, java.util.Arrays.copyOfRange(buf, 8, 8 + len), what + " window");

@@ -36,6 +36,8 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.InvalidKeyException;
+import java.security.Provider;
 
 /**
  * KeyFactorySpi for finite-field Diffie-Hellman. Supports the
@@ -66,7 +68,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
      * The provider INSTANCE this SPI belongs to, or null when constructed
      * outside any provider. MT-14; see {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public DHKeyFactorySpi()
     {
@@ -78,7 +80,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         this(dhServiceNI, specNI, asn1NI, null);
     }
 
-    public DHKeyFactorySpi(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI, java.security.Provider providerInstance)
+    public DHKeyFactorySpi(DHServiceNI dhServiceNI, SpecNI specNI, Asn1Ni asn1NI, Provider providerInstance)
     {
         this.providerInstance = providerInstance;
         this.dhServiceNI = dhServiceNI;
@@ -90,7 +92,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
      * The NI backend this factory allocates keys in - used by the import
      * helpers to reject keys created by the other Jostle provider.
      */
-    java.security.Provider ownProviderInstance()
+    Provider ownProviderInstance()
     {
         return providerInstance;
     }
@@ -270,7 +272,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
     }
 
     @Override
-    protected Key engineTranslateKey(Key key) throws java.security.InvalidKeyException
+    protected Key engineTranslateKey(Key key) throws InvalidKeyException
     {
         if (key instanceof JODHPublicKey || key instanceof JODHPrivateKey)
         {
@@ -284,7 +286,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             // re-decode rather than refuse.
             if (!s.usableBy(providerInstance))
             {
-                throw new java.security.InvalidKeyException(
+                throw new InvalidKeyException(
                         "key was created by a different Jostle provider instance; encode it "
                                 + "with getEncoded() and decode it through this provider's "
                                 + "KeyFactory");
@@ -293,7 +295,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         }
         if (key == null)
         {
-            throw new java.security.InvalidKeyException("key is null");
+            throw new InvalidKeyException("key is null");
         }
         // Foreign DH key — re-encode and decode through us so we
         // own the EVP_PKEY.
@@ -303,7 +305,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             encoded = key.getEncoded();
             if (encoded == null)
             {
-                throw new java.security.InvalidKeyException("foreign key has no encoded form");
+                throw new InvalidKeyException("foreign key has no encoded form");
             }
             if (key instanceof PrivateKey)
             {
@@ -313,13 +315,13 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         }
         catch (InvalidKeySpecException e)
         {
-            throw new java.security.InvalidKeyException(e.getMessage(), e);
+            throw new InvalidKeyException(e.getMessage(), e);
         }
         catch (RuntimeException e)
         {
             // A hostile/broken foreign key can throw from getEncoded();
             // surface the typed exception the translate contract requires.
-            throw new java.security.InvalidKeyException("unable to translate key", e);
+            throw new InvalidKeyException("unable to translate key", e);
         }
         finally
         {

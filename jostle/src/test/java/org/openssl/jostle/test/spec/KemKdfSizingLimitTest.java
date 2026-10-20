@@ -28,6 +28,7 @@ import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 
 /**
  * The secret-producer sizing rows for JSL's KEM {@code KeyGenerator}s, on every ML-KEM parameter set and every
@@ -55,8 +56,8 @@ public class KemKdfSizingLimitTest
     public void everyKemAnswersEverySizingRow() throws Exception
     {
         List<String> table = new ArrayList<String>();
-        List<String> names = new ArrayList<String>(java.util.Arrays.asList(KemKdfCases.ML_KEM));
-        names.addAll(java.util.Arrays.asList(KemKdfCases.HYBRIDS));
+        List<String> names = new ArrayList<String>(Arrays.asList(KemKdfCases.ML_KEM));
+        names.addAll(Arrays.asList(KemKdfCases.HYBRIDS));
         for (String name : names)
         {
             int held = KemKdfCases.secretBits(jsl, name);

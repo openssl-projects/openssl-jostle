@@ -34,15 +34,27 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
 import java.security.PrivateKey;
+import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
@@ -149,7 +161,7 @@ public class KSServiceAgreementTest
                 "CN=Jostle localKeyId Agreement", BigInteger.valueOf(99));
 
         byte[] keyId = new byte[20];
-        new java.security.SecureRandom().nextBytes(keyId);
+        new SecureRandom().nextBytes(keyId);
 
         OutputEncryptor keyEncryptor = new JcePKCSPBEOutputEncryptorBuilder(
                 NISTObjectIdentifiers.id_aes256_CBC)
@@ -379,7 +391,7 @@ public class KSServiceAgreementTest
     {
         for (String name : new String[]{"SUN", "SunJSSE"})
         {
-            java.security.Provider p = Security.getProvider(name);
+            Provider p = Security.getProvider(name);
             if (p != null && p.getService("KeyStore", "PKCS12") != null)
             {
                 KeyStore ks = KeyStore.getInstance("PKCS12", p);
@@ -405,8 +417,8 @@ public class KSServiceAgreementTest
      * family and RC2 on JDK 8; DESede and RC2 on JDK 11; RC2 on JDK 17; none from JDK 21. The keys it stores on
      * this JDK are the ones interop is checked with; a refusal outside that set, or any refusal from JDK 21, fails.
      */
-    private static final java.util.Set<String> SUN_HISTORICAL_GAPS = new java.util.HashSet<String>(
-            java.util.Arrays.asList("DESede", "HmacSHA3-224", "HmacSHA3-256", "HmacSHA3-384", "HmacSHA3-512",
+    private static final Set<String> SUN_HISTORICAL_GAPS = new HashSet<String>(
+            Arrays.asList("DESede", "HmacSHA3-224", "HmacSHA3-256", "HmacSHA3-384", "HmacSHA3-512",
                     "RC2"));
 
     private static int jdkFeature()
@@ -415,11 +427,11 @@ public class KSServiceAgreementTest
         return v.startsWith("1.") ? Integer.parseInt(v.substring(2)) : Integer.parseInt(v);
     }
 
-    private static javax.crypto.SecretKey[] sunStorable(javax.crypto.SecretKey[] keys)
+    private static SecretKey[] sunStorable(SecretKey[] keys)
         throws Exception
     {
-        java.util.List<javax.crypto.SecretKey> out = new java.util.ArrayList<javax.crypto.SecretKey>();
-        for (javax.crypto.SecretKey key : keys)
+        List<SecretKey> out = new ArrayList<SecretKey>();
+        for (SecretKey key : keys)
         {
             KeyStore probe = sunKeyStore();
             probe.load(null, null);
@@ -428,24 +440,24 @@ public class KSServiceAgreementTest
                 probe.setEntry("p", new KeyStore.SecretKeyEntry(key), new KeyStore.PasswordProtection(SK_PASSWORD));
                 out.add(key);
             }
-            catch (java.security.KeyStoreException e)
+            catch (KeyStoreException e)
             {
                 Assertions.assertTrue(jdkFeature() < 21 && SUN_HISTORICAL_GAPS.contains(key.getAlgorithm()),
                         "SunJCE refused " + key.getAlgorithm() + " on JDK " + jdkFeature() + ": " + e);
                 Assertions.assertTrue(e.getMessage().startsWith("Key protection algorithm not found"), e.getMessage());
             }
         }
-        return out.toArray(new javax.crypto.SecretKey[0]);
+        return out.toArray(new SecretKey[0]);
     }
 
-    private static javax.crypto.SecretKey secret(String algorithm, int len)
+    private static SecretKey secret(String algorithm, int len)
     {
         byte[] k = new byte[len];
-        new java.security.SecureRandom().nextBytes(k);
+        new SecureRandom().nextBytes(k);
         return new SecretKeySpec(k, algorithm);
     }
 
-    private static byte[] storeSecrets(KeyStore ks, javax.crypto.SecretKey[] keys,
+    private static byte[] storeSecrets(KeyStore ks, SecretKey[] keys,
                                        PKCS12LoadStoreParameter.SecretKeyBagForm form)
         throws Exception
     {
@@ -467,10 +479,10 @@ public class KSServiceAgreementTest
         return out.toByteArray();
     }
 
-    private static javax.crypto.SecretKey[] supportedKeys()
+    private static SecretKey[] supportedKeys()
     {
         Object[][] algs = PKCS12SecretKeyTest.SUPPORTED;
-        javax.crypto.SecretKey[] keys = new javax.crypto.SecretKey[algs.length];
+        SecretKey[] keys = new SecretKey[algs.length];
         for (int i = 0; i < algs.length; i++)
         {
             keys[i] = secret((String) algs[i][0], (Integer) algs[i][1]);
@@ -478,13 +490,13 @@ public class KSServiceAgreementTest
         return keys;
     }
 
-    private static void assertReads(KeyStore reader, byte[] p12, javax.crypto.SecretKey[] keys, String label)
+    private static void assertReads(KeyStore reader, byte[] p12, SecretKey[] keys, String label)
         throws Exception
     {
         reader.load(new ByteArrayInputStream(p12), SK_PASSWORD);
         for (int i = 0; i < keys.length; i++)
         {
-            java.security.Key got = reader.getKey("k" + i, SK_PASSWORD);
+            Key got = reader.getKey("k" + i, SK_PASSWORD);
             String what = label + " " + keys[i].getAlgorithm() + "/" + keys[i].getEncoded().length;
             Assertions.assertNotNull(got, what);
             Assertions.assertArrayEquals(keys[i].getEncoded(), got.getEncoded(), what);
@@ -500,7 +512,7 @@ public class KSServiceAgreementTest
      * provider, measured with JSL, BouncyCastle or neither registered, and it writes ARIA under id-aria256-ofb
      * where JSL writes id-aria256-cbc, so there both keys read back under an OID, and not the same one.
      */
-    private static void assertSunReadsLikeItsOwn(byte[] p12, javax.crypto.SecretKey[] keys, String label)
+    private static void assertSunReadsLikeItsOwn(byte[] p12, SecretKey[] keys, String label)
         throws Exception
     {
         KeyStore own = sunKeyStore();
@@ -509,7 +521,7 @@ public class KSServiceAgreementTest
         read.load(new ByteArrayInputStream(p12), SK_PASSWORD);
         for (int i = 0; i < keys.length; i++)
         {
-            java.security.Key got = read.getKey("k" + i, SK_PASSWORD);
+            Key got = read.getKey("k" + i, SK_PASSWORD);
             String what = label + " " + keys[i].getAlgorithm() + "/" + keys[i].getEncoded().length;
             Assertions.assertNotNull(got, what);
             Assertions.assertArrayEquals(keys[i].getEncoded(), got.getEncoded(), what);
@@ -545,11 +557,11 @@ public class KSServiceAgreementTest
     public void secretKeys_sunNamesAriaAndCamelliaWhateverTheProviderOrder()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = {
+        SecretKey[] keys = {
                 secret("ARIA", 16), secret("ARIA", 32), secret("Camellia", 16), secret("Camellia", 32)};
-        java.security.Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
-        java.security.Provider bc = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME);
-        java.security.Provider[] before = Security.getProviders();
+        Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        Provider bc = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME);
+        Provider[] before = Security.getProviders();
         byte[] jslFile = storeSecrets(KeyStore.getInstance("PKCS12", jsl), keys,
                 PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
         byte[] sunFile = storeSecrets(sunKeyStore(), keys, null);
@@ -558,15 +570,15 @@ public class KSServiceAgreementTest
             assertSunNames(jslFile, sunFile, keys, "registered as left", jdkFeature() == 8);
             return;
         }
-        java.security.Provider[][] orders = {{jsl}, {jsl, bc}, {bc, jsl}};
+        Provider[][] orders = {{jsl}, {jsl, bc}, {bc, jsl}};
         try
         {
-            for (java.security.Provider[] order : orders)
+            for (Provider[] order : orders)
             {
                 Security.removeProvider(jsl.getName());
                 Security.removeProvider(bc.getName());
                 StringBuilder label = new StringBuilder();
-                for (java.security.Provider p : order)
+                for (Provider p : order)
                 {
                     Security.addProvider(p);
                     label.append(p.getName()).append(' ');
@@ -586,7 +598,7 @@ public class KSServiceAgreementTest
                 }
             }
         }
-        java.security.Provider[] after = Security.getProviders();
+        Provider[] after = Security.getProviders();
         Assertions.assertEquals(before.length, after.length, "provider list not restored");
         for (int i = 0; i < before.length; i++)
         {
@@ -594,7 +606,7 @@ public class KSServiceAgreementTest
         }
     }
 
-    private static void assertSunNames(byte[] jslFile, byte[] sunFile, javax.crypto.SecretKey[] keys, String order,
+    private static void assertSunNames(byte[] jslFile, byte[] sunFile, SecretKey[] keys, String order,
                                        boolean byOid)
         throws Exception
     {
@@ -604,7 +616,7 @@ public class KSServiceAgreementTest
             read.load(new ByteArrayInputStream(file), SK_PASSWORD);
             for (int i = 0; i < keys.length; i++)
             {
-                java.security.Key got = read.getKey("k" + i, SK_PASSWORD);
+                Key got = read.getKey("k" + i, SK_PASSWORD);
                 String what = order + ": " + (file == jslFile ? "JSL(SUNJCE)" : "SUN") + " "
                         + keys[i].getAlgorithm() + "/" + keys[i].getEncoded().length + " read as " + got.getAlgorithm();
                 Assertions.assertArrayEquals(keys[i].getEncoded(), got.getEncoded(), what);
@@ -624,7 +636,7 @@ public class KSServiceAgreementTest
     public void secretKeys_jslDefaultFormBouncyCastleReads()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = supportedKeys();
+        SecretKey[] keys = supportedKeys();
         byte[] p12 = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys, null);
         assertReads(KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME), p12, keys, "JSL->BC");
     }
@@ -633,7 +645,7 @@ public class KSServiceAgreementTest
     public void secretKeys_bouncyCastleWritesJslReads()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = supportedKeys();
+        SecretKey[] keys = supportedKeys();
         for (String type : BC_READABLE_TYPES)
         {
             byte[] p12 = storeSecrets(KeyStore.getInstance(type, BouncyCastleProvider.PROVIDER_NAME), keys, null);
@@ -646,7 +658,7 @@ public class KSServiceAgreementTest
     public void secretKeys_sunWritesJslReads()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = sunStorable(supportedKeys());
+        SecretKey[] keys = sunStorable(supportedKeys());
         byte[] p12 = storeSecrets(sunKeyStore(), keys, null);
         assertReads(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), p12, keys, "SUN->JSL");
     }
@@ -655,7 +667,7 @@ public class KSServiceAgreementTest
     public void secretKeys_jslSunFormSunReads()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = sunStorable(supportedKeys());
+        SecretKey[] keys = sunStorable(supportedKeys());
         byte[] jslFile = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys,
                 PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
         assertSunReadsLikeItsOwn(jslFile, keys, "JSL(SUNJCE)->SUN");
@@ -669,7 +681,7 @@ public class KSServiceAgreementTest
     public void secretKeys_crossFormRewriteReachesTheOtherReader()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = sunStorable(supportedKeys());
+        SecretKey[] keys = sunStorable(supportedKeys());
         KeyStore jsl = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
         jsl.load(new ByteArrayInputStream(storeSecrets(sunKeyStore(), keys, null)), SK_PASSWORD);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -696,7 +708,7 @@ public class KSServiceAgreementTest
     public void secretKeys_divergence_sunCannotReadTheRfcForm()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = {secret("AES", 16)};
+        SecretKey[] keys = {secret("AES", 16)};
         byte[][] files = {
                 storeSecrets(KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME), keys, null),
                 storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys, null)};
@@ -704,7 +716,7 @@ public class KSServiceAgreementTest
         {
             KeyStore sun = sunKeyStore();
             sun.load(new ByteArrayInputStream(p12), SK_PASSWORD);
-            Assertions.assertThrows(java.security.UnrecoverableKeyException.class,
+            Assertions.assertThrows(UnrecoverableKeyException.class,
                     () -> sun.getKey("k0", SK_PASSWORD));
         }
     }
@@ -718,7 +730,7 @@ public class KSServiceAgreementTest
     public void secretKeys_divergence_bouncyCastleReadsSunFormOnlyWhenAllowed()
         throws Exception
     {
-        javax.crypto.SecretKey[] keys = {secret("HmacSHA256", 32)};
+        SecretKey[] keys = {secret("HmacSHA256", 32)};
         byte[] p12 = storeSecrets(KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME), keys,
                 PKCS12LoadStoreParameter.SecretKeyBagForm.SUNJCE);
         String before = System.getProperty(BC_ALLOW_SUN);
@@ -726,7 +738,7 @@ public class KSServiceAgreementTest
         {
             System.clearProperty(BC_ALLOW_SUN);
             KeyStore refused = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
-            java.io.IOException e = Assertions.assertThrows(java.io.IOException.class,
+            IOException e = Assertions.assertThrows(IOException.class,
                     () -> refused.load(new ByteArrayInputStream(p12), SK_PASSWORD));
             Assertions.assertEquals("unrecognised PKCS12 secretBag algorithm: 1.2.840.113549.1.12.10.1.2",
                     e.getMessage());
@@ -761,8 +773,8 @@ public class KSServiceAgreementTest
     {
         for (Object[] x : new Object[][]{{"Blowfish", 16}, {"DES", 8}, {"RC2", 16}})
         {
-            javax.crypto.SecretKey key = secret((String) x[0], (Integer) x[1]);
-            if (sunStorable(new javax.crypto.SecretKey[]{key}).length == 1)
+            SecretKey key = secret((String) x[0], (Integer) x[1]);
+            if (sunStorable(new SecretKey[]{key}).length == 1)
             {
                 KeyStore sun = sunKeyStore();
                 sun.load(null, null);
@@ -771,13 +783,13 @@ public class KSServiceAgreementTest
             }
             KeyStore jsl = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
             jsl.load(null, null);
-            Assertions.assertThrows(java.security.KeyStoreException.class,
+            Assertions.assertThrows(KeyStoreException.class,
                     () -> jsl.setKeyEntry("s", key, SK_PASSWORD, null), "JSL refuses " + x[0]);
         }
 
         KeyPair pair = newRsaKeyPair(BouncyCastleProvider.PROVIDER_NAME);
         Certificate[] chain = {selfSignedCertificate(pair, "CN=secret chain", BigInteger.ONE)};
-        javax.crypto.SecretKey key = secret("AES", 16);
+        SecretKey key = secret("AES", 16);
         KeyStore bc = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
         bc.load(null, null);
         bc.setKeyEntry("s", key, SK_PASSWORD, chain);
@@ -803,14 +815,14 @@ public class KSServiceAgreementTest
         throws Exception
     {
         char[] wrong = "wrong".toCharArray();
-        javax.crypto.SecretKey[] keys = {secret("AES", 32)};
+        SecretKey[] keys = {secret("AES", 32)};
 
         KeyStore bc = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
         byte[] bcFile = storeSecrets(bc, keys, null);
         Assertions.assertNotNull(bc.getKey("k0", wrong), "BouncyCastle in memory ignores the password");
         KeyStore jslMemory = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
         byte[] jslRfc = storeSecrets(jslMemory, keys, null);
-        Assertions.assertThrows(java.security.UnrecoverableKeyException.class,
+        Assertions.assertThrows(UnrecoverableKeyException.class,
                 () -> jslMemory.getKey("k0", wrong), "JSL in memory checks the password");
 
         KeyStore bcLoaded = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
@@ -822,13 +834,13 @@ public class KSServiceAgreementTest
 
         KeyStore sun = sunKeyStore();
         byte[] sunFile = storeSecrets(sun, keys, null);
-        Assertions.assertThrows(java.security.UnrecoverableKeyException.class, () -> sun.getKey("k0", wrong));
+        Assertions.assertThrows(UnrecoverableKeyException.class, () -> sun.getKey("k0", wrong));
         KeyStore sunLoaded = sunKeyStore();
         sunLoaded.load(new ByteArrayInputStream(sunFile), SK_PASSWORD);
-        Assertions.assertThrows(java.security.UnrecoverableKeyException.class, () -> sunLoaded.getKey("k0", wrong));
+        Assertions.assertThrows(UnrecoverableKeyException.class, () -> sunLoaded.getKey("k0", wrong));
         KeyStore jslSunLoaded = KeyStore.getInstance("PKCS12", JostleProvider.PROVIDER_NAME);
         jslSunLoaded.load(new ByteArrayInputStream(sunFile), SK_PASSWORD);
-        Assertions.assertThrows(java.security.UnrecoverableKeyException.class,
+        Assertions.assertThrows(UnrecoverableKeyException.class,
                 () -> jslSunLoaded.getKey("k0", wrong));
     }
 
@@ -842,7 +854,7 @@ public class KSServiceAgreementTest
         throws Exception
     {
         KeyStore.LoadStoreParameter foreign = () -> new KeyStore.PasswordProtection(SK_PASSWORD);
-        javax.crypto.SecretKey[] keys = {secret("AES", 16)};
+        SecretKey[] keys = {secret("AES", 16)};
         for (String provider : new String[]{BouncyCastleProvider.PROVIDER_NAME, JostleProvider.PROVIDER_NAME})
         {
             KeyStore ks = KeyStore.getInstance("PKCS12", provider);

@@ -31,6 +31,13 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.X509EncodedKeySpec;
+import java.io.IOException;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.util.Arrays;
 
 /**
  * MT-16: the KTS ciphers resolve their inner lookups from the provider
@@ -273,7 +280,7 @@ public class KtsProviderInstancePinningTest
         // A genuinely valid encapsulation, produced by an instance that CAN
         // key-wrap. The public half crosses by encoding — the sanctioned
         // route — because the wrap side refuses a key bound elsewhere.
-        java.security.PublicKey pubForFull = java.security.KeyFactory.getInstance("RSA", full)
+        PublicKey pubForFull = KeyFactory.getInstance("RSA", full)
                 .generatePublic(new X509EncodedKeySpec(
                         kek.getPublic().getEncoded()));
         Cipher w = Cipher.getInstance("RSA-KTS-KEM-KWS", full);
@@ -283,7 +290,7 @@ public class KtsProviderInstancePinningTest
         // Long enough to clear the length check, and an encapsulation whose
         // integer value exceeds any 2048-bit modulus, so RSASVE refuses it.
         byte[] invalid = new byte[valid.length];
-        java.util.Arrays.fill(invalid, (byte) 0xFF);
+        Arrays.fill(invalid, (byte) 0xFF);
 
         Exception onValid = Assertions.assertThrows(Exception.class,
                 () -> unwrapThrough(stripped, kek.getPrivate(), valid));
@@ -318,15 +325,15 @@ public class KtsProviderInstancePinningTest
         Assertions.assertNotNull(unwrapThrough(outer, kek.getPrivate(), valid));
 
         byte[] invalid = new byte[valid.length];
-        java.util.Arrays.fill(invalid, (byte) 0xFF);
+        Arrays.fill(invalid, (byte) 0xFF);
         Exception e = Assertions.assertThrows(Exception.class,
                 () -> unwrapThrough(outer, kek.getPrivate(), invalid));
-        Assertions.assertEquals(java.security.InvalidKeyException.class, e.getClass(),
+        Assertions.assertEquals(InvalidKeyException.class, e.getClass(),
                 "a capable instance must reject an invalid encapsulation as an unwrap "
                         + "failure; got: " + rootMessage(e));
     }
 
-    private Key unwrapThrough(Provider p, java.security.PrivateKey kekPrivate, byte[] wrapped)
+    private Key unwrapThrough(Provider p, PrivateKey kekPrivate, byte[] wrapped)
             throws Exception
     {
         Cipher u = Cipher.getInstance("RSA-KTS-KEM-KWS", p);
@@ -404,13 +411,13 @@ public class KtsProviderInstancePinningTest
         byte[] message = new byte[64];
         RANDOM.nextBytes(message);
 
-        java.security.Signature signer = java.security.Signature.getInstance("SHA256withRSA", outer);
-        signer.initSign((java.security.PrivateKey) back);
+        Signature signer = Signature.getInstance("SHA256withRSA", outer);
+        signer.initSign((PrivateKey) back);
         signer.update(message);
         byte[] sig = signer.sign();
 
-        java.security.Signature verifier =
-                java.security.Signature.getInstance("SHA256withRSA", outer);
+        Signature verifier =
+                Signature.getInstance("SHA256withRSA", outer);
         verifier.initVerify(payload.getPublic());
         verifier.update(message);
         Assertions.assertTrue(verifier.verify(sig),
@@ -508,7 +515,7 @@ public class KtsProviderInstancePinningTest
     }
 
     /** A 256-bit KEK derived by KDF3/SHA-256 — what every test here drives. */
-    private static KTSParameterSpec ktsSpec() throws java.io.IOException
+    private static KTSParameterSpec ktsSpec() throws IOException
     {
         return new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(

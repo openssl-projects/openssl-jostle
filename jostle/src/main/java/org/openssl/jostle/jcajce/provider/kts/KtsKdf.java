@@ -420,6 +420,7 @@ public final class KtsKdf
                 throw new NoSuchAlgorithmException(
                         digestName + " as a KDF produces at most " + full.length * 8 + " bits here");
             }
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             return java.util.Arrays.copyOf(full, outLen);
         }
         finally

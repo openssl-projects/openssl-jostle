@@ -18,6 +18,7 @@ import javax.crypto.BadPaddingException;
 import java.security.InvalidKeyException;
 import java.util.EnumSet;
 import java.util.Set;
+import java.security.DigestException;
 
 /**
  * {@link ThreeWay} on CONSTRUCTED triples, before any live cell drives it.
@@ -87,7 +88,7 @@ public class ThreeWayTest
     {
         // digest(out,-1,32): IllegalArgumentException / AIOOBE / DigestException.
         ThreeWay r = ThreeWay.classify(t(new IllegalArgumentException("output offset is negative")),
-                t(new ArrayIndexOutOfBoundsException("-1")), t(new java.security.DigestException("short")));
+                t(new ArrayIndexOutOfBoundsException("-1")), t(new DigestException("short")));
         Assertions.assertEquals(ThreeWay.Attribution.ALL_DIFFER, r.attribution());
     }
 
@@ -143,7 +144,7 @@ public class ThreeWayTest
         Observation iae = t(new IllegalArgumentException("x"));
         Observation aioobe = t(new ArrayIndexOutOfBoundsException("x"));
         Observation bpe = t(new BadPaddingException("x"));
-        Observation dex = t(new java.security.DigestException("x"));
+        Observation dex = t(new DigestException("x"));
         for (ThreeWay r : new ThreeWay[]{
                 ThreeWay.classify(iae, iae, iae),
                 ThreeWay.classify(iae, aioobe, aioobe),

@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.CCMCells;
 
+import java.security.SecureRandom;
 import java.util.Arrays;
 
 /**
@@ -39,7 +40,7 @@ import java.util.Arrays;
  */
 public class FIPSCCMLimitTest
 {
-    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     @BeforeAll
     public static void beforeAll()

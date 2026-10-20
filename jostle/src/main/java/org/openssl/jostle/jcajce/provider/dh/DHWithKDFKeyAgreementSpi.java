@@ -24,6 +24,7 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.Provider;
 
 /**
  * Finite-field DH key agreement followed by the ANSI X9.42 / RFC 2631 KDF —
@@ -75,7 +76,7 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     // the agreement, not from whatever answers to its name.
     //
     public DHWithKDFKeyAgreementSpi(DHServiceNI dhServiceNI, DHKeyFactorySpi keyFactory, String digest,
-            java.security.Provider providerInstance)
+            Provider providerInstance)
     {
         super(dhServiceNI, keyFactory);
         this.digest = digest;

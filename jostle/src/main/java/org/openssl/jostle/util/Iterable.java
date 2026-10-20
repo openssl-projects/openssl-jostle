@@ -16,6 +16,7 @@ import java.util.Iterator;
  * Utility class to allow use of Iterable feature in JDK 1.5+
  */
 public interface Iterable<T>
+        // Iterable is qualified where the JDK's is meant: jostle's of that name is declared here
         extends java.lang.Iterable<T>
 {
     /**

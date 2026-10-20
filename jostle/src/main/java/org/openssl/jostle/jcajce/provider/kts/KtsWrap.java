@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.kts;
 
 import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 
 /**
@@ -87,11 +88,11 @@ public final class KtsWrap
      * (127 bits to 16 bytes) is not the size the caller named.
      */
     public static void requireKekBits(Kind kind, int kekBits)
-        throws java.security.InvalidAlgorithmParameterException
+        throws InvalidAlgorithmParameterException
     {
         if (kekBits != 128 && kekBits != 192 && kekBits != 256)
         {
-            throw new java.security.InvalidAlgorithmParameterException("unsupported "
+            throw new InvalidAlgorithmParameterException("unsupported "
                     + (kind == Kind.KWP ? "AES-KWP" : "AES-KW") + " KEK size: " + kekBits
                     + " bits; AES key wrap takes 128, 192 or 256");
         }
@@ -101,11 +102,11 @@ public final class KtsWrap
      * Refuses at init, with no KDF, a KEK larger than the shared secret it would be cut from.
      */
     public static void requireKekWithinSecret(int kekBits, int secretBytes)
-        throws java.security.InvalidAlgorithmParameterException
+        throws InvalidAlgorithmParameterException
     {
         if ((kekBits + 7) / 8 > secretBytes)
         {
-            throw new java.security.InvalidAlgorithmParameterException("KEK size " + kekBits
+            throw new InvalidAlgorithmParameterException("KEK size " + kekBits
                     + " bits is larger than the " + secretBytes * 8 + "-bit shared secret, and no KDF is set");
         }
     }

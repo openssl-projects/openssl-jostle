@@ -51,6 +51,7 @@ import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.security.Key;
 
 /**
  * Phase 1 EC tests: keypair generation for OpenSSL-supported curves
@@ -980,7 +981,7 @@ public class ECTest
 
         // Public side: BC key → Jostle key, both should encode to the
         // same X.509 SPKI bytes since they describe the same point.
-        java.security.Key joPub = joKf.translateKey(bcKp.getPublic());
+        Key joPub = joKf.translateKey(bcKp.getPublic());
         Assertions.assertTrue(joPub instanceof ECPublicKey,
                 "translateKey result should be ECPublicKey");
         Assertions.assertArrayEquals(bcKp.getPublic().getEncoded(), joPub.getEncoded(),

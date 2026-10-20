@@ -47,6 +47,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * BCFKS stores written by this provider are read by BouncyCastle and the other
@@ -173,7 +177,7 @@ public class BcFKSAgreementTest
         Assertions.assertFalse(options.isEmpty(), "the writer-option table is empty");
 
         List<String> failures = new ArrayList<String>();
-        java.util.Set<String> distinctBcStores = new java.util.HashSet<String>();
+        Set<String> distinctBcStores = new HashSet<String>();
         for (BcFKSWriterOptions.Option option : options.values())
         {
             char[] password = password();
@@ -463,7 +467,7 @@ public class BcFKSAgreementTest
      * cell below pinning BOTH halves; listing the name here keeps the sweep
      * above honest rather than letting a divergence hide in it.
      */
-    private static final List<String> DIVERGENT_MALFORMATIONS = java.util.Arrays.asList(
+    private static final List<String> DIVERGENT_MALFORMATIONS = Arrays.asList(
             "trailing zero byte after the outer SEQUENCE",
             "trailing NULL TLV after the outer SEQUENCE",
             "indefinite length on the outer SEQUENCE",
@@ -573,7 +577,7 @@ public class BcFKSAgreementTest
 
         BcFKSLimitDriver.Outcome theirs =
                 BcFKSLimitDriver.load(BC, malformation.bytes, malformation.password);
-        Assertions.assertEquals(java.security.NoSuchAlgorithmException.class, theirs.type,
+        Assertions.assertEquals(NoSuchAlgorithmException.class, theirs.type,
                 "BouncyCastle no longer lets NoSuchAlgorithmException out here");
     }
 

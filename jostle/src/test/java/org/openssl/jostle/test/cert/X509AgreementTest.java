@@ -22,6 +22,7 @@ import org.openssl.jostle.util.Arrays;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.file.Files;
+import java.security.ProviderException;
 import java.security.Security;
 import java.security.cert.CRLReason;
 import java.security.cert.Certificate;
@@ -31,6 +32,7 @@ import java.security.cert.X509CRLEntry;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -86,6 +88,7 @@ public class X509AgreementTest
      * count that moved would say the set changed but not which way.
      */
     private static final Set<String> DSA_INHERITED_PARAMETERS =
+            // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             new TreeSet<String>(java.util.Arrays.asList(
                     "DSAParametersInheritedCACert.crt",
                     "ValidDSAParameterInheritanceTest5EE.crt"));
@@ -193,7 +196,7 @@ public class X509AgreementTest
                         Arrays.areEqual(ours.getPublicKey().getEncoded(),
                                 theirs.getPublicKey().getEncoded()));
             }
-            catch (java.security.ProviderException inheritsParameters)
+            catch (ProviderException inheritsParameters)
             {
                 Assertions.assertTrue(inheritsParameters.getMessage()
                                 .startsWith("DSA public key inherits its parameters from the issuer"),
@@ -440,12 +443,12 @@ public class X509AgreementTest
     public void theCertPathEncodingsDivergenceIsPinnedInBothHalves()
     {
         Set<String> ourEncodings = new TreeSet<String>();
-        for (java.util.Iterator<String> it = jsl.getCertPathEncodings(); it.hasNext(); )
+        for (Iterator<String> it = jsl.getCertPathEncodings(); it.hasNext(); )
         {
             ourEncodings.add(it.next());
         }
         Set<String> theirEncodings = new TreeSet<String>();
-        for (java.util.Iterator<String> it = bc.getCertPathEncodings(); it.hasNext(); )
+        for (Iterator<String> it = bc.getCertPathEncodings(); it.hasNext(); )
         {
             theirEncodings.add(it.next());
         }
@@ -710,16 +713,16 @@ public class X509AgreementTest
         CertificateFactory jsl = CertificateFactory.getInstance("X.509", JostleProvider.PROVIDER_NAME);
         CertificateFactory sun = CertificateFactory.getInstance("X.509", "SUN");
 
-        java.io.File dir = new java.io.File("src/test/resources/pkits/crls");
+        File dir = new File("src/test/resources/pkits/crls");
         if (!dir.isDirectory())
         {
-            dir = new java.io.File("jostle/src/test/resources/pkits/crls");
+            dir = new File("jostle/src/test/resources/pkits/crls");
         }
         Assertions.assertTrue(dir.isDirectory(), "PKITS CRL corpus not found at " + dir);
 
         int compared = 0;
-        java.util.Set<String> distinctReasons = new java.util.TreeSet<String>();
-        for (java.io.File f : dir.listFiles())
+        Set<String> distinctReasons = new TreeSet<String>();
+        for (File f : dir.listFiles())
         {
             byte[] der = Files.readAllBytes(f.toPath());
             X509CRL ours;
@@ -733,7 +736,7 @@ public class X509AgreementTest
             {
                 continue;
             }
-            java.util.Set<? extends X509CRLEntry> theirEntries = theirs.getRevokedCertificates();
+            Set<? extends X509CRLEntry> theirEntries = theirs.getRevokedCertificates();
             if (theirEntries == null)
             {
                 continue;

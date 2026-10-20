@@ -36,6 +36,7 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
 
 /**
  * RFC 9580 §5.1.6/§5.1.7's v6 hybrid HKDF for X25519 / X448 under JSLFIPS —
@@ -135,7 +136,7 @@ public class FIPSXDHHybridHKDFAgreementTest
                     KeyAgreement.getInstance(name, fips()).init(kp.getPrivate()),
                     name + ": init(Key) with no spec must be refused typed under JSLFIPS");
 
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     KeyAgreement.getInstance(name, fips()).init(kp.getPrivate(),
                             new UserKeyingMaterialSpec(info(curve))),
                     name + ": a plain UserKeyingMaterialSpec must be refused typed under JSLFIPS");
@@ -153,7 +154,7 @@ public class FIPSXDHHybridHKDFAgreementTest
             String name = name(curve);
             KeyPair kp = KeyPairGenerator.getInstance(curve, fips()).generateKeyPair();
             KeyAgreement ka = KeyAgreement.getInstance(name, fips());
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     ka.init(kp.getPrivate(),
                             // HybridValueParameterSpec: BouncyCastle's is qualified, jostle's is imported
                             new org.bouncycastle.jcajce.spec.HybridValueParameterSpec(new byte[16], true,
@@ -179,7 +180,7 @@ public class FIPSXDHHybridHKDFAgreementTest
             String name = name(curve);
             KeyPair kp = KeyPairGenerator.getInstance(curve, fips()).generateKeyPair();
 
-            Assertions.assertThrows(java.security.InvalidAlgorithmParameterException.class, () ->
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () ->
                     KeyAgreement.getInstance(name, fips()).init(kp.getPrivate(),
                             new HybridValueParameterSpec(new byte[16],
                                     new UserKeyingMaterialSpec(info(curve)))),

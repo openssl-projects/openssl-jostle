@@ -28,6 +28,8 @@ import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.Locale;
 import java.security.spec.InvalidParameterSpecException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * Authenticated-encryption SPI for CCM mode (NIST SP 800-38C). CCM is
@@ -73,7 +75,7 @@ public class CCMCipherSpi extends CipherSpi
      * parameters must come from the provider that owns this cipher, not from
      * whatever JCA order picks. The instance, not the name.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     /** CCM nonce length range, NIST SP 800-38C §6.1: 7..13 bytes. */
     private static final int CCM_MIN_NONCE_LEN = 7;
@@ -147,7 +149,7 @@ public class CCMCipherSpi extends CipherSpi
         this(NISelector.CCMCipherNI, family, null, null);
     }
 
-    public CCMCipherSpi(CipherFamily family, java.security.Provider providerInstance)
+    public CCMCipherSpi(CipherFamily family, Provider providerInstance)
     {
         this(NISelector.CCMCipherNI, family, null, providerInstance);
     }
@@ -158,7 +160,7 @@ public class CCMCipherSpi extends CipherSpi
     }
 
     public CCMCipherSpi(CipherFamily family, OSSLCipher mandatedCipher,
-                        java.security.Provider providerInstance)
+                        Provider providerInstance)
     {
         this(NISelector.CCMCipherNI, family, mandatedCipher, providerInstance);
     }
@@ -169,7 +171,7 @@ public class CCMCipherSpi extends CipherSpi
     }
 
     public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family,
-                        java.security.Provider providerInstance)
+                        Provider providerInstance)
     {
         this(cipherNI, family, null, providerInstance);
     }
@@ -180,7 +182,7 @@ public class CCMCipherSpi extends CipherSpi
     }
 
     public CCMCipherSpi(CCMCipherNI cipherNI, CipherFamily family, OSSLCipher mandatedCipher,
-                        java.security.Provider providerInstance)
+                        Provider providerInstance)
     {
         this.cipherNI = cipherNI;
         this.family = family;
@@ -477,7 +479,7 @@ public class CCMCipherSpi extends CipherSpi
             ours.init(params.getEncoded());
             return ours.getParameterSpec(GCMParameterSpec.class);
         }
-        catch (java.io.IOException | GeneralSecurityException e)
+        catch (IOException | GeneralSecurityException e)
         {
             // Report the original refusal; the re-read is the fallback, not the contract.
             throw new InvalidAlgorithmParameterException("CCM init: " + cause.getMessage(), cause);
@@ -606,7 +608,7 @@ public class CCMCipherSpi extends CipherSpi
     }
 
     @Override
-    protected void engineUpdateAAD(java.nio.ByteBuffer src)
+    protected void engineUpdateAAD(ByteBuffer src)
     {
         if (src == null)
         {

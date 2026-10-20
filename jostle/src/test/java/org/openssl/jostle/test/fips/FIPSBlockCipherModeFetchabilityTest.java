@@ -28,6 +28,7 @@ import java.security.Provider;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
+import java.security.Security;
 
 /**
  * A name JSLFIPS registers must be usable. AES-OCB is the
@@ -55,9 +56,9 @@ public class FIPSBlockCipherModeFetchabilityTest
     static void before()
     {
         FIPSTestUtil.assumeFipsProvider();
-        if (java.security.Security.getProvider(JSL) == null)
+        if (Security.getProvider(JSL) == null)
         {
-            java.security.Security.addProvider(new JostleProvider());
+            Security.addProvider(new JostleProvider());
         }
     }
 

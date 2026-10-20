@@ -48,6 +48,7 @@ import java.security.spec.X509EncodedKeySpec;
 import org.openssl.jostle.util.asn1.oids.X9ObjectIdentifiers;
 import java.security.interfaces.ECKey;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.Provider;
 
 /**
  * The IEEE 1609.2 (ITS) integrated-encryption KEM, registered as
@@ -125,7 +126,7 @@ public class ETSIKEMCipherSpi extends CipherSpi
 
     public ETSIKEMCipherSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory,
                             String digest, String macAlgorithm,
-                            java.security.Provider providerInstance)
+                            Provider providerInstance)
     {
         this.ecServiceNI = ecServiceNI;
         this.keyFactory = keyFactory;

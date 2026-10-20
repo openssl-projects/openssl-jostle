@@ -33,6 +33,9 @@ import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.io.IOException;
+import java.security.PrivateKey;
+import java.security.Signature;
 
 /**
  * MT-16, FIPS half: a JSLFIPS KTS cipher resolves its inner AES key wrap from
@@ -190,14 +193,14 @@ public class FIPSKtsProviderInstancePinningTest
         // elsewhere is refused, so this is the caller-visible half.
         byte[] message = new byte[64];
         RANDOM.nextBytes(message);
-        java.security.Signature signer =
-                java.security.Signature.getInstance("SHA256withRSA", outer);
-        signer.initSign((java.security.PrivateKey) back);
+        Signature signer =
+                Signature.getInstance("SHA256withRSA", outer);
+        signer.initSign((PrivateKey) back);
         signer.update(message);
         byte[] sig = signer.sign();
 
-        java.security.Signature verifier =
-                java.security.Signature.getInstance("SHA256withRSA", outer);
+        Signature verifier =
+                Signature.getInstance("SHA256withRSA", outer);
         verifier.initVerify(payload.getPublic());
         verifier.update(message);
         Assertions.assertTrue(verifier.verify(sig),
@@ -256,7 +259,7 @@ public class FIPSKtsProviderInstancePinningTest
                         + "third of keys should qualify, so the encoding has changed shape");
     }
 
-    private static KTSParameterSpec ktsSpec() throws java.io.IOException
+    private static KTSParameterSpec ktsSpec() throws IOException
     {
         return new KTSParameterSpec.Builder("AES", 256)
                 .withKdfAlgorithm(new AlgorithmIdentifier(

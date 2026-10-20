@@ -26,6 +26,7 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.SecureRandom;
 import java.security.Security;
+import javax.crypto.SecretKey;
 
 /**
  * RFC 3211 §2.3.2 boundaries at the JCE surface.
@@ -240,7 +241,7 @@ public class RFC3211WrapLimitTest
     }
 
     /** A key that reports exactly what the test needs the SPI to see. */
-    private static final class RawKey implements javax.crypto.SecretKey
+    private static final class RawKey implements SecretKey
     {
         private final byte[] encoded;
 

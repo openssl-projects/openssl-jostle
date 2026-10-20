@@ -24,6 +24,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.NamedParameterSpec;
@@ -83,14 +84,14 @@ public class XECKeyPairGenerator extends KeyPairGenerator
      * which has no provider boundary to protect. See MT-14 and
      * {@code PKEYKeySpec.usableBy}.
      */
-    private final java.security.Provider providerInstance;
+    private final Provider providerInstance;
 
     public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType)
     {
         this(xecServiceNI, specNI, asn1NI, keyType, null);
     }
 
-    public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType, java.security.Provider providerInstance)
+    public XECKeyPairGenerator(XECServiceNI xecServiceNI, SpecNI specNI, Asn1Ni asn1NI, OSSLKeyType keyType, Provider providerInstance)
     {
         super(keyType.getAlgorithmName());
         this.providerInstance = providerInstance;
