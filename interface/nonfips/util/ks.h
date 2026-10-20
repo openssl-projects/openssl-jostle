@@ -18,6 +18,13 @@ typedef struct ks_entry_st {
     EVP_PKEY *key;
     uint8_t *key_password;
     size_t key_password_len;
+    /*
+     * A key read with no store password: the DER of its EncryptedPrivateKeyInfo,
+     * decrypted only by ks_get_key with the password it is given, and written
+     * back verbatim by ks_store. NULL once the entry holds a decrypted key.
+     */
+    uint8_t *pending_key;
+    size_t pending_key_len;
     STACK_OF(X509) *certificate_chain;
     int certificate_entry;
     int64_t creation_time;
@@ -41,10 +48,26 @@ typedef struct ks_entry_st {
     char *secret_rfc_oid;
     char *secret_sun_oid;
     int secret_any_password;
+    /*
+     * A SunJCE-form secret read with no store password: the DER of its
+     * EncryptedPrivateKeyInfo, decrypted only by ks_get_secret, and written back
+     * verbatim by ks_store, as pending_key is for a private key.
+     */
+    uint8_t *pending_secret;
+    size_t pending_secret_len;
     struct ks_entry_st *next;
 } ks_entry;
 
+/*
+ * The handle's kind. A non-trivial magic, neither 0 nor 1, so freed or
+ * zero-filled memory does not read as a valid kind; a freed context is left
+ * with NONE.
+ */
+#define KS_CTX_KIND 0x4B533501u   /* "KS5\1" */
+#define KS_KIND_NONE 0u
+
 typedef struct ks_ctx_st {
+    uint32_t kind;
     char *type;
     ks_entry *entries;
     /*
@@ -101,8 +124,17 @@ typedef enum ks_secret_form_e {
 
 ks_ctx *ks_allocate(const char *type, int32_t *err);
 
-void ks_free(ks_ctx *ctx);
+/* JO_SUCCESS for a live keystore context, JO_KS_CTX_WRONG_KIND for anything else; reads only the kind. */
+int32_t ks_ctx_check(const ks_ctx *ctx);
 
+/* Refuses a context of the wrong kind typed, and frees nothing. NULL is a no-op. */
+int32_t ks_free(ks_ctx *ctx);
+
+/*
+ * A NULL password is the JCA's load(stream, null): no integrity check, every
+ * encrypted safe skipped, and keys kept encrypted until ks_get_key. A
+ * zero-length password is a password, tried as both PKCS#12 empty forms.
+ */
 int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
                 const uint8_t *password, size_t password_len);
 

@@ -12,10 +12,12 @@ package org.openssl.jostle.jcajce.provider.ks;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.rand.RandSource;
 
 import java.io.IOException;
 import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 
 public interface KSServiceNI
@@ -91,6 +93,7 @@ public interface KSServiceNI
         throws IOException
     {
         int code = ni_load(ref, input, password);
+        refuseUnsupportedAlgorithm(code);
         if (ErrorCode.forCode(code) == ErrorCode.JO_KS_MAC_VERIFY_FAILED)
         {
             // JCE engineLoad contract: a failed integrity check (wrong password
@@ -113,6 +116,7 @@ public interface KSServiceNI
         int[] err = new int[1];
         byte[] out = ni_store(ref, password, keyPbe, certPbe, macScheme,
                 macDigest, pbeIter, macIter, secretForm, err, randSource);
+        refuseUnsupportedAlgorithm(err[0]);
         handleIoErrors(err[0]);
         return out;
     }
@@ -122,6 +126,10 @@ public interface KSServiceNI
     {
         int[] err = new int[1];
         byte[] key = ni_getKey(ref, alias, password, err);
+        if (namesNoEntry(err[0]))
+        {
+            return null;
+        }
         handleKeyStoreErrors(err[0]);
         return key;
     }
@@ -151,13 +159,18 @@ public interface KSServiceNI
     {
         int[] err = new int[1];
         byte[] der = ni_getSecretKey(ref, alias, password, err);
+        if (namesNoEntry(err[0]))
+        {
+            return null;
+        }
         handleKeyStoreErrors(err[0]);
         return der;
     }
 
     default boolean isSecretKeyEntry(long ref, String alias)
     {
-        return handleErrors(ni_isSecretKeyEntry(ref, alias)) != 0;
+        int code = ni_isSecretKeyEntry(ref, alias);
+        return !namesNoEntry(code) && handleErrors(code) != 0;
     }
 
     default byte[] getCertificateChain(long ref, String alias)
@@ -165,6 +178,10 @@ public interface KSServiceNI
     {
         int[] err = new int[1];
         byte[] chain = ni_getCertificateChain(ref, alias, err);
+        if (namesNoEntry(err[0]))
+        {
+            return null;
+        }
         handleKeyStoreErrors(err[0]);
         return chain;
     }
@@ -184,7 +201,11 @@ public interface KSServiceNI
     default void deleteEntry(long ref, String alias)
         throws KeyStoreException
     {
-        handleKeyStoreErrors(ni_deleteEntry(ref, alias));
+        int code = ni_deleteEntry(ref, alias);
+        if (!namesNoEntry(code))
+        {
+            handleKeyStoreErrors(code);
+        }
     }
 
     default byte[] getAliases(long ref)
@@ -198,7 +219,8 @@ public interface KSServiceNI
 
     default boolean containsAlias(long ref, String alias)
     {
-        return handleErrors(ni_containsAlias(ref, alias)) != 0;
+        int code = ni_containsAlias(ref, alias);
+        return !namesNoEntry(code) && handleErrors(code) != 0;
     }
 
     default int size(long ref)
@@ -208,12 +230,14 @@ public interface KSServiceNI
 
     default boolean isKeyEntry(long ref, String alias)
     {
-        return handleErrors(ni_isKeyEntry(ref, alias)) != 0;
+        int code = ni_isKeyEntry(ref, alias);
+        return !namesNoEntry(code) && handleErrors(code) != 0;
     }
 
     default boolean isCertificateEntry(long ref, String alias)
     {
-        return handleErrors(ni_isCertificateEntry(ref, alias)) != 0;
+        int code = ni_isCertificateEntry(ref, alias);
+        return !namesNoEntry(code) && handleErrors(code) != 0;
     }
 
     default long getCreationDate(long ref, String alias)
@@ -223,6 +247,30 @@ public interface KSServiceNI
         long creationDate = ni_getCreationDate(ref, alias, err);
         handleKeyStoreErrors(err[0]);
         return creationDate;
+    }
+
+    /**
+     * A query naming an alias with a NUL: no stored alias can hold one, so the
+     * answer is the absent one, exactly. A writer refuses it typed instead.
+     */
+    default boolean namesNoEntry(int code)
+    {
+        return code == ErrorCode.JO_KS_NAME_HAS_NUL.getCode();
+    }
+
+    /**
+     * An algorithm this build cannot run is an IOException whose cause is a
+     * NoSuchAlgorithmException, distinct from a malformed store. The text is
+     * OpenSSL's, which names the algorithm.
+     */
+    default void refuseUnsupportedAlgorithm(int code)
+        throws IOException
+    {
+        if (ErrorCode.forCode(code) == ErrorCode.JO_KS_ALGORITHM_UNSUPPORTED)
+        {
+            String message = "key store algorithm is not supported: " + OpenSSL.getOpenSSLErrors();
+            throw new IOException(message, new NoSuchAlgorithmException(message));
+        }
     }
 
     default long handleIoErrors(long code)

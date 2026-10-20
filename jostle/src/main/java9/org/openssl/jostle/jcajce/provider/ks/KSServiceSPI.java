@@ -762,11 +762,18 @@ public class KSServiceSPI
             {
                 // available() is caller-controlled: cap it, or a stream
                 // reporting MAX_VALUE turns the presize into an OOM.
+                int ceiling = PKCS12Limits.maxStoreBytes();
                 int hint = Math.min(Math.max(stream.available(), 0), 64 * 1024);
                 out = hint > 0 ? new ExposedByteArrayOutputStream(hint) : new ExposedByteArrayOutputStream();
+                long total = 0;
                 int read;
                 while ((read = stream.read(buffer)) >= 0)
                 {
+                    total += read;
+                    if (total > ceiling)
+                    {
+                        throw PKCS12Limits.ceilingExceeded();
+                    }
                     out.write(buffer, 0, read);
                 }
                 input = out.toByteArray();
@@ -1145,6 +1152,11 @@ public class KSServiceSPI
     private void normaliseSecretEntries(byte[] encodedPassword)
         throws KeyStoreException
     {
+        if (encodedPassword == null)
+        {
+            // A null-password load keeps secrets encrypted and writes them back verbatim.
+            return;
+        }
         Enumeration<String> aliases = engineAliases();
         while (aliases.hasMoreElements())
         {
@@ -1153,7 +1165,16 @@ public class KSServiceSPI
             {
                 continue;
             }
-            byte[] der = secretDer(alias, encodedPassword);
+            byte[] der;
+            try
+            {
+                der = secretDer(alias, encodedPassword);
+            }
+            catch (KeyStoreException e)
+            {
+                // A secret under its own password, not the store's: it stays encrypted and is written back as read.
+                continue;
+            }
             byte[] key = null;
             try
             {

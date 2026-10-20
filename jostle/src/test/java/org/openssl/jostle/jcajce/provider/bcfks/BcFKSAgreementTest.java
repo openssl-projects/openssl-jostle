@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.bcfks;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.crypto.util.PBKDF2Config;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,10 @@ import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.asn1.Der;
 
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.interfaces.PBEKey;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -928,4 +933,327 @@ public class BcFKSAgreementTest
                 setCertificateEntryRefusal(oursOver, "k", trusted),
                 "a certificate over an existing key alias");
     }
+
+    // -----------------------------------------------------------------
+    // LoadStoreParameter stores against BouncyCastle's BCFKS, both directions.
+    // -----------------------------------------------------------------
+
+    @Test
+    public void scryptStoreConfigWritesAndBcReads_regression() throws Exception
+    {
+        char[] pw = storePw("scrypt store config");
+        Certificate cert = trustedCert();
+
+        KeyStore fresh = ours();
+        fresh.load(null, pw);
+        fresh.setCertificateEntry("cert", cert);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(new BCFKSLoadStoreParameter.Builder(out, pw)
+                .withStorePBKDFConfig(new BCFKSLoadStoreParameter.ScryptConfig.Builder(16, 8, 1)
+                        .withSaltLength(16)
+                        .build())
+                .build());
+
+        KeyStore bc = bc();
+        bc.load(new ByteArrayInputStream(out.toByteArray()), pw);
+        Assertions.assertEquals(1, bc.size());
+        Assertions.assertArrayEquals(cert.getEncoded(), bc.getCertificate("cert").getEncoded());
+    }
+
+    /**
+     * REGRESSION, BOTH directions, probe-then-assert-both. BC 1.86 (the
+     * Gradle cache jar) loads a store written under the default (encoded p
+     * equal to r) and answers its entry; BC 1.86 FAILS a store written with
+     * the configured p (property "false", encoded p != r) with an
+     * IOException, because BC 1.86 always derives with the block size in
+     * the parallelization parameter's place. Pins that the default keeps
+     * interop with the installed base.
+     */
+    @Test
+    public void bc186ReadsDefaultWrittenScryptStoreAndRefusesConfiguredP_regression() throws Exception
+    {
+        String propertyName = BcFKSKeyStoreSpi.SCRYPT_P_EQ_R_PROPERTY;
+        String old = System.getProperty(propertyName);
+        try
+        {
+            System.clearProperty(propertyName);
+            byte[] defaultWritten = writeScryptStore();
+
+            KeyStore bcOnDefault = bc();
+            bcOnDefault.load(new ByteArrayInputStream(defaultWritten), BcFKSKeyStoreSpiTest.testPassword);
+            SecretKey seckey = (SecretKey) bcOnDefault.getKey("seckey", BcFKSKeyStoreSpiTest.testPassword);
+            Assertions.assertArrayEquals(
+                    new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, seckey.getEncoded());
+
+            System.setProperty(propertyName, "false");
+            byte[] configuredPWritten = writeScryptStore();
+
+            KeyStore bcOnConfiguredP = bc();
+            Assertions.assertThrows(IOException.class, () -> bcOnConfiguredP.load(
+                    new ByteArrayInputStream(configuredPWritten), BcFKSKeyStoreSpiTest.testPassword));
+        }
+        finally
+        {
+            if (old == null)
+            {
+                System.clearProperty(propertyName);
+            }
+            else
+            {
+                System.setProperty(propertyName, old);
+            }
+        }
+    }
+
+    @Test
+    public void signatureCheckInteropsWithBouncyCastle_regression() throws Exception
+    {
+        char[] storePassword = storePw("signature interop out");
+        KeyPair signingPair = rsaKeyPair();
+        Certificate cert = trustedCert();
+
+        KeyStore fresh = ours();
+        fresh.load(null, storePassword);
+        fresh.setCertificateEntry("cert", cert);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(new BCFKSLoadStoreParameter.Builder(out, (PrivateKey) signingPair.getPrivate())
+                .withStoreSignatureAlgorithm(BCFKSLoadStoreParameter.SignatureAlgorithm.SHA512withRSA)
+                .build());
+
+        KeyStore bcLoad = bc();
+        // BC's own load-side Builder defaults storeSignatureAlgorithm to
+        // SHA512withECDSA regardless of the wire content and throws before
+        // ever reading the file if the verification key's type does not
+        // match -- measured: BcFKSKeyStoreSpi.generateSignatureAlgId,
+        // r1rv86 :1571-1610. Must be named explicitly for an RSA key.
+        org.bouncycastle.jcajce.BCFKSLoadStoreParameter bcParam =
+                new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(
+                        new ByteArrayInputStream(out.toByteArray()), signingPair.getPublic())
+                        .withStoreSignatureAlgorithm(
+                                org.bouncycastle.jcajce.BCFKSLoadStoreParameter.SignatureAlgorithm.SHA512withRSA)
+                        .build();
+        bcLoad.load(bcParam);
+        Assertions.assertEquals(1, bcLoad.size());
+        Assertions.assertArrayEquals(cert.getEncoded(), bcLoad.getCertificate("cert").getEncoded());
+    }
+
+    @Test
+    public void bcSignedStoreLoadsThroughOurs_regression() throws Exception
+    {
+        char[] storePassword = storePw("signature interop in");
+        KeyPair signingPair = rsaKeyPair();
+        Certificate cert = trustedCert();
+
+        KeyStore bcWriter = bc();
+        bcWriter.load(null, storePassword);
+        bcWriter.setCertificateEntry("cert", cert);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        org.bouncycastle.jcajce.BCFKSLoadStoreParameter bcStoreParam =
+                new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(
+                        out, (PrivateKey) signingPair.getPrivate())
+                        .withStoreSignatureAlgorithm(
+                                org.bouncycastle.jcajce.BCFKSLoadStoreParameter.SignatureAlgorithm.SHA512withRSA)
+                        .build();
+        bcWriter.store(bcStoreParam);
+
+        KeyStore reloaded = ours();
+        reloaded.load(new BCFKSLoadStoreParameter.Builder(
+                new ByteArrayInputStream(out.toByteArray()), signingPair.getPublic()).build());
+        Assertions.assertEquals(1, reloaded.size());
+        Assertions.assertArrayEquals(cert.getEncoded(), reloaded.getCertificate("cert").getEncoded());
+    }
+
+    @Test
+    public void pbkdfKeyEntryInteropsWithBouncyCastleBothDirections_regression() throws Exception
+    {
+        char[] storePassword = storePw("pbkdf key interop");
+        char[] entryPassword = "entry password".toCharArray();
+        PBEKey original = BcFKSLoadStoreParameterTest.pbeKey("the pbe password".toCharArray());
+
+        // Ours writes, BC reads.
+        KeyStore fresh = ours();
+        fresh.load(null, storePassword);
+        fresh.setKeyEntry("pbe", original, entryPassword, null);
+        ByteArrayOutputStream oursOut = new ByteArrayOutputStream();
+        fresh.store(oursOut, storePassword);
+
+        KeyStore bcReader = bc();
+        bcReader.load(new ByteArrayInputStream(oursOut.toByteArray()), storePassword);
+        Key bcRecovered = bcReader.getKey("pbe", entryPassword);
+        Assertions.assertTrue(bcRecovered instanceof PBEKey);
+        Assertions.assertArrayEquals(original.getEncoded(), bcRecovered.getEncoded());
+
+        // BC writes, ours reads.
+        KeyStore bcWriter = bc();
+        bcWriter.load(null, storePassword);
+        bcWriter.setKeyEntry("pbe", original, entryPassword, null);
+        ByteArrayOutputStream bcOut = new ByteArrayOutputStream();
+        bcWriter.store(bcOut, storePassword);
+
+        KeyStore oursReader = ours();
+        oursReader.load(new ByteArrayInputStream(bcOut.toByteArray()), storePassword);
+        Key oursRecovered = oursReader.getKey("pbe", entryPassword);
+        Assertions.assertTrue(oursRecovered instanceof PBEKey);
+        Assertions.assertArrayEquals(original.getEncoded(), oursRecovered.getEncoded());
+    }
+
+    /**
+     * BC has no distinct "unset" case of its own -- its Builder always
+     * defaults storeSignatureAlgorithm to SHA512withECDSA -- so the
+     * measured BC comparison here is BC's OWN Builder, un-configured,
+     * signing with our RSA key: BC's default mismatches RSA the same way
+     * our "unset" case refuses.
+     */
+    @Test
+    public void signingKeyWithoutSignatureAlgorithmRefusedTyped_regression() throws Exception
+    {
+        char[] pw = storePw("no signature algorithm");
+        KeyPair signingPair = rsaKeyPair();
+
+        KeyStore fresh = ours();
+        fresh.load(null, pw);
+        BCFKSLoadStoreParameter noAlg =
+                new BCFKSLoadStoreParameter.Builder(new ByteArrayOutputStream(), (PrivateKey) signingPair.getPrivate())
+                        .build();
+        Class<? extends Throwable> oursType = captureStoreExceptionClass(fresh, noAlg);
+        Assertions.assertEquals(IOException.class, oursType);
+
+        KeyStore bcFresh = bc();
+        bcFresh.load(null, pw);
+        org.bouncycastle.jcajce.BCFKSLoadStoreParameter bcNoAlg =
+                new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(
+                        new ByteArrayOutputStream(), (PrivateKey) signingPair.getPrivate()).build();
+        Class<? extends Throwable> bcType = captureStoreExceptionClass(bcFresh, bcNoAlg);
+        Assertions.assertEquals(bcType, oursType);
+    }
+
+    @Test
+    public void signatureAlgorithmMismatchedWithKeyRefusedTyped_regression() throws Exception
+    {
+        char[] pw = storePw("mismatched signature algorithm");
+        KeyPair signingPair = rsaKeyPair();
+
+        KeyStore fresh = ours();
+        fresh.load(null, pw);
+        BCFKSLoadStoreParameter mismatched =
+                new BCFKSLoadStoreParameter.Builder(new ByteArrayOutputStream(), (PrivateKey) signingPair.getPrivate())
+                        .withStoreSignatureAlgorithm(BCFKSLoadStoreParameter.SignatureAlgorithm.SHA512withECDSA)
+                        .build();
+        Class<? extends Throwable> oursType = captureStoreExceptionClass(fresh, mismatched);
+        Assertions.assertEquals(IOException.class, oursType);
+
+        KeyStore bcFresh = bc();
+        bcFresh.load(null, pw);
+        org.bouncycastle.jcajce.BCFKSLoadStoreParameter bcMismatched =
+                new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(
+                        new ByteArrayOutputStream(), (PrivateKey) signingPair.getPrivate())
+                        .withStoreSignatureAlgorithm(
+                                org.bouncycastle.jcajce.BCFKSLoadStoreParameter.SignatureAlgorithm.SHA512withECDSA)
+                        .build();
+        Class<? extends Throwable> bcType = captureStoreExceptionClass(bcFresh, bcMismatched);
+        Assertions.assertEquals(bcType, oursType);
+    }
+
+    @Test
+    public void loadStoreParameterPbkdfMismatchRefusedTyped_regression() throws Exception
+    {
+        char[] pw = storePw("pbkdf mismatch");
+        Certificate cert = trustedCert();
+
+        KeyStore bcWriter = bc();
+        bcWriter.load(null, pw);
+        bcWriter.setCertificateEntry("cert", cert);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        bcWriter.store(new org.bouncycastle.jcajce.BCFKSLoadStoreParameter.Builder(out, pw)
+                .withStorePBKDFConfig(new PBKDF2Config.Builder()
+                        .withIterationCount(4096)
+                        .withSaltLength(32)
+                        .withPRF(PBKDF2Config.PRF_SHA512)
+                        .build())
+                .build());
+
+        KeyStore mismatchLoad = ours();
+        BCFKSLoadStoreParameter mismatchParam = new BCFKSLoadStoreParameter.Builder(
+                new ByteArrayInputStream(out.toByteArray()), pw)
+                .withStorePBKDFConfig(new BCFKSLoadStoreParameter.PBKDF2Config.Builder()
+                        .withIterationCount(8192)
+                        .withSaltLength(32)
+                        .build())
+                .build();
+        IOException e = Assertions.assertThrows(IOException.class, () -> mismatchLoad.load(mismatchParam));
+        Assertions.assertTrue(e.getMessage().contains("do not match"), e.getMessage());
+
+        KeyStore matchLoad = ours();
+        BCFKSLoadStoreParameter matchParam = new BCFKSLoadStoreParameter.Builder(
+                new ByteArrayInputStream(out.toByteArray()), pw)
+                .withStorePBKDFConfig(new BCFKSLoadStoreParameter.PBKDF2Config.Builder()
+                        .withIterationCount(4096)
+                        .withSaltLength(32)
+                        .build())
+                .build();
+        matchLoad.load(matchParam);
+        Assertions.assertEquals(1, matchLoad.size());
+    }
+
+    private static KeyStore bc() throws Exception
+    {
+        return KeyStore.getInstance("BCFKS", "BC");
+    }
+
+    private static Class<? extends Throwable> captureStoreExceptionClass(KeyStore ks,
+                                                                           KeyStore.LoadStoreParameter param)
+    {
+        try
+        {
+            ks.store(param);
+        }
+        catch (Exception e)
+        {
+            return e.getClass();
+        }
+        Assertions.fail("expected store() to refuse");
+        return null;
+    }
+
+    private static KeyStore ours() throws Exception
+    {
+        return KeyStore.getInstance("BCFKS", JostleProvider.PROVIDER_NAME);
+    }
+
+    private static KeyPair rsaKeyPair() throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(2048);
+        return kpg.generateKeyPair();
+    }
+
+    private static char[] storePw(String suffix)
+    {
+        return ("store password " + suffix).toCharArray();
+    }
+
+    private static Certificate trustedCert() throws Exception
+    {
+        KeyStore src = ours();
+        src.load(new ByteArrayInputStream(BcFKSFixtures.KWP_KEY_STORE), BcFKSKeyStoreSpiTest.testPassword);
+        return src.getCertificate("trusted");
+    }
+
+    private static byte[] writeScryptStore() throws Exception
+    {
+        BCFKSLoadStoreParameter.ScryptConfig config = new BCFKSLoadStoreParameter.ScryptConfig.Builder(1024, 8, 1)
+                .withSaltLength(20)
+                .build();
+        KeyStore fresh = ours();
+        fresh.load(null, BcFKSKeyStoreSpiTest.testPassword);
+        fresh.setKeyEntry("seckey",
+                new SecretKeySpec(new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, "AES"),
+                BcFKSKeyStoreSpiTest.testPassword, null);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        fresh.store(new BCFKSLoadStoreParameter.Builder(out, BcFKSKeyStoreSpiTest.testPassword)
+                .withStorePBKDFConfig(config)
+                .build());
+        return out.toByteArray();
+    }
+
 }

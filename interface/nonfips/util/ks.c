@@ -18,6 +18,7 @@
 #include <openssl/pkcs12.h>
 #include <openssl/pkcs7.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include "asn1_util.h"
 #include "bc_err_codes.h"
@@ -159,6 +160,28 @@ static void clear_secret(ks_entry *entry) {
     OPENSSL_free(entry->secret_sun_oid);
     entry->secret_sun_oid = NULL;
     entry->secret_any_password = 0;
+    OPENSSL_free(entry->pending_secret);
+    entry->pending_secret = NULL;
+    entry->pending_secret_len = 0;
+}
+
+/* The entry holds a secret key, decrypted or still encrypted. */
+static int holds_secret(const ks_entry *entry) {
+    return entry->secret != NULL || entry->pending_secret != NULL;
+}
+
+/* The entry holds a private key, decrypted or still encrypted. */
+static int holds_key(const ks_entry *entry) {
+    return entry->key != NULL || entry->pending_key != NULL;
+}
+
+/* Drops the private key in either form. */
+static void drop_key(ks_entry *entry) {
+    EVP_PKEY_free(entry->key);
+    entry->key = NULL;
+    OPENSSL_free(entry->pending_key);
+    entry->pending_key = NULL;
+    entry->pending_key_len = 0;
 }
 
 static void free_entry(ks_entry *entry) {
@@ -168,7 +191,7 @@ static void free_entry(ks_entry *entry) {
     if (entry->alias != NULL) {
         OPENSSL_clear_free(entry->alias, strlen(entry->alias) + 1);
     }
-    EVP_PKEY_free(entry->key);
+    drop_key(entry);
     clear_key_password(entry);
     clear_certificate_chain(entry);
     clear_secret(entry);
@@ -264,7 +287,7 @@ static ks_entry *find_entry_by_local_key_id(ks_ctx *ctx, const unsigned char *id
 
 static int32_t add_certificate_bag(STACK_OF(PKCS12_SAFEBAG) **bags,
                                    const char *alias, X509 *cert,
-                                   const char *local_key_id) {
+                                   const char *local_key_id, int trusted) {
     if (bags == NULL || alias == NULL || cert == NULL) {
         return JO_KS_STORE_FAILED;
     }
@@ -283,13 +306,24 @@ static int32_t add_certificate_bag(STACK_OF(PKCS12_SAFEBAG) **bags,
                     (int) strlen(local_key_id))) {
         return JO_KS_STORE_FAILED;
     }
+    /*
+     * A certificate entry carries Oracle's trusted-key-usage attribute
+     * (anyExtendedKeyUsage), as the JDK and BouncyCastle write it: the JDK
+     * reads a certificate bag as a trusted entry only when it is present.
+     * Never on a key entry's chain.
+     */
+    if (trusted
+            && !PKCS12_add1_attr_by_NID(bag, NID_oracle_jdk_trustedkeyusage, V_ASN1_OBJECT,
+                    (const unsigned char *) OBJ_nid2obj(NID_anyExtendedKeyUsage), -1)) {
+        return JO_KS_STORE_FAILED;
+    }
     return JO_SUCCESS;
 }
 
 static int32_t add_certificate_chain_bags(STACK_OF(PKCS12_SAFEBAG) **bags,
                                           const char *alias,
                                           STACK_OF(X509) *chain,
-                                          const char *local_key_id) {
+                                          const char *local_key_id, int trusted) {
     if (chain == NULL) {
         return JO_SUCCESS;
     }
@@ -298,7 +332,7 @@ static int32_t add_certificate_chain_bags(STACK_OF(PKCS12_SAFEBAG) **bags,
         /* Only the leaf (first) cert carries the localKeyId; CA certs are
          * chained by issuer/subject. */
         const char *id = (i == 0) ? local_key_id : NULL;
-        int32_t ret = add_certificate_bag(bags, alias, sk_X509_value(chain, i), id);
+        int32_t ret = add_certificate_bag(bags, alias, sk_X509_value(chain, i), id, trusted);
         if (ret != JO_SUCCESS) {
             return ret;
         }
@@ -345,22 +379,125 @@ static const EVP_MD *ks_md_to_evp(int32_t md) {
     }
 }
 
+/*
+ * Diagnosis after a failure, never a pre-check: whether the algorithm is one
+ * this build cannot run (no provider serves the cipher, or PBES2 names an AEAD
+ * cipher, which OpenSSL's PBES2 does not do), rather than a wrong password or
+ * malformed input. It re-probes the algorithm itself, so an OPS-injected
+ * failure on a supported algorithm stays generic. On yes, the error queue
+ * carries OpenSSL's "unsupported" reason with the algorithm's OID.
+ */
+static int cipher_nid_unsupported(int cipher_nid, const ASN1_OBJECT *named) {
+    ERR_set_mark();
+    EVP_CIPHER *cipher = EVP_CIPHER_fetch(get_global_jostle_ossl_lib_ctx(), OBJ_nid2sn(cipher_nid), NULL);
+    int unsupported = cipher == NULL || (EVP_CIPHER_get_flags(cipher) & EVP_CIPH_FLAG_AEAD_CIPHER) != 0;
+    EVP_CIPHER_free(cipher);
+    ERR_pop_to_mark();
+    if (unsupported) {
+        char oid[128];
+        OBJ_obj2txt(oid, sizeof(oid), named != NULL ? named : OBJ_nid2obj(cipher_nid), 1);
+        ERR_raise_data(ERR_LIB_EVP, ERR_R_UNSUPPORTED, "algorithm %s", oid);
+    }
+    return unsupported;
+}
+
+/* A PKCS#12 PBE nid or, for the PBES2 selectors, a raw cipher nid. */
+static int pbe_nid_unsupported(int nid) {
+    int cipher_nid = NID_undef;
+    int md_nid = NID_undef;
+    if (EVP_PBE_find_ex(EVP_PBE_TYPE_OUTER, nid, &cipher_nid, &md_nid, NULL, NULL) && cipher_nid != NID_undef) {
+        return cipher_nid_unsupported(cipher_nid, OBJ_nid2obj(nid));
+    }
+    return cipher_nid_unsupported(nid, NULL);
+}
+
+static int pbe_algor_unsupported(const X509_ALGOR *alg) {
+    const ASN1_OBJECT *oid = NULL;
+    X509_ALGOR_get0(&oid, NULL, NULL, alg);
+    if (OBJ_obj2nid(oid) != NID_pbes2) {
+        return pbe_nid_unsupported(OBJ_obj2nid(oid));
+    }
+    PBE2PARAM *p2 = ASN1_TYPE_unpack_sequence(ASN1_ITEM_rptr(PBE2PARAM), alg->parameter);
+    if (p2 == NULL || p2->encryption == NULL) {
+        PBE2PARAM_free(p2);
+        return 0;
+    }
+    int unsupported = cipher_nid_unsupported(OBJ_obj2nid(p2->encryption->algorithm), p2->encryption->algorithm);
+    PBE2PARAM_free(p2);
+    return unsupported;
+}
+
+/*
+ * A shrouded key read with no store password keeps its encrypted form, as the
+ * JDK keeps it: ks_get_key decrypts it with the password the caller gives.
+ */
+static int32_t defer_key_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag) {
+    const X509_SIG *sig = PKCS12_SAFEBAG_get0_pkcs8(bag);
+    unsigned char *der = NULL;
+    int der_len = sig == NULL ? 0 : i2d_X509_SIG(sig, &der);
+    if (der_len <= 0) {
+        OPENSSL_free(der);
+        return JO_KS_LOAD_FAILED;
+    }
+    ks_entry *entry = find_or_create_entry(ctx, alias);
+    drop_key(entry);
+    entry->pending_key = der;
+    entry->pending_key_len = (size_t) der_len;
+    entry->certificate_entry = 0;
+    clear_key_password(entry);
+    return JO_SUCCESS;
+}
+
+/* The secret-key twin of defer_key_bag: the EncryptedPrivateKeyInfo DER, decrypted by ks_get_secret. */
+static int32_t defer_secret_bag(ks_ctx *ctx, const char *alias, const unsigned char *epki, int epki_len) {
+    ks_entry *entry = find_or_create_entry(ctx, alias);
+    clear_secret(entry);
+    drop_key(entry);
+    entry->certificate_entry = 0;
+    clear_key_password(entry);
+    entry->pending_secret = OPENSSL_memdup(epki, (size_t) epki_len);
+    jo_assert(entry->pending_secret != NULL);
+    entry->pending_secret_len = (size_t) epki_len;
+    return JO_SUCCESS;
+}
+
 static int32_t load_key_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
-                            const char *password, int password_len) {
+                            const char *password, int password_len, int deferred) {
     PKCS8_PRIV_KEY_INFO *p8 = NULL;
     const PKCS8_PRIV_KEY_INFO *p8_const = NULL;
 
     int bag_nid = PKCS12_SAFEBAG_get_nid(bag);
+    if (deferred && bag_nid == NID_pkcs8ShroudedKeyBag) {
+        return defer_key_bag(ctx, alias, bag);
+    }
     if (bag_nid == NID_keyBag) {
         p8_const = PKCS12_SAFEBAG_get0_p8inf(bag);
     } else if (bag_nid == NID_pkcs8ShroudedKeyBag) {
+        ERR_set_mark();
         p8 = PKCS12_decrypt_skey_ex(bag, password, password_len,
                 get_global_jostle_ossl_lib_ctx(), NULL);
         p8_const = p8;
+        if (p8 == NULL) {
+            const X509_ALGOR *alg = NULL;
+            X509_SIG_get0(PKCS12_SAFEBAG_get0_pkcs8(bag), &alg, NULL);
+            ERR_pop_to_mark();
+            if (alg != NULL && pbe_algor_unsupported(alg)) {
+                return JO_KS_ALGORITHM_UNSUPPORTED;
+            }
+            /*
+             * A key under its own password, not the store's: kept encrypted for
+             * getKey with that password, as the JDK reads every key. A MAC-less
+             * file whose safes are unencrypted, opened with a wrong store
+             * password, therefore loads with every key deferred and fails only
+             * at getKey; an encrypted safe under the wrong password still fails
+             * the load, here and on the JDK.
+             */
+            return defer_key_bag(ctx, alias, bag);
+        }
+        ERR_clear_last_mark();
     }
 
     if (p8_const == NULL) {
-        PKCS8_PRIV_KEY_INFO_free(p8);
         return JO_KS_LOAD_FAILED;
     }
 
@@ -372,7 +509,7 @@ static int32_t load_key_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
     }
 
     ks_entry *entry = find_or_create_entry(ctx, alias);
-    EVP_PKEY_free(entry->key);
+    drop_key(entry);
     entry->key = pkey;
     entry->certificate_entry = 0;
     return set_key_password(entry, (const uint8_t *) password, (size_t) password_len);
@@ -388,7 +525,7 @@ static int32_t load_key_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
  * read; the SPI re-sets them for the form it writes.
  */
 static int32_t load_secret_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
-                               const char *password, int password_len) {
+                               const char *password, int password_len, int deferred) {
     const ASN1_OBJECT *type = PKCS12_SAFEBAG_get0_bag_type(bag);
     const ASN1_TYPE *value = PKCS12_SAFEBAG_get0_bag_obj(bag);
     if (type == NULL || value == NULL || ASN1_TYPE_get(value) != V_ASN1_OCTET_STRING
@@ -408,6 +545,10 @@ static int32_t load_secret_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *b
     int key_len = octets_len;
     const ASN1_OBJECT *key_oid = type;
     int shrouded = OBJ_obj2nid(type) == NID_pkcs8ShroudedKeyBag;
+    if (shrouded && deferred) {
+        /* Kept encrypted, as the JDK keeps it: ks_get_secret decrypts with the password given. */
+        return defer_secret_bag(ctx, alias, octets, octets_len);
+    }
     char oid_text[128];
 
     if (shrouded) {
@@ -416,8 +557,22 @@ static int32_t load_secret_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *b
         if (epki == NULL || q - octets != octets_len) {
             goto exit;
         }
+        ERR_set_mark();
         p8 = PKCS8_decrypt_ex(epki, password, password_len,
                 get_global_jostle_ossl_lib_ctx(), NULL);
+        if (p8 == NULL) {
+            const X509_ALGOR *alg = NULL;
+            X509_SIG_get0(epki, &alg, NULL);
+            ERR_pop_to_mark();
+            if (alg != NULL && pbe_algor_unsupported(alg)) {
+                ret = JO_KS_ALGORITHM_UNSUPPORTED;
+                goto exit;
+            }
+            /* A secret under its own password, not the store's: kept encrypted, as a key is. */
+            ret = defer_secret_bag(ctx, alias, octets, octets_len);
+            goto exit;
+        }
+        ERR_clear_last_mark();
         if (OPS_OPENSSL_ERROR_8 p8 == NULL) {
             goto exit;
         }
@@ -438,8 +593,7 @@ static int32_t load_secret_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *b
 
     ks_entry *entry = find_or_create_entry(ctx, alias);
     clear_secret(entry);
-    EVP_PKEY_free(entry->key);
-    entry->key = NULL;
+    drop_key(entry);
     entry->certificate_entry = 0;
     entry->secret = OPENSSL_memdup(key, (size_t) key_len);
     jo_assert(entry->secret != NULL);
@@ -479,12 +633,125 @@ static int32_t load_cert_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag
     }
     if (!sk_X509_push(entry->certificate_chain, cert)) {
         X509_free(cert);
-        return JO_FAIL;
+        return JO_OPENSSL_ERROR;
     }
-    if (entry->key == NULL && entry->secret == NULL) {
+    if (!holds_key(entry) && !holds_secret(entry)) {
         entry->certificate_entry = 1;
     }
     return JO_SUCCESS;
+}
+
+/*
+ * A certificate bag no key claims by localKeyId is an entry of its own when it
+ * carries Oracle's trusted-key-usage attribute or a friendlyName; a bare one,
+ * the shape `openssl pkcs12 -export` gives a key's chain certificates, is
+ * loose. Every unclaimed bag is a chain candidate either way.
+ */
+static int is_entry_cert_bag(const PKCS12_SAFEBAG *bag) {
+    const STACK_OF(X509_ATTRIBUTE) *attrs = PKCS12_SAFEBAG_get0_attrs(bag);
+    return PKCS12_get_attr_gen(attrs, NID_oracle_jdk_trustedkeyusage) != NULL
+           || PKCS12_get_attr_gen(attrs, NID_friendlyName) != NULL;
+}
+
+/* Marks a candidate already loaded as an entry, in the names parallel to the candidates. */
+static char entry_marker[] = "";
+
+static int chain_holds(STACK_OF(X509) *chain, X509 *cert) {
+    for (int i = 0; i < sk_X509_num(chain); i++) {
+        if (X509_cmp(sk_X509_value(chain, i), cert) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * Extend a key entry's chain from its last certificate by issuer, from every
+ * certificate no key claims, as the JDK and BouncyCastle do. Each step adds a
+ * certificate the chain does not hold, so the walk ends within n steps.
+ */
+static int32_t extend_chain(ks_entry *entry, STACK_OF(X509) *loose, unsigned char *used) {
+    int n = sk_X509_num(loose);
+    for (int step = 0; step < n; step++) {
+        X509 *last = sk_X509_value(entry->certificate_chain, sk_X509_num(entry->certificate_chain) - 1);
+        if (X509_check_issued(last, last) == X509_V_OK) {
+            break;
+        }
+        int found = -1;
+        for (int i = 0; i < n && found < 0; i++) {
+            X509 *cand = sk_X509_value(loose, i);
+            if (!chain_holds(entry->certificate_chain, cand) && X509_check_issued(cand, last) == X509_V_OK) {
+                found = i;
+            }
+        }
+        if (found < 0) {
+            break;
+        }
+        X509 *issuer = sk_X509_value(loose, found);
+        if (!X509_up_ref(issuer)) {
+            return JO_OPENSSL_ERROR;
+        }
+        if (!sk_X509_push(entry->certificate_chain, issuer)) {
+            X509_free(issuer);
+            return JO_OPENSSL_ERROR;
+        }
+        used[found] = 1;
+    }
+    return JO_SUCCESS;
+}
+
+/*
+ * Attach the unclaimed certificates to the key entries' chains. A loose one no
+ * chain uses becomes an entry under a numeric alias; an attributed or named
+ * one is an entry already.
+ */
+static int32_t place_loose_certs(ks_ctx *ctx, STACK_OF(X509) *loose, STACK_OF(OPENSSL_STRING) *names,
+                                 int *fallback_index) {
+    int n = sk_X509_num(loose);
+    int32_t ret = JO_SUCCESS;
+    if (n == 0) {
+        return JO_SUCCESS;
+    }
+    /* n is bounded by the bags parsed from the store's bytes. */
+    unsigned char *used = OPENSSL_zalloc((size_t) n);
+    jo_assert(used != NULL);
+
+    for (ks_entry *entry = ctx->entries; entry != NULL && ret == JO_SUCCESS; entry = entry->next) {
+        if (holds_key(entry) && sk_X509_num(entry->certificate_chain) > 0) {
+            ret = extend_chain(entry, loose, used);
+        }
+    }
+    for (int i = 0; i < n && ret == JO_SUCCESS; i++) {
+        char *name = sk_OPENSSL_STRING_value(names, i);
+        if (used[i] || name == entry_marker) {
+            continue;
+        }
+        char fallback[32];
+        if (name == NULL) {
+            BIO_snprintf(fallback, sizeof(fallback), "%d", (*fallback_index)++);
+            name = fallback;
+        }
+        ks_entry *entry = find_or_create_entry(ctx, name);
+        if (entry->certificate_chain == NULL) {
+            entry->certificate_chain = sk_X509_new_null();
+            jo_assert(entry->certificate_chain != NULL);
+        }
+        X509 *cert = sk_X509_value(loose, i);
+        if (!X509_up_ref(cert)) {
+            ret = JO_OPENSSL_ERROR;
+            break;
+        }
+        if (!sk_X509_push(entry->certificate_chain, cert)) {
+            X509_free(cert);
+            ret = JO_OPENSSL_ERROR;
+            break;
+        }
+        if (!holds_key(entry) && !holds_secret(entry)) {
+            entry->certificate_entry = 1;
+        }
+    }
+    OPENSSL_free(used);
+    return ret;
 }
 
 /*
@@ -498,7 +765,7 @@ static int32_t load_cert_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag
  * association order-independent across bags and safes.
  */
 static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
-                                   const char *password, int password_len) {
+                                   const char *password, int password_len, int deferred) {
     if (bags == NULL) {
         return JO_KS_LOAD_FAILED;
     }
@@ -519,8 +786,8 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
         }
 
         int32_t ret = bag_nid == NID_secretBag
-                ? load_secret_bag(ctx, alias, bag, password, password_len)
-                : load_key_bag(ctx, alias, bag, password, password_len);
+                ? load_secret_bag(ctx, alias, bag, password, password_len, deferred)
+                : load_key_bag(ctx, alias, bag, password, password_len, deferred);
         if (ret == JO_SUCCESS) {
             ks_entry *entry = find_entry(ctx, alias);
             const unsigned char *id;
@@ -539,6 +806,10 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
         }
     }
 
+    STACK_OF(X509) *loose = sk_X509_new_null();
+    STACK_OF(OPENSSL_STRING) *names = sk_OPENSSL_STRING_new_null();
+    jo_assert(loose != NULL && names != NULL);
+    int32_t ret = JO_SUCCESS;
     for (int i = 0; i < sk_PKCS12_SAFEBAG_num(bags); i++) {
         PKCS12_SAFEBAG *bag = sk_PKCS12_SAFEBAG_value(bags, i);
         if (PKCS12_SAFEBAG_get_nid(bag) != NID_certBag) {
@@ -554,6 +825,34 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
 
         char *alias;
         int alias_owned;
+        int entry_bag = is_entry_cert_bag(bag);
+        if (owner == NULL && PKCS12_SAFEBAG_get_bag_nid(bag) == NID_x509Certificate) {
+            X509 *cert = PKCS12_SAFEBAG_get1_cert_ex(bag, get_global_jostle_ossl_lib_ctx(), NULL);
+            if (cert == NULL) {
+                ret = JO_KS_LOAD_FAILED;
+                break;
+            }
+            /* Every unclaimed certificate is a chain candidate; an entry bag is also loaded as an entry below. */
+            char *name = entry_bag ? entry_marker : PKCS12_get_friendlyname(bag);
+            if (!sk_X509_push(loose, cert)) {
+                X509_free(cert);
+                if (name != entry_marker) {
+                    OPENSSL_free(name);
+                }
+                ret = JO_OPENSSL_ERROR;
+                break;
+            }
+            if (!sk_OPENSSL_STRING_push(names, name)) {
+                if (name != entry_marker) {
+                    OPENSSL_free(name);
+                }
+                ret = JO_OPENSSL_ERROR;
+                break;
+            }
+            if (!entry_bag) {
+                continue;
+            }
+        }
         if (owner != NULL) {
             alias = owner->alias;
             alias_owned = 0;
@@ -561,26 +860,37 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
             alias = entry_alias_from_bag(bag, fallback_index++);
             alias_owned = 1;
             if (alias == NULL) {
-                return JO_KS_LOAD_FAILED;
+                ret = JO_KS_LOAD_FAILED;
+                break;
             }
         }
 
-        int32_t ret = load_cert_bag(ctx, alias, bag);
+        ret = load_cert_bag(ctx, alias, bag);
         if (alias_owned) {
             OPENSSL_free(alias);
         }
         if (ret != JO_SUCCESS) {
-            return ret;
+            break;
         }
     }
 
-    return JO_SUCCESS;
+    if (ret == JO_SUCCESS) {
+        ret = place_loose_certs(ctx, loose, names, &fallback_index);
+    }
+    for (int i = 0; i < sk_OPENSSL_STRING_num(names); i++) {
+        char *name = sk_OPENSSL_STRING_value(names, i);
+        if (name != entry_marker) {
+            OPENSSL_free(name);
+        }
+    }
+    sk_OPENSSL_STRING_free(names);
+    sk_X509_pop_free(loose, X509_free);
+    return ret;
 }
 
 ks_ctx *ks_allocate(const char *type, int32_t *err) {
     /* err is jostle's own: assert, never return. */
     jo_assert(err != NULL);
-    *err = JO_FAIL;
 
     if (type == NULL) {
         *err = JO_KS_TYPE_IS_NULL;
@@ -593,6 +903,7 @@ ks_ctx *ks_allocate(const char *type, int32_t *err) {
 
     ks_ctx *ctx = OPENSSL_zalloc(sizeof(ks_ctx));
     jo_assert(ctx != NULL);
+    ctx->kind = KS_CTX_KIND;
 
     ctx->type = OPENSSL_strdup(type);
     jo_assert(ctx->type != NULL);
@@ -602,15 +913,26 @@ ks_ctx *ks_allocate(const char *type, int32_t *err) {
     return ctx;
 }
 
-void ks_free(ks_ctx *ctx) {
+int32_t ks_ctx_check(const ks_ctx *ctx) {
+    jo_assert(ctx != NULL);
+    return ctx->kind == KS_CTX_KIND ? JO_SUCCESS : JO_KS_CTX_WRONG_KIND;
+}
+
+int32_t ks_free(ks_ctx *ctx) {
     if (ctx == NULL) {
-        return;
+        return JO_SUCCESS;
+    }
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        /* Frees NOTHING: freeing another kind's memory as a keystore is the fault the tag stops. */
+        return JO_KS_CTX_WRONG_KIND;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_KS_CTX);
     clear_entries(ctx);
     OPENSSL_clear_free(ctx->pending_store, ctx->pending_store_len);
     OPENSSL_clear_free(ctx->type, strlen(ctx->type) + 1);
+    ctx->kind = KS_KIND_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
+    return JO_SUCCESS;
 }
 
 int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
@@ -626,6 +948,10 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
     if (input_len == 0) {
         return JO_KS_LOAD_FAILED;
     }
+    /*
+     * Bound: the SPI refuses a store over its ceiling (PKCS12Limits, 64 MiB by default) before this call, and
+     * every bag, entry and stack below is parsed from these bytes, so their counts are bounded by them.
+     */
     if (input_len > INT32_MAX || password_len > INT32_MAX) {
         return JO_INPUT_TOO_LONG_INT32;
     }
@@ -643,6 +969,8 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
     STACK_OF(PKCS12_SAFEBAG) *all_bags = NULL;
     ks_ctx loaded;
     int pass_len = (int) password_len;
+    /* NULL is the JCA's null password; an empty one is a password (see ks.h). */
+    int no_password = password == NULL;
     int32_t ret = JO_KS_LOAD_FAILED;
     OSSL_LIB_CTX *prev_default = NULL;
     int default_swapped = 0;
@@ -706,7 +1034,7 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
      * safe-decryption below so both stages use the same form -- this lets
      * Jostle read a foreign keystore protected with an explicit empty password.
      */
-    if (PKCS12_mac_present(p12)) {
+    if (PKCS12_mac_present(p12) && !no_password) {
         ERR_set_mark();
         int mac_ok = PKCS12_verify_mac(p12, pass, pass_len);
         if (!mac_ok && pass == NULL && PKCS12_verify_mac(p12, "", 0)) {
@@ -743,6 +1071,10 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
         if (PKCS7_type_is_data(p7)) {
             bags = PKCS12_unpack_p7data(p7);
         } else if (PKCS7_type_is_encrypted(p7)) {
+            if (no_password) {
+                /* The JCA's load(stream, null): an encrypted safe needs the password it was not given. */
+                continue;
+            }
             bags = PKCS12_unpack_p7encdata(p7, pass, pass_len);
         } else {
             /*
@@ -763,7 +1095,9 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
          * error), rather than dropping entries.
          */
         if (bags == NULL) {
-            ret = JO_KS_LOAD_FAILED;
+            ret = PKCS7_type_is_encrypted(p7) && p7->d.encrypted != NULL
+                          && pbe_algor_unsupported(p7->d.encrypted->enc_data->algorithm)
+                  ? JO_KS_ALGORITHM_UNSUPPORTED : JO_KS_LOAD_FAILED;
             break;
         }
 
@@ -771,7 +1105,7 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
             PKCS12_SAFEBAG *moved = sk_PKCS12_SAFEBAG_shift(bags);
             if (!sk_PKCS12_SAFEBAG_push(all_bags, moved)) {
                 PKCS12_SAFEBAG_free(moved);
-                ret = JO_FAIL;
+                ret = JO_OPENSSL_ERROR;
                 break;
             }
         }
@@ -779,7 +1113,7 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
     }
 
     if (ret == JO_SUCCESS) {
-        ret = load_collected_bags(&loaded, all_bags, pass, pass_len);
+        ret = load_collected_bags(&loaded, all_bags, pass, pass_len, no_password);
     }
     if (ret == JO_SUCCESS) {
         replace_entries(ctx, &loaded);
@@ -812,6 +1146,7 @@ static int32_t add_secret_bag(STACK_OF(PKCS12_SAFEBAG) **key_bags,
                               int cert_nid, int32_t pbe_iter, const char *pass,
                               int pass_len, OSSL_LIB_CTX *libctx) {
     jo_assert(entry->secret_len <= KS_SECRET_MAX_LEN);
+    jo_assert(entry->secret != NULL || entry->pending_secret != NULL);
 
     PKCS12_SAFEBAG *bag = NULL;
     PKCS8_PRIV_KEY_INFO *p8 = NULL;
@@ -822,7 +1157,16 @@ static int32_t add_secret_bag(STACK_OF(PKCS12_SAFEBAG) **key_bags,
     char *entry_pass = NULL;
     int32_t ret = JO_KS_STORE_FAILED;
 
-    if (secret_form == KS_SECRET_FORM_RFC7292) {
+    if (entry->secret == NULL) {
+        /* Still encrypted from a null-password load: the bag it was read from, verbatim. */
+        bag = PKCS12_SAFEBAG_create_secret(NID_pkcs8ShroudedKeyBag, V_ASN1_OCTET_STRING,
+                entry->pending_secret, (int) entry->pending_secret_len);
+        if (bag == NULL || !sk_PKCS12_SAFEBAG_push(*key_bags, bag)) {
+            PKCS12_SAFEBAG_free(bag);
+            bag = NULL;
+            goto exit;
+        }
+    } else if (secret_form == KS_SECRET_FORM_RFC7292) {
         /* The RFC 7292 bag holds the raw key: never write it into a cleartext safe. */
         int nid = OBJ_txt2nid(entry->secret_rfc_oid);
         if (cert_nid == -1 || nid == NID_undef) {
@@ -890,6 +1234,32 @@ exit:
     return ret;
 }
 
+/*
+ * A key still encrypted from a null-password load is written back as read: its
+ * encryption stays its original writer's, and nothing is decrypted without its
+ * password.
+ */
+static PKCS12_SAFEBAG *add_pending_key_bag(STACK_OF(PKCS12_SAFEBAG) **bags, const ks_entry *entry) {
+    const unsigned char *p = entry->pending_key;
+    X509_SIG *sig = d2i_X509_SIG(NULL, &p, (long) entry->pending_key_len);
+    if (sig == NULL) {
+        return NULL;
+    }
+    PKCS12_SAFEBAG *bag = PKCS12_SAFEBAG_create0_pkcs8(sig);
+    if (bag == NULL) {
+        X509_SIG_free(sig);
+        return NULL;
+    }
+    if (*bags == NULL) {
+        *bags = sk_PKCS12_SAFEBAG_new_null();
+    }
+    if (*bags == NULL || !sk_PKCS12_SAFEBAG_push(*bags, bag)) {
+        PKCS12_SAFEBAG_free(bag);
+        return NULL;
+    }
+    return bag;
+}
+
 int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
                  const uint8_t *password, size_t password_len,
                  int32_t key_pbe, int32_t cert_pbe, int32_t mac_scheme,
@@ -899,8 +1269,9 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     jo_assert(out != NULL);
     jo_assert(out_len != NULL);
     jo_assert(password != NULL || password_len == 0);
-    jo_assert(pbe_iter >= 0);
-    jo_assert(mac_iter >= 0);
+    /* Bridge-validated: OpenSSL would silently replace a count of 0 with its default. */
+    jo_assert(pbe_iter > 0);
+    jo_assert(mac_iter > 0);
 
     *out = NULL;
     *out_len = 0;
@@ -978,16 +1349,17 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
         if (entry->alias == NULL) {
             continue;
         }
-        if (entry->secret != NULL) {
+        if (holds_secret(entry)) {
             cret = add_secret_bag(&key_bags, &cert_bags, entry, secret_form,
                     key_nid, cert_nid, pbe_iter, pass, pass_len, libctx);
             if (cret != JO_SUCCESS) {
                 ret = cret;
                 goto end;
             }
-        } else if (entry->key != NULL) {
-            PKCS12_SAFEBAG *bag = PKCS12_add_key_ex(&key_bags, entry->key, 0,
-                    pbe_iter, key_nid, pass, libctx, NULL);
+        } else if (holds_key(entry)) {
+            PKCS12_SAFEBAG *bag = entry->key != NULL
+                    ? PKCS12_add_key_ex(&key_bags, entry->key, 0, pbe_iter, key_nid, pass, libctx, NULL)
+                    : add_pending_key_bag(&key_bags, entry);
             if (OPS_OPENSSL_ERROR_1 bag == NULL
                     || !PKCS12_add_friendlyname_utf8(bag, entry->alias, -1)
                     || !PKCS12_add_localkeyid(bag, (unsigned char *) entry->alias,
@@ -996,7 +1368,7 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
             }
             if (entry->certificate_chain != NULL) {
                 cret = add_certificate_chain_bags(&cert_bags, entry->alias,
-                        entry->certificate_chain, entry->alias);
+                        entry->certificate_chain, entry->alias, 0);
                 if (cret != JO_SUCCESS) {
                     ret = cret;
                     goto end;
@@ -1004,7 +1376,7 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
             }
         } else if (entry->certificate_entry && entry->certificate_chain != NULL) {
             cret = add_certificate_chain_bags(&cert_bags, entry->alias,
-                    entry->certificate_chain, NULL);
+                    entry->certificate_chain, NULL, 1);
             if (cret != JO_SUCCESS) {
                 ret = cret;
                 goto end;
@@ -1073,6 +1445,10 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
     }
 
 end:
+    if (ret == JO_KS_STORE_FAILED
+            && (pbe_nid_unsupported(key_nid) || (cert_nid > 0 && pbe_nid_unsupported(cert_nid)))) {
+        ret = JO_KS_ALGORITHM_UNSUPPORTED;
+    }
     OPENSSL_free(der);
     PKCS12_free(p12);
     sk_PKCS7_pop_free(safes, PKCS7_free);
@@ -1080,6 +1456,48 @@ end:
     sk_PKCS12_SAFEBAG_pop_free(cert_bags, PKCS12_SAFEBAG_free);
     OPENSSL_clear_free(pass, password_len + 1);
     rand_clear_java_srand_call();
+    return ret;
+}
+
+/*
+ * Decrypt a key kept encrypted by a null-password load, with the password the
+ * caller gives now; the entry keeps its encrypted form. A wrong password is the
+ * same refusal as for a decrypted key. PKCS#12 derives differently from a NULL
+ * and an empty password, so an empty one is tried both ways, as ks_load does.
+ */
+static int32_t decrypt_pending_key(const ks_entry *entry, const uint8_t *password, size_t password_len,
+                                   EVP_PKEY **out) {
+    const unsigned char *p = entry->pending_key;
+    X509_SIG *sig = d2i_X509_SIG(NULL, &p, (long) entry->pending_key_len);
+    if (sig == NULL) {
+        return JO_KS_DECODE_KEY_FAILED;
+    }
+    char *pass = copy_password(password, password_len);
+    if (password != NULL && password_len != 0 && pass == NULL) {
+        X509_SIG_free(sig);
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+    ERR_set_mark();
+    PKCS8_PRIV_KEY_INFO *p8 = PKCS8_decrypt_ex(sig, pass, (int) password_len,
+            get_global_jostle_ossl_lib_ctx(), NULL);
+    if (p8 == NULL && pass == NULL) {
+        p8 = PKCS8_decrypt_ex(sig, "", 0, get_global_jostle_ossl_lib_ctx(), NULL);
+    }
+    ERR_pop_to_mark();
+    int32_t ret = JO_KS_DECODE_KEY_FAILED;
+    if (p8 == NULL) {
+        const X509_ALGOR *alg = NULL;
+        X509_SIG_get0(sig, &alg, NULL);
+        if (alg != NULL && pbe_algor_unsupported(alg)) {
+            ret = JO_KS_ALGORITHM_UNSUPPORTED;
+        }
+    } else {
+        *out = EVP_PKCS82PKEY_ex(p8, get_global_jostle_ossl_lib_ctx(), NULL);
+        ret = *out != NULL ? JO_SUCCESS : JO_KS_DECODE_KEY_FAILED;
+    }
+    PKCS8_PRIV_KEY_INFO_free(p8);
+    X509_SIG_free(sig);
+    OPENSSL_clear_free(pass, password_len + 1);
     return ret;
 }
 
@@ -1097,19 +1515,26 @@ int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_le
     ERR_clear_error();
 
     ks_entry *entry = find_entry(ctx, alias);
-    if (entry == NULL || entry->key == NULL) {
+    if (entry == NULL || !holds_key(entry)) {
         return JO_SUCCESS;
     }
-    if (!password_matches(entry, password, password_len)) {
+    EVP_PKEY *pending = NULL;
+    if (entry->key == NULL) {
+        int32_t dret = decrypt_pending_key(entry, password, password_len, &pending);
+        if (dret != JO_SUCCESS) {
+            return dret;
+        }
+    } else if (!password_matches(entry, password, password_len)) {
         return JO_KS_DECODE_KEY_FAILED;
     }
 
     key_spec spec;
-    spec.key = entry->key;
+    spec.key = pending != NULL ? pending : entry->key;
 
-    int32_t ret = JO_FAIL;
+    int32_t ret = JO_OPENSSL_ERROR;
     asn1_ctx *asn1 = asn1_writer_allocate(&ret);
     if (asn1 == NULL || ret != JO_SUCCESS) {
+        EVP_PKEY_free(pending);
         return ret;
     }
 
@@ -1117,6 +1542,7 @@ int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_le
     ret = asn1_writer_encode_private_key(asn1, &spec, &encoded_len, PRIVATE_KEY_DEFAULT_ENCODING);
     if (ret != 1) {
         asn1_writer_free(asn1);
+        EVP_PKEY_free(pending);
         return ret == 0 ? JO_KS_ENCODE_KEY_FAILED : ret;
     }
 
@@ -1126,6 +1552,7 @@ int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_le
     size_t written = 0;
     ret = asn1_writer_get_content(asn1, encoded, &written, encoded_len);
     asn1_writer_free(asn1);
+    EVP_PKEY_free(pending);
     if (ret != 1) {
         OPENSSL_clear_free(encoded, encoded_len);
         return ret;
@@ -1160,7 +1587,7 @@ int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t ke
         memcpy(password_copy, password, password_len);
     }
 
-    int32_t ret = JO_FAIL;
+    int32_t ret = JO_OPENSSL_ERROR;
     key_spec *spec = asn1_writer_decode_private_key(key, key_len, &ret);
     if (spec == NULL) {
         OPENSSL_clear_free(password_copy, password_len);
@@ -1168,9 +1595,7 @@ int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t ke
     }
 
     ks_entry *entry = find_or_create_entry(ctx, alias);
-    if (entry->key != NULL) {
-        EVP_PKEY_free(entry->key);
-    }
+    drop_key(entry);
 
     entry->key = spec->key;
     entry->certificate_entry = 0;
@@ -1223,8 +1648,7 @@ int32_t ks_set_secret(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t
     }
 
     ks_entry *entry = find_or_create_entry(ctx, alias);
-    EVP_PKEY_free(entry->key);
-    entry->key = NULL;
+    drop_key(entry);
     clear_certificate_chain(entry);
     entry->certificate_entry = 0;
     clear_secret(entry);
@@ -1285,6 +1709,91 @@ static uint8_t *der_put_len(uint8_t *p, size_t n) {
     return p;
 }
 
+/*
+ * SEQUENCE { OBJECT IDENTIFIER, OCTET STRING } of a secret key, written by
+ * hand into one buffer the caller clear-frees.
+ */
+static int32_t encode_secret(const char *rfc_oid, const uint8_t *key, size_t key_len,
+                             uint8_t **out, size_t *out_len) {
+    unsigned char *oid_der = NULL;
+    ASN1_OBJECT *oid = OBJ_txt2obj(rfc_oid, 1);
+    int oid_der_len = oid == NULL ? -1 : i2d_ASN1_OBJECT(oid, &oid_der);
+    ASN1_OBJECT_free(oid);
+    if (OPS_OPENSSL_ERROR_9 oid_der_len <= 0 || oid_der == NULL) {
+        OPENSSL_free(oid_der);
+        return JO_KS_ENCODE_KEY_FAILED;
+    }
+
+    size_t octets_len = 1 + der_len_size(key_len) + key_len;
+    size_t content_len = (size_t) oid_der_len + octets_len;
+    size_t total = 1 + der_len_size(content_len) + content_len;
+    uint8_t *der = OPENSSL_zalloc(total);
+    jo_assert(der != NULL);
+
+    uint8_t *p = der;
+    *p++ = 0x30;
+    p = der_put_len(p, content_len);
+    memcpy(p, oid_der, (size_t) oid_der_len);
+    p += oid_der_len;
+    *p++ = 0x04;
+    p = der_put_len(p, key_len);
+    memcpy(p, key, key_len);
+    p += key_len;
+    jo_assert((size_t) (p - der) == total);
+    OPENSSL_free(oid_der);
+
+    *out = der;
+    *out_len = total;
+    return JO_SUCCESS;
+}
+
+/*
+ * Decrypt a secret kept encrypted by a null-password load, with the password
+ * the caller gives now; the entry keeps its encrypted form.
+ */
+static int32_t decrypt_pending_secret(const ks_entry *entry, const uint8_t *password, size_t password_len,
+                                      uint8_t **out, size_t *out_len) {
+    const unsigned char *p = entry->pending_secret;
+    X509_SIG *sig = d2i_X509_SIG(NULL, &p, (long) entry->pending_secret_len);
+    if (sig == NULL) {
+        return JO_KS_DECODE_KEY_FAILED;
+    }
+    char *pass = copy_password(password, password_len);
+    if (password != NULL && password_len != 0 && pass == NULL) {
+        X509_SIG_free(sig);
+        return JO_INPUT_TOO_LONG_INT32;
+    }
+    ERR_set_mark();
+    PKCS8_PRIV_KEY_INFO *p8 = PKCS8_decrypt_ex(sig, pass, (int) password_len,
+            get_global_jostle_ossl_lib_ctx(), NULL);
+    if (p8 == NULL && pass == NULL) {
+        p8 = PKCS8_decrypt_ex(sig, "", 0, get_global_jostle_ossl_lib_ctx(), NULL);
+    }
+    ERR_pop_to_mark();
+    int32_t ret = JO_KS_DECODE_KEY_FAILED;
+    const ASN1_OBJECT *key_oid = NULL;
+    const unsigned char *key = NULL;
+    int key_len = 0;
+    char oid_text[128];
+    if (p8 == NULL) {
+        const X509_ALGOR *alg = NULL;
+        X509_SIG_get0(sig, &alg, NULL);
+        if (alg != NULL && pbe_algor_unsupported(alg)) {
+            ret = JO_KS_ALGORITHM_UNSUPPORTED;
+        }
+    } else if (PKCS8_pkey_get0(&key_oid, &key, &key_len, NULL, p8) && key_oid != NULL && key != NULL
+               && key_len > 0 && key_len <= KS_SECRET_MAX_LEN) {
+        int oid_len = OBJ_obj2txt(oid_text, sizeof(oid_text), key_oid, 1);
+        if (oid_len > 0 && oid_len < (int) sizeof(oid_text)) {
+            ret = encode_secret(oid_text, key, (size_t) key_len, out, out_len);
+        }
+    }
+    PKCS8_PRIV_KEY_INFO_free(p8);
+    X509_SIG_free(sig);
+    OPENSSL_clear_free(pass, password_len + 1);
+    return ret;
+}
+
 int32_t ks_get_secret(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len,
                       const uint8_t *password, size_t password_len) {
     jo_assert(ctx != NULL);
@@ -1299,48 +1808,18 @@ int32_t ks_get_secret(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out
     ERR_clear_error();
 
     ks_entry *entry = find_entry(ctx, alias);
-    if (entry == NULL || entry->secret == NULL) {
+    if (entry == NULL || !holds_secret(entry)) {
         return JO_SUCCESS;
+    }
+    if (entry->secret == NULL) {
+        return decrypt_pending_secret(entry, password, password_len, out, out_len);
     }
     if (!entry->secret_any_password && !password_matches(entry, password, password_len)) {
         return JO_KS_DECODE_KEY_FAILED;
     }
     jo_assert(entry->secret_len <= KS_SECRET_MAX_LEN);
 
-    /*
-     * SEQUENCE { OBJECT IDENTIFIER, OCTET STRING }, written by hand into one
-     * buffer the caller clear-frees, so the key has exactly one copy to scrub.
-     */
-    unsigned char *oid_der = NULL;
-    ASN1_OBJECT *oid = OBJ_txt2obj(entry->secret_rfc_oid, 1);
-    int oid_der_len = oid == NULL ? -1 : i2d_ASN1_OBJECT(oid, &oid_der);
-    ASN1_OBJECT_free(oid);
-    if (OPS_OPENSSL_ERROR_9 oid_der_len <= 0 || oid_der == NULL) {
-        OPENSSL_free(oid_der);
-        return JO_KS_ENCODE_KEY_FAILED;
-    }
-
-    size_t octets_len = 1 + der_len_size(entry->secret_len) + entry->secret_len;
-    size_t content_len = (size_t) oid_der_len + octets_len;
-    size_t total = 1 + der_len_size(content_len) + content_len;
-    uint8_t *der = OPENSSL_zalloc(total);
-    jo_assert(der != NULL);
-
-    uint8_t *p = der;
-    *p++ = 0x30;
-    p = der_put_len(p, content_len);
-    memcpy(p, oid_der, (size_t) oid_der_len);
-    p += oid_der_len;
-    *p++ = 0x04;
-    p = der_put_len(p, entry->secret_len);
-    memcpy(p, entry->secret, entry->secret_len);
-    p += entry->secret_len;
-    jo_assert((size_t) (p - der) == total);
-    OPENSSL_free(oid_der);
-
-    *out = der;
-    *out_len = total;
-    return JO_SUCCESS;
+    return encode_secret(entry->secret_rfc_oid, entry->secret, entry->secret_len, out, out_len);
 }
 
 int32_t ks_is_secret_entry(ks_ctx *ctx, const char *alias) {
@@ -1348,7 +1827,7 @@ int32_t ks_is_secret_entry(ks_ctx *ctx, const char *alias) {
     jo_assert(alias != NULL);
 
     ks_entry *entry = find_entry(ctx, alias);
-    return entry != NULL && entry->secret != NULL ? 1 : 0;
+    return entry != NULL && holds_secret(entry) ? 1 : 0;
 }
 
 int32_t ks_get_certificate_chain(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len) {
@@ -1375,7 +1854,7 @@ int32_t ks_get_certificate_chain(ks_ctx *ctx, const char *alias, uint8_t **out, 
     for (int i = 0; i < sk_X509_num(entry->certificate_chain); i++) {
         int len = i2d_X509(sk_X509_value(entry->certificate_chain, i), NULL);
         if (len <= 0) {
-            return JO_FAIL;
+            return JO_OPENSSL_ERROR;
         }
         total += len;
         if (total > INT32_MAX) {
@@ -1390,7 +1869,7 @@ int32_t ks_get_certificate_chain(ks_ctx *ctx, const char *alias, uint8_t **out, 
     for (int i = 0; i < sk_X509_num(entry->certificate_chain); i++) {
         if (i2d_X509(sk_X509_value(entry->certificate_chain, i), &p) <= 0) {
             OPENSSL_free(encoded);
-            return JO_FAIL;
+            return JO_OPENSSL_ERROR;
         }
     }
 
@@ -1434,14 +1913,14 @@ int32_t ks_set_certificate_chain(ks_ctx *ctx, const char *alias, const uint8_t *
         if (!sk_X509_push(parsed, cert)) {
             X509_free(cert);
             sk_X509_pop_free(parsed, X509_free);
-            return JO_FAIL;
+            return JO_OPENSSL_ERROR;
         }
     }
 
     ks_entry *entry = find_or_create_entry(ctx, alias);
     clear_certificate_chain(entry);
     entry->certificate_chain = parsed;
-    if (entry->key == NULL && entry->secret == NULL) {
+    if (!holds_key(entry) && !holds_secret(entry)) {
         /*
          * A chain attached to an alias with no private key is a trusted-cert
          * entry (matching load_cert_bag's keyless-bag handling). Without this
@@ -1471,8 +1950,8 @@ int32_t ks_set_certificate_entry(ks_ctx *ctx, const char *alias, const uint8_t *
     }
 
     ks_entry *entry = find_or_create_entry(ctx, alias);
-    if (entry->key != NULL || entry->secret != NULL) {
-        return JO_FAIL;
+    if (holds_key(entry) || holds_secret(entry)) {
+        return JO_KS_ALIAS_HOLDS_KEY;
     }
 
     const unsigned char *p = certificate;
@@ -1489,7 +1968,7 @@ int32_t ks_set_certificate_entry(ks_ctx *ctx, const char *alias, const uint8_t *
     if (!sk_X509_push(stack, cert)) {
         X509_free(cert);
         sk_X509_free(stack);
-        return JO_FAIL;
+        return JO_OPENSSL_ERROR;
     }
 
     clear_certificate_chain(entry);
@@ -1587,7 +2066,7 @@ int32_t ks_is_key_entry(ks_ctx *ctx, const char *alias) {
     jo_assert(alias != NULL);
 
     ks_entry *entry = find_entry(ctx, alias);
-    return entry != NULL && (entry->key != NULL || entry->secret != NULL) ? 1 : 0;
+    return entry != NULL && (holds_key(entry) || holds_secret(entry)) ? 1 : 0;
 }
 
 int32_t ks_is_certificate_entry(ks_ctx *ctx, const char *alias) {
@@ -1595,7 +2074,7 @@ int32_t ks_is_certificate_entry(ks_ctx *ctx, const char *alias) {
     jo_assert(alias != NULL);
 
     ks_entry *entry = find_entry(ctx, alias);
-    return entry != NULL && entry->key == NULL && entry->secret == NULL
+    return entry != NULL && !holds_key(entry) && !holds_secret(entry)
            && entry->certificate_entry ? 1 : 0;
 }
 

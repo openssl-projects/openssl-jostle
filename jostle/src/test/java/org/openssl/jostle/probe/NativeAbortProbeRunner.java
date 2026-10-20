@@ -65,6 +65,8 @@ public final class NativeAbortProbeRunner
     // and never reaches this NI. The abort rows would pass with any string,
     // since the assert precedes the type check — the control would not.
     private static final String KS_TYPE = "PKCS12";
+    // JO_KS_CTX_WRONG_KIND.
+    private static final int KS_CTX_WRONG_KIND = -210;
 
     private static final String NONFIPS_JNI = "interface/nonfips/jni/";
     private static final String NONFIPS_FFM = "interface/nonfips/ffm/";
@@ -83,14 +85,22 @@ public final class NativeAbortProbeRunner
         final int expectedExit;
         final String expectedAssert;
         final String expectedFile;
+        /* The language does not fix the outcome: a typed refusal (exit 0) or a crash (exit 134) both pass. */
+        final boolean either;
 
         Row(String id, String bridge, int expectedExit, String expectedAssert, String expectedFile)
+        {
+            this(id, bridge, expectedExit, expectedAssert, expectedFile, false);
+        }
+
+        Row(String id, String bridge, int expectedExit, String expectedAssert, String expectedFile, boolean either)
         {
             this.id = id;
             this.bridge = bridge;
             this.expectedExit = expectedExit;
             this.expectedAssert = expectedAssert;
             this.expectedFile = expectedFile;
+            this.either = either;
         }
     }
 
@@ -102,6 +112,13 @@ public final class NativeAbortProbeRunner
     {
         rows.add(new Row(id, "jni", 134, jniAssert, jniFile));
         rows.add(new Row(id, "ffm", 134, ffmAssert, ffmFile));
+    }
+
+    /** A read of freed memory: the typed control line, or an abort, and the run says which. */
+    private static void typedOrAbortRow(List<Row> rows, String id)
+    {
+        rows.add(new Row(id, "jni", 0, OK, null, true));
+        rows.add(new Row(id, "ffm", 0, OK, null, true));
     }
 
     private static void controlRow(List<Row> rows, String id)
@@ -175,6 +192,16 @@ public final class NativeAbortProbeRunner
                     lenJni, jniDir + "ks_jni.c",
                     "err_len >= 1", ffmDir + "ks_ffm.c");
             controlRow(rows, "ks-control");
+            // A dispose of another family's handle is a jostle fault: it aborts on the
+            // free's result rather than freeing nothing in silence. Zero stays a no-op.
+            abortRow(rows, "ks-dispose-foreign-handle",
+                    "rc == JO_SUCCESS", jniDir + "ks_jni.c",
+                    "rc == JO_SUCCESS", ffmDir + "ks_ffm.c");
+            controlRow(rows, "ks-dispose-zero");
+            // A disposed handle reads freed memory, so it never runs in-suite, and the
+            // language fixes no outcome: a typed refusal or an abort both pass, and
+            // the run prints which one it saw.
+            typedOrAbortRow(rows, "ks-disposed-handle");
         }
         return rows;
     }
@@ -218,6 +245,11 @@ public final class NativeAbortProbeRunner
             boolean ok = exit == row.expectedExit
                     && log.contains(row.expectedAssert)
                     && (row.expectedFile == null || log.contains(row.expectedFile));
+            if (row.either && !ok && exit == 134)
+            {
+                ok = true;
+                System.out.println("     " + row.id + " aborted rather than refusing typed");
+            }
             if (!ok)
             {
                 failed++;
@@ -381,6 +413,24 @@ public final class NativeAbortProbeRunner
             int[] err = new int[1];
             long ref = ks.ni_allocateKeyStore(KS_TYPE, err);
             report(ref != 0 && err[0] == 0, "ks ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("ks-dispose-foreign-handle".equals(c))
+        {
+            int[] err = new int[1];
+            ks.ni_dispose(md.ni_allocateDigest("SHA-256", 0, err));
+        }
+        else if ("ks-dispose-zero".equals(c))
+        {
+            ks.ni_dispose(0);
+            report(true, "ks dispose(0) returned");
+        }
+        else if ("ks-disposed-handle".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = ks.ni_allocateKeyStore(KS_TYPE, err);
+            ks.ni_dispose(ref);
+            int rc = ks.ni_containsAlias(ref, "a");
+            report(rc == KS_CTX_WRONG_KIND, "ks containsAlias on a disposed handle rc=" + rc);
         }
         else
         {

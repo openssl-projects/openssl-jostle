@@ -700,6 +700,14 @@
 #define JO_EDEC_INSTANCE_NOT_SUPPORTED -208
 /* An EdDSA public key whose y coordinate is not below the field prime. */
 #define JO_EDEC_POINT_NOT_CANONICAL -209
+/* A handle passed as a keystore context that is not a live one. */
+#define JO_KS_CTX_WRONG_KIND -210
+/* A keystore alias or secret-key OID with an embedded NUL, refused on both bridges. */
+#define JO_KS_NAME_HAS_NUL -211
+/* A certificate entry over an alias that holds a key or secret entry. */
+#define JO_KS_ALIAS_HOLDS_KEY -212
+/* A keystore whose PBE or cipher this build cannot run; the error queue names the algorithm. */
+#define JO_KS_ALGORITHM_UNSUPPORTED -213
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

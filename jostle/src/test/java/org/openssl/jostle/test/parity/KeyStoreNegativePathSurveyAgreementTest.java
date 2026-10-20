@@ -72,7 +72,7 @@ import java.util.TreeSet;
  * {@code load} and {@code store} are contractually permitted to do - not what
  * any provider happens to do.
  */
-public class KeyStoreNegativePathSurveyTest
+public class KeyStoreNegativePathSurveyAgreementTest
 {
     private static Provider jsl;
     private static Provider bc;
@@ -276,18 +276,16 @@ public class KeyStoreNegativePathSurveyTest
     /**
      * The table.
      *
-     * <p>Three cells are deliberate divergences of ours, each pinned against the
-     * contract rather than against a provider:
+     * <p>Three cells are pinned against the contract rather than against a
+     * provider:
      *
      * <ol>
-     *   <li><b>LOAD_NULL_PASSWORD</b> - we raise {@code IOException}, the JDK
-     *       ACCEPTS, BouncyCastle raises a raw {@code NullPointerException}.
-     *       {@code KeyStore.load}'s javadoc permits BOTH of the first two:
-     *       <i>"If a password is not given for integrity checking, then integrity
-     *       checking is not performed"</i> AND {@code @throws IOException ... if
-     *       a password is required but not given}. So our refusal is
-     *       contract-legal and so is the JDK's acceptance; we pin the strict
-     *       reading. BouncyCastle's NPE is legal on neither - a bundle row.</li>
+     *   <li><b>LOAD_NULL_PASSWORD</b> - we and the JDK ACCEPT, BouncyCastle
+     *       raises a raw {@code NullPointerException}. {@code KeyStore.load}'s
+     *       javadoc: <i>"If a password is not given for integrity checking, then
+     *       integrity checking is not performed"</i>, so the encrypted safes are
+     *       skipped and keys stay encrypted until {@code getKey}, as the JDK
+     *       does. BouncyCastle's NPE is legal on no reading - a bundle row.</li>
      *   <li><b>LOAD_TRAILING_GARBAGE</b> - we alone refuse. Ours is the
      *       {@code d2i} consumed-length rule (see the "{@code d2i_*} accepts
      *       trailing garbage" section of {@code .claude/guides/native-code.md});
@@ -412,13 +410,9 @@ public class KeyStoreNegativePathSurveyTest
         Provider jdk = JdkComparator.forService("KeyStore", "PKCS12");
         Assertions.assertNotNull(jdk, "no JDK PKCS12 provider; the JDK half of these pins cannot run");
 
-        // 1. A null password. KeyStore.load's javadoc permits BOTH answers:
-        //    "If a password is not given for integrity checking, then integrity
-        //    checking is not performed" AND "@throws IOException ... if a
-        //    password is required but not given". We take the strict reading;
-        //    the JDK takes the lenient one. BouncyCastle's raw NPE is legal on
-        //    neither reading - the bundle row.
-        refuses(jsl, "PKCS12", Fault.LOAD_NULL_PASSWORD, IOException.class);
+        // 1. A null password: no integrity check, as KeyStore.load's javadoc
+        //    says and the JDK does. BouncyCastle's raw NPE is the bundle row.
+        accepts(jsl, "PKCS12", Fault.LOAD_NULL_PASSWORD);
         accepts(jdk, "PKCS12", Fault.LOAD_NULL_PASSWORD);
         refuses(bc, "PKCS12", Fault.LOAD_NULL_PASSWORD, NullPointerException.class);
 

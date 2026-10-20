@@ -392,6 +392,10 @@ public enum ErrorCode
     JO_EDEC_INSTANCE_NOT_SUPPORTED(-208),
     // An EdDSA public key whose y coordinate is not below the field prime.
     JO_EDEC_POINT_NOT_CANONICAL(-209),
+    JO_KS_CTX_WRONG_KIND(-210),
+    JO_KS_NAME_HAS_NUL(-211),
+    JO_KS_ALIAS_HOLDS_KEY(-212),
+    JO_KS_ALGORITHM_UNSUPPORTED(-213),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

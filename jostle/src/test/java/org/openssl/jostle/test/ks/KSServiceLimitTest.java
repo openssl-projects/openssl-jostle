@@ -35,6 +35,7 @@ import java.security.KeyPairGenerator;
 import java.security.KeyStoreException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
 import java.util.Date;
 
 /**
@@ -152,12 +153,12 @@ public class KSServiceLimitTest
         }
         catch (IOException e)
         {
-            Assertions.assertEquals("key store PBE iteration count is negative", e.getMessage());
+            Assertions.assertEquals("key store PBE iteration count must be positive", e.getMessage());
         }
     }
 
     // Integer.MIN_VALUE is redundant with store_negativePbeIter for the current
-    // native check: pbe_iter is signed end-to-end and validated with `< 0`
+    // native check: pbe_iter is signed end-to-end and validated with `< 1`
     // before use (no abs/negate, never cast to an unsigned type), so both -1 and
     // MIN_VALUE hit the identical branch. Kept deliberately as a forward-guard --
     // if the count ever gains an abs()/clamp, MIN_VALUE defeats it where -1 does
@@ -173,7 +174,7 @@ public class KSServiceLimitTest
         }
         catch (IOException e)
         {
-            Assertions.assertEquals("key store PBE iteration count is negative", e.getMessage());
+            Assertions.assertEquals("key store PBE iteration count must be positive", e.getMessage());
         }
     }
 
@@ -188,12 +189,12 @@ public class KSServiceLimitTest
         }
         catch (IOException e)
         {
-            Assertions.assertEquals("key store MAC iteration count is negative", e.getMessage());
+            Assertions.assertEquals("key store MAC iteration count must be positive", e.getMessage());
         }
     }
 
     // Forward-guard like store_minValuePbeIter: redundant with the -1 case under
-    // today's signed `mac_iter < 0` check, retained to catch a future abs/clamp.
+    // today's signed `mac_iter < 1` check, retained to catch a future abs/clamp.
     @Test
     public void store_minValueMacIter()
     {
@@ -205,8 +206,27 @@ public class KSServiceLimitTest
         }
         catch (IOException e)
         {
-            Assertions.assertEquals("key store MAC iteration count is negative", e.getMessage());
+            Assertions.assertEquals("key store MAC iteration count must be positive", e.getMessage());
         }
+    }
+
+    /**
+     * OpenSSL replaces a count of 0 with its own default (2048), so a caller who
+     * asked for 0 would silently get 2048. Both counts refuse 0 typed, with 1 as
+     * the accepted boundary.
+     */
+    @Test
+    public void store_zeroIterationsRefusedAndOneAccepted() throws Exception
+    {
+        IOException pbe = Assertions.assertThrows(IOException.class, () -> ni.store(validRef, PASSWORD, KEY_PBE,
+                CERT_PBE, MAC_SCHEME, MAC_DIGEST, 0, MAC_ITER, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc));
+        Assertions.assertEquals("key store PBE iteration count must be positive", pbe.getMessage());
+        IOException mac = Assertions.assertThrows(IOException.class, () -> ni.store(validRef, PASSWORD, KEY_PBE,
+                CERT_PBE, MAC_SCHEME, MAC_DIGEST, PBE_ITER, 0, KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc));
+        Assertions.assertEquals("key store MAC iteration count must be positive", mac.getMessage());
+
+        Assertions.assertNotNull(ni.store(validRef, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST, 1, 1,
+                KSServiceNI.SECRET_FORM_RFC7292, TestUtil.RNDSrc), "one iteration each is accepted");
     }
 
     @Test
@@ -221,6 +241,66 @@ public class KSServiceLimitTest
         catch (IOException e)
         {
             Assertions.assertEquals("supplied random source was null", e.getMessage());
+        }
+    }
+
+    /**
+     * A live handle of another family, a digest context, refused typed by every
+     * entry point that takes a keystore context. A disposed handle reads freed
+     * memory, so it is measured in NativeAbortProbeRunner, never here.
+     */
+    @Test
+    public void everyEntryPointRefusesAForeignHandle()
+    {
+        int[] mdErr = new int[1];
+        long md = NISelector.MDServiceNI.ni_allocateDigest("SHA-256", 0, mdErr);
+        Assertions.assertTrue(md != 0 && mdErr[0] == 0, "control: a live digest context");
+        try
+        {
+            int[] e = new int[18];
+            int[] err = new int[1];
+            int i = 0;
+            e[i++] = ni.ni_load(md, new byte[]{1}, PASSWORD);
+            ni.ni_store(md, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST, PBE_ITER, MAC_ITER,
+                    KSServiceNI.SECRET_FORM_RFC7292, err, TestUtil.RNDSrc);
+            e[i++] = err[0];
+            ni.ni_getKey(md, "a", PASSWORD, err);
+            e[i++] = err[0];
+            e[i++] = ni.ni_setKey(md, "a", DUMMY_KEY, PASSWORD);
+            e[i++] = ni.ni_setSecretKey(md, "a", DUMMY_KEY, "2.16.840.1.101.3.4.1.42", "2.16.840.1.101.3.4.1.42",
+                    PASSWORD);
+            e[i++] = ni.ni_setSecretKeyOids(md, "a", "2.16.840.1.101.3.4.1.42", "2.16.840.1.101.3.4.1.42");
+            ni.ni_getSecretKey(md, "a", PASSWORD, err);
+            e[i++] = err[0];
+            e[i++] = ni.ni_isSecretKeyEntry(md, "a");
+            ni.ni_getCertificateChain(md, "a", err);
+            e[i++] = err[0];
+            e[i++] = ni.ni_setCertificateChain(md, "a", new byte[]{1});
+            e[i++] = ni.ni_setCertificateEntry(md, "a", new byte[]{1});
+            e[i++] = ni.ni_deleteEntry(md, "a");
+            ni.ni_getAliases(md, err);
+            e[i++] = err[0];
+            e[i++] = ni.ni_containsAlias(md, "a");
+            e[i++] = ni.ni_size(md);
+            e[i++] = ni.ni_isKeyEntry(md, "a");
+            e[i++] = ni.ni_isCertificateEntry(md, "a");
+            ni.ni_getCreationDate(md, "a", err);
+            e[i++] = err[0];
+            Assertions.assertEquals(18, i);
+            int[] want = new int[18];
+            Arrays.fill(want, -210);
+            Assertions.assertArrayEquals(want, e, "JO_KS_CTX_WRONG_KIND from all 18 entry points");
+
+            KeyStoreException ks = Assertions.assertThrows(KeyStoreException.class,
+                    () -> ni.getKey(md, "a", PASSWORD));
+            Assertions.assertEquals("handle is not a key store context", ks.getMessage());
+            IllegalArgumentException iae = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> ni.size(md));
+            Assertions.assertEquals("handle is not a key store context", iae.getMessage());
+        }
+        finally
+        {
+            NISelector.MDServiceNI.ni_dispose(md);
         }
     }
 
@@ -833,19 +913,27 @@ public class KSServiceLimitTest
         }
     }
 
-    /** A SunJCE-form bag under an entry password other than the store password cannot be read back. */
+    /**
+     * A SunJCE-form bag under an entry password other than the store password
+     * loads, kept encrypted, and opens only under its own password, as the JDK
+     * reads it. The load used to fail outright.
+     */
     @Test
-    public void sunForm_entryPasswordOtherThanStorePassword_loadFails()
+    public void sunForm_entryPasswordOtherThanStorePassword_opensUnderItsOwn()
         throws Exception
     {
-        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, "entry".getBytes(StandardCharsets.UTF_8));
+        byte[] entryPassword = "entry".getBytes(StandardCharsets.UTF_8);
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, entryPassword);
         byte[] p12 = storeWith(validRef, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_SUNJCE);
         long loaded = ni.allocateKeyStore("PKCS12");
         try
         {
-            IOException e = Assertions.assertThrows(IOException.class,
-                    () -> ni.load(loaded, p12, PASSWORD));
-            Assertions.assertEquals("key store load failed", e.getMessage());
+            ni.load(loaded, p12, PASSWORD);
+            Assertions.assertTrue(ni.isSecretKeyEntry(loaded, "s"));
+            Assertions.assertNotNull(ni.getSecretKey(loaded, "s", entryPassword));
+            KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                    () -> ni.getSecretKey(loaded, "s", PASSWORD));
+            Assertions.assertEquals("unable to decode key store private key", e.getMessage());
         }
         finally
         {
@@ -951,6 +1039,34 @@ public class KSServiceLimitTest
                 new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate());
         ni.setCertificateEntry(validRef, "c", builder.build(signer).getEncoded());
         assertSetOidsRefused(validRef, "c", RFC_AES128, SUN_AES, NOT_SECRET);
+    }
+
+    /**
+     * The native check under the SPI's pre-check: a certificate entry over a
+     * secret or a key entry is refused typed by ks.c itself, on both bridges.
+     * The SPI refuses first, so only an NI call reaches this.
+     */
+    @Test
+    public void setCertificateEntry_overASecretOrKeyEntryIsRefusedTyped()
+        throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(2048);
+        KeyPair pair = kpg.generateKeyPair();
+        X500Name name = new X500Name("CN=Jostle KS Limit");
+        Date now = new Date();
+        byte[] cert = new JcaX509v3CertificateBuilder(name, BigInteger.ONE,
+                new Date(now.getTime() - 3600_000L), new Date(now.getTime() + 3600_000L), name, pair.getPublic())
+                .build(new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate())).getEncoded();
+
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD);
+        Assertions.assertEquals(-212, ni.ni_setCertificateEntry(validRef, "s", cert), "JO_KS_ALIAS_HOLDS_KEY");
+        Assertions.assertEquals(-212, ni.ni_setCertificateEntry(validRef, "k", cert), "JO_KS_ALIAS_HOLDS_KEY");
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.setCertificateEntry(validRef, "s", cert));
+        Assertions.assertEquals("alias identifies a key entry", e.getMessage());
+        Assertions.assertTrue(ni.isSecretKeyEntry(validRef, "s"), "the refused call left the secret in place");
     }
 
     /** The same OID rules as setSecretKey, and a refused call leaves the entry's OIDs as they were. */

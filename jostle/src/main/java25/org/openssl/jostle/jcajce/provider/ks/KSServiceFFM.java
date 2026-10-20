@@ -22,6 +22,7 @@ import java.lang.invoke.MethodType;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.openssl.jostle.FFM;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -73,7 +74,8 @@ public class KSServiceFFM
     {
         this.allocateH = linker.downcallHandle(
                 lookup.find("JoKS_Allocate").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.disposeH = linker.downcallHandle(
@@ -95,60 +97,78 @@ public class KSServiceFFM
                         ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
         this.getKeyLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetKeyLen").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.getKeyH = linker.downcallHandle(
                 lookup.find("JoKS_GetKey").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.setKeyH = linker.downcallHandle(
                 lookup.find("JoKS_SetKey").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.setSecretH = linker.downcallHandle(
                 lookup.find("JoKS_SetSecret").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.setSecretOidsH = linker.downcallHandle(
                 lookup.find("JoKS_SetSecretOids").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
         this.getSecretLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetSecretLen").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.getSecretH = linker.downcallHandle(
                 lookup.find("JoKS_GetSecret").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
                         ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.isSecretEntryH = linker.downcallHandle(
                 lookup.find("JoKS_IsSecretEntry").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG));
         this.getCertificateChainLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetCertificateChainLen").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
         this.getCertificateChainH = linker.downcallHandle(
                 lookup.find("JoKS_GetCertificateChain").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.setCertificateChainH = linker.downcallHandle(
                 lookup.find("JoKS_SetCertificateChain").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.setCertificateEntryH = linker.downcallHandle(
                 lookup.find("JoKS_SetCertificateEntry").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.deleteEntryH = linker.downcallHandle(
                 lookup.find("JoKS_DeleteEntry").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.getAliasesLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetAliasesLen").orElseThrow(),
@@ -161,7 +181,8 @@ public class KSServiceFFM
                 Linker.Option.critical(true));
         this.containsAliasH = linker.downcallHandle(
                 lookup.find("JoKS_ContainsAlias").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.sizeH = linker.downcallHandle(
                 lookup.find("JoKS_Size").orElseThrow(),
@@ -169,16 +190,19 @@ public class KSServiceFFM
                 Linker.Option.critical(true));
         this.isKeyEntryH = linker.downcallHandle(
                 lookup.find("JoKS_IsKeyEntry").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.isCertificateEntryH = linker.downcallHandle(
                 lookup.find("JoKS_IsCertificateEntry").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS),
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG),
                 Linker.Option.critical(true));
         this.getCreationDateH = linker.downcallHandle(
                 lookup.find("JoKS_GetCreationDate").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT),
+                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_INT),
                 Linker.Option.critical(true));
     }
 
@@ -201,7 +225,8 @@ public class KSServiceFFM
         {
             MemorySegment typeSeg = type == null ? MemorySegment.NULL : arena.allocateFrom(type);
             MemorySegment errSeg = errSegment(err);
-            MemorySegment ctx = (MemorySegment) allocateH.invokeExact(typeSeg, errSeg, errLen(err));
+            MemorySegment ctx = (MemorySegment) allocateH.invokeExact(typeSeg, FFM.cStringLength(typeSeg), errSeg,
+                    errLen(err));
             return ctx.address();
         }
         catch (Throwable t)
@@ -254,8 +279,12 @@ public class KSServiceFFM
                 }
             }
 
-            MemorySegment passwordSeg = (password == null || password.length == 0)
-                    ? MemorySegment.NULL : a.allocate(password.length);
+            // A null password and an empty one are different loads (no integrity
+            // check versus an empty password), so an empty one gets a one-byte
+            // segment and its true length of 0, as the input does.
+            MemorySegment passwordSeg = password == null
+                    ? MemorySegment.NULL : a.allocate(password.length == 0 ? 1L : (long) password.length);
+            long passwordSize = password == null ? 0L : password.length;
             try
             {
                 if (password != null && password.length > 0)
@@ -263,7 +292,7 @@ public class KSServiceFFM
                     passwordSeg.asByteBuffer().put(password);
                 }
                 return (int) loadH.invokeExact(MemorySegment.ofAddress(ref),
-                        inputSeg, inputSize, passwordSeg, passwordSeg.byteSize());
+                        inputSeg, inputSize, passwordSeg, passwordSize);
             }
             finally
             {
@@ -378,7 +407,7 @@ public class KSServiceFFM
             MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
             MemorySegment errSeg = errSegment(err);
             MemorySegment ctx = MemorySegment.ofAddress(ref);
-            int len = (int) getKeyLenH.invokeExact(ctx, aliasSeg,
+            int len = (int) getKeyLenH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
                     passwordSeg, passwordSeg.byteSize(), errSeg, errLen(err));
             if (err[0] != 0 || len == 0)
             {
@@ -387,7 +416,7 @@ public class KSServiceFFM
 
             byte[] key = new byte[len];
             MemorySegment keySeg = MemorySegment.ofArray(key);
-            err[0] = (int) getKeyH.invokeExact(ctx, aliasSeg,
+            err[0] = (int) getKeyH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
                     passwordSeg, passwordSeg.byteSize(), keySeg, keySeg.byteSize());
             return err[0] == 0 ? key : null;
         }
@@ -407,7 +436,7 @@ public class KSServiceFFM
             MemorySegment keySeg = key == null ? MemorySegment.NULL : MemorySegment.ofArray(key);
             MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
             return (int) setKeyH.invokeExact(MemorySegment.ofAddress(ref),
-                    aliasSeg, keySeg, keySeg.byteSize(),
+                    aliasSeg, FFM.cStringLength(aliasSeg), keySeg, keySeg.byteSize(),
                     passwordSeg, passwordSeg.byteSize());
         }
         catch (Throwable t)
@@ -429,7 +458,8 @@ public class KSServiceFFM
             MemorySegment sunSeg = sunOid == null ? MemorySegment.NULL : arena.allocateFrom(sunOid);
             MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
             return (int) setSecretH.invokeExact(MemorySegment.ofAddress(ref),
-                    aliasSeg, keySeg, keySeg.byteSize(), rfcSeg, sunSeg,
+                    aliasSeg, FFM.cStringLength(aliasSeg), keySeg, keySeg.byteSize(), rfcSeg,
+                            FFM.cStringLength(rfcSeg), sunSeg, FFM.cStringLength(sunSeg),
                     passwordSeg, passwordSeg.byteSize());
         }
         catch (Throwable t)
@@ -447,7 +477,8 @@ public class KSServiceFFM
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
             MemorySegment rfcSeg = rfcOid == null ? MemorySegment.NULL : arena.allocateFrom(rfcOid);
             MemorySegment sunSeg = sunOid == null ? MemorySegment.NULL : arena.allocateFrom(sunOid);
-            return (int) setSecretOidsH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, rfcSeg, sunSeg);
+            return (int) setSecretOidsH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg,
+                    FFM.cStringLength(aliasSeg), rfcSeg, FFM.cStringLength(rfcSeg), sunSeg, FFM.cStringLength(sunSeg));
         }
         catch (Throwable t)
         {
@@ -467,7 +498,7 @@ public class KSServiceFFM
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             // len is bounded natively: JoKS_GetSecretLen asserts it is at most
             // SECRET_MAX_LEN plus the OID and DER headers.
-            int len = (int) getSecretLenH.invokeExact(ctx, aliasSeg,
+            int len = (int) getSecretLenH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
                     passwordSeg, passwordSeg.byteSize(), errSeg, errLen(err));
             if (err[0] != 0 || len == 0)
             {
@@ -476,7 +507,7 @@ public class KSServiceFFM
 
             byte[] der = new byte[len];
             MemorySegment derSeg = MemorySegment.ofArray(der);
-            err[0] = (int) getSecretH.invokeExact(ctx, aliasSeg,
+            err[0] = (int) getSecretH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
                     passwordSeg, passwordSeg.byteSize(), derSeg, derSeg.byteSize());
             return err[0] == 0 ? der : null;
         }
@@ -493,7 +524,8 @@ public class KSServiceFFM
         try (Arena arena = Arena.ofConfined())
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
-            return (int) isSecretEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg);
+            return (int) isSecretEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg,
+                    FFM.cStringLength(aliasSeg));
         }
         catch (Throwable t)
         {
@@ -510,7 +542,8 @@ public class KSServiceFFM
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
             MemorySegment errSeg = errSegment(err);
             MemorySegment ctx = MemorySegment.ofAddress(ref);
-            int len = (int) getCertificateChainLenH.invokeExact(ctx, aliasSeg, errSeg, errLen(err));
+            int len = (int) getCertificateChainLenH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg), errSeg,
+                    errLen(err));
             if (err[0] != 0 || len == 0)
             {
                 return null;
@@ -518,7 +551,8 @@ public class KSServiceFFM
 
             byte[] chain = new byte[len];
             MemorySegment chainSeg = MemorySegment.ofArray(chain);
-            err[0] = (int) getCertificateChainH.invokeExact(ctx, aliasSeg, chainSeg, chainSeg.byteSize());
+            err[0] = (int) getCertificateChainH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg), chainSeg,
+                    chainSeg.byteSize());
             return err[0] == 0 ? chain : null;
         }
         catch (Throwable t)
@@ -535,7 +569,8 @@ public class KSServiceFFM
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
             MemorySegment chainSeg = chain == null ? MemorySegment.NULL : MemorySegment.ofArray(chain);
-            return (int) setCertificateChainH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, chainSeg, chainSeg.byteSize());
+            return (int) setCertificateChainH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg,
+                    FFM.cStringLength(aliasSeg), chainSeg, chainSeg.byteSize());
         }
         catch (Throwable t)
         {
@@ -552,7 +587,7 @@ public class KSServiceFFM
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
             MemorySegment certificateSeg = certificate == null ? MemorySegment.NULL : MemorySegment.ofArray(certificate);
             return (int) setCertificateEntryH.invokeExact(MemorySegment.ofAddress(ref),
-                    aliasSeg, certificateSeg, certificateSeg.byteSize());
+                    aliasSeg, FFM.cStringLength(aliasSeg), certificateSeg, certificateSeg.byteSize());
         }
         catch (Throwable t)
         {
@@ -567,7 +602,7 @@ public class KSServiceFFM
         try (Arena arena = Arena.ofConfined())
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
-            return (int) deleteEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg);
+            return (int) deleteEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, FFM.cStringLength(aliasSeg));
         }
         catch (Throwable t)
         {
@@ -607,7 +642,8 @@ public class KSServiceFFM
         try (Arena arena = Arena.ofConfined())
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
-            return (int) containsAliasH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg);
+            return (int) containsAliasH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg,
+                    FFM.cStringLength(aliasSeg));
         }
         catch (Throwable t)
         {
@@ -636,7 +672,7 @@ public class KSServiceFFM
         try (Arena arena = Arena.ofConfined())
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
-            return (int) isKeyEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg);
+            return (int) isKeyEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, FFM.cStringLength(aliasSeg));
         }
         catch (Throwable t)
         {
@@ -651,7 +687,8 @@ public class KSServiceFFM
         try (Arena arena = Arena.ofConfined())
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
-            return (int) isCertificateEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg);
+            return (int) isCertificateEntryH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg,
+                    FFM.cStringLength(aliasSeg));
         }
         catch (Throwable t)
         {
@@ -667,7 +704,8 @@ public class KSServiceFFM
         {
             MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
             MemorySegment errSeg = errSegment(err);
-            return (long) getCreationDateH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg, errSeg,
+            return (long) getCreationDateH.invokeExact(MemorySegment.ofAddress(ref), aliasSeg,
+                    FFM.cStringLength(aliasSeg), errSeg,
                     errLen(err));
         }
         catch (Throwable t)

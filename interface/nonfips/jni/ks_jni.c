@@ -7,6 +7,7 @@
 
 #include <jni.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <openssl/crypto.h>
 
@@ -16,6 +17,15 @@
 #include "../util/ops.h"
 #include "../util/jo_assert.h"
 #include "org_openssl_jostle_jcajce_provider_ks_KSServiceJNI.h"
+
+/*
+ * GetStringUTFChars returns modified UTF-8, which encodes NUL as the pair
+ * C0 80, so an embedded NUL never ends the C string here. Refuse it, as the FFM
+ * bridge refuses a byte count longer than strlen.
+ */
+static int has_modified_utf8_nul(const char *s) {
+    return strstr(s, "\xC0\x80") != NULL;
+}
 
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1allocateKeyStore
 (JNIEnv *env, jobject self, jstring _type, jintArray _err) {
@@ -60,7 +70,9 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     UNUSED(env);
     UNUSED(self);
 
-    ks_free((ks_ctx *) ref);
+    /* The handle is the SPI's own reference, so a wrong kind is a jostle fault: abort, never free in silence. */
+    int32_t rc = ks_free((ks_ctx *) ref);
+    jo_assert(rc == JO_SUCCESS);
 }
 
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1load
@@ -77,6 +89,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
 
     if (ctx == NULL) {
         return JO_KS_CTX_IS_NULL;
+    }
+
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
     }
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
@@ -126,15 +142,20 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         goto exit;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        *err = JO_KS_CTX_WRONG_KIND;
+        goto exit;
+    }
+
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&password, env, _password)) {
         *err = JO_FAILED_ACCESS_KEY;
         goto exit;
     }
-    if (pbe_iter < 0) {
+    if (pbe_iter < 1) {
         *err = JO_KS_PBE_ITER_NEGATIVE;
         goto exit;
     }
-    if (mac_iter < 0) {
+    if (mac_iter < 1) {
         *err = JO_KS_MAC_ITER_NEGATIVE;
         goto exit;
     }
@@ -199,6 +220,11 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         goto exit;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        *err = JO_KS_CTX_WRONG_KIND;
+        goto exit;
+    }
+
     if (_alias == NULL) {
         *err = JO_KS_ALIAS_IS_NULL;
         goto exit;
@@ -207,6 +233,10 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         *err = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        *err = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -262,6 +292,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_IS_NULL;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
+
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -269,6 +303,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -317,6 +355,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     if (ctx == NULL) {
         return JO_KS_CTX_IS_NULL;
     }
+
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -330,6 +372,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
     if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&key, env, _key)) {
@@ -356,6 +402,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     sun_oid = (*env)->GetStringUTFChars(env, _sunOid, NULL);
     if (OPS_FAILED_ACCESS_5 sun_oid == NULL) {
         ret = JO_KS_SECRET_OID_FAILED_ACCESS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(rfc_oid) || has_modified_utf8_nul(sun_oid)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -390,6 +440,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     if (ctx == NULL) {
         return JO_KS_CTX_IS_NULL;
     }
+
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -402,6 +456,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
         goto exit;
     }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
+        goto exit;
+    }
     rfc_oid = (*env)->GetStringUTFChars(env, _rfcOid, NULL);
     if (OPS_FAILED_ACCESS_2 rfc_oid == NULL) {
         ret = JO_KS_SECRET_OID_FAILED_ACCESS;
@@ -410,6 +468,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     sun_oid = (*env)->GetStringUTFChars(env, _sunOid, NULL);
     if (OPS_FAILED_ACCESS_3 sun_oid == NULL) {
         ret = JO_KS_SECRET_OID_FAILED_ACCESS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(rfc_oid) || has_modified_utf8_nul(sun_oid)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -455,6 +517,11 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         *err = JO_KS_CTX_IS_NULL;
         goto exit;
     }
+
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        *err = JO_KS_CTX_WRONG_KIND;
+        goto exit;
+    }
     if (_alias == NULL) {
         *err = JO_KS_ALIAS_IS_NULL;
         goto exit;
@@ -463,6 +530,10 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         *err = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        *err = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
     if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&password, env, _password)) {
@@ -507,6 +578,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     if (ctx == NULL) {
         return JO_KS_CTX_IS_NULL;
     }
+
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -514,6 +589,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -551,6 +630,11 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         goto exit;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        *err = JO_KS_CTX_WRONG_KIND;
+        goto exit;
+    }
+
     if (_alias == NULL) {
         *err = JO_KS_ALIAS_IS_NULL;
         goto exit;
@@ -559,6 +643,10 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         *err = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        *err = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -605,6 +693,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_IS_NULL;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
+
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -612,6 +704,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -645,6 +741,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_IS_NULL;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
+
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -652,6 +752,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -682,6 +786,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_IS_NULL;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
+
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -689,6 +797,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -722,6 +834,11 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
 
     if (ctx == NULL) {
         *err = JO_KS_CTX_IS_NULL;
+        goto exit;
+    }
+
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        *err = JO_KS_CTX_WRONG_KIND;
         goto exit;
     }
 
@@ -762,6 +879,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_IS_NULL;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
+
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -769,6 +890,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -790,6 +915,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     if (ctx == NULL) {
         return JO_KS_CTX_IS_NULL;
     }
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
 
     return ks_size(ctx);
 }
@@ -806,6 +934,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_IS_NULL;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
+
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -813,6 +945,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -837,6 +973,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_IS_NULL;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        return JO_KS_CTX_WRONG_KIND;
+    }
+
     if (_alias == NULL) {
         return JO_KS_ALIAS_IS_NULL;
     }
@@ -844,6 +984,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         ret = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 
@@ -879,6 +1023,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_
         goto exit;
     }
 
+    if (ks_ctx_check(ctx) != JO_SUCCESS) {
+        *err = JO_KS_CTX_WRONG_KIND;
+        goto exit;
+    }
+
     if (_alias == NULL) {
         *err = JO_KS_ALIAS_IS_NULL;
         goto exit;
@@ -887,6 +1036,10 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_
     alias = (*env)->GetStringUTFChars(env, _alias, NULL);
     if (OPS_FAILED_ACCESS_1 alias == NULL) {
         *err = JO_KS_UNABLE_TO_ACCESS_ALIAS;
+        goto exit;
+    }
+    if (has_modified_utf8_nul(alias)) {
+        *err = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
 

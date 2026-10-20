@@ -241,6 +241,15 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("key store type is not supported");
             case JO_KS_CTX_IS_NULL:
                 throw new IllegalArgumentException("key store context is null");
+            case JO_KS_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not a key store context");
+            case JO_KS_NAME_HAS_NUL:
+                throw new IllegalArgumentException("key store alias or OID contains a NUL character");
+            case JO_KS_ALIAS_HOLDS_KEY:
+                throw new IllegalArgumentException("alias identifies a key entry");
+            case JO_KS_ALGORITHM_UNSUPPORTED:
+                throw new UnsupportedOperationException(
+                        String.format("key store algorithm is not supported: %s", OpenSSL.getOpenSSLErrors()));
             case JO_KS_ALIAS_IS_NULL:
                 throw new NullPointerException("key store alias is null");
             case JO_KS_UNABLE_TO_ACCESS_ALIAS:
@@ -258,9 +267,9 @@ public interface DefaultServiceNI
             case JO_KS_STORE_FAILED:
                 throw new UnsupportedOperationException("key store store failed");
             case JO_KS_PBE_ITER_NEGATIVE:
-                throw new IllegalArgumentException("key store PBE iteration count is negative");
+                throw new IllegalArgumentException("key store PBE iteration count must be positive");
             case JO_KS_MAC_ITER_NEGATIVE:
-                throw new IllegalArgumentException("key store MAC iteration count is negative");
+                throw new IllegalArgumentException("key store MAC iteration count must be positive");
             case JO_KS_SECRET_OID_IS_NULL:
                 throw new NullPointerException("key store secret key algorithm OID is null");
             case JO_KS_SECRET_OID_INVALID:
