@@ -30,7 +30,8 @@ import java.util.Set;
  * One row per sub-variant from {@code cases_policy.txt}, generated from
  * PKITS.pdf with each variant's initial policy set and three policy flags. The
  * rows run with revocation on over the case's own CRLs, as phase 2's do; what
- * a row adds is its policy inputs.
+ * a row adds is its policy inputs. Rows suffixed {@code #bcN} are the parameter
+ * sets BouncyCastle's harness runs and PKITS does not list.
  * <p>
  * Most of the FAIL rows turn on policy constraints the CERTIFICATES carry, at
  * default parameters: they fail only because policy processing runs on every
@@ -103,7 +104,7 @@ public class PkitsPhase3Test
     public void everyPolicyVariantAgreesWithPkits() throws Exception
     {
         List<PkitsCertificates.Case> cases = selected();
-        Assertions.assertEquals(86, cases.size(), "phase 3 must select 86 rows from the policy table");
+        Assertions.assertEquals(112, cases.size(), "phase 3 must select 112 rows from the policy table");
 
         List<String> failures = new ArrayList<String>();
         int rejected = 0;
@@ -123,7 +124,7 @@ public class PkitsPhase3Test
             }
         }
         Assertions.assertTrue(failures.isEmpty(), "PKITS disagreements: " + failures);
-        Assertions.assertEquals(42, rejected, "42 of the 86 policy variants must be rejected");
+        Assertions.assertEquals(49, rejected, "49 of the 112 policy variants must be rejected");
     }
 
     /**
@@ -246,7 +247,7 @@ public class PkitsPhase3Test
                 rows.add(c);
             }
         }
-        Assertions.assertEquals(126, rows.size(), "86 policy variants plus 40 rows of 4.13 and 4.16");
+        Assertions.assertEquals(152, rows.size(), "112 policy variants plus 40 rows of 4.13 and 4.16");
 
         List<String> failures = new ArrayList<String>();
         for (PkitsCertificates.Case c : rows)

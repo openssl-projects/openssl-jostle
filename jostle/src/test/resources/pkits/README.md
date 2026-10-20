@@ -60,7 +60,7 @@ stays visible rather than being absorbed by a looser test.
 one row per sub-test of sections 4.8 to 4.12 (86 rows): Certificate Policies (20
 cases), Require Explicit Policy (8), Policy Mappings (14), Inhibit Policy Mapping
 (11) and Inhibit Any Policy (10). Generated from PKITS.pdf like `cases.txt`, never
-from another implementation's tests.
+from another implementation's tests. Then the rows suffixed `#bcN`, below.
 
 - `variant` is the case number, then `#` and the sub-test number where the case
   lists numbered sub-tests ("1. default settings, but with ..."); a case without
@@ -79,6 +79,14 @@ from another implementation's tests.
   not include ... (and the application can process ...)" and "If the
   initial-policy-set is any-policy or otherwise includes ...". 4.9.3's "not should"
   is matched as written.
+- A `#bcN` row is a parameter set BouncyCastle's PKITS harness runs and PKITS does
+  not list: N is BouncyCastle's variant number. Every one sets
+  initial-explicit-policy, which BouncyCastle sets whenever it sets policies: 22
+  over PKITS's own policy sets, 4.8.16, 4.8.17 and 4.12.9 with
+  {NIST-test-policy-1}, and 4.8.15#bc2 with {NIST-test-policy-2}. Their `expect`
+  is derived, never copied: with initial-explicit-policy set the path validates
+  iff the case's stated authorities-constrained-policy-set meets the initial
+  policy set (RFC 5280 6.1.5 (g)).
 
 Generation: `pdftotext -layout PKITS.pdf`, split at the case headings, read each
 case's numbered sub-tests, Expected Result and Certification Path bullets, and

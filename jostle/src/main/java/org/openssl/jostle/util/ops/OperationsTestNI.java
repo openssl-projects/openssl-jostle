@@ -217,6 +217,11 @@ public interface OperationsTestNI
         OPS_INT32_OVERFLOW_3,
         OPS_INT32_OVERFLOW_4,
         OPS_INT32_OVERFLOW_5,
+        OPS_OPENSSL_ERROR_13,
+        OPS_OPENSSL_ERROR_14,
+        OPS_OPENSSL_ERROR_15,
+        OPS_INT32_OVERFLOW_6,
+        OPS_FAILED_ACCESS_10,
     }
 
     /**

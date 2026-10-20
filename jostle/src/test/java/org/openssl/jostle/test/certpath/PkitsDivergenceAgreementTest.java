@@ -110,7 +110,8 @@ public class PkitsDivergenceAgreementTest
         Assertions.assertTrue(e.getMessage().matches("(?s).*failed: 89 .*"),
                 "expected X509 error 89, got: " + e.getMessage());
         Assertions.assertEquals(1, e.getIndex(), "depth 1 is the CA whose basicConstraints is not critical");
-        Assertions.assertEquals(CertPathValidatorException.BasicReason.UNSPECIFIED, e.getReason());
+        // NOT_CA_CERT by family: SUN and BouncyCastle accept this row, so no reference reports it.
+        Assertions.assertEquals(PKIXReason.NOT_CA_CERT, e.getReason());
 
         Assertions.assertTrue(validatesWith(BouncyCastleProvider.PROVIDER_NAME, c),
                 "BouncyCastle is expected to accept a non-critical basicConstraints");

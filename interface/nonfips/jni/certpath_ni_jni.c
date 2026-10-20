@@ -43,7 +43,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
 (JNIEnv *env, jobject jo, jbyteArray _der, jintArray _sizes, jint count, jint crlCount,
  jint anchorCount, jlong timeSecs, jint strict, jint revocation,
  jint policyFlags, jbyteArray _policies, jint policyCount,
- jbyteArray _chainOut, jintArray _outInfo)
+ jbyteArray _chainOut, jintArray _outInfo, jobjectArray _treeOut)
 {
     UNUSED(jo);
 
@@ -68,7 +68,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         ret = JO_INPUT_IS_NULL;
         goto exit;
     }
-    if (_outInfo == NULL || _chainOut == NULL)
+    if (_outInfo == NULL || _chainOut == NULL || _treeOut == NULL)
     {
         ret = JO_OUTPUT_IS_NULL;
         goto exit;
@@ -95,7 +95,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
         ret = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-    if ((*env)->GetArrayLength(env, _outInfo) < count + 3)
+    if ((*env)->GetArrayLength(env, _outInfo) < count + 3 || (*env)->GetArrayLength(env, _treeOut) < 1)
     {
         ret = JO_OUTPUT_OUT_OF_RANGE;
         goto exit;
@@ -219,6 +219,21 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_certpath_CertPath
             jint sz = (jint) result.chain_sizes[i];
             (*env)->SetIntArrayRegion(env, _outInfo, 3 + i, 1, &sz);
         }
+    }
+
+    if (result.tree != NULL)
+    {
+        /* util bounds tree_len to INT32_MAX. */
+        jbyteArray tree = (*env)->NewByteArray(env, (jsize) result.tree_len);
+
+        if (OPS_FAILED_ACCESS_10 tree == NULL)
+        {
+            ret = JO_FAILED_ACCESS_OUTPUT;
+            goto exit;
+        }
+        (*env)->SetByteArrayRegion(env, tree, 0, (jsize) result.tree_len, (const jbyte *) result.tree);
+        (*env)->SetObjectArrayElement(env, _treeOut, 0, tree);
+        (*env)->DeleteLocalRef(env, tree);
     }
 
 exit:

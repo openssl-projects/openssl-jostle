@@ -33,7 +33,8 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
                           int32_t policy_flags, const uint8_t *policies,
                           int32_t policies_len, int32_t policy_count,
                           uint8_t *chain_out, int32_t chain_out_len,
-                          int32_t *out_info, int32_t out_info_len)
+                          int32_t *out_info, int32_t out_info_len,
+                          uint8_t **tree_out, int32_t *tree_len, int32_t tree_slots)
 {
     certpath_result result;
     int32_t ret;
@@ -47,7 +48,7 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     if (der == NULL || sizes == NULL) {
         return JO_INPUT_IS_NULL;
     }
-    if (out_info == NULL || chain_out == NULL) {
+    if (out_info == NULL || chain_out == NULL || tree_out == NULL || tree_len == NULL) {
         return JO_OUTPUT_IS_NULL;
     }
     if (der_len <= 0) {
@@ -64,7 +65,7 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     if (sizes_len < entries) {
         return JO_INPUT_OUT_OF_RANGE;
     }
-    if (out_info_len < count + 3) {
+    if (out_info_len < count + 3 || tree_slots < 1) {
         return JO_OUTPUT_OUT_OF_RANGE;
     }
     if ((policy_flags & ~CERTPATH_POLICY_ALL) != 0 || policy_count < 0) {
@@ -122,8 +123,18 @@ int32_t JoCertPath_verify(const uint8_t *der, int32_t der_len,
     for (i = 0; i < result.chain_count; i++) {
         out_info[3 + i] = result.chain_sizes[i];
     }
+    /* The caller copies the tree and frees it with JoCertPath_freeTree; util bounds tree_len to INT32_MAX. */
+    *tree_out = result.tree;
+    *tree_len = (int32_t) result.tree_len;
+    result.tree = NULL;
     certpath_result_free(&result);
     return JO_SUCCESS;
+}
+
+/* Frees a tree JoCertPath_verify handed out; NULL is a no-op. */
+void JoCertPath_freeTree(uint8_t *tree)
+{
+    OPENSSL_free(tree);
 }
 
 /* OpenSSL's static text for an X509_V_* code; the caller reads it and never frees it. */

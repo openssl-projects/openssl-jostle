@@ -140,6 +140,290 @@ static int32_t capture_chain(X509_STORE_CTX *ctx, certpath_result *result)
     return JO_SUCCESS;
 }
 
+/* A big-endian int32, written when *w is not NULL and counted either way. */
+static void tree_put_i32(uint8_t **w, size_t *len, int32_t v)
+{
+    if (*w != NULL)
+    {
+        (*w)[0] = (uint8_t) ((uint32_t) v >> 24);
+        (*w)[1] = (uint8_t) ((uint32_t) v >> 16);
+        (*w)[2] = (uint8_t) ((uint32_t) v >> 8);
+        (*w)[3] = (uint8_t) v;
+        *w += 4;
+    }
+    *len += 4;
+}
+
+/* The length prefix of one DER object whose i2d measured n bytes. */
+static int32_t tree_put_der_len(uint8_t **w, size_t *len, int n)
+{
+    if (OPS_OPENSSL_ERROR_15 n <= 0)
+    {
+        return JO_OPENSSL_ERROR;
+    }
+    tree_put_i32(w, len, (int32_t) n);
+    *len += (size_t) n;
+    return JO_SUCCESS;
+}
+
+static int32_t tree_put_oid(uint8_t **w, size_t *len, const ASN1_OBJECT *oid)
+{
+    int n = i2d_ASN1_OBJECT(oid, NULL);
+    int32_t ret = tree_put_der_len(w, len, n);
+
+    if (ret == JO_SUCCESS && *w != NULL)
+    {
+        int m = i2d_ASN1_OBJECT(oid, w);
+        jo_assert(m == n);
+    }
+    return ret;
+}
+
+static int32_t tree_put_qualifier(uint8_t **w, size_t *len, const POLICYQUALINFO *q)
+{
+    int n = i2d_POLICYQUALINFO(q, NULL);
+    int32_t ret = tree_put_der_len(w, len, n);
+
+    if (ret == JO_SUCCESS && *w != NULL)
+    {
+        int m = i2d_POLICYQUALINFO(q, w);
+        jo_assert(m == n);
+    }
+    return ret;
+}
+
+/* The node's position in the level-by-level walk, or -1 when no level holds it. */
+static int32_t tree_index(const X509_POLICY_TREE *tree, const X509_POLICY_NODE *node)
+{
+    int32_t idx = 0;
+    int i;
+    int j;
+
+    for (i = 0; i < X509_policy_tree_level_count(tree); i++)
+    {
+        X509_POLICY_LEVEL *level = X509_policy_tree_get0_level(tree, i);
+
+        for (j = 0; j < X509_policy_level_node_count(level); j++)
+        {
+            if (X509_policy_level_get0_node(level, j) == node)
+            {
+                return idx;
+            }
+            idx++;
+        }
+    }
+    return -1;
+}
+
+/*
+ * The JCA expected policy set, which OpenSSL keeps internal: the level
+ * certificate's policyMappings subjects for this policy, else the policy
+ * itself. cert is NULL where no mapping applies (the root and the last level).
+ */
+static int32_t tree_put_expected(uint8_t **w, size_t *len, X509 *cert, const ASN1_OBJECT *policy)
+{
+    POLICY_MAPPINGS *maps = NULL;
+    int32_t ret = JO_SUCCESS;
+    int32_t matched = 0;
+    int crit = -1;
+    int i;
+
+    if (cert != NULL && OBJ_obj2nid(policy) != NID_any_policy)
+    {
+        maps = X509_get_ext_d2i(cert, NID_policy_mappings, &crit, NULL);
+        /* crit -1 is an absent extension; anything else without a result is a failure. */
+        if (OPS_OPENSSL_ERROR_14 (maps == NULL && crit != -1))
+        {
+            sk_POLICY_MAPPING_pop_free(maps, POLICY_MAPPING_free);
+            return JO_OPENSSL_ERROR;
+        }
+    }
+    for (i = 0; i < sk_POLICY_MAPPING_num(maps); i++)
+    {
+        if (OBJ_cmp(sk_POLICY_MAPPING_value(maps, i)->issuerDomainPolicy, policy) == 0)
+        {
+            matched++;
+        }
+    }
+    tree_put_i32(w, len, matched > 0 ? matched : 1);
+    if (matched == 0)
+    {
+        ret = tree_put_oid(w, len, policy);
+    }
+    for (i = 0; ret == JO_SUCCESS && i < sk_POLICY_MAPPING_num(maps); i++)
+    {
+        POLICY_MAPPING *m = sk_POLICY_MAPPING_value(maps, i);
+
+        if (OBJ_cmp(m->issuerDomainPolicy, policy) == 0)
+        {
+            ret = tree_put_oid(w, len, m->subjectDomainPolicy);
+        }
+    }
+    sk_POLICY_MAPPING_pop_free(maps, POLICY_MAPPING_free);
+    return ret;
+}
+
+static int tree_in(STACK_OF(X509_POLICY_NODE) *set, const X509_POLICY_NODE *node)
+{
+    int i;
+
+    for (i = 0; i < sk_X509_POLICY_NODE_num(set); i++)
+    {
+        if (sk_X509_POLICY_NODE_value(set, i) == node)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int32_t tree_put_node(uint8_t **w, size_t *len, const X509_POLICY_TREE *tree,
+                             STACK_OF(X509) *chain, STACK_OF(X509_POLICY_NODE) *user, int any,
+                             const X509_POLICY_NODE *node, int level)
+{
+    int last = X509_policy_tree_level_count(tree) - 1;
+    /* Level i holds chain[last - i]; level 0 is the synthetic root. */
+    X509 *cert = level == 0 ? NULL : sk_X509_value(chain, last - level);
+    STACK_OF(POLICYQUALINFO) *quals = X509_policy_node_get0_qualifiers(node);
+    const X509_POLICY_NODE *parent = X509_policy_node_get0_parent(node);
+    int32_t flags = 0;
+    int32_t ret;
+    int pos;
+    int i;
+
+    if (!any && tree_in(user, node))
+    {
+        flags |= CERTPATH_TREE_IN_USER_SET;
+    }
+    pos = cert == NULL ? -1 : X509_get_ext_by_NID(cert, NID_certificate_policies, -1);
+    if (pos >= 0 && X509_EXTENSION_get_critical(X509_get_ext(cert, pos)))
+    {
+        flags |= CERTPATH_TREE_CRITICAL;
+    }
+    tree_put_i32(w, len, (int32_t) level);
+    tree_put_i32(w, len, parent == NULL ? -1 : tree_index(tree, parent));
+    tree_put_i32(w, len, flags);
+    ret = tree_put_oid(w, len, X509_policy_node_get0_policy(node));
+    if (ret != JO_SUCCESS)
+    {
+        return ret;
+    }
+    tree_put_i32(w, len, (int32_t) sk_POLICYQUALINFO_num(quals));
+    for (i = 0; i < sk_POLICYQUALINFO_num(quals); i++)
+    {
+        ret = tree_put_qualifier(w, len, sk_POLICYQUALINFO_value(quals, i));
+        if (ret != JO_SUCCESS)
+        {
+            return ret;
+        }
+    }
+    return tree_put_expected(w, len, level == last ? NULL : cert, X509_policy_node_get0_policy(node));
+}
+
+/* One pass over the tree: measures when out is NULL, writes otherwise. */
+static int32_t tree_encode(X509_STORE_CTX *ctx, uint8_t *out, size_t *len)
+{
+    X509_POLICY_TREE *tree = X509_STORE_CTX_get0_policy_tree(ctx);
+    STACK_OF(X509) *chain = X509_STORE_CTX_get0_chain(ctx);
+    STACK_OF(X509_POLICY_NODE) *user = X509_policy_tree_get0_user_policies(tree);
+    /* get0_user_policies answers the authority set when the user set is any-policy. */
+    int any = user != NULL && user == X509_policy_tree_get0_policies(tree);
+    int levels = X509_policy_tree_level_count(tree);
+    uint8_t *w = out;
+    int32_t nodes = 0;
+    int32_t ret;
+    int i;
+    int j;
+
+    /* tree_init builds one level per chain certificate, the anchor's being the root. */
+    jo_assert(levels == sk_X509_num(chain));
+    for (i = 0; i < levels; i++)
+    {
+        nodes += X509_policy_level_node_count(X509_policy_tree_get0_level(tree, i));
+    }
+    for (i = 0; !any && i < sk_X509_POLICY_NODE_num(user); i++)
+    {
+        if (tree_index(tree, sk_X509_POLICY_NODE_value(user, i)) < 0)
+        {
+            nodes++;
+        }
+    }
+
+    *len = 0;
+    tree_put_i32(&w, len, nodes);
+    tree_put_i32(&w, len, (int32_t) levels);
+    tree_put_i32(&w, len, any);
+    for (i = 0; i < levels; i++)
+    {
+        X509_POLICY_LEVEL *level = X509_policy_tree_get0_level(tree, i);
+
+        for (j = 0; j < X509_policy_level_node_count(level); j++)
+        {
+            ret = tree_put_node(&w, len, tree, chain, user, any, X509_policy_level_get0_node(level, j), i);
+            if (ret != JO_SUCCESS)
+            {
+                return ret;
+            }
+        }
+    }
+    /* The user-set nodes OpenSSL adds for initial policies the tree lacks belong to no level. */
+    for (i = 0; !any && i < sk_X509_POLICY_NODE_num(user); i++)
+    {
+        const X509_POLICY_NODE *node = sk_X509_POLICY_NODE_value(user, i);
+
+        if (tree_index(tree, node) < 0)
+        {
+            ret = tree_put_node(&w, len, tree, chain, user, any, node, levels - 1);
+            if (ret != JO_SUCCESS)
+            {
+                return ret;
+            }
+        }
+    }
+    return JO_SUCCESS;
+}
+
+/*
+ * The policy tree, read before the ctx is freed. NULL tree (a failed verify,
+ * an empty tree, or no policies in the path) leaves result->tree NULL.
+ * Bound: a measuring pass over the tree OpenSSL returned, whose node count
+ * OpenSSL caps itself (pcy_tree.c, not a public header); every node's DER
+ * comes from the chain already in memory. The total must fit an int32.
+ */
+static int32_t capture_tree(X509_STORE_CTX *ctx, certpath_result *result)
+{
+    size_t need = 0;
+    size_t wrote = 0;
+    int32_t ret;
+
+    if (X509_STORE_CTX_get0_policy_tree(ctx) == NULL)
+    {
+        return JO_SUCCESS;
+    }
+    ret = tree_encode(ctx, NULL, &need);
+    if (ret != JO_SUCCESS)
+    {
+        return ret;
+    }
+    if (OPS_INT32_OVERFLOW_6 need > INT32_MAX)
+    {
+        return JO_OUTPUT_TOO_LONG_INT32;
+    }
+    result->tree = OPENSSL_malloc(need);
+    if (OPS_OPENSSL_ERROR_13 result->tree == NULL)
+    {
+        return JO_OPENSSL_ERROR;
+    }
+    ret = tree_encode(ctx, result->tree, &wrote);
+    if (ret != JO_SUCCESS)
+    {
+        return ret;
+    }
+    jo_assert(wrote == need);
+    result->tree_len = need;
+    return JO_SUCCESS;
+}
+
 int32_t certpath_policies_check(const uint8_t *policies, size_t policies_len,
                                 int32_t policy_count)
 {
@@ -436,6 +720,10 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     ret = capture_chain(ctx, result);
     /* The chain is built from the count certificates supplied, so the bridges size outInfo to count + 3. */
     jo_assert(ret != JO_SUCCESS || result->chain_count <= count);
+    if (ret == JO_SUCCESS && result->error == X509_V_OK)
+    {
+        ret = capture_tree(ctx, result);
+    }
 
 exit:
     X509_STORE_CTX_free(ctx);
@@ -464,8 +752,11 @@ void certpath_result_free(certpath_result *result)
     }
     OPENSSL_free(result->chain_der);
     OPENSSL_free(result->chain_sizes);
+    OPENSSL_free(result->tree);
     result->chain_der = NULL;
     result->chain_sizes = NULL;
+    result->tree = NULL;
     result->chain_len = 0;
     result->chain_count = 0;
+    result->tree_len = 0;
 }

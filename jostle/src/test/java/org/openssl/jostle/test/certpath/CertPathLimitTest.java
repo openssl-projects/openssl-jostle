@@ -71,6 +71,15 @@ public class CertPathLimitTest
                              int anchorCount, int[] sizesOverride, int[] outInfoOverride,
                              int revocation, int policyFlags, byte[] policies, int policyCount)
     {
+        return drive(certs, crls, count, crlCount, anchorCount, sizesOverride, outInfoOverride,
+                revocation, policyFlags, policies, policyCount, new byte[1][]);
+    }
+
+    private static int drive(byte[][] certs, byte[][] crls, int count, int crlCount,
+                             int anchorCount, int[] sizesOverride, int[] outInfoOverride,
+                             int revocation, int policyFlags, byte[] policies, int policyCount,
+                             byte[][] treeOut)
+    {
         int total = 0;
         for (byte[] b : certs)
         {
@@ -102,7 +111,7 @@ public class CertPathLimitTest
                 sizesOverride != null ? sizesOverride : sizes,
                 count, crlCount, anchorCount,
                 CertPathNI.TIME_NOW, 1, revocation, policyFlags, policies, policyCount,
-                new byte[der.length], outInfo);
+                new byte[der.length], outInfo, treeOut);
     }
 
     /**
@@ -250,7 +259,7 @@ public class CertPathLimitTest
     {
         Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(
                 null, new int[5], 3, 2, 1, CertPathNI.TIME_NOW, 1, 1, CertPathNI.POLICY_NONE, null, 0,
-                new byte[16], new int[6]),
+                new byte[16], new int[6], new byte[1][]),
                 "JO_INPUT_IS_NULL");
     }
 
@@ -260,7 +269,7 @@ public class CertPathLimitTest
     {
         Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(
                 new byte[16], null, 3, 2, 1, CertPathNI.TIME_NOW, 1, 1, CertPathNI.POLICY_NONE, null, 0,
-                new byte[16], new int[6]),
+                new byte[16], new int[6], new byte[1][]),
                 "JO_INPUT_IS_NULL");
     }
 
@@ -274,19 +283,23 @@ public class CertPathLimitTest
         byte[] der = new byte[64];
         Assertions.assertAll(
                 () -> Assertions.assertEquals(-19, NISelector.CertPathNI.ni_verify(der, new int[300], 300, 0, 0,
-                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[303]),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0,
+                        new byte[64], new int[303], new byte[1][]),
                         "count over 256 before the anchor range"),
                 () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 1, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[6]),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0,
+                        new byte[64], new int[6], new byte[1][]),
                         "empty der before the count range"),
                 () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 3, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[0]),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0,
+                        new byte[64], new int[0], new byte[1][]),
                         "empty der before the outInfo length"),
                 () -> Assertions.assertEquals(-24, NISelector.CertPathNI.ni_verify(new byte[0], new int[3], 257, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[64], new int[6]),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0,
+                        new byte[64], new int[6], new byte[1][]),
                         "empty der before the 256 bound"),
                 () -> Assertions.assertEquals(-16, NISelector.CertPathNI.ni_verify(der, null, 257, 0, 1,
-                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, null, null),
+                        CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, null, null, null),
                         "null sizes before every other check"));
     }
 
@@ -327,6 +340,56 @@ public class CertPathLimitTest
         Assertions.assertEquals(-29,
                 drive(goodCerts(), goodCrls(), 3, 2, 1, null, new int[5], 1),
                 "JO_OUTPUT_OUT_OF_RANGE: 3 certificates need 3 + 3 entries");
+    }
+
+    /** The tree holder is an output like chainOut: null is JO_OUTPUT_IS_NULL. */
+    @Test
+    public void aNullTreeHolderIsRefused() throws Exception
+    {
+        Assertions.assertEquals(-17,
+                drive(goodCerts(), goodCrls(), 3, 2, 1, null, null, 1, CertPathNI.POLICY_NONE, null, 0, null),
+                "JO_OUTPUT_IS_NULL");
+    }
+
+    /** The holder needs one entry, checked with outInfo's length: JO_OUTPUT_OUT_OF_RANGE. */
+    @Test
+    public void anEmptyTreeHolderIsRefused() throws Exception
+    {
+        Assertions.assertEquals(-29,
+                drive(goodCerts(), goodCrls(), 3, 2, 1, null, null, 1, CertPathNI.POLICY_NONE, null, 0,
+                        new byte[0][]),
+                "JO_OUTPUT_OUT_OF_RANGE");
+        Assertions.assertEquals(-29,
+                drive(goodCerts(), goodCrls(), 3, 2, 1, null, new int[5], 1, CertPathNI.POLICY_NONE, null, 0,
+                        new byte[1][]),
+                "the outInfo length is the same check");
+    }
+
+    /**
+     * The tree arrives after a successful verify and only then: a refused call
+     * and a failed verdict both leave the holder as the caller set it.
+     */
+    @Test
+    public void theTreeArrivesOnlyAfterASuccessfulVerify() throws Exception
+    {
+        byte[] sentinel = new byte[]{1};
+        byte[][] tree = {sentinel};
+        Assertions.assertEquals(0, drive(goodCerts(), goodCrls(), 3, 2, 1, null, null, 1,
+                CertPathNI.POLICY_NONE, null, 0, tree));
+        Assertions.assertNotSame(sentinel, tree[0], "a valid policy path returns its tree");
+        Assertions.assertEquals(3, ((tree[0][0] & 0xff) << 24) | ((tree[0][1] & 0xff) << 16)
+                | ((tree[0][2] & 0xff) << 8) | (tree[0][3] & 0xff), "anyPolicy, P1, P1: three nodes");
+
+        tree[0] = sentinel;
+        int[] outInfo = new int[3 + CertPathNI.OUT_INFO_HEADER];
+        Assertions.assertEquals(0, drive(goodCerts(), new byte[0][], 3, 0, 1, null, outInfo, 1,
+                CertPathNI.POLICY_NONE, null, 0, tree));
+        Assertions.assertEquals(3, outInfo[0], "X509_V_ERR_UNABLE_TO_GET_CRL");
+        Assertions.assertSame(sentinel, tree[0], "a failed verdict carries no tree");
+
+        Assertions.assertEquals(-28, drive(goodCerts(), goodCrls(), 3, -1, 1, null, null, 1,
+                CertPathNI.POLICY_NONE, null, 0, tree));
+        Assertions.assertSame(sentinel, tree[0], "a refusal leaves the holder");
     }
 
     /** NIST-test-policy-1 as a DER OBJECT IDENTIFIER TLV. */

@@ -60,6 +60,9 @@ public interface CertPathNI
      *                    so at least {@code OUT_INFO_HEADER + count} entries;
      *                    written on success and on a certificate or CRL decode
      *                    failure ({@code [code, index, 0]}), untouched otherwise
+     * @param treeOut     at least one entry; element 0 receives the policy tree
+     *                    after a successful validation, in certpath.h's
+     *                    CERTPATH_TREE layout, and is untouched when there is none
      * @return {@code JO_SUCCESS} when the verification RAN — its verdict is
      *         {@code outInfo[0]}, an {@code X509_V_*} code — or a negative
      *         {@code JO_*} when it could not be attempted
@@ -67,7 +70,7 @@ public interface CertPathNI
     int ni_verify(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
                   long timeSecs, int strict, int revocation,
                   int policyFlags, byte[] policies, int policyCount,
-                  byte[] chainOut, int[] outInfo);
+                  byte[] chainOut, int[] outInfo, byte[][] treeOut);
 
     /**
      * OpenSSL's own text for an {@code X509_V_*} code, from the linked library.

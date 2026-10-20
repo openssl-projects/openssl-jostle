@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.certpath;
 
+import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathParameters;
@@ -21,6 +22,7 @@ import java.security.cert.CertSelector;
 import java.security.cert.Certificate;
 import java.security.cert.PKIXCertPathValidatorResult;
 import java.security.cert.PKIXParameters;
+import java.security.cert.PolicyNode;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -68,9 +70,8 @@ import org.openssl.jostle.jcajce.provider.OpenSSLException;
  * given, so a store certificate turning up IN the chain is a failure, not a
  * silent substitution. {@code maxPathLength} belongs to the BUILDER and is honoured
  * there; this validator takes the path as given and does not choose its
- * length. The result's policy tree is {@code null}: OpenSSL's tree is not yet
- * mapped to a {@code PolicyNode}, and a fabricated tree would
- * be worse than none.
+ * length. The result's policy tree is OpenSSL's, intersected with the initial
+ * policy set as RFC 5280 6.1.5 (g) requires, or {@code null} when none remains.
  * <p>
  * <b>One consequence of building through OpenSSL:</b> a SELF-ISSUED
  * certificate that OpenSSL leaves out of its chain is not validated at all —
@@ -138,7 +139,7 @@ public class JostleCertPathValidatorSpi
                 CertPathCall.extraCertsFrom(pkix, certs));
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
                 call.timeSecs, 1, call.revocation, call.policyFlags, call.policies, call.policyCount,
-                call.chainOut, call.outInfo);
+                call.chainOut, call.outInfo, call.treeOut);
 
         if (rc == ErrorCode.JO_CRL_DECODE_FAILED.getCode())
         {
@@ -183,7 +184,16 @@ public class JostleCertPathValidatorSpi
         call.assertBuiltChainMatches(certs, certPath);
 
         TrustAnchor anchor = call.resolveAnchor(pkix);
-        return new PKIXCertPathValidatorResult(anchor, null,
+        PolicyNode tree;
+        try
+        {
+            tree = call.policyTree();
+        }
+        catch (IOException e)
+        {
+            throw new CertPathValidatorException("the policy tree could not be decoded", e, certPath, -1);
+        }
+        return new PKIXCertPathValidatorResult(anchor, tree,
                 ((X509Certificate) certs.get(0)).getPublicKey());
     }
 }

@@ -407,22 +407,17 @@ public class CertPathAgreementTest
     }
 
     /**
-     * The policy tree, pinned in both halves.
-     * <p>
-     * This provider does not yet map OpenSSL's policy tree, and says so: the
-     * result's policy tree is always null, because a fabricated tree would be
-     * worse than none. So there is nothing to compare, and the cell pins the
-     * absence against a reference that does build one — ours null on every
-     * family AND on the chain that carries an explicit policy with a mapping,
-     * BouncyCastle's non-null on that chain.
+     * The policy tree, node by node, against BouncyCastle on every family and
+     * on the chain that carries an explicit policy with a mapping, where both
+     * must build one. PolicyTreeAgreementTest covers PKITS.
      */
     @Test
-    public void thePolicyTreeAbsenceIsPinnedInBothHalves() throws Exception
+    public void thePolicyTreeAgreesWithBouncyCastle() throws Exception
     {
         for (BcBuiltChains.Family f : BcBuiltChains.families())
         {
-            Assertions.assertNull(result(JSL, f).getPolicyTree(),
-                    f.label + ": we now report a policy tree; re-pin this cell against BouncyCastle's");
+            Assertions.assertEquals(PolicyTreeAgreementTest.canonical(result(BC, f).getPolicyTree()),
+                    PolicyTreeAgreementTest.canonical(result(JSL, f).getPolicyTree()), f.label);
         }
 
         BcBuiltChains.Shape policy = BcBuiltChains.shape("policy-mapping");
@@ -432,13 +427,9 @@ public class CertPathAgreementTest
         PKIXCertPathValidatorResult theirs = (PKIXCertPathValidatorResult)
                 CertPathValidator.getInstance("PKIX", BC)
                         .validate(path(policy.chain), plain(policy));
-
-        Assertions.assertAll(
-                () -> Assertions.assertNull(ours.getPolicyTree(),
-                        "we now report a policy tree for the explicit-policy chain"),
-                () -> Assertions.assertNotNull(theirs.getPolicyTree(),
-                        "BouncyCastle no longer builds a policy tree for a chain asserting an "
-                                + "explicit policy and a mapping — this pin is stale"));
+        Assertions.assertNotNull(ours.getPolicyTree(), "the explicit-policy chain has a tree");
+        Assertions.assertEquals(PolicyTreeAgreementTest.canonical(theirs.getPolicyTree()),
+                PolicyTreeAgreementTest.canonical(ours.getPolicyTree()));
     }
 
     /**

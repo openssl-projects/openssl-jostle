@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.certpath;
 
+import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchProviderException;
 import java.security.Provider;
@@ -257,7 +258,7 @@ public class JostleCertPathBuilderSpi
         CertPathCall call = CertPathCall.forBuild(pkix, untrusted, target, crls);
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
                 call.timeSecs, 1, call.revocation, call.policyFlags, call.policies, call.policyCount,
-                call.chainOut, call.outInfo);
+                call.chainOut, call.outInfo, call.treeOut);
         if (rc == ErrorCode.JO_CERT_DECODE_FAILED.getCode())
         {
             throw new CertPathValidatorException("a supplied certificate is not valid DER X.509");
@@ -296,12 +297,16 @@ public class JostleCertPathBuilderSpi
             CertPath cp = cf.generateCertPath(pathCerts);
             PKIXCertPathValidatorResult vr = new PKIXCertPathValidatorResult(
                     call.resolveAnchor(pkix), null, pathCerts.get(0).getPublicKey());
-            return new PKIXCertPathBuilderResult(cp, vr.getTrustAnchor(), null,
+            return new PKIXCertPathBuilderResult(cp, vr.getTrustAnchor(), call.policyTree(),
                     pathCerts.get(0).getPublicKey());
         }
         catch (CertificateException e)
         {
             throw new CertPathBuilderException("the built chain could not be decoded", e);
+        }
+        catch (IOException e)
+        {
+            throw new CertPathBuilderException("the policy tree could not be decoded", e);
         }
     }
 }

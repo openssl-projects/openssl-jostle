@@ -48,7 +48,22 @@ typedef struct {
     uint8_t *chain_der;   /* concatenated DER of the built chain */
     size_t   chain_len;
     int32_t *chain_sizes; /* chain_count entries */
+    uint8_t *tree;        /* the policy tree, CERTPATH_TREE_* layout; NULL when there is none */
+    size_t   tree_len;
 } certpath_result;
+
+/*
+ * The policy tree after a successful verify, unpruned, as OpenSSL holds it.
+ * Big-endian int32 fields; DER is length-prefixed by an int32.
+ *   header: node count, level count, user set is any-policy (0 or 1)
+ *   node:   level, parent index (-1 for the root), flags, policy OID DER,
+ *           qualifier count, each POLICYQUALINFO DER,
+ *           expected count, each expected policy OID DER
+ * Nodes run level by level, so a parent precedes its children; the user-set
+ * nodes OpenSSL adds outside any level follow, at the last level.
+ */
+#define CERTPATH_TREE_IN_USER_SET 1
+#define CERTPATH_TREE_CRITICAL 2
 
 /*
  * time_secs:  seconds since the epoch to validate at, or CERTPATH_TIME_NOW.
@@ -82,6 +97,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
 int32_t certpath_policies_check(const uint8_t *policies, size_t policies_len,
                                 int32_t policy_count);
 
+/* Frees the buffers, the tree included, and leaves error and depth. */
 void certpath_result_free(certpath_result *result);
 
 /* OpenSSL's own text for an X509_V_* code; a static string, never NULL. */

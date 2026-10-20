@@ -210,7 +210,7 @@ public class PkitsPhase2Test
         List<PkitsCertificates.Case> all = PkitsCertificates.cases();
         Assertions.assertEquals(161, all.size(), "the committed table must hold 161 rows");
         List<PkitsCertificates.Case> policy = PkitsCertificates.policyCases();
-        Assertions.assertEquals(86, policy.size(), "the policy table must hold 86 rows");
+        Assertions.assertEquals(112, policy.size(), "the policy table must hold 112 rows");
 
         Set<String> phase1 = new HashSet<String>();
         for (PkitsCertificates.Case c : PkitsPhase1Test.selected())

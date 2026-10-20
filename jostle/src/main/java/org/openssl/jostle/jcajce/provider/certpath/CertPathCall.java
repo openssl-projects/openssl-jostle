@@ -15,6 +15,7 @@ import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.Der;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.cert.CRL;
 import java.security.cert.CRLException;
@@ -27,6 +28,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.PKIXParameters;
+import java.security.cert.PolicyNode;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
@@ -68,6 +70,8 @@ final class CertPathCall
     final int policyCount;
     final byte[] chainOut;
     final int[] outInfo;
+    /** Element 0 receives the native policy tree, when there is one. */
+    final byte[][] treeOut = new byte[1][];
 
     private CertPathCall(byte[] der, int[] sizes, int count, int crlCount, int anchorCount,
                          int extraCount, long timeSecs, int revocation, int certBytes,
@@ -491,6 +495,12 @@ final class CertPathCall
         {
             throw new CertPathValidatorException("a certificate could not be encoded", e);
         }
+    }
+
+    /** The valid policy tree, or null; see {@link PolicyTree}. */
+    PolicyNode policyTree() throws IOException
+    {
+        return PolicyTree.decode(treeOut[0]);
     }
 
     /**

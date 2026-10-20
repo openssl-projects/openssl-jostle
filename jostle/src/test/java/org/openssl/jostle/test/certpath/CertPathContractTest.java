@@ -308,7 +308,7 @@ public class CertPathContractTest
         int[] info = new int[3 + 3];
 
         int rc = NISelector.CertPathNI.ni_verify(der, sizes, 3, 0, 1,
-                CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[der.length], info);
+                CertPathNI.TIME_NOW, 1, 0, CertPathNI.POLICY_NONE, null, 0, new byte[der.length], info, new byte[1][]);
 
         Assertions.assertEquals(-175, rc, "JO_CERT_DECODE_FAILED");
         Assertions.assertEquals(-175, info[0], "the code must be reported in outInfo too");

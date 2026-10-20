@@ -152,7 +152,8 @@ public class CertPathOpsTest
         int verify()
         {
             return NISelector.CertPathNI.ni_verify(der, sizes, count, crlCount, anchorCount,
-                    CertPathNI.TIME_NOW, 0, revocation, CertPathNI.POLICY_NONE, null, 0, chainOut, outInfo);
+                    CertPathNI.TIME_NOW, 0, revocation, CertPathNI.POLICY_NONE, null, 0, chainOut, outInfo,
+                    new byte[1][]);
         }
     }
 
@@ -231,7 +232,7 @@ public class CertPathOpsTest
     @Test
     public void storeAllocationFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:275
+        // Exercises interface/nonfips/util/certpath.c:559
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1,
                 "the store/untrusted/crls allocation arm");
     }
@@ -239,7 +240,7 @@ public class CertPathOpsTest
     @Test
     public void storeAddCertFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:302
+        // Exercises interface/nonfips/util/certpath.c:586
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_7,
                 "the X509_STORE_add_cert arm");
     }
@@ -247,7 +248,7 @@ public class CertPathOpsTest
     @Test
     public void storeCtxAllocationOrInitFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:348
+        // Exercises interface/nonfips/util/certpath.c:632
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_2,
                 "the store-ctx allocate-and-init arm");
     }
@@ -274,6 +275,67 @@ public class CertPathOpsTest
         // Exercises interface/nonfips/util/certpath.c:117
         assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_12,
                 "the capture_chain chain_der allocation arm");
+    }
+
+    @Test
+    public void treeAllocationFailure() throws Exception
+    {
+        // Exercises interface/nonfips/util/certpath.c:413
+        assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_13,
+                "the capture_tree allocation arm");
+    }
+
+    /** The mapping lookup runs only below the last level, so the path needs an intermediate. */
+    @Test
+    public void treeMappingDecodeFailure() throws Exception
+    {
+        // Exercises interface/nonfips/util/certpath.c:235
+        assertFlagBreaksVerification(WITH_INTERMEDIATE, OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_14,
+                "the policyMappings decode arm");
+    }
+
+    @Test
+    public void treeEncodeFailure() throws Exception
+    {
+        // Exercises interface/nonfips/util/certpath.c:160
+        assertFlagBreaksVerification(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_15,
+                "the tree DER measuring arm");
+    }
+
+    @Test
+    public void treeLengthOverflow() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+        Assertions.assertEquals(0, new Path().verify(), "control");
+        try
+        {
+            // Exercises interface/nonfips/util/certpath.c:408
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_6);
+            Assertions.assertEquals(-20, new Path().verify(), "JO_OUTPUT_TOO_LONG_INT32");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+    }
+
+    @Test
+    public void bridgeTreeArrayFailure() throws Exception
+    {
+        // JNI ONLY: the FFM bridge hands back a native buffer and makes no Java array.
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI only");
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "OPS Test support not compiled in");
+        Assertions.assertEquals(0, new Path().verify(), "control");
+        try
+        {
+            // Exercises interface/nonfips/jni/certpath_ni_jni.c:229
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_10);
+            Assertions.assertEquals(-23, new Path().verify(), "JO_FAILED_ACCESS_OUTPUT");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
     }
 
     /**
@@ -327,7 +389,7 @@ public class CertPathOpsTest
     @Test
     public void untrustedPushFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:313
+        // Exercises interface/nonfips/util/certpath.c:597
         assertFlagBreaksVerification(WITH_INTERMEDIATE,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8,
                 "the sk_X509_push arm, which only a path WITH an intermediate reaches");
@@ -336,7 +398,7 @@ public class CertPathOpsTest
     @Test
     public void crlPushFailure() throws Exception
     {
-        // Exercises interface/nonfips/util/certpath.c:340
+        // Exercises interface/nonfips/util/certpath.c:624
         assertFlagBreaksVerification(WITH_CRLS,
                 OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_9,
                 "the sk_X509_CRL_push arm, which only a call carrying CRLs reaches");
@@ -396,7 +458,7 @@ public class CertPathOpsTest
         Assertions.assertNotNull(validator.validate(path, vp), "control");
         try
         {
-            // Exercises interface/nonfips/util/certpath.c:275
+            // Exercises interface/nonfips/util/certpath.c:559
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_CREATE_1);
             CertPathValidatorException v = Assertions.assertThrows(
                     CertPathValidatorException.class, () -> validator.validate(path, vp));

@@ -11,6 +11,8 @@ import java.security.Security;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathValidator;
 import java.security.cert.CertPathValidatorException;
+import java.security.cert.CertStore;
+import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXParameters;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -75,8 +77,8 @@ public class PkitsThreeWayAgreementTest
      * The measured divergences, one per (case, provider). Scoped to the
      * provider that diverges and no wider: a flat list of case numbers would
      * excuse a row for all three and silently stop checking the two that were
-     * right. 4.14.30 needs two entries for exactly that reason — we and
-     * BouncyCastle both miss it, for unrelated causes.
+     * right. 4.15.4 and 4.15.5 carry one entry per diverging provider for
+     * that reason.
      *
      * <p>Every reason is the text that provider actually produced, measured
      * 2026-09-12 on the corrected paths.
@@ -103,29 +105,12 @@ public class PkitsThreeWayAgreementTest
         EXCLUSIONS.add(new Exclusion("4.3.2", BC,
                 "BC accepts a path PKITS, SUN and this provider all refuse; SUN names "
                         + "\"subject/issuer name chaining check failed\", we return error 20"));
-        EXCLUSIONS.add(new Exclusion("4.14.28", BC,
-                "BC: \"No match for certificate CRL issuing distribution point name to "
-                        + "cRLIssuer CRL distribution\""));
-        EXCLUSIONS.add(new Exclusion("4.14.29", BC,
-                "BC: \"No match for certificate CRL issuing distribution point name to "
-                        + "cRLIssuer CRL distribution\""));
-        EXCLUSIONS.add(new Exclusion("4.14.30", BC,
-                "BC: \"No CRLs found for issuer ... indirectCRL CA4\" — a different miss from "
-                        + "ours on the same row, which is why the row carries two entries"));
         EXCLUSIONS.add(new Exclusion("4.14.31", BC,
                 "BC returns valid where PKITS, SUN and this provider all report the "
                         + "certificate revoked (KEY_COMPROMISE)"));
         EXCLUSIONS.add(new Exclusion("4.14.32", BC,
                 "BC returns valid where PKITS, SUN and this provider all report the "
                         + "certificate revoked (KEY_COMPROMISE)"));
-
-        // Self-issued policy rows. BC refuses them unless the path certificates
-        // are also in a CertStore, which holds only the non-path ones here;
-        // measured both ways. SUN and this provider validate them.
-        EXCLUSIONS.add(new Exclusion("4.9.6", BC, "BC: \"Cannot verify CRL.\" at index 0"));
-        EXCLUSIONS.add(new Exclusion("4.11.7", BC, "BC: \"Cannot verify CRL.\" at index 1"));
-        EXCLUSIONS.add(new Exclusion("4.12.7", BC, "BC: \"Cannot verify CRL.\" at index 1"));
-        EXCLUSIONS.add(new Exclusion("4.12.9", BC, "BC: \"Cannot verify CRL.\" at index 2"));
 
         // The delta-CRL pair. We honour deltas (X509_V_FLAG_USE_DELTAS) and
         // agree with PKITS on both; neither the JDK nor BouncyCastle does, so
@@ -202,14 +187,25 @@ public class PkitsThreeWayAgreementTest
      * A FRESH PKIXParameters for every provider on every row. The object is
      * mutable and a validator may set state on it, so sharing one across the
      * three would make the third measurement depend on the first two.
+     *
+     * <p>The path certificates are in a CertStore too, for every provider, as
+     * the PKITS harness and BouncyCastle's hold them: BouncyCastle verifies a
+     * self-issued CA's CRL only through a store copy of that CA.
      */
-    private static PKIXParameters params(PkitsCertificates.Case c) throws Exception
+    static PKIXParameters params(PkitsCertificates.Case c) throws Exception
     {
+        PKIXParameters p;
         if (isPolicyRow(c))
         {
-            return PkitsPhase3Test.params(c);
+            p = PkitsPhase3Test.params(c);
         }
-        return isPhase1(c) ? PkitsPhase1Test.params() : PkitsPhase2Test.params(c);
+        else
+        {
+            p = isPhase1(c) ? PkitsPhase1Test.params() : PkitsPhase2Test.params(c);
+        }
+        p.addCertStore(CertStore.getInstance("Collection",
+                new CollectionCertStoreParameters(path(c).getCertificates())));
+        return p;
     }
 
     /** The row numbers of {@code cases_policy.txt}; the partition cell keeps them apart from cases.txt's. */
@@ -231,7 +227,7 @@ public class PkitsThreeWayAgreementTest
     }
 
     /** Both tables: {@code cases.txt}, then the policy variants. */
-    private static List<PkitsCertificates.Case> allCases() throws Exception
+    static List<PkitsCertificates.Case> allCases() throws Exception
     {
         List<PkitsCertificates.Case> all = new ArrayList<PkitsCertificates.Case>(PkitsCertificates.cases());
         all.addAll(PkitsCertificates.policyCases());
@@ -392,8 +388,7 @@ public class PkitsThreeWayAgreementTest
      * A foreign provider that starts agreeing must be reported — a silent pass
      * leaves a stale sanction indistinguishable from a justified one. Separate
      * from the sweep so a bcprov fix reddens this cell alone. Ours are pinned
-     * in PkitsDivergenceAgreementTest and PkitsRevocationDivergenceAgreementTest; BC's half of
-     * 4.14.30 belongs here, a foreign divergence like any other.
+     * in PkitsDivergenceAgreementTest and PkitsRevocationDivergenceAgreementTest.
      */
     @Test
     public void theForeignExclusionsAreStillEarnt() throws Exception
