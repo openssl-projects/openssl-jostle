@@ -708,6 +708,18 @@
 #define JO_KS_ALIAS_HOLDS_KEY -212
 /* A keystore whose PBE or cipher this build cannot run; the error queue names the algorithm. */
 #define JO_KS_ALGORITHM_UNSUPPORTED -213
+/* A handle passed as an RSA signer context that is not one. */
+#define JO_RSA_CTX_WRONG_KIND -214
+/* NoneWithRSA input longer than the key's PKCS#1 v1.5 bound (modulus bytes - 11). */
+#define JO_RSA_RAW_INPUT_TOO_LONG -215
+/* An empty RSA digest or MGF1 name, one with an embedded NUL, or one the library cannot fetch. */
+#define JO_RSA_DIGEST_NOT_SUPPORTED -216
+/* An RSA key size of zero or below. */
+#define JO_RSA_BITS_OUT_OF_RANGE -217
+/* The provider signs RSA with this key under another digest but not this one; it still verifies. */
+#define JO_RSA_SIGN_DIGEST_UNAVAILABLE -218
+/* The provider refuses to sign RSA with this key under any digest; it still verifies. */
+#define JO_RSA_SIGN_KEY_UNAVAILABLE -219
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

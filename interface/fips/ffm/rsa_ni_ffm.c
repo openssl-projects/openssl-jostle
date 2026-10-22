@@ -7,6 +7,7 @@
 
 
 #include <stdint.h>
+#include <string.h>
 #include <openssl/crypto.h>
 
 #include "../util/bc_err_codes.h"
@@ -14,6 +15,12 @@
 #include "../util/key_spec.h"
 #include "../util/rsa.h"
 #include "types.h"
+
+
+/* name_len is the name's UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI. */
+static int rsa_name_unusable(const char *name, size_t name_len) {
+    return name_len == 0 || strnlen(name, name_len) != name_len;
+}
 
 
 // =============================================================
@@ -25,9 +32,6 @@ rsa_ctx *JoRSA_allocateSigner(int32_t *err) {
 }
 
 void JoRSA_disposeSigner(rsa_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
     rsa_ctx_destroy(ctx);
 }
 
@@ -35,6 +39,10 @@ void JoRSA_disposeSigner(rsa_ctx *ctx) {
 // =============================================================
 // Key generation
 // =============================================================
+
+int32_t JoRSA_minModulusBits(void) {
+    return rsa_min_modulus_bits();
+}
 
 key_spec *JoRSA_generateKeyPair(int32_t bits,
                               uint8_t *pubexp, size_t pubexp_len,
@@ -45,6 +53,10 @@ key_spec *JoRSA_generateKeyPair(int32_t bits,
     jo_assert(ret_val != NULL);
     *ret_val = JO_FAIL;
 
+    if (bits <= 0) {
+        *ret_val = JO_RSA_BITS_OUT_OF_RANGE;
+        return NULL;
+    }
     if (rnd_src == NULL) {
         *ret_val = JO_RAND_NO_RAND_UP_CALL;
         return NULL;
@@ -72,8 +84,9 @@ key_spec *JoRSA_generateKeyPair(int32_t bits,
 int32_t JoRSA_decodePublicComponents(key_spec *spec,
                                    uint8_t *n, size_t n_len,
                                    uint8_t *e, size_t e_len) {
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
     if (n == NULL) {
         return JO_RSA_MODULUS_IS_NULL;
@@ -89,8 +102,9 @@ int32_t JoRSA_decodePrivateComponents(key_spec *spec,
                                     uint8_t *n, size_t n_len,
                                     uint8_t *e, size_t e_len,
                                     uint8_t *d, size_t d_len) {
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
     if (n == NULL) {
         return JO_RSA_MODULUS_IS_NULL;
@@ -114,8 +128,9 @@ int32_t JoRSA_decodePrivateComponentsCrt(key_spec *spec,
                                        uint8_t *dp,   size_t dp_len,
                                        uint8_t *dq,   size_t dq_len,
                                        uint8_t *qinv, size_t qinv_len) {
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
     if (n == NULL) {
         return JO_RSA_MODULUS_IS_NULL;
@@ -155,8 +170,9 @@ int32_t JoRSA_decodePrivateComponentsCrt(key_spec *spec,
 
 int32_t JoRSA_getComponent(key_spec *spec, int32_t component,
                          uint8_t *out, size_t out_len) {
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
     return rsa_get_component(spec, component, out, out_len);
 }
@@ -167,23 +183,28 @@ int32_t JoRSA_getComponent(key_spec *spec, int32_t component,
 // =============================================================
 
 int32_t JoRSA_initSign(rsa_ctx *ctx, key_spec *key,
-                     const char *digest_name,
+                     const char *digest_name, size_t digest_len,
                      int32_t padding_mode,
-                     const char *mgf1_md_name,
+                     const char *mgf1_md_name, size_t mgf1_len,
                      int32_t salt_len,
                      void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(key);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
     if (digest_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (rsa_name_unusable(digest_name, digest_len)
+        || (mgf1_md_name != NULL && rsa_name_unusable(mgf1_md_name, mgf1_len))) {
+        return JO_RSA_DIGEST_NOT_SUPPORTED;
     }
     return rsa_ctx_init_sign(ctx, key, digest_name,
                              padding_mode, mgf1_md_name, salt_len,
@@ -192,19 +213,24 @@ int32_t JoRSA_initSign(rsa_ctx *ctx, key_spec *key,
 
 
 int32_t JoRSA_initVerify(rsa_ctx *ctx, key_spec *key,
-                       const char *digest_name,
+                       const char *digest_name, size_t digest_len,
                        int32_t padding_mode,
-                       const char *mgf1_md_name,
+                       const char *mgf1_md_name, size_t mgf1_len,
                        int32_t salt_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(key);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (digest_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (rsa_name_unusable(digest_name, digest_len)
+        || (mgf1_md_name != NULL && rsa_name_unusable(mgf1_md_name, mgf1_len))) {
+        return JO_RSA_DIGEST_NOT_SUPPORTED;
     }
     return rsa_ctx_init_verify(ctx, key, digest_name,
                                padding_mode, mgf1_md_name, salt_len);
@@ -214,8 +240,9 @@ int32_t JoRSA_initVerify(rsa_ctx *ctx, key_spec *key,
 int32_t JoRSA_update(rsa_ctx *ctx,
                    uint8_t *input, size_t input_size,
                    int32_t in_off, int32_t in_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     if (input == NULL) {
@@ -239,8 +266,9 @@ int32_t JoRSA_sign(rsa_ctx *ctx,
                  uint8_t *output, size_t output_size,
                  int32_t out_off,
                  void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     if (rnd_src == NULL) {
@@ -266,8 +294,9 @@ int32_t JoRSA_sign(rsa_ctx *ctx,
 int32_t JoRSA_verify(rsa_ctx *ctx,
                    uint8_t *sig, size_t sig_size,
                    int32_t sig_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     if (sig == NULL) {

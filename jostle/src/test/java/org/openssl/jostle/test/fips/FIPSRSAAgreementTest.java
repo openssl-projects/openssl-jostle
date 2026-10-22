@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
@@ -573,13 +574,11 @@ public class FIPSRSAAgreementTest
             String m = String.valueOf(e.getMessage());
             if (sha1)
             {
-                // The two modules word the same gate differently — 3.1.2 says
-                // "rsa_setup_md:digest not allowed", 3.5.x says
-                // "ossl_fips_ind_digest_sign_check:invalid digest" — so match
-                // the property, not one version's text. Pinning either alone
-                // passes on that module and fails on the other.
-                Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
-                        alg + ": refused, but not by the signature-digest-check gate: " + m);
+                // The refusal is classified: both modules' gate texts become the one typed message naming the
+                // digest, with the capability refusal as the cause.
+                Assertions.assertEquals(
+                        "the loaded provider does not sign RSA with SHA-1; verification remains available", m, alg);
+                Assertions.assertTrue(e.getCause() instanceof ProviderCapabilityException, alg);
                 return;
             }
             throw e;

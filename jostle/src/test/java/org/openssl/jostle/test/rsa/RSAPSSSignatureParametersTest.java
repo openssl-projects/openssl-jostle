@@ -22,6 +22,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
@@ -43,6 +46,7 @@ import java.security.spec.PSSParameterSpec;
  */
 public class RSAPSSSignatureParametersTest
 {
+    private static final SecureRandom RANDOM = new SecureRandom();
     private static Provider jsl;
     private static KeyPair keyPair;
 
@@ -173,5 +177,118 @@ public class RSAPSSSignatureParametersTest
         wrong.update("payload".getBytes("UTF-8"));
         Assertions.assertFalse(wrong.verify(produced),
                 "a different digest verified, so the parameters are not being applied");
+    }
+
+    private static byte[] randomMessage()
+    {
+        byte[] m = new byte[1 + RANDOM.nextInt(256)];
+        RANDOM.nextBytes(m);
+        return m;
+    }
+
+    private static PSSParameterSpec pss(String digest, int salt)
+    {
+        return new PSSParameterSpec(digest, "MGF1", new MGF1ParameterSpec(digest), salt, 1);
+    }
+
+    private static boolean verifies(PSSParameterSpec spec, byte[] msg, byte[] sig)
+        throws Exception
+    {
+        Signature v = Signature.getInstance("RSASSA-PSS", jsl);
+        v.setParameter(spec);
+        v.initVerify(keyPair.getPublic());
+        v.update(msg);
+        return v.verify(sig);
+    }
+
+    /** Parameters set after init and before the first update are the ones signed and verified under. */
+    @Test
+    public void parametersSetAfterInitAreTheOnesUsed()
+        throws Exception
+    {
+        byte[] msg = randomMessage();
+        PSSParameterSpec sha384 = pss("SHA-384", 48);
+
+        Signature signer = Signature.getInstance("RSASSA-PSS", jsl);
+        signer.initSign(keyPair.getPrivate());
+        signer.setParameter(sha384);
+        Assertions.assertEquals("SHA-384", specOf(signer).getDigestAlgorithm());
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Assertions.assertTrue(verifies(sha384, msg, sig), "not signed under the parameters set after init");
+        Assertions.assertFalse(verifies(pss("SHA-256", 32), msg, sig), "signed under the parameters before");
+
+        Signature verifier = Signature.getInstance("RSASSA-PSS", jsl);
+        verifier.initVerify(keyPair.getPublic());
+        verifier.setParameter(sha384);
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig), "not verified under the parameters set after init");
+    }
+
+    /**
+     * The salt is bounded by the key: 222 is the most a 2048-bit key carries under SHA-256, so 223 is refused at
+     * init, and at setParameter once a key is bound, which then leaves the earlier parameters in force.
+     */
+    @Test
+    public void aSaltPastTheKeyIsRefusedAtInitAndAtSetParameter()
+        throws Exception
+    {
+        byte[] msg = randomMessage();
+        Signature max = Signature.getInstance("RSASSA-PSS", jsl);
+        max.setParameter(pss("SHA-256", 222));
+        max.initSign(keyPair.getPrivate());
+        max.update(msg);
+        Assertions.assertTrue(verifies(pss("SHA-256", 222), msg, max.sign()));
+
+        Signature over = Signature.getInstance("RSASSA-PSS", jsl);
+        over.setParameter(pss("SHA-256", 223));
+        InvalidKeyException ike = Assertions.assertThrows(InvalidKeyException.class,
+                () -> over.initSign(keyPair.getPrivate()));
+        Assertions.assertEquals("Key is too short, need min 257 bytes", ike.getMessage());
+        ike = Assertions.assertThrows(InvalidKeyException.class, () -> over.initVerify(keyPair.getPublic()));
+        Assertions.assertEquals("Key is too short, need min 257 bytes", ike.getMessage());
+
+        Signature bound = Signature.getInstance("RSASSA-PSS", jsl);
+        bound.setParameter(pss("SHA-256", 32));
+        bound.initSign(keyPair.getPrivate());
+        InvalidAlgorithmParameterException iape = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> bound.setParameter(pss("SHA-256", 223)));
+        Assertions.assertEquals("Key is too short, need min 257 bytes", iape.getMessage());
+        Assertions.assertEquals(32, specOf(bound).getSaltLength());
+        bound.update(msg);
+        Assertions.assertTrue(verifies(pss("SHA-256", 32), msg, bound.sign()));
+
+        iape = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> Signature.getInstance("RSASSA-PSS", jsl).setParameter(pss("SHA-256", 1025)));
+        Assertions.assertEquals("PSS salt length out of range [0, 1024]: 1025", iape.getMessage());
+    }
+
+    /**
+     * An unknown digest spelling is refused at setParameter, for the digest and for MGF1, the same way on both
+     * bridges, an embedded NUL included; the JDK and BouncyCastle spellings of one digest both sign the same way.
+     */
+    @Test
+    public void unknownDigestSpellingsAreRefusedAtSetParameter()
+        throws Exception
+    {
+        for (String bad : new String[]{"FOO", "SHA-256\u0000x"})
+        {
+            InvalidAlgorithmParameterException e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                    () -> Signature.getInstance("RSASSA-PSS", jsl).setParameter(
+                            new PSSParameterSpec(bad, "MGF1", MGF1ParameterSpec.SHA256, 32, 1)), bad);
+            Assertions.assertEquals("unsupported PSS digest: " + bad, e.getMessage());
+            e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                    () -> Signature.getInstance("RSASSA-PSS", jsl).setParameter(
+                            new PSSParameterSpec("SHA-256", "MGF1", new MGF1ParameterSpec(bad), 32, 1)), bad);
+            Assertions.assertEquals("unsupported PSS digest: " + bad, e.getMessage());
+        }
+
+        byte[] msg = randomMessage();
+        Signature signer = Signature.getInstance("RSASSA-PSS", jsl);
+        signer.setParameter(pss("SHA512(256)", 32));
+        Assertions.assertEquals("SHA-512/256", specOf(signer).getDigestAlgorithm());
+        signer.initSign(keyPair.getPrivate());
+        signer.update(msg);
+        Assertions.assertTrue(verifies(pss("SHA-512/256", 32), msg, signer.sign()));
     }
 }

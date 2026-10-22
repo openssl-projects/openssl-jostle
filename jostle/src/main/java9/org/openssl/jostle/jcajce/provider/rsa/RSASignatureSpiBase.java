@@ -22,10 +22,12 @@ import org.openssl.jostle.jcajce.interfaces.RSAPublicKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
 import java.lang.ref.Reference;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.PrivateKey;
@@ -86,6 +88,39 @@ abstract class RSASignatureSpiBase extends SignatureSpi
 
     protected abstract void nativeInitVerify(long ref, long keyRef);
 
+    /** The digest a refused sign names. */
+    protected abstract String signDigestName();
+
+    /** Checks a key against the session parameters before any native call; PSS bounds the key length. */
+    protected void checkKey(RSAKey key) throws InvalidKeyException
+    {
+    }
+
+    /** The key the session is bound to, or null before the first init. */
+    protected RSAKey boundKey()
+    {
+        return lastKey;
+    }
+
+    /**
+     * The JCE init type for a native init refusal; a provider's sign refusal names the digest or the key.
+     */
+    private InvalidKeyException initFailure(RuntimeException e, RSAKey key)
+    {
+        String message = e.getMessage();
+        if (e instanceof ProviderCapabilityException && RSAServiceNI.SIGN_KEY_REFUSED.equals(message))
+        {
+            message = "the loaded provider does not sign RSA with this key (n of "
+                    + key.getModulus().bitLength() + " bits); verification remains available";
+        }
+        else if (e instanceof ProviderCapabilityException && RSAServiceNI.SIGN_DIGEST_REFUSED.equals(message))
+        {
+            message = "the loaded provider does not sign RSA with " + signDigestName()
+                    + "; verification remains available";
+        }
+        return (InvalidKeyException) new InvalidKeyException(message).initCause(e);
+    }
+
 
     // Foreign-key translation lives in RSAKeyImport (shared with the Cipher
     // SPIs); see RSAKeyImport.importPublic / importPrivate.
@@ -97,12 +132,13 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         try
         {
             JORSAPublicKey key = RSAKeyImport.importPublic(keyFactory, publicKey);
+            checkKey(key);
             lastKey = key;
             try
             {
                 initVerifyInternal(key);
             }
-            catch (OpenSSLException e)
+            catch (OpenSSLException | IllegalArgumentException e)
             {
                 // Native init failure — e.g. the loaded provider (FIPS module)
                 // refuses the digest/padding. JCE requires Signature.initVerify
@@ -110,7 +146,7 @@ abstract class RSASignatureSpiBase extends SignatureSpi
                 // provider-fallback trigger; mirrors the
                 // ProviderCapabilityException -> InvalidKeyException handling in
                 // the RSA Cipher SPIs.
-                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+                throw initFailure(e, key);
             }
         }
         finally
@@ -133,17 +169,18 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         try
         {
             JORSAPrivateKey key = RSAKeyImport.importPrivate(keyFactory, privateKey);
+            checkKey(key);
             lastKey = key;
             try
             {
                 initSignInternal(key);
             }
-            catch (OpenSSLException e)
+            catch (OpenSSLException | IllegalArgumentException e)
             {
                 // See engineInitVerify: a native init failure must surface as
                 // the fallback-eligible InvalidKeyException, not the raw
                 // runtime OpenSSLException.
-                throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
+                throw initFailure(e, key);
             }
         }
         finally
@@ -164,6 +201,40 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         updateStarted = false;
         ensureRef(key.getAlgorithm());
         nativeInitSign(ref.getReference(), key.getSpec().getReference(), randSource);
+    }
+
+    /**
+     * Re-binds a bound session under the parameters just set, so the next sign or verify uses them.
+     */
+    protected void reapplyParameters() throws InvalidAlgorithmParameterException
+    {
+        try
+        {
+            rebind();
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+    private void rebind() throws InvalidAlgorithmParameterException
+    {
+        try
+        {
+            if (lastKey instanceof JORSAPublicKey)
+            {
+                initVerifyInternal((JORSAPublicKey) lastKey);
+            }
+            else if (lastKey instanceof JORSAPrivateKey)
+            {
+                initSignInternal((JORSAPrivateKey) lastKey);
+            }
+        }
+        catch (OpenSSLException | IllegalArgumentException e)
+        {
+            throw new InvalidAlgorithmParameterException(e.getMessage(), e);
+        }
     }
 
     /** Verify-side counterpart to {@link #initSignInternal}. */
@@ -189,6 +260,10 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         {
             rsaServiceNI.update(ref.getReference(), b, off, len);
         }
+        catch (OpenSSLException | IllegalArgumentException e)
+        {
+            throw new SignatureException(e.getMessage(), e);
+        }
         finally
         {
             Reference.reachabilityFence(this);
@@ -205,6 +280,10 @@ abstract class RSASignatureSpiBase extends SignatureSpi
             byte[] sig = new byte[(int) len];
             rsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
             return sig;
+        }
+        catch (OpenSSLException e)
+        {
+            throw new SignatureException(e.getMessage(), e);
         }
         finally
         {
@@ -225,11 +304,17 @@ abstract class RSASignatureSpiBase extends SignatureSpi
         requireInitialised();
         try
         {
-            int code = rsaServiceNI.verify(
-                    ref.getReference(),
-                    sigBytes,
-                    sigBytes != null ? sigBytes.length : 0);
+            // verify declares SignatureException; BouncyCastle answers false, the JDK a raw NPE.
+            if (sigBytes == null)
+            {
+                throw new SignatureException("signature is null");
+            }
+            int code = rsaServiceNI.verify(ref.getReference(), sigBytes, sigBytes.length);
             return code == ErrorCode.JO_SUCCESS.getCode();
+        }
+        catch (OpenSSLException e)
+        {
+            throw new SignatureException("unable to verify RSA signature", e);
         }
         finally
         {

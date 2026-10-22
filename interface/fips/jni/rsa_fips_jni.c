@@ -21,6 +21,8 @@
 #define Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1getComponent                 Java_org_openssl_jostle_jcajce_provider_fips_RSAServiceFIPSJNI_ni_1getComponent
 #define Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1initSign                     Java_org_openssl_jostle_jcajce_provider_fips_RSAServiceFIPSJNI_ni_1initSign
 #define Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1initVerify                   Java_org_openssl_jostle_jcajce_provider_fips_RSAServiceFIPSJNI_ni_1initVerify
+#define Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1minModulusBits \
+        Java_org_openssl_jostle_jcajce_provider_fips_RSAServiceFIPSJNI_ni_1minModulusBits
 #define Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1sign                         Java_org_openssl_jostle_jcajce_provider_fips_RSAServiceFIPSJNI_ni_1sign
 #define Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1update                       Java_org_openssl_jostle_jcajce_provider_fips_RSAServiceFIPSJNI_ni_1update
 #define Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1verify                       Java_org_openssl_jostle_jcajce_provider_fips_RSAServiceFIPSJNI_ni_1verify

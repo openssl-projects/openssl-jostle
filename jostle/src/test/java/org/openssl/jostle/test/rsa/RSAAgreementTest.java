@@ -36,10 +36,15 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.Signature;
+import java.security.SignatureException;
+import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.PSSParameterSpec;
+import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
@@ -711,5 +716,186 @@ public class RSAAgreementTest
         Cipher dec = Cipher.getInstance(alg, JSL);
         dec.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
         Assertions.assertTrue(Arrays.areEqual(msg, dec.doFinal(ct)), alg + ": round trip");
+    }
+
+    private static final String SUN = "SunRsaSign";
+
+    private static byte[] randomMessage()
+    {
+        byte[] m = new byte[1 + RANDOM.nextInt(200)];
+        RANDOM.nextBytes(m);
+        return m;
+    }
+
+    private static PSSParameterSpec pss(String digest, int salt)
+    {
+        return new PSSParameterSpec(digest, "MGF1", new MGF1ParameterSpec(digest), salt, 1);
+    }
+
+    private static boolean verifies(String alg, String provider, PSSParameterSpec spec, byte[] msg, byte[] sig)
+        throws Exception
+    {
+        Signature v = Signature.getInstance(alg, provider);
+        if (spec != null)
+        {
+            v.setParameter(spec);
+        }
+        v.initVerify(keyPair.getPublic());
+        v.update(msg);
+        return v.verify(sig);
+    }
+
+    /** NoneWithRSA one byte past k - 11: ours refuses at the update that passes it, BC at sign; both typed. */
+    @Test
+    public void noneWithRsaPastTheBoundIsASignatureExceptionOnBothProviders() throws Exception
+    {
+        byte[] tooLong = new byte[KEY_BITS / 8 - 10];
+        RANDOM.nextBytes(tooLong);
+        Signature ours = Signature.getInstance("NoneWithRSA", JSL);
+        ours.initSign(keyPair.getPrivate());
+        Assertions.assertThrows(SignatureException.class, () -> ours.update(tooLong));
+
+        Signature bc = Signature.getInstance("NoneWithRSA", BC);
+        bc.initSign(bcPrivate());
+        bc.update(tooLong);
+        Assertions.assertThrows(SignatureException.class, bc::sign);
+    }
+
+    /** Parameters set after initSign are the ones signed under: SunRsaSign and BC verify under them. */
+    @Test
+    public void pssParametersSetAfterInitAreSignedUnder() throws Exception
+    {
+        byte[] msg = randomMessage();
+        PSSParameterSpec sha384 = pss("SHA-384", 48);
+        Signature signer = Signature.getInstance("RSASSA-PSS", JSL);
+        signer.initSign(keyPair.getPrivate());
+        signer.setParameter(sha384);
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Assertions.assertTrue(verifies("RSASSA-PSS", SUN, sha384, msg, sig), "SunRsaSign");
+        Assertions.assertTrue(verifies("RSASSA-PSS", BC, sha384, msg, sig), "BC");
+        Assertions.assertFalse(verifies("RSASSA-PSS", SUN, pss("SHA-256", 32), msg, sig), "earlier parameters");
+    }
+
+    /**
+     * A salt past the key is refused at init. Ours and SunRsaSign: InvalidKeyException naming the minimum. BC
+     * throws an unchecked IllegalArgumentException from init, outside the JCE contract; pinned as the divergence.
+     */
+    @Test
+    public void pssSaltPastTheKeyIsRefusedAtInit() throws Exception
+    {
+        PSSParameterSpec over = pss("SHA-256", 223);
+        for (String provider : new String[]{JSL, SUN})
+        {
+            Signature s = Signature.getInstance("RSASSA-PSS", provider);
+            s.setParameter(over);
+            InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> s.initSign(provider.equals(JSL) ? keyPair.getPrivate() : sunPrivate()), provider);
+            // JDK 8's SunRsaSign wraps the same text in a SignatureException message; the reason is the same.
+            Assertions.assertTrue(e.getMessage().endsWith("Key is too short, need min 257 bytes"), provider);
+            if (provider.equals(JSL))
+            {
+                Assertions.assertEquals("Key is too short, need min 257 bytes", e.getMessage());
+            }
+        }
+        Signature bc = Signature.getInstance("RSASSA-PSS", BC);
+        bc.setParameter(over);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> bc.initSign(bcPrivate()));
+
+        byte[] msg = randomMessage();
+        Signature max = Signature.getInstance("RSASSA-PSS", JSL);
+        max.setParameter(pss("SHA-256", 222));
+        max.initSign(keyPair.getPrivate());
+        max.update(msg);
+        byte[] sig = max.sign();
+        Assertions.assertTrue(verifies("RSASSA-PSS", SUN, pss("SHA-256", 222), msg, sig));
+        Assertions.assertTrue(verifies("RSASSA-PSS", BC, pss("SHA-256", 222), msg, sig));
+    }
+
+    /** A digest too long for the key fails at sign as SignatureException, ours and BC's. */
+    @Test
+    public void aDigestTooLongForTheKeyIsASignatureExceptionOnBothProviders() throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("RSA", JSL);
+        g.initialize(512);
+        KeyPair small = g.generateKeyPair();
+        byte[] msg = randomMessage();
+        Signature ours = Signature.getInstance("SHA512withRSA", JSL);
+        ours.initSign(small.getPrivate());
+        ours.update(msg);
+        Assertions.assertThrows(SignatureException.class, ours::sign);
+
+        Signature bc = Signature.getInstance("SHA512withRSA", BC);
+        bc.initSign(KeyFactory.getInstance("RSA", BC).generatePrivate(
+                new PKCS8EncodedKeySpec(small.getPrivate().getEncoded())));
+        bc.update(msg);
+        Assertions.assertThrows(SignatureException.class, bc::sign);
+    }
+
+    /**
+     * BouncyCastle's non-CRT private key encodes e = 0, and OpenSSL cannot sign without e, so translation refuses
+     * it typed rather than returning a key whose signatures do not verify; BC itself signs with it.
+     */
+    @Test
+    public void bouncyCastleNonCrtKeyWithoutExponentIsRefusedTyped() throws Exception
+    {
+        RSAPrivateCrtKey crt = (RSAPrivateCrtKey) sunPrivate();
+        PrivateKey bcNonCrt = KeyFactory.getInstance("RSA", BC).generatePrivate(
+                new RSAPrivateKeySpec(crt.getModulus(), crt.getPrivateExponent()));
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                () -> KeyFactory.getInstance("RSA", JSL).translateKey(bcNonCrt));
+        Assertions.assertEquals("RSA private key without CRT components or public exponent is not supported"
+                + " - OpenSSL requires the public exponent to construct an EVP_PKEY", e.getMessage());
+
+        byte[] msg = randomMessage();
+        Signature bc = Signature.getInstance("SHA256withRSA", BC);
+        bc.initSign(bcNonCrt);
+        bc.update(msg);
+        byte[] sig = bc.sign();
+        Signature ours = Signature.getInstance("SHA256withRSA", JSL);
+        ours.initVerify(keyPair.getPublic());
+        ours.update(msg);
+        Assertions.assertTrue(ours.verify(sig));
+    }
+
+    /** verify(null): ours the declared SignatureException, BC false; pinned as the divergence. */
+    @Test
+    public void verifyNullIsASignatureExceptionWhereBouncyCastleAnswersFalse() throws Exception
+    {
+        Signature ours = Signature.getInstance("SHA256withRSA", JSL);
+        ours.initVerify(keyPair.getPublic());
+        ours.update(new byte[16]);
+        Assertions.assertThrows(SignatureException.class, () -> ours.verify(null));
+
+        Signature bc = Signature.getInstance("SHA256withRSA", BC);
+        bc.initVerify(keyPair.getPublic());
+        bc.update(new byte[16]);
+        Assertions.assertFalse(bc.verify(null));
+    }
+
+    /**
+     * A named PSS signature accepts a known digest other than its name's, signing under it; BC refuses one,
+     * pinned beside ours as the divergence.
+     */
+    @Test
+    public void namedPssAcceptsAnotherKnownDigestWhereBouncyCastleRefuses() throws Exception
+    {
+        byte[] msg = randomMessage();
+        PSSParameterSpec sha384 = pss("SHA-384", 48);
+        Signature ours = Signature.getInstance("SHA256WITHRSAANDMGF1", JSL);
+        ours.setParameter(sha384);
+        ours.initSign(keyPair.getPrivate());
+        ours.update(msg);
+        Assertions.assertTrue(verifies("RSASSA-PSS", BC, sha384, msg, ours.sign()));
+
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> Signature.getInstance("SHA256WITHRSAANDMGF1", BC).setParameter(sha384));
+        Assertions.assertEquals("parameter must be using SHA-256", e.getMessage());
+    }
+
+    private static PrivateKey sunPrivate() throws Exception
+    {
+        return KeyFactory.getInstance("RSA", SUN).generatePrivate(
+                new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
     }
 }

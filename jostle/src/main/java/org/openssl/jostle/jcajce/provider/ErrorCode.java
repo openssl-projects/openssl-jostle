@@ -396,6 +396,18 @@ public enum ErrorCode
     JO_KS_NAME_HAS_NUL(-211),
     JO_KS_ALIAS_HOLDS_KEY(-212),
     JO_KS_ALGORITHM_UNSUPPORTED(-213),
+    // A handle passed as an RSA signer context that is not one.
+    JO_RSA_CTX_WRONG_KIND(-214),
+    // NoneWithRSA input longer than the key's PKCS#1 v1.5 bound.
+    JO_RSA_RAW_INPUT_TOO_LONG(-215),
+    // An empty RSA digest or MGF1 name, one with an embedded NUL, or one the library cannot fetch.
+    JO_RSA_DIGEST_NOT_SUPPORTED(-216),
+    // An RSA key size of zero or below.
+    JO_RSA_BITS_OUT_OF_RANGE(-217),
+    // The provider signs RSA with this key under another digest but not this one.
+    JO_RSA_SIGN_DIGEST_UNAVAILABLE(-218),
+    // The provider refuses to sign RSA with this key under any digest.
+    JO_RSA_SIGN_KEY_UNAVAILABLE(-219),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

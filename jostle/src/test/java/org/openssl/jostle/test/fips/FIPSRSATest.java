@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
 
@@ -604,9 +606,9 @@ public class FIPSRSATest
         Assertions.assertTrue(ipe.getMessage().contains("[1, 16384]"),
                 "message must name the sanity range, got: " + ipe.getMessage());
 
-        // Even public exponent.
+        // Even public exponent, above the floor so the parity check is the one that answers.
         for (BigInteger evenE : new BigInteger[]{
-                BigInteger.valueOf(4), BigInteger.valueOf(6), BigInteger.valueOf(65536)})
+                BigInteger.valueOf(65538), BigInteger.valueOf(1 << 20), BigInteger.ONE.shiftLeft(64)})
         {
             InvalidAlgorithmParameterException e = Assertions.assertThrows(
                     InvalidAlgorithmParameterException.class,
@@ -616,16 +618,24 @@ public class FIPSRSATest
                     "expected 'must be odd', got: " + e.getMessage());
         }
 
-        // Public exponent below 3.
-        for (BigInteger bad : new BigInteger[]{
-                BigInteger.ZERO, BigInteger.ONE, BigInteger.valueOf(2), BigInteger.valueOf(-1)})
+        // Public exponent below SP 800-56B's 65537, refused at initialize rather than by the module at generation.
+        for (BigInteger bad : new BigInteger[]{BigInteger.ZERO, BigInteger.ONE, BigInteger.valueOf(2),
+                BigInteger.valueOf(-1), BigInteger.valueOf(3), BigInteger.valueOf(65535)})
         {
             InvalidAlgorithmParameterException e = Assertions.assertThrows(
                     InvalidAlgorithmParameterException.class,
                     () -> kpg.initialize(new RSAKeyGenParameterSpec(2048, bad)),
                     "exponent " + bad + " must be rejected");
-            Assertions.assertEquals("public exponent must be >= 3", e.getMessage());
+            Assertions.assertEquals("public exponent must be >= 65537", e.getMessage());
         }
+        kpg.initialize(new RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4));
+        Assertions.assertNotNull(kpg.generateKeyPair());
+
+        // An exponent longer than the modulus is refused structurally, at initialize.
+        BigInteger longE = BigInteger.ONE.shiftLeft(2049).add(BigInteger.ONE);
+        InvalidAlgorithmParameterException le = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> kpg.initialize(new RSAKeyGenParameterSpec(2048, longE)));
+        Assertions.assertEquals("public exponent must be no longer than 2048 bits", le.getMessage());
 
         // Foreign parameter spec.
         InvalidAlgorithmParameterException fe = Assertions.assertThrows(
@@ -1052,5 +1062,104 @@ public class FIPSRSATest
             pos += chunk;
         }
         return signer.sign();
+    }
+
+    private static final String MODULE_3_1_2 = "OpenSSL FIPS Provider 3.1.2";
+    private static final String MODULE_3_5_8 = "OpenSSL FIPS Provider 3.5.8";
+
+    /** The loaded module's version, failing the cell for a module these pins were not measured on. */
+    private static String measuredModule()
+    {
+        String v = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+        Assertions.assertTrue(MODULE_3_1_2.equals(v) || MODULE_3_5_8.equals(v), "unmeasured module: " + v);
+        return v;
+    }
+
+    /**
+     * A module that refuses to sign says which cause it refused: the digest (the SHA-1 names, the 2048-bit key
+     * signing under SHA-256) or the key (1024 bits, verified and never signed). Measured the same on 3.1.2 and
+     * 3.5.8; the module still verifies a signature made elsewhere.
+     */
+    @Test
+    public void signRefusalsNameTheirCause() throws Exception
+    {
+        measuredModule();
+        KeyPair strong = keyPair();
+        KeyPairGenerator jslKpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        jslKpg.initialize(1024);
+        KeyPair jslWeak = jslKpg.generateKeyPair();
+        PrivateKey weakPrivate = FIPSTestUtil.crossPrivate(jslWeak.getPrivate(), "RSA",
+                JostleFIPSProvider.PROVIDER_NAME);
+        PublicKey weakPublic = FIPSTestUtil.crossPublic(jslWeak.getPublic(), "RSA", JostleFIPSProvider.PROVIDER_NAME);
+
+        String digestRefused = "the loaded provider does not sign RSA with SHA-1; verification remains available";
+        PrivateKey strongJsl = FIPSTestUtil.crossPrivate(strong.getPrivate(), "RSA", JostleProvider.PROVIDER_NAME);
+        assertSignRefused("SHA1withRSA", strong.getPrivate(), strong.getPublic(), strongJsl, digestRefused);
+        assertSignRefused("SHA1WITHRSAANDMGF1", strong.getPrivate(), strong.getPublic(), strongJsl, digestRefused);
+
+        String keyRefused = "the loaded provider does not sign RSA with this key (n of 1024 bits);"
+                + " verification remains available";
+        for (String alg : new String[]{"SHA256withRSA", "SHA256WITHRSAANDMGF1", "RSASSA-PSS", "NoneWithRSA"})
+        {
+            assertSignRefused(alg, weakPrivate, weakPublic, jslWeak.getPrivate(), keyRefused);
+        }
+    }
+
+    private static void assertSignRefused(String alg, PrivateKey priv, PublicKey pub, PrivateKey jslPriv,
+                                          String refusal) throws Exception
+    {
+        Signature signer = Signature.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class, () -> signer.initSign(priv), alg);
+        Assertions.assertEquals(refusal, e.getMessage(), alg);
+        Assertions.assertTrue(e.getCause() instanceof ProviderCapabilityException, alg + ": " + e.getCause());
+
+        byte[] msg = randomMessage(32);
+        Signature jslSigner = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+        jslSigner.initSign(jslPriv);
+        jslSigner.update(msg);
+        byte[] sig = jslSigner.sign();
+        Signature verifier = Signature.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
+        verifier.initVerify(pub);
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig), alg + ": the module must still verify");
+    }
+
+    /**
+     * The PSS salt is bounded by the key at init on both modules: past 222 (2048 bits, SHA-256) it is refused with
+     * SunRsaSign's type and message shape. Within the key's bound the modules differ, pinned by version: 3.1.2 signs
+     * every salt up to 222; 3.5.8 refuses a salt above hLen (32) at sign as a SignatureException.
+     */
+    @Test
+    public void pssSaltIsBoundedByTheKeyAtInit() throws Exception
+    {
+        boolean refusesAboveHLen = MODULE_3_5_8.equals(measuredModule());
+        KeyPair kp = keyPair();
+        for (int salt : new int[]{0, 32, 33, 222})
+        {
+            byte[] msg = randomMessage(64);
+            PSSParameterSpec spec = new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, salt, 1);
+            Signature signer = Signature.getInstance("RSASSA-PSS", JostleFIPSProvider.PROVIDER_NAME);
+            signer.setParameter(spec);
+            signer.initSign(kp.getPrivate());
+            signer.update(msg);
+            if (refusesAboveHLen && salt > 32)
+            {
+                SignatureException e = Assertions.assertThrows(SignatureException.class, signer::sign, "salt " + salt);
+                Assertions.assertTrue(e.getMessage().contains("invalid salt length"), e.getMessage());
+                continue;
+            }
+            byte[] sig = signer.sign();
+            Signature verifier = Signature.getInstance("RSASSA-PSS", JostleFIPSProvider.PROVIDER_NAME);
+            verifier.setParameter(spec);
+            verifier.initVerify(kp.getPublic());
+            verifier.update(msg);
+            Assertions.assertTrue(verifier.verify(sig), "salt " + salt);
+        }
+
+        Signature over = Signature.getInstance("RSASSA-PSS", JostleFIPSProvider.PROVIDER_NAME);
+        over.setParameter(new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 223, 1));
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                () -> over.initSign(kp.getPrivate()));
+        Assertions.assertEquals("Key is too short, need min 257 bytes", e.getMessage());
     }
 }

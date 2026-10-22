@@ -11,7 +11,9 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 
 import java.math.BigInteger;
 
@@ -49,46 +51,70 @@ final class RSAComponents
             int len = rsaServiceNI.getComponent(spec.getReference(), component, null);
             byte[] raw = new byte[len];
             int written = rsaServiceNI.getComponent(spec.getReference(), component, raw);
-            if (written != raw.length)
-            {
-                // Component shrunk between query and fetch — should never happen.
-                byte[] trimmed = new byte[written];
-                System.arraycopy(raw, 0, trimmed, 0, written);
-                raw = trimmed;
-            }
-            // OSSL hands us a big-endian unsigned magnitude; positive sign forces
-            // the BigInteger to interpret it without two's-complement wrapping.
-            return new BigInteger(1, raw);
+            return toBigInteger(raw, written, component);
         }
     }
 
     /**
      * Fetches a component that may legitimately be absent from this key.
-     * Returns null on any negative return from the native layer (which
-     * is OpenSSL signalling "no such param" for a key without CRT data).
+     * Returns null only for a plain JO_OPENSSL_ERROR, OpenSSL's "no such param"
+     * for a key without CRT data; every other negative is thrown.
      */
     static BigInteger getOptional(RSAServiceNI rsaServiceNI, PKEYKeySpec spec, int component)
     {
         synchronized (spec)
         {
             int len = rsaServiceNI.ni_getComponent(spec.getReference(), component, null);
-            if (len < 0)
+            if (isAbsent(rsaServiceNI, len))
             {
                 return null;
             }
             byte[] raw = new byte[len];
             int written = rsaServiceNI.ni_getComponent(spec.getReference(), component, raw);
-            if (written < 0)
+            if (isAbsent(rsaServiceNI, written))
             {
+                Arrays.clear(raw);
                 return null;
             }
-            if (written != raw.length)
+            return toBigInteger(raw, written, component);
+        }
+    }
+
+    /** A plain JO_OPENSSL_ERROR means absent; any other negative goes through the error handler. */
+    private static boolean isAbsent(RSAServiceNI rsaServiceNI, int code)
+    {
+        if (code == ErrorCode.JO_OPENSSL_ERROR.getCode())
+        {
+            return true;
+        }
+        rsaServiceNI.handleErrors(code);
+        return false;
+    }
+
+    /**
+     * OSSL hands us a big-endian unsigned magnitude; positive sign forces the BigInteger to interpret it
+     * without two's-complement wrapping. Byte copies of a private slot are cleared once it is built.
+     */
+    private static BigInteger toBigInteger(byte[] raw, int written, int component)
+    {
+        byte[] bytes = raw;
+        if (written != raw.length)
+        {
+            // Component shrunk between query and fetch - should never happen.
+            bytes = new byte[written];
+            System.arraycopy(raw, 0, bytes, 0, written);
+        }
+        try
+        {
+            return new BigInteger(1, bytes);
+        }
+        finally
+        {
+            if (component >= RSAServiceNI.COMP_PRIVATE_EXPONENT)
             {
-                byte[] trimmed = new byte[written];
-                System.arraycopy(raw, 0, trimmed, 0, written);
-                raw = trimmed;
+                Arrays.clear(raw);
+                Arrays.clear(bytes);
             }
-            return new BigInteger(1, raw);
         }
     }
 }

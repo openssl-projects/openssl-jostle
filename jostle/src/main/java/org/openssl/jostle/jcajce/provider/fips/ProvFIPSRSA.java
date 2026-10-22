@@ -18,6 +18,8 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAPSSAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPSSSignatureSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSASignatureSpi;
 
+import java.math.BigInteger;
+import java.security.spec.RSAKeyGenParameterSpec;
 import java.util.HashMap;
 import java.util.Map;
 import org.openssl.jostle.util.asn1.oids.ISOIECObjectIdentifiers;
@@ -54,6 +56,12 @@ class ProvFIPSRSA
      */
     private static final int FIPS_RSA_MIN_KEY_SIZE_BITS = 2048;
 
+    /**
+     * SP 800-56B's smallest public exponent, refused by both modules below it at generation;
+     * enforced at initialize so the refusal is typed.
+     */
+    private static final BigInteger FIPS_RSA_MIN_PUBLIC_EXPONENT = RSAKeyGenParameterSpec.F4;
+
     public void configure(final JostleFIPSProvider provider)
     {
         final Map<String, String> attr = new HashMap<>();
@@ -65,7 +73,7 @@ class ProvFIPSRSA
                 RSAKeyPairGenerator.class.getName(), attr,
                 (arg) -> new RSAKeyPairGenerator(
                         FIPSNISelector.RSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI,
-                        FIPS_RSA_MIN_KEY_SIZE_BITS, provider));
+                        FIPS_RSA_MIN_KEY_SIZE_BITS, FIPS_RSA_MIN_PUBLIC_EXPONENT, provider));
         provider.addAlias("KeyPairGenerator", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
 
         provider.addAlgorithmImplementation("KeyFactory", "RSA",

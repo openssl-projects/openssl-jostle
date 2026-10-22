@@ -12,6 +12,7 @@
 
 #include "bytearrays.h"
 #include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI.h"
 #include "types.h"
 #include "../util/jo_assert.h"
@@ -49,11 +50,7 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(env);
     UNUSED(o);
 
-    rsa_ctx *ctx = (void *) ref;
-    if (ctx == NULL) {
-        return;
-    }
-    rsa_ctx_destroy(ctx);
+    rsa_ctx_destroy((rsa_ctx *) ref);
 }
 
 /*
@@ -70,6 +67,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJN
     key_spec *spec = NULL;
     java_bytearray_ctx pubexp;
     init_bytearray_ctx(&pubexp);
+
+    if (bits <= 0) {
+        ret_val = JO_RSA_BITS_OUT_OF_RANGE;
+        goto exit;
+    }
 
     if (rnd_src == NULL) {
         ret_val = JO_RAND_NO_RAND_UP_CALL;
@@ -100,6 +102,18 @@ exit:
     return (jlong) spec;
 }
 
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
+ * Method:    ni_minModulusBits
+ * Signature: ()I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI_ni_1minModulusBits
+(JNIEnv *env, jobject jo) {
+    UNUSED(env);
+    UNUSED(jo);
+    return rsa_min_modulus_bits();
+}
+
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
@@ -111,8 +125,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     key_spec *spec = (key_spec *) spec_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
     if (_n == NULL) {
         return JO_RSA_MODULUS_IS_NULL;
@@ -157,8 +172,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     key_spec *spec = (key_spec *) spec_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
     if (_n == NULL) {
         return JO_RSA_MODULUS_IS_NULL;
@@ -171,10 +187,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     }
 
     int32_t ret_code = JO_FAIL;
-    java_bytearray_ctx n_ctx, e_ctx, d_ctx;
+    java_bytearray_ctx n_ctx, e_ctx;
+    java_secret_bytearray_ctx d_ctx;
     init_bytearray_ctx(&n_ctx);
     init_bytearray_ctx(&e_ctx);
-    init_bytearray_ctx(&d_ctx);
+    init_secret_bytearray_ctx(&d_ctx);
 
     // Each access call gets its own OPS slot so tests can isolate
     // which array's GetByteArrayElements failed. The natural
@@ -188,7 +205,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&d_ctx, env, _d)) {
+    if (OPS_FAILED_ACCESS_3 !load_secret_input_ctx(&d_ctx, env, _d)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -201,7 +218,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
 exit:
     release_bytearray_ctx(&n_ctx);
     release_bytearray_ctx(&e_ctx);
-    release_bytearray_ctx(&d_ctx);
+    release_secret_bytearray_ctx(&d_ctx);
     return ret_code;
 }
 
@@ -219,8 +236,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     key_spec *spec = (key_spec *) spec_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
     if (_n == NULL) {
         return JO_RSA_MODULUS_IS_NULL;
@@ -248,15 +266,16 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     }
 
     int32_t ret_code = JO_FAIL;
-    java_bytearray_ctx n_ctx, e_ctx, d_ctx, p_ctx, q_ctx, dp_ctx, dq_ctx, qi_ctx;
+    java_bytearray_ctx n_ctx, e_ctx;
+    java_secret_bytearray_ctx d_ctx, p_ctx, q_ctx, dp_ctx, dq_ctx, qi_ctx;
     init_bytearray_ctx(&n_ctx);  init_bytearray_ctx(&e_ctx);
-    init_bytearray_ctx(&d_ctx);  init_bytearray_ctx(&p_ctx);
-    init_bytearray_ctx(&q_ctx);  init_bytearray_ctx(&dp_ctx);
-    init_bytearray_ctx(&dq_ctx); init_bytearray_ctx(&qi_ctx);
+    init_secret_bytearray_ctx(&d_ctx);  init_secret_bytearray_ctx(&p_ctx);
+    init_secret_bytearray_ctx(&q_ctx);  init_secret_bytearray_ctx(&dp_ctx);
+    init_secret_bytearray_ctx(&dq_ctx); init_secret_bytearray_ctx(&qi_ctx);
 
     // First four access calls get distinct OPS slots so each can be
     // selectively fault-injected. The remaining four reuse the same
-    // pattern (load_bytearray_ctx is structurally identical for every
+    // pattern (each load helper is structurally identical for every
     // array argument) but stay un-fault-injected — there are only four
     // OPS_FAILED_ACCESS_* slots and the four already covered exercise
     // the full helper code path.
@@ -268,18 +287,18 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&d_ctx, env, _d)) {
+    if (OPS_FAILED_ACCESS_3 !load_secret_input_ctx(&d_ctx, env, _d)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_4 !load_bytearray_ctx(&p_ctx, env, _p)) {
+    if (OPS_FAILED_ACCESS_4 !load_secret_input_ctx(&p_ctx, env, _p)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
-    if (!load_bytearray_ctx(&q_ctx, env, _q) ||
-        !load_bytearray_ctx(&dp_ctx, env, _dp) ||
-        !load_bytearray_ctx(&dq_ctx, env, _dq) ||
-        !load_bytearray_ctx(&qi_ctx, env, _qinv)) {
+    if (!load_secret_input_ctx(&q_ctx, env, _q) ||
+        !load_secret_input_ctx(&dp_ctx, env, _dp) ||
+        !load_secret_input_ctx(&dq_ctx, env, _dq) ||
+        !load_secret_input_ctx(&qi_ctx, env, _qinv)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -297,12 +316,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
 exit:
     release_bytearray_ctx(&n_ctx);
     release_bytearray_ctx(&e_ctx);
-    release_bytearray_ctx(&d_ctx);
-    release_bytearray_ctx(&p_ctx);
-    release_bytearray_ctx(&q_ctx);
-    release_bytearray_ctx(&dp_ctx);
-    release_bytearray_ctx(&dq_ctx);
-    release_bytearray_ctx(&qi_ctx);
+    release_secret_bytearray_ctx(&d_ctx);
+    release_secret_bytearray_ctx(&p_ctx);
+    release_secret_bytearray_ctx(&q_ctx);
+    release_secret_bytearray_ctx(&dp_ctx);
+    release_secret_bytearray_ctx(&dq_ctx);
+    release_secret_bytearray_ctx(&qi_ctx);
     return ret_code;
 }
 
@@ -317,13 +336,14 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     key_spec *spec = (key_spec *) spec_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
 
     int32_t ret_code = JO_FAIL;
-    java_bytearray_ctx out_ctx;
-    init_bytearray_ctx(&out_ctx);
+    java_secret_bytearray_ctx out_ctx;
+    init_secret_bytearray_ctx(&out_ctx);
 
     if (_out == NULL) {
         // Caller wants required size.
@@ -331,7 +351,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&out_ctx, env, _out)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&out_ctx, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -339,7 +359,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     ret_code = rsa_get_component(spec, component, out_ctx.bytearray, out_ctx.size);
 
 exit:
-    release_bytearray_ctx(&out_ctx);
+    release_secret_bytearray_ctx(&out_ctx);
     return ret_code;
 }
 
@@ -378,6 +398,12 @@ static int32_t rsa_init_strings_load(JNIEnv *env, jstring digest_str, jstring mg
             return JO_UNABLE_TO_ACCESS_NAME;
         }
     }
+
+    // An empty name or an embedded NUL names nothing, as on FFM.
+    if (modified_utf8_names_nothing(out->digest)
+        || (out->mgf1 != NULL && modified_utf8_names_nothing(out->mgf1))) {
+        return JO_RSA_DIGEST_NOT_SUPPORTED;
+    }
     return JO_SUCCESS;
 }
 
@@ -402,13 +428,15 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) rsa_ref;
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     key_spec *spec = (key_spec *) key_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
 
     if (rnd_src == NULL) {
@@ -442,13 +470,15 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) rsa_ref;
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     key_spec *spec = (key_spec *) key_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t spec_check = key_spec_check(spec);
+    if (UNSUCCESSFUL(spec_check)) {
+        return spec_check;
     }
 
     rsa_init_strings names;
@@ -476,8 +506,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     int32_t ret_code = JO_FAIL;
@@ -524,8 +555,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     if (rnd_src == NULL) {
@@ -575,8 +607,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAServiceJNI
     UNUSED(jo);
 
     rsa_ctx *ctx = (rsa_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ctx_check = rsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ctx_check)) {
+        return ctx_check;
     }
 
     if (_sig == NULL) {

@@ -38,6 +38,12 @@ public class RSASignatureSpi extends RSASignatureSpiBase
     }
 
     @Override
+    protected String signDigestName()
+    {
+        return digestName;
+    }
+
+    @Override
     protected void nativeInitSign(long ref, long keyRef, RandSource rnd)
     {
         rsaServiceNI.initSign(ref, keyRef,

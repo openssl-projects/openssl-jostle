@@ -114,6 +114,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("handle is not a MAC context");
             case JO_EC_CTX_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not an EC signer context");
+            case JO_RSA_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not an RSA signer context");
             case JO_EC_KEX_CTX_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not a key-agreement context");
             case JO_EC_DIGEST_NOT_SUPPORTED:

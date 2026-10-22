@@ -83,7 +83,7 @@ public class RSAPSSAlgorithmParameters
      * salt longer than the modulus cannot sign, so this is far above anything
      * usable and only excludes absurd values.
      */
-    private static final int MAX_SALT_LENGTH = 1024;
+    static final int MAX_SALT_LENGTH = 1024;
 
     /** Whole-blob ceiling: the structure is a handful of OIDs and two integers. */
     private static final int MAX_ENCODED_BYTES = 512;
@@ -151,7 +151,7 @@ public class RSAPSSAlgorithmParameters
 
         PSSParameterSpec pss = (PSSParameterSpec) paramSpec;
 
-        String hash = canonicalOrNull(pss.getDigestAlgorithm());
+        String hash = canonicalDigestName(pss.getDigestAlgorithm());
         if (hash == null)
         {
             throw new InvalidParameterSpecException(
@@ -172,7 +172,7 @@ public class RSAPSSAlgorithmParameters
         }
         else if (mgfParams instanceof MGF1ParameterSpec)
         {
-            mgfHash = canonicalOrNull(((MGF1ParameterSpec) mgfParams).getDigestAlgorithm());
+            mgfHash = canonicalDigestName(((MGF1ParameterSpec) mgfParams).getDigestAlgorithm());
             if (mgfHash == null)
             {
                 throw new InvalidParameterSpecException("unsupported MGF1 digest: "
@@ -186,7 +186,7 @@ public class RSAPSSAlgorithmParameters
         }
 
         int salt = pss.getSaltLength();
-        if (salt < 0 || salt > MAX_SALT_LENGTH)
+        if (!saltLengthInRange(salt))
         {
             throw new InvalidParameterSpecException(
                     "PSS salt length out of range [0, " + MAX_SALT_LENGTH + "]: " + salt);
@@ -420,14 +420,20 @@ public class RSAPSSAlgorithmParameters
         }
     }
 
-    /** The canonical JCA name for an accepted spelling, or null. */
-    private static String canonicalOrNull(String name)
+    /** The canonical JCA name for an accepted spelling, or null; the PSS SPI canonicalises through it. */
+    static String canonicalDigestName(String name)
     {
         if (name == null || name.isEmpty())
         {
             return null;
         }
         return ALIASES.get(name.toUpperCase(Locale.ROOT));
+    }
+
+    /** The salt bound shared with the PSS SPI: 0 to MAX_SALT_LENGTH. */
+    static boolean saltLengthInRange(int salt)
+    {
+        return salt >= 0 && salt <= MAX_SALT_LENGTH;
     }
 
     /**

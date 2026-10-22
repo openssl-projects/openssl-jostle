@@ -1421,4 +1421,34 @@ public class RSALimitTest
             specNI.dispose(keyRef);
         }
     }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        RSABridgeCells.wrongKindHandlesAreRefused(rsaServiceNI, specNI, TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_unusableDigestNamesAreRefused()
+    {
+        RSABridgeCells.unusableDigestNamesAreRefused(rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_rawInputIsBoundedByTheKey()
+    {
+        RSABridgeCells.rawInputIsBoundedByTheKey(rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_nonPositiveBitsAreRefused()
+    {
+        RSABridgeCells.nonPositiveBitsAreRefused(rsaServiceNI);
+    }
+
+    @Test
+    public void bridge_minModulusBitsIsTheLibrarysFloor()
+    {
+        RSABridgeCells.minModulusBitsIsTheLibrarysFloor(rsaServiceNI);
+    }
 }

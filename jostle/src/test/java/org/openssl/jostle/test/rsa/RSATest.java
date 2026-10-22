@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.test.rsa;
 
+import org.bouncycastle.asn1.DERNull;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
@@ -1921,5 +1922,97 @@ public class RSATest
         Assertions.assertThrows(InvalidKeySpecException.class,
                 () -> kf.generatePrivate(new PKCS8EncodedKeySpec(garbage)),
                 "malformed PKCS#8 must throw InvalidKeySpecException");
+    }
+
+    /** An exponent longer than the modulus is refused at initialize, structurally, before any generation. */
+    @Test
+    public void testKeyGen_exponentLongerThanTheModulusIsRefusedAtInitialize() throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        BigInteger e = BigInteger.ONE.shiftLeft(2049).add(BigInteger.ONE);
+        InvalidAlgorithmParameterException ex = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> g.initialize(new RSAKeyGenParameterSpec(2048, e)));
+        Assertions.assertEquals("public exponent must be no longer than 2048 bits", ex.getMessage());
+        BigInteger fits = BigInteger.ONE.shiftLeft(255).add(BigInteger.ONE);
+        g.initialize(new RSAKeyGenParameterSpec(2048, fits));
+        Assertions.assertEquals(fits, ((RSAPublicKey) g.generateKeyPair().getPublic()).getPublicExponent());
+    }
+
+    /**
+     * Failures at sign and update are the declared SignatureException with the cause kept, never a raw runtime
+     * exception: a digest too long for the key, and CRT components that are all zero.
+     */
+    @Test
+    public void testSign_failuresAreSignatureExceptions() throws Exception
+    {
+        byte[] msg = new byte[1 + RANDOM.nextInt(128)];
+        RANDOM.nextBytes(msg);
+        KeyPairGenerator g = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        g.initialize(512);
+        KeyPair small = g.generateKeyPair();
+        Signature s512 = Signature.getInstance("SHA512withRSA", JostleProvider.PROVIDER_NAME);
+        s512.initSign(small.getPrivate());
+        s512.update(msg);
+        SignatureException e = Assertions.assertThrows(SignatureException.class, s512::sign);
+        Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        Assertions.assertNotNull(e.getCause());
+
+        RSAPrivateCrtKey crt = (RSAPrivateCrtKey) sharedKeyPair.getPrivate();
+        PrivateKey zeros = KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME).generatePrivate(
+                new RSAPrivateCrtKeySpec(crt.getModulus(), crt.getPublicExponent(), BigInteger.ZERO,
+                        BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO));
+        Signature zs = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        zs.initSign(zeros);
+        zs.update(msg);
+        e = Assertions.assertThrows(SignatureException.class, zs::sign);
+        Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+    }
+
+    /**
+     * A PKCS#8 key whose CRT components are all zero (the encoding of a non-CRT key) is rebuilt from n, e and d,
+     * so it signs, and its CRT getters answer null rather than zero.
+     */
+    @Test
+    public void testPkcs8WithZeroCrtComponentsSigns() throws Exception
+    {
+        RSAPrivateCrtKey crt = (RSAPrivateCrtKey) sharedKeyPair.getPrivate();
+        // the ASN.1 structure is named through its package: java.security.interfaces.RSAPrivateKey is imported
+        org.bouncycastle.asn1.pkcs.RSAPrivateKey nonCrt = new org.bouncycastle.asn1.pkcs.RSAPrivateKey(
+                crt.getModulus(), crt.getPublicExponent(), crt.getPrivateExponent(),
+                BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO);
+        byte[] pkcs8 = new PrivateKeyInfo(new AlgorithmIdentifier(PKCSObjectIdentifiers.rsaEncryption,
+                DERNull.INSTANCE), nonCrt).getEncoded();
+        RSAPrivateCrtKey imported = (RSAPrivateCrtKey) KeyFactory.getInstance("RSA", JostleProvider.PROVIDER_NAME)
+                .generatePrivate(new PKCS8EncodedKeySpec(pkcs8));
+        Assertions.assertNull(imported.getPrimeP());
+        Assertions.assertEquals(crt.getPrivateExponent(), imported.getPrivateExponent());
+
+        byte[] msg = new byte[1 + RANDOM.nextInt(128)];
+        RANDOM.nextBytes(msg);
+        Signature signer = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(imported);
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Signature verifier = Signature.getInstance("SHA256withRSA", JostleProvider.PROVIDER_NAME);
+        verifier.initVerify(sharedKeyPair.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig));
+        msg[0] ^= 1;
+        verifier.update(msg);
+        Assertions.assertFalse(verifier.verify(sig));
+    }
+
+    /** verify(null) is the declared SignatureException, on PKCS#1, PSS and the raw name. */
+    @Test
+    public void testVerifyNull_isASignatureException() throws Exception
+    {
+        for (String alg : new String[]{"SHA256withRSA", "RSASSA-PSS", "NoneWithRSA"})
+        {
+            Signature v = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            v.initVerify(sharedKeyPair.getPublic());
+            v.update(new byte[32]);
+            SignatureException e = Assertions.assertThrows(SignatureException.class, () -> v.verify(null), alg);
+            Assertions.assertEquals("signature is null", e.getMessage(), alg);
+        }
     }
 }

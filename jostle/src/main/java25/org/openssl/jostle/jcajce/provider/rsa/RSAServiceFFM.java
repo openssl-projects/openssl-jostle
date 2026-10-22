@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -23,6 +24,8 @@ import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -37,6 +40,14 @@ import java.util.logging.Logger;
 // marshalling serves both interface libraries (see MDServiceFFM).
 public class RSAServiceFFM implements RSAServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     private static final Logger L = Logger.getLogger("RSA_NI_FFM");
     private static final Linker linker = Linker.nativeLinker();
 
@@ -44,6 +55,7 @@ public class RSAServiceFFM implements RSAServiceNI
     private final MethodHandle allocSignerH;
     private final MethodHandle disposeSignerH;
     private final MethodHandle generateKeyPairH;
+    private final MethodHandle minModulusBitsH;
     private final MethodHandle decodePublicComponentsH;
     private final MethodHandle decodePrivateComponentsH;
     private final MethodHandle decodePrivateComponentsCrtH;
@@ -101,6 +113,9 @@ public class RSAServiceFFM implements RSAServiceNI
                         ValueLayout.ADDRESS,     // err out
                         ValueLayout.ADDRESS));   // rnd_src upcall
 
+        minModulusBitsH = bind(lookup, symPrefix + "JoRSA_minModulusBits",
+                FunctionDescriptor.of(ValueLayout.JAVA_INT));
+
         decodePublicComponentsH = bind(lookup, symPrefix + "JoRSA_decodePublicComponents",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
@@ -143,16 +158,19 @@ public class RSAServiceFFM implements RSAServiceNI
                         ValueLayout.JAVA_LONG),
                 /* critical */ true);
 
-        // RSA_initSign(rsa_ctx*, key_spec*, const char* digest, int padding,
-        //              const char* mgf1, int salt_len, void* rnd_src)
+        // RSA_initSign(rsa_ctx*, key_spec*, const char* digest, size_t digest_len, int padding,
+        //              const char* mgf1, size_t mgf1_len, int salt_len, void* rnd_src)
+        // Each name crosses as a NUL-terminated copy plus its UTF-8 byte count (see nameSeg).
         initSignH = bind(lookup, symPrefix + "JoRSA_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,    // ctx
                         ValueLayout.ADDRESS,    // key
                         ValueLayout.ADDRESS,    // digest_name
+                        ValueLayout.JAVA_LONG,  // digest_len
                         ValueLayout.JAVA_INT,   // padding_mode
                         ValueLayout.ADDRESS,    // mgf1_md_name (nullable)
+                        ValueLayout.JAVA_LONG,  // mgf1_len
                         ValueLayout.JAVA_INT,   // salt_len
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
@@ -162,8 +180,10 @@ public class RSAServiceFFM implements RSAServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT));
 
         // RSA_update(rsa_ctx*, uint8_t* in, size_t in_size, int in_off, int in_len)
@@ -312,6 +332,21 @@ public class RSAServiceFFM implements RSAServiceNI
     }
 
 
+    @Override
+    public int ni_minModulusBits()
+    {
+        try
+        {
+            return (int) minModulusBitsH.invokeExact();
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM RSA_minModulusBits", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+
     // ===============================================================
     // Component-based decoding
     // ===============================================================
@@ -421,12 +456,12 @@ public class RSAServiceFFM implements RSAServiceNI
         {
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment key = MemorySegment.ofAddress(keyRef);
-            MemorySegment digestSeg = digestName == null ? MemorySegment.NULL : a.allocateFrom(digestName);
-            MemorySegment mgfSeg = mgf1MdName == null ? MemorySegment.NULL : a.allocateFrom(mgf1MdName);
+            byte[] digest = utf8(digestName);
+            byte[] mgf = utf8(mgf1MdName);
 
             return (int) initSignH.invokeExact(ctx, key,
-                    digestSeg, paddingMode,
-                    mgfSeg, saltLen,
+                    nameSeg(a, digest), len(digest), paddingMode,
+                    nameSeg(a, mgf), len(mgf), saltLen,
                     entropyStub(a, rndSource));
         }
         catch (Throwable t)
@@ -444,12 +479,12 @@ public class RSAServiceFFM implements RSAServiceNI
         {
             MemorySegment ctx = MemorySegment.ofAddress(ref);
             MemorySegment key = MemorySegment.ofAddress(keyRef);
-            MemorySegment digestSeg = digestName == null ? MemorySegment.NULL : a.allocateFrom(digestName);
-            MemorySegment mgfSeg = mgf1MdName == null ? MemorySegment.NULL : a.allocateFrom(mgf1MdName);
+            byte[] digest = utf8(digestName);
+            byte[] mgf = utf8(mgf1MdName);
 
             return (int) initVerifyH.invokeExact(ctx, key,
-                    digestSeg, paddingMode,
-                    mgfSeg, saltLen);
+                    nameSeg(a, digest), len(digest), paddingMode,
+                    nameSeg(a, mgf), len(mgf), saltLen);
         }
         catch (Throwable t)
         {
@@ -536,5 +571,22 @@ public class RSAServiceFFM implements RSAServiceNI
     private static MemorySegment arrayOrNull(byte[] a)
     {
         return a == null ? MemorySegment.NULL : MemorySegment.ofArray(a);
+    }
+
+    private static long len(byte[] a)
+    {
+        return a == null ? 0L : a.length;
+    }
+
+    /** A name as its UTF-8 bytes, or null; the C takes a NUL-terminated copy plus this count. */
+    private static byte[] utf8(String name)
+    {
+        return name == null ? null : name.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static MemorySegment nameSeg(Arena a, byte[] utf8)
+    {
+        return utf8 == null ? MemorySegment.NULL
+                : a.allocateFrom(ValueLayout.JAVA_BYTE, Arrays.copyOf(utf8, utf8.length + 1));
     }
 }

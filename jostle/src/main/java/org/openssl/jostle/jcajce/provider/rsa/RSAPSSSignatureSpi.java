@@ -11,12 +11,14 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
+import org.openssl.jostle.jcajce.interfaces.RSAKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.ProviderException;
@@ -49,10 +51,17 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
     /** Default digest used when no PSSParameterSpec is supplied. */
     private static final String DEFAULT_DIGEST = "SHA-256";
 
-    private String digestName = DEFAULT_DIGEST;
-    private String mgf1Digest = DEFAULT_DIGEST;
     /** Negative is the "use digest output length" sentinel. */
-    private int saltLen = -1;
+    private static final int DIGEST_LENGTH_SALT = -1;
+
+    // What setParameter(null) restores: the name's parameters for a named instance.
+    private final String defaultDigest;
+    private final String defaultMgf1Digest;
+    private final int defaultSaltLen;
+
+    private String digestName;
+    private String mgf1Digest;
+    private int saltLen;
 
 
     /** Resolves the salt length the native sentinel stands for. May be null. */
@@ -60,7 +69,16 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
 
     public RSAPSSSignatureSpi()
     {
-        this.mdServiceNI = NISelector.MDServiceNI;
+        this(NISelector.MDServiceNI, DEFAULT_DIGEST);
+    }
+
+    private RSAPSSSignatureSpi(MDServiceNI mdServiceNI, String digest)
+    {
+        this.mdServiceNI = mdServiceNI;
+        this.defaultDigest = digest;
+        this.defaultMgf1Digest = digest;
+        this.defaultSaltLen = DIGEST_LENGTH_SALT;
+        resetToDefaults();
     }
 
     /**
@@ -73,10 +91,7 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
      */
     public RSAPSSSignatureSpi(String digest)
     {
-        this.mdServiceNI = NISelector.MDServiceNI;
-        this.digestName = digest;
-        this.mgf1Digest = digest;
-        this.saltLen = -1;
+        this(NISelector.MDServiceNI, digest);
     }
 
     //
@@ -86,8 +101,7 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
     public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI, MDServiceNI mdServiceNI,
                               RSAKeyFactorySpi keyFactory)
     {
-        super(rsaServiceNI, keyFactory);
-        this.mdServiceNI = mdServiceNI;
+        this(rsaServiceNI, mdServiceNI, keyFactory, DEFAULT_DIGEST);
     }
 
     public RSAPSSSignatureSpi(RSAServiceNI rsaServiceNI, MDServiceNI mdServiceNI,
@@ -95,9 +109,17 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
     {
         super(rsaServiceNI, keyFactory);
         this.mdServiceNI = mdServiceNI;
-        this.digestName = digest;
-        this.mgf1Digest = digest;
-        this.saltLen = -1;
+        this.defaultDigest = digest;
+        this.defaultMgf1Digest = digest;
+        this.defaultSaltLen = DIGEST_LENGTH_SALT;
+        resetToDefaults();
+    }
+
+    private void resetToDefaults()
+    {
+        this.digestName = defaultDigest;
+        this.mgf1Digest = defaultMgf1Digest;
+        this.saltLen = defaultSaltLen;
     }
 
     @Override
@@ -111,76 +133,133 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
             // Matches EdSignatureSpi's guard.
             throw new ProviderException("cannot call setParameter in the middle of update");
         }
+        String digest;
+        String mgfHash;
+        int salt;
         if (params == null)
         {
-            // Reset to defaults.
-            this.digestName = DEFAULT_DIGEST;
-            this.mgf1Digest = DEFAULT_DIGEST;
-            this.saltLen = -1;
-            return;
-        }
-
-        if (!(params instanceof PSSParameterSpec))
-        {
-            throw new InvalidAlgorithmParameterException("expected PSSParameterSpec");
-        }
-
-        PSSParameterSpec pss = (PSSParameterSpec) params;
-
-        // Digest — translate JDK alg names to OpenSSL EVP_MD names
-        // (the two are nearly identical but JDK uses "SHA-256" while
-        // OpenSSL's EVP_get_digestbyname is also happy with that;
-        // accept both forms).
-        String digest = pss.getDigestAlgorithm();
-        if (digest == null || digest.isEmpty())
-        {
-            throw new InvalidAlgorithmParameterException("PSSParameterSpec missing digest");
-        }
-
-        // MGF — only MGF1 is supported by RSASSA-PSS / RFC 8017.
-        String mgf = pss.getMGFAlgorithm();
-        if (mgf != null && !"MGF1".equalsIgnoreCase(mgf))
-        {
-            throw new InvalidAlgorithmParameterException(
-                    "only MGF1 is supported (got " + mgf + ")");
-        }
-
-        // MGF1 hash — default to the signing hash if the parameters
-        // didn't specify one. PSSParameterSpec returns a non-null
-        // MGF1ParameterSpec by default (initialised to SHA-1) so the
-        // "default to signing hash" policy applies when the caller
-        // either passes null mgfParams or explicitly omits them.
-        AlgorithmParameterSpec mgfParams = pss.getMGFParameters();
-        String mgfHash;
-        if (mgfParams == null)
-        {
-            mgfHash = digest;
-        }
-        else if (mgfParams instanceof MGF1ParameterSpec)
-        {
-            String h = ((MGF1ParameterSpec) mgfParams).getDigestAlgorithm();
-            mgfHash = (h == null || h.isEmpty()) ? digest : h;
+            // A named instance's defaults are its name's parameters.
+            digest = defaultDigest;
+            mgfHash = defaultMgf1Digest;
+            salt = defaultSaltLen;
         }
         else
         {
-            throw new InvalidAlgorithmParameterException(
-                    "unsupported MGF parameters: " + mgfParams.getClass().getName());
+            if (!(params instanceof PSSParameterSpec))
+            {
+                throw new InvalidAlgorithmParameterException("expected PSSParameterSpec");
+            }
+            PSSParameterSpec pss = (PSSParameterSpec) params;
+
+            String requested = pss.getDigestAlgorithm();
+            if (requested == null || requested.isEmpty())
+            {
+                throw new InvalidAlgorithmParameterException("PSSParameterSpec missing digest");
+            }
+            // JDK and BouncyCastle spellings in, the canonical name out; a known digest other than
+            // the name's is accepted, an unknown spelling is not.
+            digest = RSAPSSAlgorithmParameters.canonicalDigestName(requested);
+            if (digest == null)
+            {
+                throw new InvalidAlgorithmParameterException("unsupported PSS digest: " + requested);
+            }
+
+            // MGF - only MGF1 is supported by RSASSA-PSS / RFC 8017.
+            String mgf = pss.getMGFAlgorithm();
+            if (mgf != null && !"MGF1".equalsIgnoreCase(mgf))
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "only MGF1 is supported (got " + mgf + ")");
+            }
+
+            // MGF1 hash: the signing hash when the parameters name none.
+            AlgorithmParameterSpec mgfParams = pss.getMGFParameters();
+            if (mgfParams == null)
+            {
+                mgfHash = digest;
+            }
+            else if (mgfParams instanceof MGF1ParameterSpec)
+            {
+                String h = ((MGF1ParameterSpec) mgfParams).getDigestAlgorithm();
+                mgfHash = (h == null || h.isEmpty()) ? digest : RSAPSSAlgorithmParameters.canonicalDigestName(h);
+                if (mgfHash == null)
+                {
+                    throw new InvalidAlgorithmParameterException("unsupported PSS digest: " + h);
+                }
+            }
+            else
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "unsupported MGF parameters: " + mgfParams.getClass().getName());
+            }
+
+            salt = pss.getSaltLength();
+            if (!RSAPSSAlgorithmParameters.saltLengthInRange(salt))
+            {
+                throw new InvalidAlgorithmParameterException("PSS salt length out of range [0, "
+                        + RSAPSSAlgorithmParameters.MAX_SALT_LENGTH + "]: " + salt);
+            }
+            // Trailer field - RSASSA-PSS only defines value 1.
+            int trailer = pss.getTrailerField();
+            if (trailer != 1)
+            {
+                throw new InvalidAlgorithmParameterException(
+                        "trailer field must be 1 (got " + trailer + ")");
+            }
         }
 
-        int salt = pss.getSaltLength();
-        // Trailer field — RSASSA-PSS only defines value 1; reject anything
-        // else explicitly (PSSParameterSpec.getTrailerField() can return
-        // arbitrary ints if hand-constructed).
-        int trailer = pss.getTrailerField();
-        if (trailer != 1)
+        // A bound key is checked before anything changes, then the session is re-bound under the new values.
+        RSAKey key = boundKey();
+        if (key != null)
         {
-            throw new InvalidAlgorithmParameterException(
-                    "trailer field must be 1 (got " + trailer + ")");
+            try
+            {
+                checkKeyLength(key, digest, salt);
+            }
+            catch (InvalidKeyException e)
+            {
+                throw new InvalidAlgorithmParameterException(e.getMessage(), e);
+            }
         }
-
         this.digestName = digest;
         this.mgf1Digest = mgfHash;
         this.saltLen = salt;
+        if (key != null)
+        {
+            reapplyParameters();
+        }
+    }
+
+    @Override
+    protected String signDigestName()
+    {
+        return digestName;
+    }
+
+    @Override
+    protected void checkKey(RSAKey key) throws InvalidKeyException
+    {
+        checkKeyLength(key, digestName, saltLen);
+    }
+
+    /**
+     * RFC 8017 9.1.1: emLen = ceil((modBits - 1) / 8) must reach hLen + sLen + 2. The digest length is
+     * asked of the library; a digest it cannot answer for is left to the native init to refuse.
+     */
+    private void checkKeyLength(RSAKey key, String digest, int salt) throws InvalidKeyException
+    {
+        int hLen = digestLength(digest);
+        if (hLen <= 0)
+        {
+            return;
+        }
+        int sLen = salt < 0 ? hLen : salt;
+        int emLen = (key.getModulus().bitLength() + 6) / 8;
+        long need = (long) hLen + sLen + 2;
+        if (emLen < need)
+        {
+            throw new InvalidKeyException("Key is too short, need min " + need + " bytes");
+        }
     }
 
     @Override
@@ -250,13 +329,19 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
         {
             return saltLen;
         }
+        return digestLength(digestName);
+    }
+
+    /** The digest's output length from the library, or -1 when it cannot answer. */
+    private int digestLength(String digest)
+    {
         if (mdServiceNI == null)
         {
             return -1;
         }
         try
         {
-            int len = mdServiceNI.digestOutputLength(digestName);
+            int len = mdServiceNI.digestOutputLength(digest);
             return len > 0 ? len : -1;
         }
         catch (RuntimeException e)

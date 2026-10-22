@@ -24,6 +24,9 @@ import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
+import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.certpath.PkitsCertificates;
 
 /**
@@ -67,6 +70,8 @@ public final class NativeAbortProbeRunner
     private static final String KS_TYPE = "PKCS12";
     // JO_KS_CTX_WRONG_KIND.
     private static final int KS_CTX_WRONG_KIND = -210;
+    private static final byte[] RSA_F4 = {0x01, 0x00, 0x01};
+    private static final RandSource RND = TestUtil.RNDSrc;
 
     private static final String NONFIPS_JNI = "interface/nonfips/jni/";
     private static final String NONFIPS_FFM = "interface/nonfips/ffm/";
@@ -119,6 +124,16 @@ public final class NativeAbortProbeRunner
     {
         rows.add(new Row(id, "jni", 0, OK, null, true));
         rows.add(new Row(id, "ffm", 0, OK, null, true));
+    }
+
+    /**
+     * JNI aborts on the assert; FFM writes the err slot in Java, so a null array throws there and the child
+     * exits 1 naming the null store.
+     */
+    private static void jniAbortFfmThrowsRow(List<Row> rows, String id, String jniAssert, String jniFile)
+    {
+        rows.add(new Row(id, "jni", 134, jniAssert, jniFile));
+        rows.add(new Row(id, "ffm", 1, "Cannot store to int array because \"err\" is null", null));
     }
 
     private static void controlRow(List<Row> rows, String id)
@@ -179,6 +194,10 @@ public final class NativeAbortProbeRunner
                 lenJni, jniDir + "rand_jni.c",
                 "err_len >= 1", ffmDir + "rand_ffm.c");
         controlRow(rows, p + "rand-control");
+
+        jniAbortFfmThrowsRow(rows, p + "rsa-allocate-null-err", "err != NULL", jniDir + "rsa_ni_jni.c");
+        jniAbortFfmThrowsRow(rows, p + "rsa-generate-null-err", "err_out != NULL", jniDir + "rsa_ni_jni.c");
+        controlRow(rows, p + "rsa-control");
 
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
@@ -314,6 +333,7 @@ public final class NativeAbortProbeRunner
         X509NI x509;
         MDServiceNI md;
         RandServiceNI rand;
+        RSAServiceNI rsa;
         if (fips)
         {
             new JostleProvider();
@@ -321,6 +341,7 @@ public final class NativeAbortProbeRunner
             x509 = FIPSNISelector.X509NI;
             md = FIPSNISelector.MDServiceNI;
             rand = FIPSNISelector.RandServiceNI;
+            rsa = FIPSNISelector.RSAServiceNI;
         }
         else
         {
@@ -328,6 +349,7 @@ public final class NativeAbortProbeRunner
             x509 = NISelector.X509NI;
             md = NISelector.MDServiceNI;
             rand = NISelector.RandServiceNI;
+            rsa = NISelector.RSAServiceNI;
         }
         KSServiceNI ks = NISelector.KSServiceNI;
 
@@ -399,6 +421,20 @@ public final class NativeAbortProbeRunner
             int[] err = new int[1];
             long ref = rand.ni_createContext("CTR-DRBG", "AES-256-CTR", true, 0, false, null, err);
             report(ref != 0 && err[0] == 0, "rand ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("rsa-allocate-null-err".equals(c))
+        {
+            rsa.ni_allocateSigner(null);
+        }
+        else if ("rsa-generate-null-err".equals(c))
+        {
+            rsa.ni_generateKeyPair(2048, RSA_F4, null, RND);
+        }
+        else if ("rsa-control".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = rsa.ni_allocateSigner(err);
+            report(ref != 0 && err[0] == 0, "rsa ref=" + (ref != 0) + " err=" + err[0]);
         }
         else if ("ks-null-err".equals(c))
         {

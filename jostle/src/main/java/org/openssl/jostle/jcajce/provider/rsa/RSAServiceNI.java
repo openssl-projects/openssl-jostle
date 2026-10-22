@@ -13,6 +13,8 @@ package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.RandSource;
 
 /**
@@ -45,12 +47,26 @@ public interface RSAServiceNI extends DefaultServiceNI
     int COMP_EXPONENT_Q = 6;
     int COMP_CRT_COEFFICIENT = 7;
 
+    // Fixed messages of the two sign refusals; the SPI names the digest or the key size when translating.
+    String SIGN_DIGEST_REFUSED =
+            "the loaded provider does not sign RSA with this digest; verification remains available";
+    String SIGN_KEY_REFUSED =
+            "the loaded provider does not sign RSA with this key; verification remains available";
+
 
     long ni_allocateSigner(int[] err);
 
     void ni_disposeSigner(long reference);
 
     long ni_generateKeyPair(int bits, byte[] pubExp, int[] err, RandSource rndSource);
+
+    int ni_minModulusBits();
+
+    /** Facts this NI instance has asked its library once; keyed by the fact's name. */
+    NativeLengthCache<String> lengthCache();
+
+    /** The key of the generation floor in {@link #lengthCache()}. */
+    String KEYGEN_FLOOR = "keygen-floor";
 
     int ni_decodePublicComponents(long specRef, byte[] n, byte[] e);
 
@@ -100,6 +116,18 @@ public interface RSAServiceNI extends DefaultServiceNI
         long r = ni_generateKeyPair(bits, pubExp, err, rndSource);
         handleErrors(err[0]);
         return r;
+    }
+
+    /** The smallest modulus the library's key generation accepts, asked of the library once per NI. */
+    default int minModulusBits()
+    {
+        int floor = lengthCache().get(KEYGEN_FLOOR);
+        if (floor == NativeLengthCache.UNKNOWN)
+        {
+            floor = (int) handleErrors(ni_minModulusBits());
+            lengthCache().cache(KEYGEN_FLOOR, floor);
+        }
+        return floor;
     }
 
     default int decodePublicComponents(long specRef, byte[] n, byte[] e)
@@ -204,6 +232,16 @@ public interface RSAServiceNI extends DefaultServiceNI
                 throw new NullPointerException("prime exponent Q is null");
             case JO_RSA_CRT_COEFFICIENT_IS_NULL:
                 throw new NullPointerException("CRT coefficient is null");
+            case JO_RSA_RAW_INPUT_TOO_LONG:
+                throw new IllegalArgumentException("input is longer than the key can sign with PKCS#1 v1.5 padding");
+            case JO_RSA_DIGEST_NOT_SUPPORTED:
+                throw new IllegalArgumentException("RSA digest is not supported");
+            case JO_RSA_BITS_OUT_OF_RANGE:
+                throw new IllegalArgumentException("RSA key size out of range");
+            case JO_RSA_SIGN_DIGEST_UNAVAILABLE:
+                throw new ProviderCapabilityException(SIGN_DIGEST_REFUSED);
+            case JO_RSA_SIGN_KEY_UNAVAILABLE:
+                throw new ProviderCapabilityException(SIGN_KEY_REFUSED);
             default:
         }
 

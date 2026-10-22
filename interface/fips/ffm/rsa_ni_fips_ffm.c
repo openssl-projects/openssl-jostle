@@ -31,6 +31,7 @@
 #define JoRSA_getComponent               JoFIPS_JoRSA_getComponent
 #define JoRSA_initSign                   JoFIPS_JoRSA_initSign
 #define JoRSA_initVerify                 JoFIPS_JoRSA_initVerify
+#define JoRSA_minModulusBits             JoFIPS_JoRSA_minModulusBits
 #define JoRSA_sign                       JoFIPS_JoRSA_sign
 #define JoRSA_update                     JoFIPS_JoRSA_update
 #define JoRSA_verify                     JoFIPS_JoRSA_verify

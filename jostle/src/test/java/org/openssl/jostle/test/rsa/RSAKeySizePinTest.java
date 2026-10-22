@@ -17,11 +17,13 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 
 import java.math.BigInteger;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.Security;
+import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPublicKeySpec;
 
 /**
@@ -126,8 +128,9 @@ public class RSAKeySizePinTest
 
     /**
      * Failure mode 2, generation: OpenSSL's OWN floor is 512, and if it moves
-     * this fails - which is the drift signal. Note the refusal must come from
-     * the library, not from us; we assert only that it IS refused.
+     * this fails - which is the drift signal. The floor is asked of the
+     * library, and a size below it is refused at initialize, typed, rather
+     * than by the library inside generateKeyPair.
      */
     @Test
     public void sizesBelowOpenSSLsOwnKeygenFloorAreRefused() throws Exception
@@ -135,19 +138,13 @@ public class RSAKeySizePinTest
         for (int bits : BELOW_OPENSSL_KEYGEN_FLOOR)
         {
             KeyPairGenerator g = KeyPairGenerator.getInstance("RSA", jsl);
-            boolean refused = false;
-            try
-            {
-                g.initialize(bits);
-                g.generateKeyPair();
-            }
-            catch (Exception e)
-            {
-                refused = true;
-            }
-            Assertions.assertTrue(refused,
-                    "RSA " + bits + " is below OpenSSL's own keygen floor and must be "
-                            + "refused; if this passes the module's floor moved (MT-66)");
+            InvalidParameterException e = Assertions.assertThrows(InvalidParameterException.class,
+                    () -> g.initialize(bits), "RSA " + bits + " must be refused at initialize");
+            Assertions.assertEquals("RSA key size " + bits + " is below the library's generation floor of 512",
+                    e.getMessage(), "if this fails the library's floor moved");
+            InvalidAlgorithmParameterException ie = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                    () -> g.initialize(new RSAKeyGenParameterSpec(bits, RSAKeyGenParameterSpec.F4)));
+            Assertions.assertEquals(e.getMessage(), ie.getMessage());
         }
     }
 

@@ -26,6 +26,7 @@ import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -62,7 +63,7 @@ public class NativeFactCacheBindingTest
      * length (SPEC) and the shared-secret length (SPEC_SECRET), each in its own cache.
      */
     static final String[] INTERFACES = {"MD", "MAC", "ED", "MLDSA", "SLHDSA", "SPEC", "SPEC_SECRET", "RAND",
-            "BLOCK"};
+            "BLOCK", "RSA"};
 
     private static final String P = "org.openssl.jostle.jcajce.";
 
@@ -85,6 +86,7 @@ public class NativeFactCacheBindingTest
         BASE.put("RAND", new String[]{P + "provider.rand.RandServiceJNI", P + "provider.rand.RandServiceFFM"});
         BASE.put("BLOCK", new String[]{P + "provider.blockcipher.BlockCipherJNI",
                 P + "provider.blockcipher.BlockCipherFFM"});
+        BASE.put("RSA", new String[]{P + "provider.rsa.RSAServiceJNI", P + "provider.rsa.RSAServiceFFM"});
 
         String f = P + "provider.fips.";
         FIPS.put("MD", new String[]{f + "MDServiceFIPSJNI", f + "MDServiceFIPSFFM"});
@@ -96,6 +98,7 @@ public class NativeFactCacheBindingTest
         FIPS.put("SPEC_SECRET", new String[]{f + "SpecFIPSJNI", f + "SpecFIPSFFM"});
         FIPS.put("RAND", new String[]{f + "RandServiceFIPSJNI", f + "RandServiceFIPSFFM"});
         FIPS.put("BLOCK", new String[]{f + "BlockCipherFIPSJNI", f + "BlockCipherFIPSFFM"});
+        FIPS.put("RSA", new String[]{f + "RSAServiceFIPSJNI", f + "RSAServiceFIPSFFM"});
     }
 
     /** The key algorithm each signature or KEM row needs; the rest need none. */
@@ -182,6 +185,10 @@ public class NativeFactCacheBindingTest
         if ("BLOCK".equals(iface))
         {
             return ((BlockCipherNI) ni).blockSize(OSSLCipher.AES256);
+        }
+        if ("RSA".equals(iface))
+        {
+            return ((RSAServiceNI) ni).minModulusBits();
         }
 
         KeyPair kp = KeyPairGenerator.getInstance(KEY_ALG.get(iface), provider).generateKeyPair();

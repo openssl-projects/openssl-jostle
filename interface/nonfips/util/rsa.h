@@ -40,7 +40,15 @@
 #define RSA_COMP_CRT_COEFFICIENT  7  // q^-1 mod p
 
 
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as an rsa_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define RSA_CTX_KIND 0x52534101u      /* "RSA\1" */
+#define RSA_CTX_NONE 0u               /* what a freed ctx is left with; never a valid kind */
+
 typedef struct rsa_ctx {
+    uint32_t kind;
     EVP_MD_CTX *digest_ctx;
     int opp;            // RSA_OP_SIGN | RSA_OP_VERIFY
     int padding_mode;   // RSA_PADDING_*
@@ -53,6 +61,8 @@ typedef struct rsa_ctx {
     // copy on realloc) and BIO_free_all releases through OPENSSL_clear_free,
     // so no hand-rolled buffer/length/capacity bookkeeping is needed.
     BIO *raw_bio;
+    // PKCS#1 v1.5 type-1 bound on the raw input: the key's modulus bytes - 11.
+    size_t raw_max;
 } rsa_ctx;
 
 
@@ -68,6 +78,11 @@ typedef struct rsa_ctx {
  * called; OpenSSL itself will reject pathological values during keygen
  * (returned as JO_OPENSSL_ERROR).
  */
+/*
+ * OpenSSL's own smallest RSA modulus for key generation (RSA_MIN_MODULUS_BITS).
+ */
+int32_t rsa_min_modulus_bits(void);
+
 int32_t rsa_generate_key(key_spec *spec, int32_t bits,
                          const uint8_t *pubexp, size_t pubexp_len,
                          void *rnd_src);
@@ -143,6 +158,12 @@ int32_t rsa_get_component(const key_spec *spec, int32_t component,
 
 rsa_ctx *rsa_ctx_create(int32_t *err);
 
+/*
+ * JO_SIGNER_CTX_IS_NULL, JO_RSA_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t rsa_ctx_check(const rsa_ctx *ctx);
+
+/* Frees nothing unless ctx is a live rsa_ctx. */
 void rsa_ctx_destroy(rsa_ctx *ctx);
 
 /*

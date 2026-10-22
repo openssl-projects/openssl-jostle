@@ -87,6 +87,9 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     // 2048-bit generation floor for JSLFIPS.
     private final int minKeySizeBits;
 
+    // Provider-policy smallest public exponent: 3 for JSL, 65537 for JSLFIPS (SP 800-56B).
+    private final BigInteger minPublicExponent;
+
 
     /**
      * The provider INSTANCE this SPI belongs to, or null when constructed
@@ -135,12 +138,19 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
     public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
                                int minKeySizeBits, Provider providerInstance)
     {
+        this(rsaServiceNI, specNI, asn1NI, minKeySizeBits, MIN_PUBLIC_EXPONENT, providerInstance);
+    }
+
+    public RSAKeyPairGenerator(RSAServiceNI rsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
+                               int minKeySizeBits, BigInteger minPublicExponent, Provider providerInstance)
+    {
         super("RSA");
         this.providerInstance = providerInstance;
         this.rsaServiceNI = rsaServiceNI;
         this.specNI = specNI;
         this.asn1NI = asn1NI;
         this.minKeySizeBits = minKeySizeBits;
+        this.minPublicExponent = minPublicExponent;
     }
 
     @Override
@@ -181,9 +191,15 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
         {
             e = DEFAULT_PUBLIC_EXPONENT;
         }
-        if (e.compareTo(MIN_PUBLIC_EXPONENT) < 0)
+        if (e.compareTo(minPublicExponent) < 0)
         {
-            throw new InvalidAlgorithmParameterException("public exponent must be >= 3");
+            throw new InvalidAlgorithmParameterException("public exponent must be >= " + minPublicExponent);
+        }
+        if (e.bitLength() > spec.getKeysize())
+        {
+            // Structural: an exponent longer than the modulus.
+            throw new InvalidAlgorithmParameterException(
+                    "public exponent must be no longer than " + spec.getKeysize() + " bits");
         }
         if (!e.testBit(0))
         {
@@ -225,6 +241,12 @@ public class RSAKeyPairGenerator extends KeyPairGenerator
         {
             return "RSA key size " + keysize + " is below this provider's "
                     + "floor of " + minKeySizeBits;
+        }
+        // The library's own generation floor, asked of it: refused here, typed, not at generation.
+        int libraryFloor = rsaServiceNI.minModulusBits();
+        if (keysize < libraryFloor)
+        {
+            return "RSA key size " + keysize + " is below the library's generation floor of " + libraryFloor;
         }
         return null;
     }

@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.util.Arrays;
 
 import java.security.KeyFactory;
@@ -28,6 +27,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
@@ -214,9 +214,8 @@ public class RSANoneWithRSASignatureTest
      * PKCS#1 v1.5 signing requires the TBS to fit: {@code len <= k - 11}
      * (245 bytes for a 2048-bit modulus). Probe the exact boundary — 245
      * bytes must round-trip, 246 must be rejected — and confirm the rejection
-     * surfaces as the typed {@link OpenSSLException} (OpenSSL's
-     * {@code EVP_PKEY_sign} failing), not a silent truncation or a bare
-     * {@code RuntimeException}.
+     * surfaces at the update that passes the bound as a SignatureException,
+     * so nothing past the bound is buffered.
      */
     @Test
     public void testNoneWithRSA_inputLengthBoundary() throws Exception
@@ -240,9 +239,15 @@ public class RSANoneWithRSASignatureTest
         sr.nextBytes(tooLong);
         Signature signer = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(joKeyPair.getPrivate());
-        signer.update(tooLong);
-        Assertions.assertThrows(OpenSSLException.class, signer::sign,
+        SignatureException e = Assertions.assertThrows(SignatureException.class, () -> signer.update(tooLong),
                 "NoneWithRSA accepted a TBS one byte past the PKCS#1 v1.5 limit");
+        Assertions.assertEquals("input is longer than the key can sign with PKCS#1 v1.5 padding", e.getMessage());
+
+        // The bound holds across updates: 245 then one more byte.
+        Signature chunked = Signature.getInstance("NoneWithRSA", JostleProvider.PROVIDER_NAME);
+        chunked.initSign(joKeyPair.getPrivate());
+        chunked.update(maxFit);
+        Assertions.assertThrows(SignatureException.class, () -> chunked.update((byte) 1));
     }
 
     /**

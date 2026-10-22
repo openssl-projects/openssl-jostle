@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import java.security.KeyPair;
@@ -133,6 +134,15 @@ public class FIPSSha1SignatureGateTest
             Throwable openssl = ex.getCause();
             Assertions.assertTrue(openssl instanceof OpenSSLException,
                     sigAlg + ": the OpenSSLException must be preserved as the cause, got: " + openssl);
+            if (sigAlg.contains("RSA"))
+            {
+                // RSA classifies the refusal: the digest is named, and the cause is the capability refusal.
+                Assertions.assertEquals(
+                        "the loaded provider does not sign RSA with SHA-1; verification remains available",
+                        ex.getMessage(), sigAlg);
+                Assertions.assertTrue(openssl instanceof ProviderCapabilityException, sigAlg + ": " + openssl);
+                return;
+            }
             // The module's wording changed between the two supported versions,
             // so both are pinned rather than either being matched loosely:
             //   3.1.2 : "... securitycheck: digest not allowed"

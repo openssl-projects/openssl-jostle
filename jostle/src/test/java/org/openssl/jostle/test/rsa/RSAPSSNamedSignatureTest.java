@@ -222,6 +222,40 @@ public class RSAPSSNamedSignatureTest
                 "SHA-256 default unexpectedly verified a SHA-384 signature");
     }
 
+    /**
+     * setParameter(null) restores the NAME's parameters, not the generic SHA-256 default: after an override and a
+     * null reset, every name reports its own digest and its signature verifies under the name's default.
+     */
+    @Test
+    public void testSetParameterNull_restoresTheNamesParameters() throws Exception
+    {
+        for (String[] c : CASES)
+        {
+            String jslName = c[0];
+            String jcaDigest = c[1];
+            int saltLen = Integer.parseInt(c[2]);
+            String other = jcaDigest.equals("SHA-384") ? "SHA-256" : "SHA-384";
+
+            Signature signer = Signature.getInstance(jslName, JostleProvider.PROVIDER_NAME);
+            signer.setParameter(pssSpec(other, 20));
+            signer.setParameter(null);
+            PSSParameterSpec reported = signer.getParameters().getParameterSpec(PSSParameterSpec.class);
+            Assertions.assertEquals(jcaDigest, reported.getDigestAlgorithm(), jslName);
+            Assertions.assertEquals(jcaDigest,
+                    ((MGF1ParameterSpec) reported.getMGFParameters()).getDigestAlgorithm(), jslName);
+            Assertions.assertEquals(saltLen, reported.getSaltLength(), jslName);
+
+            byte[] msg = randomMessage(64);
+            signer.initSign(sharedKeyPair.getPrivate());
+            signer.update(msg);
+            byte[] sig = signer.sign();
+            Signature verifier = Signature.getInstance(jslName, JostleProvider.PROVIDER_NAME);
+            verifier.initVerify(sharedKeyPair.getPublic());
+            verifier.update(msg);
+            Assertions.assertTrue(verifier.verify(sig), jslName + ": reset signer did not sign under the name");
+        }
+    }
+
     @Test
     public void testTamperedMessage_doesNotVerify() throws Exception
     {

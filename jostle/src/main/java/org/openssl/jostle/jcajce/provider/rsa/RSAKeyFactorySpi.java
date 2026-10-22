@@ -12,6 +12,7 @@
 package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.jcajce.interfaces.RSAPrivateCrtKey;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
@@ -186,7 +187,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             {
                 PKEYKeySpec spec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
                 requireRSA(spec);
-                return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec, sourceAlgId);
+                return new JORSAPrivateKey(rsaServiceNI, asn1NI, withoutEmptyCrt(spec), sourceAlgId);
             }
             catch (RuntimeException e)
             {
@@ -205,19 +206,27 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         {
             // Test before RSAPrivateKeySpec — RSAPrivateCrtKeySpec extends it.
             RSAPrivateCrtKeySpec rsa = (RSAPrivateCrtKeySpec) keySpec;
+            // The private components' byte copies are cleared once the native key holds them.
+            byte[] d = null;
+            byte[] p = null;
+            byte[] q = null;
+            byte[] dp = null;
+            byte[] dq = null;
+            byte[] qinv = null;
             try
             {
+                d = unsignedMagnitude(rsa.getPrivateExponent());
+                p = unsignedMagnitude(rsa.getPrimeP());
+                q = unsignedMagnitude(rsa.getPrimeQ());
+                dp = unsignedMagnitude(rsa.getPrimeExponentP());
+                dq = unsignedMagnitude(rsa.getPrimeExponentQ());
+                qinv = unsignedMagnitude(rsa.getCrtCoefficient());
                 PKEYKeySpec spec = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA, providerInstance);
                 rsaServiceNI.decodePrivateComponentsCrt(
                         spec.getReference(),
                         unsignedMagnitude(rsa.getModulus()),
                         unsignedMagnitude(rsa.getPublicExponent()),
-                        unsignedMagnitude(rsa.getPrivateExponent()),
-                        unsignedMagnitude(rsa.getPrimeP()),
-                        unsignedMagnitude(rsa.getPrimeQ()),
-                        unsignedMagnitude(rsa.getPrimeExponentP()),
-                        unsignedMagnitude(rsa.getPrimeExponentQ()),
-                        unsignedMagnitude(rsa.getCrtCoefficient()));
+                        d, p, q, dp, dq, qinv);
                 return new JORSAPrivateKey(rsaServiceNI, asn1NI, spec);
             }
             catch (RuntimeException e)
@@ -225,6 +234,15 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
                 // Degenerate spec (null/invalid components) -> InvalidKeySpecException,
                 // matching the encoded-form and RSAPublicKeySpec branches.
                 throw new InvalidKeySpecException("unable to decode RSA private key from RSAPrivateCrtKeySpec", e);
+            }
+            finally
+            {
+                Arrays.clear(d);
+                Arrays.clear(p);
+                Arrays.clear(q);
+                Arrays.clear(dp);
+                Arrays.clear(dq);
+                Arrays.clear(qinv);
             }
         }
         if (keySpec instanceof RSAPrivateKeySpec)
@@ -236,7 +254,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
             // than ship a key that won't function.
             throw new InvalidKeySpecException(
                     "RSAPrivateKeySpec without CRT components is not supported "
-                            + "— OpenSSL requires the public exponent to construct an EVP_PKEY. "
+                            + "- OpenSSL requires the public exponent to construct an EVP_PKEY. "
                             + "Use RSAPrivateCrtKeySpec or PKCS8EncodedKeySpec instead.");
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec);
@@ -373,6 +391,49 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
         }
     }
 
+
+    /**
+     * A PKCS#8 key whose CRT primes are zero or absent cannot sign as imported; it is rebuilt from (n, e, d)
+     * so it signs by the non-CRT path. Without e (BouncyCastle encodes its non-CRT keys with e = 0) it cannot
+     * be rebuilt, since OpenSSL needs e, and is refused.
+     */
+    private PKEYKeySpec withoutEmptyCrt(PKEYKeySpec spec) throws InvalidKeySpecException
+    {
+        int pLen = rsaServiceNI.ni_getComponent(spec.getReference(), RSAServiceNI.COMP_PRIME_P, null);
+        if (pLen > 0)
+        {
+            return spec;
+        }
+        if (pLen != ErrorCode.JO_OPENSSL_ERROR.getCode())
+        {
+            rsaServiceNI.handleErrors(pLen);
+        }
+        byte[] n = component(spec, RSAServiceNI.COMP_MODULUS);
+        byte[] e = component(spec, RSAServiceNI.COMP_PUBLIC_EXPONENT);
+        if (new BigInteger(1, e).signum() == 0)
+        {
+            throw new InvalidKeySpecException("RSA private key without CRT components or public exponent is not "
+                    + "supported - OpenSSL requires the public exponent to construct an EVP_PKEY");
+        }
+        byte[] d = component(spec, RSAServiceNI.COMP_PRIVATE_EXPONENT);
+        try
+        {
+            PKEYKeySpec rebuilt = new PKEYKeySpec(specNI, specNI.allocate(), OSSLKeyType.RSA, providerInstance);
+            rsaServiceNI.decodePrivateComponents(rebuilt.getReference(), n, e, d);
+            return rebuilt;
+        }
+        finally
+        {
+            Arrays.clear(d);
+        }
+    }
+
+    private byte[] component(PKEYKeySpec spec, int component)
+    {
+        byte[] out = new byte[rsaServiceNI.getComponent(spec.getReference(), component, null)];
+        rsaServiceNI.getComponent(spec.getReference(), component, out);
+        return out;
+    }
 
     private static void requireRSA(PKEYKeySpec spec) throws InvalidKeySpecException
     {

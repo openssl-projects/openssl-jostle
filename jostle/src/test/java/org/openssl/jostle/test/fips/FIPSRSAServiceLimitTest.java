@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.rsa.RSABridgeCells;
 
 import java.security.SecureRandom;
 
@@ -773,5 +774,35 @@ public class FIPSRSAServiceLimitTest
     {
         IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, action);
         Assertions.assertEquals(message, e.getMessage());
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        RSABridgeCells.wrongKindHandlesAreRefused(rsaServiceNI, specNI, FIPSNISelector.MDServiceNI);
+    }
+
+    @Test
+    public void bridge_unusableDigestNamesAreRefused()
+    {
+        RSABridgeCells.unusableDigestNamesAreRefused(rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_rawInputIsBoundedByTheKey()
+    {
+        RSABridgeCells.rawInputIsBoundedByTheKey(rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_nonPositiveBitsAreRefused()
+    {
+        RSABridgeCells.nonPositiveBitsAreRefused(rsaServiceNI);
+    }
+
+    @Test
+    public void bridge_minModulusBitsIsTheLibrarysFloor()
+    {
+        RSABridgeCells.minModulusBitsIsTheLibrarysFloor(rsaServiceNI);
     }
 }

@@ -11,10 +11,19 @@
 
 package org.openssl.jostle.jcajce.provider.rsa;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.RandSource;
 
 public class RSAServiceJNI implements RSAServiceNI
 {
+    private final NativeLengthCache<String> lengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> lengthCache()
+    {
+        return lengthCache;
+    }
+
     @Override
     public native long ni_allocateSigner(int[] err);
 
@@ -23,6 +32,9 @@ public class RSAServiceJNI implements RSAServiceNI
 
     @Override
     public native long ni_generateKeyPair(int bits, byte[] pubExp, int[] err, RandSource rndSource);
+
+    @Override
+    public native int ni_minModulusBits();
 
     @Override
     public native int ni_decodePublicComponents(long specRef, byte[] n, byte[] e);

@@ -116,11 +116,50 @@ exit:
 // Key generation
 // =============================================================
 
+
+/* The one place an RSA keygen ctx is made, so keygen and the floor probe ask the same library. */
+static EVP_PKEY_CTX *rsa_keygen_ctx(void) {
+    return EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "RSA", NULL);
+}
+
+/*
+ * The smallest size the keygen ctx accepts. OpenSSL's RSA_MIN_MODULUS_BITS is in an internal header,
+ * so it is asked here through the same parameter check keygen applies; nothing is generated.
+ * Bounds: 1 to OPENSSL_RSA_MAX_MODULUS_BITS (public header); a binary search over that range runs at most
+ * its bit width (15 for 16384) times.
+ */
+int32_t rsa_min_modulus_bits(void) {
+    ERR_set_mark();
+    EVP_PKEY_CTX *ctx = rsa_keygen_ctx();
+    int32_t ret_code = JO_OPENSSL_ERROR;
+    if (ctx == NULL || 1 != EVP_PKEY_keygen_init(ctx)
+        || 1 != EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, OPENSSL_RSA_MAX_MODULUS_BITS)) {
+        goto exit;
+    }
+    int32_t lo = 1;
+    int32_t hi = OPENSSL_RSA_MAX_MODULUS_BITS;
+    while (lo < hi) {
+        int32_t mid = lo + (hi - lo) / 2;
+        if (1 == EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, mid)) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    ret_code = lo;
+
+exit:
+    EVP_PKEY_CTX_free(ctx);
+    ERR_pop_to_mark();
+    return ret_code;
+}
+
 int32_t rsa_generate_key(key_spec *spec, int32_t bits,
                          const uint8_t *pubexp, size_t pubexp_len,
                          void *rnd_src) {
     jo_assert(spec != NULL);
     jo_assert(pubexp != NULL);
+    jo_assert(bits > 0);
     // Bridge-validated invariant: both bridges null-check rnd_src and
     // return JO_RAND_NO_RAND_UP_CALL themselves (RSALimitTest pins it).
     jo_assert(rnd_src != NULL);
@@ -145,7 +184,7 @@ int32_t rsa_generate_key(key_spec *spec, int32_t bits,
     EVP_PKEY_CTX *ctx = NULL;
     BIGNUM *e_bn = NULL;
 
-    ctx = EVP_PKEY_CTX_new_from_name(get_global_jostle_ossl_lib_ctx(), "RSA", NULL);
+    ctx = rsa_keygen_ctx();
     // OPS slot _6 is reused — currently fires in configure_padding's
     // PSS-saltlen branch, which is unreachable from rsa_generate_key.
     if (OPS_OPENSSL_ERROR_6 ctx == NULL) {
@@ -484,14 +523,27 @@ rsa_ctx *rsa_ctx_create(int32_t *err) {
     rsa_ctx *ctx = (rsa_ctx *) OPENSSL_zalloc(sizeof(rsa_ctx));
     jo_assert(ctx != NULL);
 
+    ctx->kind = RSA_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_RSA_CTX);
     return ctx;
 }
 
 
-void rsa_ctx_destroy(rsa_ctx *ctx) {
+int32_t rsa_ctx_check(const rsa_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (ctx->kind != RSA_CTX_KIND) {
+        return JO_RSA_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
+void rsa_ctx_destroy(rsa_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as an rsa_ctx corrupts it.
+    if (rsa_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_RSA_CTX);
@@ -504,6 +556,7 @@ void rsa_ctx_destroy(rsa_ctx *ctx) {
     }
     BIO_free_all(ctx->raw_bio);
 
+    ctx->kind = RSA_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -526,6 +579,7 @@ static void rsa_ctx_clear_session(rsa_ctx *ctx) {
     }
     BIO_free_all(ctx->raw_bio);
     ctx->raw_bio = NULL;
+    ctx->raw_max = 0;
     ctx->opp = 0;
     ctx->padding_mode = 0;
 }
@@ -556,6 +610,8 @@ static int32_t rsa_raw_init(rsa_ctx *ctx, OSSL_LIB_CTX *libctx,
         return JO_OPENSSL_ERROR OPS_OFFSET_FAILED_SET_1(1104);
     }
 
+    const int key_bytes = EVP_PKEY_get_size(key);
+    ctx->raw_max = key_bytes > RSA_PKCS1_PADDING_SIZE ? (size_t) (key_bytes - RSA_PKCS1_PADDING_SIZE) : 0;
     ctx->raw_pctx = pctx;
     ctx->opp = op;
     ctx->padding_mode = RSA_PADDING_PKCS1_NONE;
@@ -583,27 +639,82 @@ static const uint8_t *rsa_raw_data(rsa_ctx *ctx, size_t *len) {
  * Append caller-supplied bytes to the raw-mode buffer (the TBS that
  * EVP_PKEY_sign / EVP_PKEY_verify will consume one-shot). A memory BIO owns
  * the growth (BIO_write grows via BUF_MEM_grow_clean, cleansing the old copy
- * on realloc) and the zeroization on release; the total is bounded to
- * INT32_MAX so the eventual cast to int on the Java return path can't overflow.
+ * on realloc) and the zeroization on release; the total is bounded by the key's
+ * PKCS#1 v1.5 limit (raw_max), refused at the update that would pass it.
  */
 static int32_t rsa_raw_append(rsa_ctx *ctx, const uint8_t *in, size_t in_len) {
-    if (in_len > (size_t) INT32_MAX) {
-        return JO_INPUT_TOO_LONG_INT32;
+    size_t cur = 0;
+    (void) rsa_raw_data(ctx, &cur);
+    if (in_len > ctx->raw_max || cur > ctx->raw_max - in_len) {
+        return JO_RSA_RAW_INPUT_TOO_LONG;
     }
     if (ctx->raw_bio == NULL) {
         ctx->raw_bio = BIO_new(BIO_s_mem());
         jo_assert(ctx->raw_bio != NULL);
-    }
-    size_t cur = 0;
-    (void) rsa_raw_data(ctx, &cur);
-    if (cur > (size_t) INT32_MAX - in_len) {
-        return JO_INPUT_TOO_LONG_INT32;
     }
     if (in_len > 0) {
         const int w = BIO_write(ctx->raw_bio, in, (int) in_len);
         jo_assert(w == (int) in_len);
     }
     return JO_SUCCESS;
+}
+
+
+/* 1 when the library can fetch the digest; the probe's own error is scoped out. */
+static int rsa_digest_fetchable(OSSL_LIB_CTX *libctx, const char *digest_name) {
+    ERR_set_mark();
+    EVP_MD *md = EVP_MD_fetch(libctx, digest_name, NULL);
+    ERR_pop_to_mark();
+    if (md == NULL) {
+        return 0;
+    }
+    EVP_MD_free(md);
+    return 1;
+}
+
+/* Every name the session will hand to OpenSSL; a NULL MGF1 name falls back to the digest. */
+static int rsa_names_fetchable(OSSL_LIB_CTX *libctx, const char *digest_name, const char *mgf1_md_name) {
+    return rsa_digest_fetchable(libctx, digest_name)
+           && (mgf1_md_name == NULL || rsa_digest_fetchable(libctx, mgf1_md_name));
+}
+
+#define RSA_SIGN_PROBE_DIGEST "SHA256"
+
+/*
+ * Classify a failed sign init, the classify_dsa_sign_failure way: retry with a digest the provider
+ * approves, then check verification. SHA-256 signs: the digest was refused (unless the session was raw,
+ * which has no digest). SHA-256 refused too while verify inits: the key was refused. Otherwise generic.
+ * ERR marks keep the probes' own errors out of the caller's report.
+ */
+static int32_t classify_rsa_sign_failure(OSSL_LIB_CTX *libctx, EVP_PKEY *key, int raw,
+                                         int32_t generic) {
+    jo_assert(libctx != NULL);
+    jo_assert(key != NULL);
+
+    ERR_set_mark();
+
+    EVP_MD_CTX *sign_probe = EVP_MD_CTX_new();
+    int sign_ok = sign_probe != NULL
+                  && 1 == EVP_DigestSignInit_ex(sign_probe, NULL, RSA_SIGN_PROBE_DIGEST, libctx,
+                                                NULL, key, NULL);
+    EVP_MD_CTX_free(sign_probe);
+
+    int verify_ok = 0;
+    if (!sign_ok) {
+        EVP_PKEY_CTX *verify_probe = EVP_PKEY_CTX_new_from_pkey(libctx, key, NULL);
+        verify_ok = verify_probe != NULL && 1 == EVP_PKEY_verify_init(verify_probe);
+        EVP_PKEY_CTX_free(verify_probe);
+    }
+
+    ERR_pop_to_mark();
+
+    if (sign_ok && !raw) {
+        return JO_RSA_SIGN_DIGEST_UNAVAILABLE;
+    }
+    if (!sign_ok && verify_ok) {
+        return JO_RSA_SIGN_KEY_UNAVAILABLE;
+    }
+    return generic;
 }
 
 
@@ -691,9 +802,17 @@ int32_t rsa_ctx_init_sign(rsa_ctx *ctx, const key_spec *key,
     if (padding_mode == RSA_PADDING_PKCS1_NONE) {
         {
             int32_t raw_ret = rsa_raw_init(ctx, libctx, key->key, RSA_OP_SIGN);
+            if (UNSUCCESSFUL(raw_ret) && !JO_ERROR_WAS_INJECTED(raw_ret)) {
+                raw_ret = classify_rsa_sign_failure(libctx, key->key, 1, raw_ret);
+            }
             rand_clear_java_srand_call();
             return raw_ret;
         }
+    }
+
+    if (!rsa_names_fetchable(libctx, digest_name, mgf1_md_name)) {
+        rand_clear_java_srand_call();
+        return JO_RSA_DIGEST_NOT_SUPPORTED;
     }
 
     md_ctx = EVP_MD_CTX_new();
@@ -706,6 +825,9 @@ int32_t rsa_ctx_init_sign(rsa_ctx *ctx, const key_spec *key,
                                                        digest_name, libctx, NULL,
                                                        key->key, NULL)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1001);
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_rsa_sign_failure(libctx, key->key, 0, ret_code);
+        }
         goto exit;
     }
 
@@ -763,6 +885,10 @@ int32_t rsa_ctx_init_verify(rsa_ctx *ctx, const key_spec *key,
     // Raw PKCS#1 v1.5 ("NoneWithRSA") verify path — buffer + EVP_PKEY_verify.
     if (padding_mode == RSA_PADDING_PKCS1_NONE) {
         return rsa_raw_init(ctx, libctx, key->key, RSA_OP_VERIFY);
+    }
+
+    if (!rsa_names_fetchable(libctx, digest_name, mgf1_md_name)) {
+        return JO_RSA_DIGEST_NOT_SUPPORTED;
     }
 
     md_ctx = EVP_MD_CTX_new();

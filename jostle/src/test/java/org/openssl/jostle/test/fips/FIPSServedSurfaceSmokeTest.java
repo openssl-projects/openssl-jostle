@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Mac;
@@ -22,14 +24,18 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.InvalidKeyException;
+import java.security.PrivateKey;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.ProviderException;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.security.cert.CertificateFactory;
@@ -78,6 +84,7 @@ import javax.crypto.SecretKeyFactory;
 public class FIPSServedSurfaceSmokeTest
 {
     private static final String FIPS = JostleFIPSProvider.PROVIDER_NAME;
+    private static final String RSA_SPI_PACKAGE = "org.openssl.jostle.jcajce.provider.rsa.";
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -396,6 +403,87 @@ public class FIPSServedSurfaceSmokeTest
         Assertions.assertTrue(broken.isEmpty(),
                 "registered KeyPairGenerators that neither generate nor refuse typed against"
                         + " the loaded module (" + FIPSTestUtil.moduleDescription() + "):\n  "
+                        + String.join("\n  ", broken));
+    }
+
+    /**
+     * Every registered RSA Signature signs and verifies, except the two SHA-1 names, which are "registered,
+     * refuses signing on this module" on both measured modules (3.1.2 and 3.5.8): refused typed naming the digest,
+     * and still verifying. An unmeasured module fails the cell.
+     */
+    @Test
+    public void everyRegisteredRsaSignatureSignsExceptSha1() throws Exception
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
+                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
+        {
+            Security.addProvider(new JostleProvider());
+        }
+        List<String> refusesSigning = Arrays.asList("SHA1WITHRSA", "SHA1WITHRSAANDMGF1");
+        String refusal = "the loaded provider does not sign RSA with SHA-1; verification remains available";
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", FIPS);
+        kpg.initialize(2048);
+        KeyPair kp = kpg.generateKeyPair();
+        PrivateKey jslPrivate = FIPSTestUtil.crossPrivate(kp.getPrivate(), "RSA", JostleProvider.PROVIDER_NAME);
+        List<String> broken = new ArrayList<>();
+        List<String> refused = new ArrayList<>();
+        byte[] msg = new byte[32];
+        RANDOM.nextBytes(msg);
+
+        for (Provider.Service s : sorted(provider))
+        {
+            if (!"Signature".equals(s.getType()) || !s.getClassName().startsWith(RSA_SPI_PACKAGE))
+            {
+                continue;
+            }
+            String alg = s.getAlgorithm();
+            boolean expectRefusal = refusesSigning.contains(alg.toUpperCase(Locale.ROOT));
+            byte[] sig;
+            try
+            {
+                Signature signer = Signature.getInstance(alg, FIPS);
+                signer.initSign(kp.getPrivate());
+                if (expectRefusal)
+                {
+                    broken.add(alg + " -> signed; expected registered, refuses signing on this module");
+                    continue;
+                }
+                signer.update(msg);
+                sig = signer.sign();
+            }
+            catch (InvalidKeyException e)
+            {
+                if (!expectRefusal || !refusal.equals(e.getMessage()))
+                {
+                    broken.add(alg + " -> InvalidKeyException: " + e.getMessage());
+                    continue;
+                }
+                refused.add(alg);
+                Signature jslSigner = Signature.getInstance(alg, JostleProvider.PROVIDER_NAME);
+                jslSigner.initSign(jslPrivate);
+                jslSigner.update(msg);
+                sig = jslSigner.sign();
+            }
+            catch (Exception e)
+            {
+                broken.add(alg + " -> " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                continue;
+            }
+            Signature verifier = Signature.getInstance(alg, FIPS);
+            verifier.initVerify(kp.getPublic());
+            verifier.update(msg);
+            if (!verifier.verify(sig))
+            {
+                broken.add(alg + " -> signature does not verify");
+            }
+        }
+
+        Assertions.assertEquals(refusesSigning.size(), refused.size(), "refused " + refused);
+        Assertions.assertTrue(broken.isEmpty(),
+                "registered RSA Signatures that do not behave as measured on " + module + ":\n  "
                         + String.join("\n  ", broken));
     }
 
