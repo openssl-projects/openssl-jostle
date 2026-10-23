@@ -3356,7 +3356,17 @@ for (int i = 0; i < names.length; i++)
     }
     catch (InvalidKeyException e)
     {
-        Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        if ("RSA".equals(keyTypes[i]))
+        {
+            // RSA names the refused digest.
+            Assertions.assertEquals(
+                    "the loaded provider does not sign RSA with SHA-1; verification remains available",
+                    e.getMessage(), names[i]);
+        }
+        else
+        {
+            Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        }
     }
 }
 ```
