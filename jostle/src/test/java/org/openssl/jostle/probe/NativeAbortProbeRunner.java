@@ -19,6 +19,7 @@ import java.util.List;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
+import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
@@ -71,6 +72,9 @@ public final class NativeAbortProbeRunner
     // JO_KS_CTX_WRONG_KIND.
     private static final int KS_CTX_WRONG_KIND = -210;
     private static final byte[] RSA_F4 = {0x01, 0x00, 0x01};
+    private static final String[] DH_NULL_ERR_CELLS = {"dh-allocatekex-null-err", "dh-bygroup-null-err",
+            "dh-paramgen-null-err", "dh-makeparams-null-err", "dh-generate-null-err", "dh-makeprivate-null-err",
+            "dh-makepublic-null-err"};
     private static final RandSource RND = TestUtil.RNDSrc;
 
     private static final String NONFIPS_JNI = "interface/nonfips/jni/";
@@ -198,6 +202,13 @@ public final class NativeAbortProbeRunner
         jniAbortFfmThrowsRow(rows, p + "rsa-allocate-null-err", "err != NULL", jniDir + "rsa_ni_jni.c");
         jniAbortFfmThrowsRow(rows, p + "rsa-generate-null-err", "err_out != NULL", jniDir + "rsa_ni_jni.c");
         controlRow(rows, p + "rsa-control");
+
+        for (String c : DH_NULL_ERR_CELLS)
+        {
+            jniAbortFfmThrowsRow(rows, p + c, c.equals("dh-allocatekex-null-err") ? "err != NULL" : "err_out != NULL",
+                    jniDir + "dh_ni_jni.c");
+        }
+        controlRow(rows, p + "dh-control");
 
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
@@ -334,6 +345,7 @@ public final class NativeAbortProbeRunner
         MDServiceNI md;
         RandServiceNI rand;
         RSAServiceNI rsa;
+        DHServiceNI dh;
         if (fips)
         {
             new JostleProvider();
@@ -342,6 +354,7 @@ public final class NativeAbortProbeRunner
             md = FIPSNISelector.MDServiceNI;
             rand = FIPSNISelector.RandServiceNI;
             rsa = FIPSNISelector.RSAServiceNI;
+            dh = FIPSNISelector.DHServiceNI;
         }
         else
         {
@@ -350,6 +363,7 @@ public final class NativeAbortProbeRunner
             md = NISelector.MDServiceNI;
             rand = NISelector.RandServiceNI;
             rsa = NISelector.RSAServiceNI;
+            dh = NISelector.DHServiceNI;
         }
         KSServiceNI ks = NISelector.KSServiceNI;
 
@@ -435,6 +449,40 @@ public final class NativeAbortProbeRunner
             int[] err = new int[1];
             long ref = rsa.ni_allocateSigner(err);
             report(ref != 0 && err[0] == 0, "rsa ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("dh-allocatekex-null-err".equals(c))
+        {
+            dh.ni_allocateKex(null);
+        }
+        else if ("dh-bygroup-null-err".equals(c))
+        {
+            dh.ni_generateKeyPairByGroup("ffdhe2048", null, RND);
+        }
+        else if ("dh-paramgen-null-err".equals(c))
+        {
+            dh.ni_generateParameters(512, null, RND);
+        }
+        else if ("dh-makeparams-null-err".equals(c))
+        {
+            dh.ni_makeParamsFromComponents(new byte[]{23}, null, new byte[]{5}, null);
+        }
+        else if ("dh-generate-null-err".equals(c))
+        {
+            dh.ni_generateKeyPair(0L, 0, null, RND);
+        }
+        else if ("dh-makeprivate-null-err".equals(c))
+        {
+            dh.ni_makePrivateFromComponents(new byte[]{23}, null, new byte[]{5}, new byte[]{3}, null, RND);
+        }
+        else if ("dh-makepublic-null-err".equals(c))
+        {
+            dh.ni_makePublicFromComponents(new byte[]{23}, null, new byte[]{5}, new byte[]{3}, null);
+        }
+        else if ("dh-control".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = dh.ni_allocateKex(err);
+            report(ref != 0 && err[0] == 0, "dh ref=" + (ref != 0) + " err=" + err[0]);
         }
         else if ("ks-null-err".equals(c))
         {

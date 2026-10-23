@@ -70,45 +70,36 @@ final class DHComponents
     /**
      * Materialise the domain parameters of the underlying EVP_PKEY.
      *
-     * <p>Returns a {@link DHDomainParameterSpec} when the key carries the
-     * subgroup order q (X9.42) and a plain {@link DHParameterSpec} when it
-     * does not (PKCS#3) — so a caller can recover q from a key that has one
-     * instead of it being dropped on the floor. The private-value length
-     * {@code l} is left at 0 (unspecified), the JCE convention when no
-     * constraint was requested.
+     * <p>The form is the key's type, one fact: a {@link DHDomainParameterSpec}
+     * (with q) for an X9.42 key and a plain {@link DHParameterSpec} for a
+     * PKCS#3 key, whatever OpenSSL knows about its group. {@code l} is the
+     * key's own private-value length, 0 when none was set.
      */
     static DHParameterSpec getParams(DHServiceNI dhServiceNI, PKEYKeySpec spec)
     {
         BigInteger p = getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_P);
         BigInteger g = getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_G);
-        if (!hasQ(dhServiceNI, spec))
+        int l = intComponent(dhServiceNI, spec, DHServiceNI.COMP_PRIVATE_LENGTH);
+        if (intComponent(dhServiceNI, spec, DHServiceNI.COMP_FORM) != DHServiceNI.FORM_X942)
         {
-            return new DHParameterSpec(p, g);
+            return new DHParameterSpec(p, g, l);
         }
         return new DHDomainParameterSpec(
-                p, getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_Q), g);
+                p, getBigInteger(dhServiceNI, spec, DHServiceNI.COMP_Q), g, l);
     }
 
-    /**
-     * Does this key carry q? Asked through the RAW component call rather than
-     * the throwing wrapper: a PKCS#3 key legitimately has no q, and the
-     * two-call length probe reports that as a negative code. The OpenSSL error
-     * entry a failed probe leaves behind is cleared by the next component
-     * call, which clears the queue on entry.
-     */
-    static boolean hasQ(DHServiceNI dhServiceNI, PKEYKeySpec spec)
+    /** An integer-valued component (the form or the private-value length), asked once. */
+    static int intComponent(DHServiceNI dhServiceNI, PKEYKeySpec spec, int component)
     {
         try
         {
-            return dhServiceNI.ni_getComponent(
-                    spec.getReference(), DHServiceNI.COMP_Q, null) > 0;
+            return dhServiceNI.getComponent(spec.getReference(), component, null);
         }
         finally
         {
             Reference.reachabilityFence(spec);
         }
     }
-
 
     /**
      * Convert a non-negative {@link BigInteger} to its big-endian

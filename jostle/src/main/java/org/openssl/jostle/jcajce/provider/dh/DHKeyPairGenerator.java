@@ -115,26 +115,12 @@ public class DHKeyPairGenerator extends KeyPairGenerator
     }
 
     /**
-     * RFC 7919 group name for a given modulus size, or null when the
-     * size has no ffdhe group.
+     * The RFC 7919 group name for a modulus size: RFC 7919 spells its groups "ffdhe" + bits, a rule rather than
+     * a list. Whether the library serves the group is asked of it.
      */
     static String groupFor(int keySize)
     {
-        switch (keySize)
-        {
-            case 2048:
-                return "ffdhe2048";
-            case 3072:
-                return "ffdhe3072";
-            case 4096:
-                return "ffdhe4096";
-            case 6144:
-                return "ffdhe6144";
-            case 8192:
-                return "ffdhe8192";
-            default:
-                return null;
-        }
+        return "ffdhe" + keySize;
     }
 
     @Override
@@ -143,18 +129,11 @@ public class DHKeyPairGenerator extends KeyPairGenerator
         // KeyPairGenerator.initialize(int) throws InvalidParameterException
         // (RuntimeException) for unsupported sizes per the JCA contract.
         String group = groupFor(keysize);
-        if (group == null)
-        {
-            throw new InvalidParameterException(
-                    "DH key size " + keysize + " is not supported. "
-                            + "Supported sizes (RFC 7919 groups): 2048, 3072, 4096, 6144, 8192. "
-                            + "For other parameters use DHParameterSpec.");
-        }
         if (!dhServiceNI.groupSupported(group))
         {
             throw new InvalidParameterException(
-                    "DH group " + group + " (key size " + keysize
-                            + ") is not supported by the loaded OpenSSL build");
+                    "DH key size " + keysize + " has no RFC 7919 group (" + group
+                            + ") served by the loaded library; for other parameters use DHParameterSpec");
         }
         this.keySize = keysize;
         this.explicitParams = null;
@@ -190,6 +169,16 @@ public class DHKeyPairGenerator extends KeyPairGenerator
         {
             throw new InvalidAlgorithmParameterException(
                     "DHParameterSpec p and g must both be positive");
+        }
+        // Structural, one bit: a prime modulus is odd.
+        if (!dhSpec.getP().testBit(0))
+        {
+            throw new InvalidAlgorithmParameterException("DHParameterSpec p must be odd");
+        }
+        if (dhSpec.getL() < 0)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "DHParameterSpec l must not be negative");
         }
         if (dhSpec instanceof DHDomainParameterSpec)
         {
@@ -236,7 +225,7 @@ public class DHKeyPairGenerator extends KeyPairGenerator
             {
                 synchronized (paramsSpec)
                 {
-                    ref = dhServiceNI.generateKeyPair(paramsSpec.getReference(), random);
+                    ref = dhServiceNI.generateKeyPair(paramsSpec.getReference(), explicitParams.getL(), random);
                 }
             }
             catch (ProviderCapabilityException e)

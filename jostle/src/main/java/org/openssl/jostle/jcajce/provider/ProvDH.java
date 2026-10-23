@@ -71,8 +71,8 @@ class ProvDH
         provider.addAlias("KeyFactory", "DH",
                 "DiffieHellman", PKCS3_DH_OID, X942_DH_OID);
 
-        // AlgorithmParameters DH — PKCS#3 DHParameter codec delegated
-        // to the platform (SunJCE).
+        // AlgorithmParameters DH - its own codec for the PKCS#3 DHParameter and X9.42
+        // DomainParameters forms (DHAlgorithmParameters).
         provider.addAlgorithmImplementation("AlgorithmParameters", "DH",
                 DHAlgorithmParameters.class.getName(), new HashMap<>(),
                 (arg) -> new DHAlgorithmParameters());

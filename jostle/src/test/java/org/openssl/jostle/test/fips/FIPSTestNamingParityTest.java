@@ -42,7 +42,7 @@ import java.util.stream.Stream;
  *
  * <p><b>Comments are stripped before matching, and that is load-bearing.</b>
  * Javadoc explaining a FIPS boundary reads identically to code crossing it:
- * {@code KDFAgreementTest} and {@code DHAlgorithmParametersRecursionTest} both
+ * {@code KDFAgreementTest} and {@code DHAlgorithmParametersOwnCodecTest} both
  * describe the FIPS split in prose while containing zero FIPS references in
  * code. A raw-text scan flags both, which is the same false-positive
  * {@code FIPSLibraryLookupParityTest} hit when its first version matched

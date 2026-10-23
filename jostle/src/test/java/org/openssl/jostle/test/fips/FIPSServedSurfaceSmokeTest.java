@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import javax.crypto.Mac;
+import javax.crypto.spec.DHGenParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
@@ -485,6 +486,31 @@ public class FIPSServedSurfaceSmokeTest
         Assertions.assertTrue(broken.isEmpty(),
                 "registered RSA Signatures that do not behave as measured on " + module + ":\n  "
                         + String.join("\n  ", broken));
+    }
+
+    /**
+     * The DH parameter generator is registered and refuses typed on both measured modules (3.1.2 and 3.5.8),
+     * by size and by DHGenParameterSpec alike: the module substitutes a named group or refuses, never generates.
+     * An unmeasured module fails the cell.
+     */
+    @Test
+    public void dhParameterGenerationIsRegisteredAndRefusedTyped() throws Exception
+    {
+        FIPSTestUtil.assumeFipsProvider();
+        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
+                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        String refusal = "DH parameter generation is not supported by the loaded provider, "
+                + "which substitutes a named group where one exists and refuses otherwise; "
+                + "use named-group key generation instead";
+        AlgorithmParameterGenerator bySize = AlgorithmParameterGenerator.getInstance("DH", FIPS);
+        bySize.init(2048);
+        ProviderException e = Assertions.assertThrows(ProviderException.class, bySize::generateParameters);
+        Assertions.assertEquals(refusal, e.getMessage());
+        AlgorithmParameterGenerator bySpec = AlgorithmParameterGenerator.getInstance("DH", FIPS);
+        bySpec.init(new DHGenParameterSpec(2048, 256));
+        e = Assertions.assertThrows(ProviderException.class, bySpec::generateParameters);
+        Assertions.assertEquals(refusal, e.getMessage());
     }
 
     /**

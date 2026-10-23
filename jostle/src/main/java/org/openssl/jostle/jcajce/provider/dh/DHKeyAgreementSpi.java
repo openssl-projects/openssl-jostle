@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 
 import javax.crypto.KeyAgreementSpi;
@@ -31,6 +32,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -292,9 +294,9 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                         "DH: must call doPhase before generateSecret");
             }
 
-            int upper = dhServiceNI.kexDerive(ref.getReference(), null, 0, randSource);
+            int upper = deriveLength();
             byte[] secret = new byte[upper];
-            int actual = dhServiceNI.kexDerive(ref.getReference(), secret, 0, randSource);
+            int actual = derive(secret, 0);
             if (actual == secret.length)
             {
                 return secret;
@@ -329,7 +331,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                 throw new IllegalArgumentException("offset out of range");
             }
 
-            int need = dhServiceNI.kexDerive(ref.getReference(), null, 0, randSource);
+            int need = deriveLength();
             if (sharedSecret.length - offset < need)
             {
                 throw new ShortBufferException(
@@ -337,7 +339,7 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                                 + " bytes from offset " + offset
                                 + ", have " + (sharedSecret.length - offset));
             }
-            return dhServiceNI.kexDerive(ref.getReference(), sharedSecret, offset, randSource);
+            return derive(sharedSecret, offset);
         }
     }
 
@@ -381,6 +383,36 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
         }
     }
 
+
+    /** The derive's required length; a library failure is a ProviderException, the type the JCA allows here. */
+    private int deriveLength()
+    {
+        try
+        {
+            return dhServiceNI.kexDerive(ref.getReference(), null, 0, randSource);
+        }
+        catch (OpenSSLException e)
+        {
+            throw new ProviderException("DH agreement failed: " + e.getMessage(), e);
+        }
+    }
+
+    /** A written derive. It consumes the peer: the next secret needs a new set peer, as SunJCE and EC require. */
+    private int derive(byte[] out, int off)
+    {
+        try
+        {
+            return dhServiceNI.kexDerive(ref.getReference(), out, off, randSource);
+        }
+        catch (OpenSSLException e)
+        {
+            throw new ProviderException("DH agreement failed: " + e.getMessage(), e);
+        }
+        finally
+        {
+            peerSet = false;
+        }
+    }
 
     private void ensureRef()
     {

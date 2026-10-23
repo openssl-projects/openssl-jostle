@@ -38,7 +38,7 @@ class DHServiceFIPSJNI implements DHServiceNI
     public native long ni_makeParamsFromComponents(byte[] p, byte[] q, byte[] g, int[] err);
 
     @Override
-    public native long ni_generateKeyPair(long paramsRef, int[] err, RandSource rndSource);
+    public native long ni_generateKeyPair(long paramsRef, int privLen, int[] err, RandSource rndSource);
 
     @Override
     public native long ni_makePrivateFromComponents(byte[] p, byte[] q, byte[] g, byte[] x,

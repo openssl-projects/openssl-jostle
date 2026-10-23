@@ -12,6 +12,7 @@
 
 #include "bytearrays.h"
 #include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_dh_DHServiceJNI.h"
 #include "types.h"
 #include "../util/jo_assert.h"
@@ -48,7 +49,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
         return JO_UNABLE_TO_ACCESS_NAME;
     }
 
-    int32_t result = dh_group_supported(group_name);
+    // An empty name or an embedded NUL names nothing, as on FFM.
+    int32_t result = modified_utf8_names_nothing(group_name) ? JO_CURVE_NOT_SUPPORTED
+                                                             : dh_group_supported(group_name);
 
     (*env)->ReleaseStringUTFChars(env, _groupName, group_name);
     return result;
@@ -81,6 +84,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
     group_name = (*env)->GetStringUTFChars(env, _groupName, NULL);
     if (OPS_FAILED_ACCESS_1 group_name == NULL) {
         ret_val = JO_UNABLE_TO_ACCESS_NAME;
+        goto exit;
+    }
+
+    if (modified_utf8_names_nothing(group_name)) {
+        ret_val = JO_CURVE_NOT_SUPPORTED;
         goto exit;
     }
 
@@ -222,7 +230,7 @@ exit:
  * Signature: (J[ILorg/openssl/jostle/rand/RandSource;)J
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_ni_1generateKeyPair
-(JNIEnv *env, jobject jo, jlong params_ref, jintArray err_out, jobject rnd_src) {
+(JNIEnv *env, jobject jo, jlong params_ref, jint priv_len, jintArray err_out, jobject rnd_src) {
     UNUSED(jo);
     jo_assert(err_out != NULL);
 
@@ -230,8 +238,12 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
     key_spec *spec = NULL;
 
     key_spec *params = (key_spec *) params_ref;
-    if (params == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    ret_val = key_spec_check(params);
+    if (UNSUCCESSFUL(ret_val)) {
+        goto exit;
+    }
+    if (priv_len < 0) {
+        ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         goto exit;
     }
     if (rnd_src == NULL) {
@@ -240,7 +252,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
     }
 
     spec = create_spec();
-    ret_val = dh_generate_key(spec, params, rnd_src);
+    ret_val = dh_generate_key(spec, params, priv_len, rnd_src);
 
     if (ret_val != JO_SUCCESS) {
         free_key_spec(spec);
@@ -274,11 +286,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
     java_bytearray_ctx p_ctx;
     java_bytearray_ctx q_ctx;
     java_bytearray_ctx g_ctx;
-    java_bytearray_ctx x_ctx;
+    java_secret_bytearray_ctx x_ctx;
     init_bytearray_ctx(&p_ctx);
     init_bytearray_ctx(&q_ctx);
     init_bytearray_ctx(&g_ctx);
-    init_bytearray_ctx(&x_ctx);
+    init_secret_bytearray_ctx(&x_ctx);
 
     if (_p == NULL || _g == NULL || _x == NULL) {
         ret_val = JO_INPUT_IS_NULL;
@@ -297,7 +309,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
         ret_val = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&x_ctx, env, _x)) {
+    if (OPS_FAILED_ACCESS_3 !load_secret_input_ctx(&x_ctx, env, _x)) {
         ret_val = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -333,7 +345,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_
     }
 
 exit:
-    release_bytearray_ctx(&x_ctx);
+    release_secret_bytearray_ctx(&x_ctx);
     release_bytearray_ctx(&g_ctx);
     release_bytearray_ctx(&q_ctx);
     release_bytearray_ctx(&p_ctx);
@@ -433,13 +445,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
     UNUSED(jo);
 
     key_spec *spec = (key_spec *) spec_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ret_code = key_spec_check(spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
 
-    int32_t ret_code = JO_FAIL;
-    java_bytearray_ctx out_ctx;
-    init_bytearray_ctx(&out_ctx);
+    java_secret_bytearray_ctx out_ctx;
+    init_secret_bytearray_ctx(&out_ctx);
 
     if (_out == NULL) {
         // Caller wants required size.
@@ -447,7 +459,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&out_ctx, env, _out)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&out_ctx, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -455,7 +467,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
     ret_code = dh_get_component(spec, component, out_ctx.bytearray, out_ctx.size);
 
 exit:
-    release_bytearray_ctx(&out_ctx);
+    release_secret_bytearray_ctx(&out_ctx);
     return ret_code;
 }
 
@@ -503,16 +515,17 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
     UNUSED(jo);
 
     dh_kex_ctx *ctx = (dh_kex_ctx *) kex_ref;
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t ret_code = dh_kex_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    key_spec *spec = (key_spec *) key_ref;
+    ret_code = key_spec_check(spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
-    }
-
-    key_spec *spec = (key_spec *) key_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
     }
 
     return dh_kex_init(ctx, spec, rnd_src);
@@ -529,16 +542,17 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
     UNUSED(jo);
 
     dh_kex_ctx *ctx = (dh_kex_ctx *) kex_ref;
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t ret_code = dh_kex_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    key_spec *spec = (key_spec *) key_ref;
+    ret_code = key_spec_check(spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
-    }
-
-    key_spec *spec = (key_spec *) key_ref;
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
     }
 
     return dh_kex_set_peer(ctx, spec, rnd_src);
@@ -557,8 +571,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
     UNUSED(jo);
 
     dh_kex_ctx *ctx = (dh_kex_ctx *) kex_ref;
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t ret_code = dh_kex_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -569,15 +584,14 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
         return dh_kex_derive(ctx, NULL, 0, rnd_src);
     }
 
-    int32_t ret_code = JO_FAIL;
-    java_bytearray_ctx output;
-    init_bytearray_ctx(&output);
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
 
     if (out_off < 0) {
         ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _out)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&output, env, _out)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -591,6 +605,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_dh_DHServiceJNI_n
     ret_code = dh_kex_derive(ctx, out, out_len, rnd_src);
 
 exit:
-    release_bytearray_ctx(&output);
+    release_secret_bytearray_ctx(&output);
     return ret_code;
 }

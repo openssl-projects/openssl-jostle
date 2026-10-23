@@ -408,6 +408,10 @@ public enum ErrorCode
     JO_RSA_SIGN_DIGEST_UNAVAILABLE(-218),
     // The provider refuses to sign RSA with this key under any digest.
     JO_RSA_SIGN_KEY_UNAVAILABLE(-219),
+    // A handle passed as a DH key-agreement context that is not one.
+    JO_DH_KEX_CTX_WRONG_KIND(-220),
+    // A DH x outside its range.
+    JO_DH_PRIVATE_VALUE_INVALID(-221),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

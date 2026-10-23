@@ -7,6 +7,7 @@
 
 
 #include <stdint.h>
+#include <string.h>
 #include <openssl/crypto.h>
 
 #include "../util/bc_err_codes.h"
@@ -33,13 +34,22 @@ static int32_t check_component_len(size_t buf_len) {
 }
 
 
+/* name_len is the name's UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI. */
+static int dh_name_unusable(const char *name, size_t name_len) {
+    return name_len == 0 || strnlen(name, name_len) != name_len;
+}
+
+
 // =============================================================
 // Group introspection
 // =============================================================
 
-int32_t JoDH_groupSupported(const char *group_name) {
+int32_t JoDH_groupSupported(const char *group_name, size_t name_len) {
     if (group_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (dh_name_unusable(group_name, name_len)) {
+        return JO_CURVE_NOT_SUPPORTED;
     }
     return dh_group_supported(group_name);
 }
@@ -49,7 +59,7 @@ int32_t JoDH_groupSupported(const char *group_name) {
 // Key generation (named group)
 // =============================================================
 
-key_spec *JoDH_generateKeyPairByGroup(const char *group_name,
+key_spec *JoDH_generateKeyPairByGroup(const char *group_name, size_t name_len,
                                       int32_t *ret_val,
                                       void *rnd_src) {
     jo_assert(ret_val != NULL);
@@ -61,6 +71,10 @@ key_spec *JoDH_generateKeyPairByGroup(const char *group_name,
     }
     if (rnd_src == NULL) {
         *ret_val = JO_RAND_NO_RAND_UP_CALL;
+        return NULL;
+    }
+    if (dh_name_unusable(group_name, name_len)) {
+        *ret_val = JO_CURVE_NOT_SUPPORTED;
         return NULL;
     }
 
@@ -150,13 +164,19 @@ key_spec *JoDH_makeParamsFromComponents(uint8_t *p, size_t p_size,
 // =============================================================
 
 key_spec *JoDH_generateKeyPair(key_spec *params,
+                               int32_t priv_len,
                                int32_t *ret_val,
                                void *rnd_src) {
     jo_assert(ret_val != NULL);
     *ret_val = JO_FAIL;
 
-    if (params == NULL) {
-        *ret_val = JO_KEY_SPEC_IS_NULL;
+    int32_t check = key_spec_check(params);
+    if (UNSUCCESSFUL(check)) {
+        *ret_val = check;
+        return NULL;
+    }
+    if (priv_len < 0) {
+        *ret_val = JO_INPUT_LEN_IS_NEGATIVE;
         return NULL;
     }
     if (rnd_src == NULL) {
@@ -165,7 +185,7 @@ key_spec *JoDH_generateKeyPair(key_spec *params,
     }
 
     key_spec *spec = create_spec();
-    *ret_val = dh_generate_key(spec, params, rnd_src);
+    *ret_val = dh_generate_key(spec, params, priv_len, rnd_src);
 
     if (*ret_val != JO_SUCCESS) {
         free_key_spec(spec);
@@ -271,8 +291,9 @@ key_spec *JoDH_makePublicFromComponents(uint8_t *p, size_t p_size,
 
 int32_t JoDH_getComponent(key_spec *spec, int32_t component,
                           uint8_t *out, size_t out_len) {
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t check = key_spec_check(spec);
+    if (UNSUCCESSFUL(check)) {
+        return check;
     }
     return dh_get_component(spec, component, out, out_len);
 }
@@ -287,35 +308,36 @@ dh_kex_ctx *JoDH_allocateKex(int32_t *err) {
 }
 
 void JoDH_disposeKex(dh_kex_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
     dh_kex_destroy(ctx);
 }
 
 int32_t JoDH_kexInit(dh_kex_ctx *ctx, key_spec *my_priv, void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t ret_code = dh_kex_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    ret_code = key_spec_check(my_priv);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
-    }
-    if (my_priv == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
     }
     return dh_kex_init(ctx, my_priv, rnd_src);
 }
 
 int32_t JoDH_kexSetPeer(dh_kex_ctx *ctx, key_spec *peer_pub,
                         void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t ret_code = dh_kex_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    ret_code = key_spec_check(peer_pub);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
-    }
-    if (peer_pub == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
     }
     return dh_kex_set_peer(ctx, peer_pub, rnd_src);
 }
@@ -324,8 +346,9 @@ int32_t JoDH_kexDerive(dh_kex_ctx *ctx,
                        uint8_t *out, size_t out_size,
                        int32_t out_off,
                        void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_KEX_CTX_IS_NULL;
+    int32_t ret_code = dh_kex_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;

@@ -21,6 +21,12 @@
 #define DH_COMP_G              2   // FFC generator g
 #define DH_COMP_PUBLIC_VALUE   3   // public value y = g^x mod p
 #define DH_COMP_PRIVATE_VALUE  4   // private value x
+// Integer-valued selectors: the answer is the return value, never written to out.
+#define DH_COMP_FORM           5   // DH_FORM_PKCS3 or DH_FORM_X942, from the key's type
+#define DH_COMP_PRIVATE_LENGTH 6   // the key's private-value length in bits, 0 when unset
+
+#define DH_FORM_PKCS3 1            // a "DH" key: dhKeyAgreement
+#define DH_FORM_X942  2            // a "DHX" key: dhpublicnumber
 
 
 // =============================================================
@@ -57,10 +63,11 @@ int32_t dh_generate_key_by_group(key_spec *spec, const char *group_name,
 /*
  * Generate a DH keypair from previously-established domain parameters
  * (a spec produced by dh_generate_parameters or
- * dh_make_params_from_components).
+ * dh_make_params_from_components). priv_len > 0 sets the private-value
+ * length in bits (OSSL_PKEY_PARAM_DH_PRIV_LEN); 0 keeps OpenSSL's default.
  */
 int32_t dh_generate_key(key_spec *spec, const key_spec *params,
-                        void *rnd_src);
+                        int32_t priv_len, void *rnd_src);
 
 
 // =============================================================
@@ -151,12 +158,12 @@ int32_t dh_make_public_from_components(key_spec *spec,
                                        const uint8_t *y_be, size_t y_len);
 
 /*
- * Validate a q-bearing DH public key already built as an EVP_PKEY, from
- * ANY decode/import path: runs EVP_PKEY_public_check itself, then checks
- * that y actually lies in the subgroup q generates — Legendre/Jacobi
- * symbol when p is a safe prime (p = 2q+1, where that subgroup is exactly
- * the quadratic residues), y^q mod p == 1 otherwise. A no-op returning
- * JO_SUCCESS when q is absent (PKCS#3).
+ * Validate a DH public key already built as an EVP_PKEY, from ANY
+ * decode/import path: runs EVP_PKEY_public_check (2 <= y <= p-2) for every
+ * DH and DHX key, then, when q is present, checks that y actually lies in
+ * the subgroup q generates - Legendre/Jacobi symbol when p is a safe prime
+ * (p = 2q+1, where that subgroup is exactly the quadratic residues),
+ * y^q mod p == 1 otherwise.
  *
  * Returns JO_SUCCESS, JO_DH_PEER_PUBKEY_INVALID (a genuine refusal), or
  * JO_OPENSSL_ERROR (an internal failure, distinct from a refusal).
@@ -174,13 +181,27 @@ int32_t dh_validate_public_key_subgroup(EVP_PKEY *key);
  * configured with the padded-output exchange parameter (see
  * dh_kex_init).
  */
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as a dh_kex_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define DH_KEX_CTX_KIND 0x44484B01u   /* "DHK\1" */
+#define DH_KEX_CTX_NONE 0u            /* what a freed ctx is left with; never a valid kind */
+
 typedef struct dh_kex_ctx {
+    uint32_t kind;
     EVP_PKEY_CTX *pctx;     // owned
     int peer_set;           // 0 until dh_kex_set_peer succeeds
 } dh_kex_ctx;
 
 dh_kex_ctx *dh_kex_create(int32_t *err);
 
+/*
+ * JO_KEX_CTX_IS_NULL, JO_DH_KEX_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t dh_kex_check(const dh_kex_ctx *ctx);
+
+/* Frees nothing unless ctx is a live dh_kex_ctx. */
 void dh_kex_destroy(dh_kex_ctx *ctx);
 
 /*
@@ -220,6 +241,7 @@ int32_t dh_kex_set_peer(dh_kex_ctx *ctx, const key_spec *peer_pub,
  *     length (the prime length, because of the pad parameter);
  *   - second call with a sufficiently-large buffer writes the shared
  *     secret and returns the byte count actually written.
+ * A written derive clears peer_set, so the next derive needs a new set peer.
  */
 int32_t dh_kex_derive(dh_kex_ctx *ctx, uint8_t *out, size_t out_len,
                       void *rnd_src);

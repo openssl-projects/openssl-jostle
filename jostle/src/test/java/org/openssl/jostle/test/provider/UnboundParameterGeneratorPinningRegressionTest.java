@@ -41,7 +41,7 @@ import java.security.Security;
  * {@code AlgorithmParameters.getInstance("DH")} / {@code ("DSA")} with no
  * provider argument, so a foreign provider registered ahead of {@code JSL}
  * answered instead. This reproduces that ordering with a pseudo provider —
- * the same shape {@code DHAlgorithmParametersRecursionTest} uses — mapping
+ * the same shape {@code DHAlgorithmParametersOwnCodecTest} uses - mapping
  * {@code AlgorithmParameters.DH}/{@code DSA} to Jostle's own codec classes
  * under a foreign name, inserted at registry position 1 ahead of
  * {@code JSL}. The pseudo answers with a genuinely working codec (Jostle's

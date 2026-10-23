@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.UserKeyingMaterialSpec;
+import org.openssl.jostle.test.dh.DHAgreementTest;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -496,5 +497,12 @@ public class FIPSDHAgreementTest
         stale.removeAll(registered);
         Assertions.assertTrue(stale.isEmpty(),
                 "this class names DH services JSLFIPS does not register: " + stale);
+    }
+
+    /** The module's agreement refuses a second secret call without a new phase call, as JSL's does. */
+    @Test
+    public void aSecondSecretCallNeedsANewPhaseCall() throws Exception
+    {
+        DHAgreementTest.assertASecondSecretCallNeedsANewPhaseCall(FIPS, true);
     }
 }

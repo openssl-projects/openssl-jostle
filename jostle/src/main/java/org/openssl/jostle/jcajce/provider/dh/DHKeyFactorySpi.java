@@ -144,7 +144,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
                                 + "; use javax.crypto.spec.DHParameterSpec or "
                                 + "org.openssl.jostle.jcajce.spec.DHDomainParameterSpec");
             }
-            byte[] p = magnitude(extended.getP(), "p");
+            byte[] p = magnitude(oddPrime(extended.getP()), "p");
             byte[] g = magnitude(extended.getG(), "g");
             byte[] y = magnitude(extended.getY(), "y");
             byte[] q = params instanceof DHDomainParameterSpec
@@ -172,15 +172,28 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof DHPublicKeySpec)
         {
             DHPublicKeySpec pubSpec = (DHPublicKeySpec) keySpec;
-            byte[] p = magnitude(pubSpec.getP(), "p");
+            byte[] p = magnitude(oddPrime(pubSpec.getP()), "p");
             byte[] g = magnitude(pubSpec.getG(), "g");
             byte[] y = magnitude(pubSpec.getY(), "y");
             // DHPublicKeySpec carries no q, so this is the PKCS#3 form — the
             // same answer BouncyCastle gives for the same spec. A q-carrying
             // key comes from a DER decode or from DHExtendedPublicKeySpec /
             // DHDomainParameterSpec.
-            long ref = dhServiceNI.makePublicFromComponents(p, null, g, y);
-            return new JODHPublicKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
+            try
+            {
+                long ref = dhServiceNI.makePublicFromComponents(p, null, g, y);
+                return new JODHPublicKey(dhServiceNI, asn1NI,
+                        new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
+            }
+            catch (RuntimeException e)
+            {
+                // The range check runs for every key; same refusal as the extended arm.
+                if (DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE.equals(e.getMessage()))
+                {
+                    throw new InvalidKeySpecException("public value failed the DH public-key check", e);
+                }
+                throw new InvalidKeySpecException("unable to decode DH public key from DHPublicKeySpec", e);
+            }
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use X509EncodedKeySpec, DHPublicKeySpec or DHExtendedPublicKeySpec.");
@@ -202,6 +215,11 @@ public class DHKeyFactorySpi extends KeyFactorySpi
             }
             catch (RuntimeException e)
             {
+                // A DHX key's public half is checked as the public decode checks it.
+                if (DHServiceNI.PEER_PUBKEY_INVALID_MESSAGE.equals(e.getMessage()))
+                {
+                    throw new InvalidKeySpecException("public value failed the DH public-key check", e);
+                }
                 throw new InvalidKeySpecException("unable to decode DH private key", e);
             }
             finally
@@ -212,7 +230,7 @@ public class DHKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof DHPrivateKeySpec)
         {
             DHPrivateKeySpec privSpec = (DHPrivateKeySpec) keySpec;
-            byte[] p = magnitude(privSpec.getP(), "p");
+            byte[] p = magnitude(oddPrime(privSpec.getP()), "p");
             byte[] g = magnitude(privSpec.getG(), "g");
             byte[] x = magnitude(privSpec.getX(), "x");
             try
@@ -222,6 +240,11 @@ public class DHKeyFactorySpi extends KeyFactorySpi
                         p, null, g, x,
                         DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
                 return new JODHPrivateKey(dhServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DH, providerInstance));
+            }
+            catch (RuntimeException e)
+            {
+                // The native arm names the range x was outside; the type is the KeyFactory's.
+                throw new InvalidKeySpecException(e.getMessage(), e);
             }
             finally
             {
@@ -362,6 +385,16 @@ public class DHKeyFactorySpi extends KeyFactorySpi
                     + MAX_COMPONENT_BITS + " bits");
         }
         return DHComponents.unsignedMagnitude(value);
+    }
+
+    /** Structural, one bit: a prime modulus is odd. Null and non-positive values are magnitude's to refuse. */
+    private static BigInteger oddPrime(BigInteger p) throws InvalidKeySpecException
+    {
+        if (p != null && p.signum() > 0 && !p.testBit(0))
+        {
+            throw new InvalidKeySpecException("DH prime p must be odd");
+        }
+        return p;
     }
 
     private static void requireDH(PKEYKeySpec spec) throws InvalidKeySpecException

@@ -901,4 +901,62 @@ public class DHLimitTest
             }
         }
     }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        DHBridgeCells.wrongKindHandlesAreRefused(dh, TestNISelector.getSpecNI(), TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_unusableGroupNamesAreRefused()
+    {
+        DHBridgeCells.unusableGroupNamesAreRefused(dh);
+    }
+
+    @Test
+    public void bridge_deriveConsumesThePeer()
+    {
+        DHBridgeCells.deriveConsumesThePeer(dh, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_privateLengthIsHonoured()
+    {
+        DHBridgeCells.privateLengthIsHonoured(dh, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_formFollowsTheKeysType()
+    {
+        DHBridgeCells.formFollowsTheKeysType(dh, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_keyValuesAreRangeChecked()
+    {
+        DHBridgeCells.keyValuesAreRangeChecked(dh, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_qLessPrivateValueRangeIsChecked()
+    {
+        long params = dh.generateParameters(512, TestUtil.RNDSrc);
+        try
+        {
+            byte[] p = new byte[dh.getComponent(params, DHServiceNI.COMP_P, null)];
+            dh.getComponent(params, DHServiceNI.COMP_P, p);
+            DHBridgeCells.qLessPrivateValueRangeIsChecked(dh, TestNISelector.getSpecNI(), p);
+        }
+        finally
+        {
+            TestNISelector.getSpecNI().dispose(params);
+        }
+    }
+
+    @Test
+    public void bridge_evenModulusIsNotReportedAsQRequired()
+    {
+        DHBridgeCells.evenModulusIsNotReportedAsQRequired(dh, TestNISelector.getSpecNI());
+    }
 }

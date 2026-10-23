@@ -97,6 +97,71 @@ static int peer_pubkey_check_failed(void) {
 }
 
 
+/* 1 when the key carries q, supplied or known from its group; the probe's own errors are scoped out. */
+static int key_has_q(EVP_PKEY *key) {
+    ERR_set_mark();
+    BIGNUM *q_bn = NULL;
+    int has_q = 1 == EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_Q, &q_bn) && q_bn != NULL;
+    BN_free(q_bn);
+    ERR_pop_to_mark();
+    return has_q;
+}
+
+/* 1 when x is in range for the key: OpenSSL's private check with q, 1 <= x <= p-2 without; errors scoped out. */
+static int private_value_in_range(EVP_PKEY *key, const uint8_t *p_be, size_t p_len,
+                                  const uint8_t *x_be, size_t x_len) {
+    int ok = 0;
+    ERR_set_mark();
+    if (key_has_q(key)) {
+        EVP_PKEY_CTX *check_ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_fips_ossl_lib_ctx(), key, NULL);
+        ok = check_ctx != NULL && 1 == EVP_PKEY_private_check(check_ctx);
+        EVP_PKEY_CTX_free(check_ctx);
+    } else {
+        BIGNUM *p = BN_bin2bn(p_be, (int) p_len, NULL);
+        BIGNUM *x = BN_secure_new();
+        BIGNUM *p_minus_2 = BN_new();
+        if (p != NULL && x != NULL && p_minus_2 != NULL && NULL != BN_bin2bn(x_be, (int) x_len, x)
+            && 1 == BN_sub(p_minus_2, p, BN_value_one()) && 1 == BN_sub(p_minus_2, p_minus_2, BN_value_one())) {
+            ok = BN_cmp(x, BN_value_one()) >= 0 && BN_cmp(x, p_minus_2) <= 0;
+        }
+        BN_free(p);
+        BN_clear_free(x);
+        BN_free(p_minus_2);
+    }
+    ERR_pop_to_mark();
+    return ok;
+}
+
+/*
+ * After a failure with a q-less key: JO_DH_Q_REQUIRED only when p could be a prime, so an even p keeps the
+ * generic error and OpenSSL's reason. The parity is asked rather than a full parameter check, which the FIPS
+ * module fails for every q-less set. The probe's own errors are scoped out; the caller has already ruled out
+ * an injected failure.
+ */
+static int32_t classify_q_less_failure(EVP_PKEY *key, int32_t generic) {
+    if (key_has_q(key)) {
+        return generic;
+    }
+    ERR_set_mark();
+    BIGNUM *p_bn = NULL;
+    int p_odd = 1 == EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_P, &p_bn) && BN_is_odd(p_bn);
+    BN_free(p_bn);
+    ERR_pop_to_mark();
+    return p_odd ? JO_DH_Q_REQUIRED : generic;
+}
+
+
+/* OpenSSL's public-key check on the peer, run only to classify a set_peer failure; its errors are scoped out. */
+static int peer_public_value_valid(EVP_PKEY *peer) {
+    ERR_set_mark();
+    EVP_PKEY_CTX *check_ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_fips_ossl_lib_ctx(), peer, NULL);
+    int ok = check_ctx == NULL || 1 == EVP_PKEY_public_check(check_ctx);
+    EVP_PKEY_CTX_free(check_ctx);
+    ERR_pop_to_mark();
+    return ok;
+}
+
+
 // =============================================================
 // Group introspection
 // =============================================================
@@ -164,6 +229,11 @@ int32_t dh_generate_key_by_group(key_spec *spec, const char *group_name,
     jo_assert(group_name != NULL);
 
     jo_assert(rnd_src != NULL);
+
+    // One answer for "not served" on both group entries: the probe group_supported gives.
+    if (dh_group_supported(group_name) != 1) {
+        return JO_CURVE_NOT_SUPPORTED;
+    }
 
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
@@ -595,6 +665,13 @@ int32_t dh_make_private_from_components(key_spec *spec,
 
     int32_t ret_code = dh_fromdata(spec, p_be, p_len, q_be, q_len,
                                    g_be, g_len, NULL, 0, x_be, x_len);
+    // x in range: with q (supplied, or a known group's) OpenSSL's own check, 1 <= x < q; without q the q-less
+    // bound 1 <= x <= p-2 by comparison, since the FIPS module's check refuses every q-less key.
+    if (ret_code == JO_SUCCESS && !private_value_in_range(spec->key, p_be, p_len, x_be, x_len)) {
+        EVP_PKEY_free(spec->key);
+        spec->key = NULL;
+        ret_code = JO_DH_PRIVATE_VALUE_INVALID;
+    }
     rand_clear_java_srand_call();
     return ret_code;
 }
@@ -662,25 +739,15 @@ exit:
 }
 
 /*
- * Full validation for a q-bearing DH public key already built as an
- * EVP_PKEY, from ANY decode/import path: OpenSSL's own
- * EVP_PKEY_public_check, THEN y is checked to actually lie in the
- * subgroup q generates. EVP_PKEY_public_check only range-checks a named
- * safe-prime group; the subgroup test is ours.
- *
- * A no-op returning JO_SUCCESS when q is absent (PKCS#3) — costs one
- * EVP_PKEY_public_check per q-bearing import either way (BC's own
- * KeyFactory pays the same, at the same site, for the components path).
+ * Full validation for a DH public key already built as an EVP_PKEY, from
+ * ANY decode/import path: OpenSSL's own EVP_PKEY_public_check (the range
+ * 2 <= y <= p-2, SP 800-56A partial validation) for every key, THEN, when
+ * q is present, y is checked to actually lie in the subgroup q generates.
+ * EVP_PKEY_public_check only range-checks a named safe-prime group; the
+ * subgroup test is ours.
  */
 int32_t dh_validate_public_key_subgroup(EVP_PKEY *key) {
     jo_assert(key != NULL);
-
-    BIGNUM *q_probe = NULL;
-    if (1 != EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_Q, &q_probe)) {
-        ERR_clear_error();
-        return JO_SUCCESS;
-    }
-    BN_clear_free(q_probe);
 
     EVP_PKEY_CTX *check_ctx = EVP_PKEY_CTX_new_from_pkey(
             get_global_jostle_fips_ossl_lib_ctx(), key, NULL);
@@ -690,8 +757,16 @@ int32_t dh_validate_public_key_subgroup(EVP_PKEY *key) {
     int check_ok = 1 == EVP_PKEY_public_check(check_ctx);
     EVP_PKEY_CTX_free(check_ctx);
     if (!check_ok) {
+        ERR_clear_error();
         return JO_DH_PEER_PUBKEY_INVALID;
     }
+
+    BIGNUM *q_probe = NULL;
+    if (1 != EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_Q, &q_probe)) {
+        ERR_clear_error();
+        return JO_SUCCESS;
+    }
+    BN_clear_free(q_probe);
 
     int subgroup_check = y_in_q_subgroup(key);
     if (subgroup_check == 1) {
@@ -715,7 +790,7 @@ int32_t dh_make_public_from_components(key_spec *spec,
 
     int32_t ret_code = dh_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
                                    y_be, y_len, NULL, 0);
-    if (ret_code != JO_SUCCESS || q_be == NULL) {
+    if (ret_code != JO_SUCCESS) {
         return ret_code;
     }
 
@@ -734,9 +809,10 @@ int32_t dh_make_public_from_components(key_spec *spec,
 // =============================================================
 
 int32_t dh_generate_key(key_spec *spec, const key_spec *params,
-                        void *rnd_src) {
+                        int32_t priv_len, void *rnd_src) {
     jo_assert(spec != NULL);
     jo_assert(params != NULL);
+    jo_assert(priv_len >= 0);
 
     jo_assert(rnd_src != NULL);
 
@@ -769,25 +845,28 @@ int32_t dh_generate_key(key_spec *spec, const key_spec *params,
         goto exit;
     }
 
+    // OpenSSL's own private-length knob; 0 keeps its default.
+    if (priv_len > 0) {
+        int len = (int) priv_len;
+        OSSL_PARAM len_params[2];
+        len_params[0] = OSSL_PARAM_construct_int(OSSL_PKEY_PARAM_DH_PRIV_LEN, &len);
+        len_params[1] = OSSL_PARAM_construct_end();
+        if (1 != EVP_PKEY_CTX_set_params(ctx, len_params)) {
+            ret_code = JO_OPENSSL_ERROR;
+            goto exit;
+        }
+    }
+
     if (OPS_OPENSSL_ERROR_5 1 != EVP_PKEY_keygen(ctx, &(spec->key))) {
         // Diagnosis-on-failure, mirroring dh_kex_init: FIPS providers need
         // q for their SP 800-56A checks, so keygen over q-less PKCS#3
-        // parameters fails here as an opaque "BN lib" error. Probe for q
-        // and return the precise code instead. Mainline accepts q-less
-        // parameters, so this never fires there and both trees stay
-        // identical. ERR marks keep the probe out of the error report.
-        ERR_set_mark();
-        BIGNUM *q_bn = NULL;
-        int has_q = 1 == EVP_PKEY_get_bn_param(params->key,
-                                               OSSL_PKEY_PARAM_FFC_Q, &q_bn)
-                    && q_bn != NULL;
-        BN_free(q_bn);
-        ERR_pop_to_mark();
-        if (!has_q) {
-            ret_code = JO_DH_Q_REQUIRED;
-            goto exit;
-        }
+        // parameters fails here as an opaque "BN lib" error. Mainline
+        // accepts q-less parameters, so this never fires there and both
+        // trees stay identical. Never re-classify an injected failure.
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(5242);
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_q_less_failure(params->key, ret_code);
+        }
         goto exit;
     }
 
@@ -885,6 +964,17 @@ int32_t dh_get_component(const key_spec *spec, int32_t component,
         case DH_COMP_PRIVATE_VALUE:
             return get_bn_component(spec, OSSL_PKEY_PARAM_PRIV_KEY,
                                     out, out_len);
+        case DH_COMP_FORM:
+            // The key's type is the form: the encoder of a "DHX" key emits X9.42.
+            return EVP_PKEY_is_a(spec->key, "DHX") ? DH_FORM_X942 : DH_FORM_PKCS3;
+        case DH_COMP_PRIVATE_LENGTH: {
+            int len = 0;
+            if (1 != EVP_PKEY_get_int_param(spec->key, OSSL_PKEY_PARAM_DH_PRIV_LEN, &len) || len < 0) {
+                ERR_clear_error();
+                len = 0;
+            }
+            return (int32_t) len;
+        }
         default:
             return JO_FAIL;
     }
@@ -901,20 +991,34 @@ dh_kex_ctx *dh_kex_create(int32_t *err) {
     dh_kex_ctx *ctx = (dh_kex_ctx *) OPENSSL_zalloc(sizeof(dh_kex_ctx));
     jo_assert(ctx != NULL);
 
+    ctx->kind = DH_KEX_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_DH_KEX_CTX);
     return ctx;
 }
 
 
-void dh_kex_destroy(dh_kex_ctx *ctx) {
+int32_t dh_kex_check(const dh_kex_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_KEX_CTX_IS_NULL;
+    }
+    if (ctx->kind != DH_KEX_CTX_KIND) {
+        return JO_DH_KEX_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
+void dh_kex_destroy(dh_kex_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as a dh_kex_ctx corrupts it.
+    if (dh_kex_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_DH_KEX_CTX);
     if (ctx->pctx != NULL) {
         EVP_PKEY_CTX_free(ctx->pctx);
     }
+    ctx->kind = DH_KEX_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -955,26 +1059,17 @@ int32_t dh_kex_init(dh_kex_ctx *ctx, const key_spec *my_priv,
     if (OPS_OPENSSL_ERROR_12 1 != EVP_PKEY_derive_init(pctx)) {
         // Diagnosis-on-failure: FIPS-validated providers require the
         // subgroup order q for their SP 800-56A key check, so PKCS#3
-        // component keys (p, g only) fail derive-init there. When the
-        // rejected key carries no q, surface the precise typed code
-        // (the SPI maps it to InvalidKeyException). Mainline providers
-        // accept q-less keys, so this branch never fires for them and
-        // the two trees stay textually identical. ERR marks scope the
-        // probe so it can't disturb the derive-init error report.
-        ERR_set_mark();
-        BIGNUM *q_bn = NULL;
-        int has_q = 1 == EVP_PKEY_get_bn_param(my_priv->key,
-                                               OSSL_PKEY_PARAM_FFC_Q, &q_bn)
-                    && q_bn != NULL;
-        BN_free(q_bn);
-        ERR_pop_to_mark();
+        // component keys (p, g only) fail derive-init there. Mainline
+        // providers accept q-less keys, so this branch never fires for
+        // them and the two trees stay textually identical. Never
+        // re-classify an injected failure.
         EVP_PKEY_CTX_free(pctx);
-        if (!has_q) {
-            rand_clear_java_srand_call();
-            return JO_DH_Q_REQUIRED;
+        int32_t ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(5261);
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_q_less_failure(my_priv->key, ret_code);
         }
         rand_clear_java_srand_call();
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_12(5261);
+        return ret_code;
     }
 
     // SECURITY-RELEVANT PARAMETER — DO NOT CHANGE THIS VALUE.
@@ -1049,7 +1144,8 @@ int32_t dh_kex_set_peer(dh_kex_ctx *ctx, const key_spec *peer_pub,
             if (peer_encoding_form_differs(ctx->pctx, peer_pub->key)) {
                 return JO_DH_PEER_ENCODING_MISMATCH;
             }
-            if (peer_pubkey_check_failed()) {
+            // On a known group OpenSSL refuses a bad y with nothing queued, so the value itself is asked too.
+            if (peer_pubkey_check_failed() || !peer_public_value_valid(peer_pub->key)) {
                 return JO_DH_PEER_PUBKEY_INVALID;
             }
         }
@@ -1108,6 +1204,9 @@ int32_t dh_kex_derive(dh_kex_ctx *ctx, uint8_t *out, size_t out_len,
         rand_clear_java_srand_call();
         return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_3(5281);
     }
+
+    // A written derive consumes the peer: the next derive needs a new set peer (ec_kex_derive's shape).
+    ctx->peer_set = 0;
 
     if (OPS_INT32_OVERFLOW_2 written > (size_t) INT32_MAX) {
         rand_clear_java_srand_call();

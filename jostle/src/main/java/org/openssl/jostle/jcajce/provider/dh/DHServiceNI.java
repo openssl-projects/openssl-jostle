@@ -40,6 +40,13 @@ public interface DHServiceNI extends DefaultServiceNI
     int COMP_G = 2;
     int COMP_PUBLIC_VALUE = 3;
     int COMP_PRIVATE_VALUE = 4;
+    // Integer-valued selectors: the answer is the return value. MUST match dh.h.
+    int COMP_FORM = 5;
+    int COMP_PRIVATE_LENGTH = 6;
+
+    // Answers of COMP_FORM. MUST match DH_FORM_* in dh.h.
+    int FORM_PKCS3 = 1;
+    int FORM_X942 = 2;
 
 
     /** 1 if OpenSSL recognises the DH group name, 0 otherwise. */
@@ -67,7 +74,7 @@ public interface DHServiceNI extends DefaultServiceNI
     /**
      * Generate a DH keypair from an established domain-parameter spec.
      */
-    long ni_generateKeyPair(long paramsRef, int[] err, RandSource rndSource);
+    long ni_generateKeyPair(long paramsRef, int privLen, int[] err, RandSource rndSource);
 
     /**
      * Construct a DH private key from explicit (p, g, x). The public
@@ -146,8 +153,14 @@ public interface DHServiceNI extends DefaultServiceNI
 
     default long generateKeyPair(long paramsRef, RandSource rndSource)
     {
+        return generateKeyPair(paramsRef, 0, rndSource);
+    }
+
+    /** privLen is the private-value length in bits; 0 keeps the library's default. */
+    default long generateKeyPair(long paramsRef, int privLen, RandSource rndSource)
+    {
         int[] err = new int[1];
-        long r = ni_generateKeyPair(paramsRef, err, rndSource);
+        long r = ni_generateKeyPair(paramsRef, privLen, err, rndSource);
         handleErrors(err[0]);
         return r;
     }
@@ -232,6 +245,9 @@ public interface DHServiceNI extends DefaultServiceNI
                 throw new IllegalArgumentException(PEER_PUBKEY_INVALID_MESSAGE);
             case JO_DH_BITS_OUT_OF_RANGE:
                 throw new IllegalArgumentException("DH parameter bit size out of range");
+            case JO_DH_PRIVATE_VALUE_INVALID:
+                throw new IllegalArgumentException(
+                        "DH x is outside its range: [1, q-1] with q, [1, p-2] without");
             default:
         }
 

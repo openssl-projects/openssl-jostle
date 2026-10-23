@@ -118,6 +118,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("handle is not an RSA signer context");
             case JO_EC_KEX_CTX_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not a key-agreement context");
+            case JO_DH_KEX_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not a DH key-agreement context");
             case JO_EC_DIGEST_NOT_SUPPORTED:
                 throw new IllegalArgumentException("digest is not supported");
             case JO_EC_SCALAR_OUT_OF_RANGE:

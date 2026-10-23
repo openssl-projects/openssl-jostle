@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 
+import javax.crypto.spec.DHGenParameterSpec;
 import javax.crypto.spec.DHParameterSpec;
 import java.security.AlgorithmParameterGeneratorSpi;
 import java.security.AlgorithmParameters;
@@ -93,6 +94,8 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     private static final int MAX_P_BITS = 10000;
 
     private int pBits = DEFAULT_KEY_SIZE;
+    /** The private-value length the generated parameters carry as l; 0 for none. */
+    private int exponentBits = 0;
     private RandSource random = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
 
 
@@ -108,6 +111,7 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
                             + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS + ".");
         }
         this.pBits = size;
+        this.exponentBits = 0;
         this.random = DefaultRandSource.replaceWith(this.random, random);
     }
 
@@ -115,12 +119,29 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
     protected void engineInit(AlgorithmParameterSpec genParamSpec, SecureRandom random)
             throws InvalidAlgorithmParameterException
     {
-        // The JCA-standard generation spec for DH is the size-only
-        // form; DHGenParameterSpec (prime size + exponent size) is not
-        // supported by the OpenSSL paramgen surface this delegates to.
-        throw new InvalidAlgorithmParameterException(
-                "DH parameter generation takes a key size, not an AlgorithmParameterSpec; "
-                        + "use init(int, SecureRandom)");
+        // DHGenParameterSpec is the JCA's DH generation spec: the prime size as init(int), the exponent size
+        // carried as l on the generated parameters, which key generation then honours.
+        if (!(genParamSpec instanceof DHGenParameterSpec))
+        {
+            throw new InvalidAlgorithmParameterException("expected DHGenParameterSpec (got "
+                    + (genParamSpec == null ? "null" : genParamSpec.getClass().getName()) + ")");
+        }
+        DHGenParameterSpec gen = (DHGenParameterSpec) genParamSpec;
+        int size = gen.getPrimeSize();
+        if (size < MIN_P_BITS || size > MAX_P_BITS)
+        {
+            throw new InvalidAlgorithmParameterException("DH prime size " + size + " is not supported. "
+                    + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS + ".");
+        }
+        int exponent = gen.getExponentSize();
+        if (exponent < 0 || exponent >= size)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "DH exponent size " + exponent + " must be in [0, " + (size - 1) + "]");
+        }
+        this.pBits = size;
+        this.exponentBits = exponent;
+        this.random = DefaultRandSource.replaceWith(this.random, random);
     }
 
     @Override
@@ -143,7 +164,9 @@ public class DHAlgorithmParameterGenerator extends AlgorithmParameterGeneratorSp
         // the matching KeyPairGenerator — MT-14 binds keys, and domain
         // parameters never surface to a caller as a java.security.Key.
         PKEYKeySpec paramsSpec = new PKEYKeySpec(specNI, paramsRef, OSSLKeyType.DH);
-        DHParameterSpec spec = DHComponents.getParams(dhServiceNI, paramsSpec);
+        DHParameterSpec generated = DHComponents.getParams(dhServiceNI, paramsSpec);
+        DHParameterSpec spec = exponentBits == 0 ? generated
+                : new DHParameterSpec(generated.getP(), generated.getG(), exponentBits);
         try
         {
             // Resolve from THIS generator's own provider. getInstance(String,

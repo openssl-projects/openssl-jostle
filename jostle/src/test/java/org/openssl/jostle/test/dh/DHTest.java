@@ -11,6 +11,14 @@
 
 package org.openssl.jostle.test.dh;
 
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.pkcs.DHParameter;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.asn1.x9.DomainParameters;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,6 +29,7 @@ import org.openssl.jostle.util.Arrays;
 import javax.crypto.KeyAgreement;
 import javax.crypto.interfaces.DHPrivateKey;
 import javax.crypto.interfaces.DHPublicKey;
+import javax.crypto.spec.DHGenParameterSpec;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.DHPrivateKeySpec;
 import javax.crypto.spec.DHPublicKeySpec;
@@ -623,5 +632,192 @@ public class DHTest
         Assertions.assertEquals("DH", kp.getPrivate().getAlgorithm());
         Assertions.assertEquals("X.509", kp.getPublic().getFormat());
         Assertions.assertEquals("PKCS#8", kp.getPrivate().getFormat());
+    }
+
+    private static DHParameterSpec ffdhe2048() throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        g.initialize(2048);
+        return ((DHPublicKey) g.generateKeyPair().getPublic()).getParams();
+    }
+
+    /** An X9.42 PKCS#8 encoding of x over (p, q, g); the public value is derived from them on decode. */
+    public static byte[] x942PrivateKeyInfo(BigInteger p, BigInteger q, BigInteger g, BigInteger x) throws Exception
+    {
+        return new PrivateKeyInfo(new AlgorithmIdentifier(X9ObjectIdentifiers.dhpublicnumber,
+                new DomainParameters(p, g, q, null, null)), new ASN1Integer(x)).getEncoded();
+    }
+
+    /** A size with no RFC 7919 group is refused with the group the library was asked for, and no list. */
+    @Test
+    public void initializeBySize_refusesWithTheLibrarysAnswer() throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        InvalidParameterException e = Assertions.assertThrows(InvalidParameterException.class,
+                () -> g.initialize(1024));
+        Assertions.assertEquals("DH key size 1024 has no RFC 7919 group (ffdhe1024) served by the loaded library;"
+                + " for other parameters use DHParameterSpec", e.getMessage());
+        g.initialize(3072);
+        Assertions.assertEquals(3072, ((DHPublicKey) g.generateKeyPair().getPublic()).getParams().getP().bitLength());
+    }
+
+    /** The private-value length in a DHParameterSpec reaches the key: x has that many bits, and l reports it. */
+    @Test
+    public void explicitParameters_privateValueLengthIsHonoured() throws Exception
+    {
+        DHParameterSpec group = ffdhe2048();
+        KeyPairGenerator g = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        g.initialize(new DHParameterSpec(group.getP(), group.getG(), 256));
+        KeyPair kp = g.generateKeyPair();
+        // OpenSSL draws x below 2^256: at most 256 bits, and the key reports the length it was asked for.
+        Assertions.assertTrue(((DHPrivateKey) kp.getPrivate()).getX().bitLength() <= 256);
+        Assertions.assertEquals(256, ((DHPublicKey) kp.getPublic()).getParams().getL());
+
+        g.initialize(new DHParameterSpec(group.getP(), group.getG()));
+        Assertions.assertEquals(0, ((DHPublicKey) g.generateKeyPair().getPublic()).getParams().getL());
+
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> g.initialize(new DHParameterSpec(group.getP(), group.getG(), -1)));
+        Assertions.assertEquals("DHParameterSpec l must not be negative", e.getMessage());
+    }
+
+    /** An even modulus is refused at the boundary, at initialize and at the KeyFactory. */
+    @Test
+    public void evenModulusIsRefusedTyped() throws Exception
+    {
+        BigInteger even = ffdhe2048().getP().add(BigInteger.ONE);
+        BigInteger g = BigInteger.valueOf(2);
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        InvalidAlgorithmParameterException ie = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> kpg.initialize(new DHParameterSpec(even, g)));
+        Assertions.assertEquals("DHParameterSpec p must be odd", ie.getMessage());
+        KeyFactory kf = KeyFactory.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        InvalidKeySpecException ke = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new DHPublicKeySpec(BigInteger.valueOf(4), even, g)));
+        Assertions.assertEquals("DH prime p must be odd", ke.getMessage());
+        ke = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new DHPrivateKeySpec(BigInteger.valueOf(3), even, g)));
+        Assertions.assertEquals("DH prime p must be odd", ke.getMessage());
+    }
+
+    /**
+     * A public value outside the range (and, on a known group, outside its subgroup) is refused at import,
+     * through DHPublicKeySpec and through X.509 alike.
+     */
+    @Test
+    public void publicValueRangeIsCheckedAtImport() throws Exception
+    {
+        DHParameterSpec group = ffdhe2048();
+        BigInteger p = group.getP();
+        KeyFactory kf = KeyFactory.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        BigInteger two = BigInteger.valueOf(2);
+        for (BigInteger y : new BigInteger[]{BigInteger.ONE, p.subtract(two), p.subtract(BigInteger.ONE), p,
+                p.add(BigInteger.ONE)})
+        {
+            InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> kf.generatePublic(new DHPublicKeySpec(y, p, group.getG())), y.toString(16));
+            Assertions.assertEquals("public value failed the DH public-key check", e.getMessage());
+        }
+        InvalidKeySpecException zero = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new DHPublicKeySpec(BigInteger.ZERO, p, group.getG())));
+        Assertions.assertEquals("DH component 'y' must be positive", zero.getMessage());
+        Assertions.assertNotNull(kf.generatePublic(new DHPublicKeySpec(two, p, group.getG())));
+
+        // The same value, encoded: the X.509 decode runs the same check.
+        byte[] spki = kf.generatePublic(new DHPublicKeySpec(two, p, group.getG())).getEncoded();
+        byte[] bad = new SubjectPublicKeyInfo(new AlgorithmIdentifier(PKCSObjectIdentifiers.dhKeyAgreement,
+                new DHParameter(p, group.getG(), 0)), new ASN1Integer(BigInteger.ONE)).getEncoded();
+        Assertions.assertNotNull(kf.generatePublic(new X509EncodedKeySpec(spki)));
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePublic(new X509EncodedKeySpec(bad)));
+        Assertions.assertEquals("public value failed the DH public-key check", e.getMessage());
+    }
+
+    /** On a known group (OpenSSL holds q), x must lie in [1, q-1]; outside it the import is refused typed. */
+    @Test
+    public void privateValueRangeIsCheckedAtImport() throws Exception
+    {
+        DHParameterSpec group = ffdhe2048();
+        BigInteger p = group.getP();
+        BigInteger q = p.subtract(BigInteger.ONE).shiftRight(1);
+        KeyFactory kf = KeyFactory.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        for (BigInteger x : new BigInteger[]{BigInteger.ONE, q.subtract(BigInteger.ONE)})
+        {
+            Assertions.assertNotNull(kf.generatePrivate(new DHPrivateKeySpec(x, p, group.getG())));
+        }
+        for (BigInteger x : new BigInteger[]{q, q.add(BigInteger.ONE), p})
+        {
+            InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> kf.generatePrivate(new DHPrivateKeySpec(x, p, group.getG())));
+            Assertions.assertEquals("DH x is outside its range: [1, q-1] with q, [1, p-2] without",
+                    e.getMessage());
+        }
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new DHPrivateKeySpec(BigInteger.ZERO, p, group.getG())));
+        Assertions.assertEquals("DH component 'x' must be positive", e.getMessage());
+    }
+
+    /**
+     * A DHX private key carries its public half, which gets the public decode's subgroup check: with a generator
+     * outside the q-subgroup an odd x gives a public value outside it, and the PKCS#8 import is refused.
+     */
+    @Test
+    public void dhxPrivateKeyWithAPublicValueOutsideTheSubgroupIsRefused() throws Exception
+    {
+        BigInteger p = ffdhe2048().getP();
+        BigInteger q = p.subtract(BigInteger.ONE).shiftRight(1);
+        BigInteger x = new BigInteger(255, RANDOM).setBit(0).setBit(254);
+        KeyFactory kf = KeyFactory.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        // p - 2 is a non-residue mod an RFC 7919 prime, so g^x is one for odd x.
+        byte[] bad = x942PrivateKeyInfo(p, q, p.subtract(BigInteger.valueOf(2)), x);
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> kf.generatePrivate(new PKCS8EncodedKeySpec(bad)));
+        Assertions.assertEquals("public value failed the DH public-key check", e.getMessage());
+        byte[] good = x942PrivateKeyInfo(p, q, BigInteger.valueOf(4), x);
+        Assertions.assertNotNull(kf.generatePrivate(new PKCS8EncodedKeySpec(good)));
+    }
+
+    /** DHGenParameterSpec: the prime size as init(int), the exponent size carried as l and honoured at keygen. */
+    @Test
+    public void parameterGeneration_acceptsDHGenParameterSpec() throws Exception
+    {
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        apg.init(new DHGenParameterSpec(1024, 160));
+        DHParameterSpec spec = apg.generateParameters().getParameterSpec(DHParameterSpec.class);
+        Assertions.assertEquals(1024, spec.getP().bitLength());
+        Assertions.assertEquals(160, spec.getL());
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(spec);
+        Assertions.assertTrue(((DHPrivateKey) kpg.generateKeyPair().getPrivate()).getX().bitLength() <= 160);
+
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> apg.init(new DHGenParameterSpec(512, 512)));
+        Assertions.assertEquals("DH exponent size 512 must be in [0, 511]", e.getMessage());
+        e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> apg.init(new ECGenParameterSpec("P-256")));
+        Assertions.assertEquals("expected DHGenParameterSpec (got java.security.spec.ECGenParameterSpec)",
+                e.getMessage());
+    }
+
+    /** Without q, on a prime that is no known group, x must lie in [1, p-2] at the KeyFactory too. */
+    @Test
+    public void qLessPrivateValueRangeIsCheckedAtImport() throws Exception
+    {
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        apg.init(512);
+        DHParameterSpec spec = apg.generateParameters().getParameterSpec(DHParameterSpec.class);
+        BigInteger p = spec.getP();
+        KeyFactory kf = KeyFactory.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        for (BigInteger x : new BigInteger[]{BigInteger.ONE, p.subtract(BigInteger.valueOf(2))})
+        {
+            Assertions.assertNotNull(kf.generatePrivate(new DHPrivateKeySpec(x, p, spec.getG())));
+        }
+        for (BigInteger x : new BigInteger[]{p.subtract(BigInteger.ONE), p})
+        {
+            InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> kf.generatePrivate(new DHPrivateKeySpec(x, p, spec.getG())));
+            Assertions.assertEquals("DH x is outside its range: [1, q-1] with q, [1, p-2] without",
+                    e.getMessage());
+        }
     }
 }

@@ -80,15 +80,17 @@ public class DHServiceFFM implements DHServiceNI
      */
     public DHServiceFFM(SymbolLookup lookup, String symPrefix)
     {
+        // Each name crosses as a NUL-terminated copy plus its UTF-8 byte count.
         groupSupportedH = bind(lookup, symPrefix + "JoDH_groupSupported",
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
-        // JoDH_generateKeyPairByGroup(const char* group_name, int32_t* err,
-        //                             void* rnd_src) -> key_spec*
+        // JoDH_generateKeyPairByGroup(const char* group_name, size_t name_len,
+        //                             int32_t* err, void* rnd_src) -> key_spec*
         generateKeyPairByGroupH = bind(lookup, symPrefix + "JoDH_generateKeyPairByGroup",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // group_name
+                        ValueLayout.JAVA_LONG,  // name_len
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
@@ -117,12 +119,13 @@ public class DHServiceFFM implements DHServiceNI
                         ValueLayout.JAVA_LONG,  // g_size
                         ValueLayout.ADDRESS));  // err out
 
-        // JoDH_generateKeyPair(key_spec* params, int32_t* err,
+        // JoDH_generateKeyPair(key_spec* params, int32_t priv_len, int32_t* err,
         //                      void* rnd_src) -> key_spec*
         generateKeyPairH = bind(lookup, symPrefix + "JoDH_generateKeyPair",
                 FunctionDescriptor.of(
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,    // params spec
+                        ValueLayout.JAVA_INT,   // priv_len
                         ValueLayout.ADDRESS,    // err out
                         ValueLayout.ADDRESS));  // rnd_src upcall
 
@@ -274,13 +277,28 @@ public class DHServiceFFM implements DHServiceNI
         return bytes == null ? 0L : bytes.length;
     }
 
+    /** The UTF-8 byte count of a name, or 0 for null; C checks the name against it. */
+    private static long utf8Length(String s)
+    {
+        return s == null ? 0L : s.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
+    }
+
 
     @Override
     public int ni_groupSupported(String groupName)
     {
         try (Arena a = Arena.ofConfined())
         {
-            return (int) groupSupportedH.invokeExact(nativeString(a, groupName));
+            return (int) groupSupportedH.invokeExact(nativeString(a, groupName), utf8Length(groupName));
         }
         catch (Throwable t)
         {
@@ -296,7 +314,7 @@ public class DHServiceFFM implements DHServiceNI
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment ref = (MemorySegment) generateKeyPairByGroupH.invokeExact(
-                    nativeString(a, groupName), errSeg, entropyStub(a, rndSource));
+                    nativeString(a, groupName), utf8Length(groupName), errSeg, entropyStub(a, rndSource));
             err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
             return ref.address();
         }
@@ -347,13 +365,13 @@ public class DHServiceFFM implements DHServiceNI
     }
 
     @Override
-    public long ni_generateKeyPair(long paramsRef, int[] err, RandSource rndSource)
+    public long ni_generateKeyPair(long paramsRef, int privLen, int[] err, RandSource rndSource)
     {
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment ref = (MemorySegment) generateKeyPairH.invokeExact(
-                    MemorySegment.ofAddress(paramsRef), errSeg, entropyStub(a, rndSource));
+                    MemorySegment.ofAddress(paramsRef), privLen, errSeg, entropyStub(a, rndSource));
             err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
             return ref.address();
         }
@@ -371,14 +389,23 @@ public class DHServiceFFM implements DHServiceNI
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
-                    nativeBytes(a, p), sizeOf(p),
-                    nativeBytes(a, q), sizeOf(q),
-                    nativeBytes(a, g), sizeOf(g),
-                    nativeBytes(a, x), sizeOf(x),
-                    errSeg, entropyStub(a, rndSource));
-            err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
-            return ref.address();
+            MemorySegment xSeg = nativeBytes(a, x);
+            try
+            {
+                MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
+                        nativeBytes(a, p), sizeOf(p),
+                        nativeBytes(a, q), sizeOf(q),
+                        nativeBytes(a, g), sizeOf(g),
+                        xSeg, sizeOf(x),
+                        errSeg, entropyStub(a, rndSource));
+                err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
+                return ref.address();
+            }
+            finally
+            {
+                // The arena's copy of x is cleared before the arena frees it.
+                zero(xSeg);
+            }
         }
         catch (Throwable t)
         {
@@ -515,18 +542,27 @@ public class DHServiceFFM implements DHServiceNI
                 outSeg = a.allocate(out.length);
                 outSize = out.length;
             }
-            int rc = (int) kexDeriveH.invokeExact(ctx, outSeg, outSize, outOff,
-                    entropyStub(a, rndSource));
-            // A positive rc with outOff == out.length is the size-query
-            // return (the C side treats out_len == 0 as "report the
-            // required length"), NOT a write — copying then would read
-            // past the segment and throw. Only copy back when the derive
-            // actually wrote, i.e. there was remaining capacity at outOff.
-            // Matches the JNI bridge, which returns the length without
-            // touching the array for the same inputs.
-            if (out != null && rc > 0 && outOff < out.length)
+            int rc;
+            try
             {
-                outSeg.asByteBuffer().get(outOff, out, outOff, rc);
+                rc = (int) kexDeriveH.invokeExact(ctx, outSeg, outSize, outOff,
+                        entropyStub(a, rndSource));
+                // A positive rc with outOff == out.length is the size-query
+                // return (the C side treats out_len == 0 as "report the
+                // required length"), NOT a write - copying then would read
+                // past the segment and throw. Only copy back when the derive
+                // actually wrote, i.e. there was remaining capacity at outOff.
+                // Matches the JNI bridge, which returns the length without
+                // touching the array for the same inputs.
+                if (out != null && rc > 0 && outOff < out.length)
+                {
+                    outSeg.asByteBuffer().get(outOff, out, outOff, rc);
+                }
+            }
+            finally
+            {
+                // The arena's copy of the shared secret is cleared before the arena frees it.
+                zero(outSeg);
             }
             return rc;
         }

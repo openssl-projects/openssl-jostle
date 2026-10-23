@@ -80,9 +80,10 @@ public class DHExtendedPublicKeySpecTest
         ffKpg.initialize(2048);
         DHParameterSpec ffParams = ((DHPublicKey) ffKpg.generateKeyPair().getPublic()).getParams();
         ffdhe2048 = new DHDomainParameterSpec(
-                ((DHDomainParameterSpec) ffParams).getP(),
-                ((DHDomainParameterSpec) ffParams).getQ(),
-                ((DHDomainParameterSpec) ffParams).getG());
+                ffParams.getP(),
+                // A named-group key is PKCS#3 and reports no q; RFC 7919 primes are safe, so q = (p - 1) / 2.
+                ffParams.getP().subtract(BigInteger.ONE).shiftRight(1),
+                ffParams.getG());
     }
 
     private static KeyPair jslPair(DHParameterSpec spec) throws Exception
@@ -308,5 +309,28 @@ public class DHExtendedPublicKeySpecTest
         Assertions.assertTrue(e.getMessage().contains(DHDomainParameterSpec.class.getName())
                         && e.getMessage().contains(DHParameterSpec.class.getName()),
                 "message must name the accepted types: " + e.getMessage());
+    }
+
+    /**
+     * A named-group key reports the PKCS#3 form, its key's type; a peer rebuilt from those parameters through
+     * DHExtendedPublicKeySpec is the same form, and agrees.
+     */
+    @Test
+    public void paramsRoundTripThroughTheExtendedSpecAndAgree() throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("DH", JostleProvider.PROVIDER_NAME);
+        g.initialize(2048);
+        KeyPair a = g.generateKeyPair();
+        KeyPair b = g.generateKeyPair();
+        DHPublicKey bPub = (DHPublicKey) b.getPublic();
+        Assertions.assertFalse(bPub.getParams() instanceof DHDomainParameterSpec);
+        PublicKey rebuilt = KeyFactory.getInstance("DH", JostleProvider.PROVIDER_NAME)
+                .generatePublic(new DHExtendedPublicKeySpec(bPub.getY(), bPub.getParams()));
+        Assertions.assertArrayEquals(agreeJsl(a.getPrivate(), b.getPublic()), agreeJsl(a.getPrivate(), rebuilt));
+    }
+
+    private static byte[] agreeJsl(PrivateKey priv, PublicKey pub) throws Exception
+    {
+        return agree(JostleProvider.PROVIDER_NAME, priv, pub);
     }
 }

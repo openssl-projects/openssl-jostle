@@ -35,6 +35,7 @@ import javax.crypto.KeyAgreement;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.math.BigInteger;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -486,11 +487,10 @@ public class FIPSKeyIsolationTest
         // The crossing is by ENCODING, so the encoding FORM is part of what it
         // has to survive: a re-decode that quietly dropped q would still
         // produce a working key here, and only the OID assertion catches it.
-        // The module's named-group parameters carry q, so they are the cheap
-        // source of an approved X9.42 group.
-        DHParameterSpec x942 = ((DHPublicKey) fipsDh.getPublic()).getParams();
-        Assertions.assertTrue(x942 instanceof DHDomainParameterSpec,
-                "the module's named-group parameters are expected to carry q");
+        // An approved X9.42 group: the module's named group with q = (p - 1) / 2.
+        DHParameterSpec named = ((DHPublicKey) fipsDh.getPublic()).getParams();
+        DHParameterSpec x942 = new DHDomainParameterSpec(named.getP(),
+                named.getP().subtract(BigInteger.ONE).shiftRight(1), named.getG());
         KeyPair jslX942 = genDhKp(jsl, x942);
         KeyPair jslX9422 = genDhKp(jsl, x942);
         Assertions.assertEquals(X9_42_DH,

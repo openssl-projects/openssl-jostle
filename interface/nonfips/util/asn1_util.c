@@ -309,6 +309,15 @@ key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int
         goto err;
     }
 
+    // A DHX private key carries its public half; it gets the public decode's subgroup check.
+    if (EVP_PKEY_is_a(new_key, "DHX")) {
+        int32_t subgroup_check = dh_validate_public_key_subgroup(new_key);
+        if (subgroup_check != JO_SUCCESS) {
+            *ret_code = subgroup_check;
+            goto err;
+        }
+    }
+
     key_spec *key = create_spec();
     key->key = new_key;
 
@@ -364,11 +373,9 @@ key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int3
         goto err;
     }
 
-    // A DHX (X9.42 dhpublicnumber) key decoded here never reaches
-    // dh_make_public_from_components, so this is its own call site for the
-    // same subgroup constraint. A PKCS#3 "DH" key carries no q; the callee
-    // no-ops on it.
-    if (EVP_PKEY_is_a(new_key, "DHX")) {
+    // A DH or DHX key decoded here never reaches dh_make_public_from_components, so this is its own call
+    // site for the same checks: the range for both, the subgroup when q is present.
+    if (EVP_PKEY_is_a(new_key, "DHX") || EVP_PKEY_is_a(new_key, "DH")) {
         int32_t subgroup_check = dh_validate_public_key_subgroup(new_key);
         if (subgroup_check != JO_SUCCESS) {
             *ret_code = subgroup_check;

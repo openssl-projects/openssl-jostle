@@ -25,8 +25,11 @@ import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
+import javax.crypto.interfaces.DHPrivateKey;
 import javax.crypto.interfaces.DHPublicKey;
 import javax.crypto.spec.DHParameterSpec;
+import javax.crypto.spec.DHPublicKeySpec;
+import java.math.BigInteger;
 import java.security.AlgorithmParameterGenerator;
 import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
@@ -37,6 +40,7 @@ import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.LinkedHashMap;
@@ -625,5 +629,84 @@ public class DHAgreementTest
     {
         Assertions.assertEquals(expected.getP(), actual.getP(), what + ": p differs");
         Assertions.assertEquals(expected.getG(), actual.getG(), what + ": g differs");
+    }
+
+    private static final String SUN = "SunJCE";
+
+    private static DHParameterSpec ffdhe2048Params() throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("DH", JSL);
+        g.initialize(KEY_BITS);
+        return ((DHPublicKey) g.generateKeyPair().getPublic()).getParams();
+    }
+
+    /**
+     * A secret call consumes the phase call: a second secret call without a new phase call is refused with the
+     * same IllegalStateException as one before any phase call, and a new phase call derives the same secret.
+     * SunJCE refuses the second secret call with IllegalStateException too.
+     */
+    public static void assertASecondSecretCallNeedsANewPhaseCall(String provider, boolean ours) throws Exception
+    {
+        KeyPairGenerator g = KeyPairGenerator.getInstance("DH", provider);
+        g.initialize(KEY_BITS);
+        KeyPair a = g.generateKeyPair();
+        KeyPair b = g.generateKeyPair();
+        KeyAgreement unphased = KeyAgreement.getInstance("DH", provider);
+        unphased.init(a.getPrivate());
+        IllegalStateException before = Assertions.assertThrows(IllegalStateException.class,
+                () -> KeyAgreementCalls.secret(unphased), provider);
+
+        KeyAgreement ka = KeyAgreement.getInstance("DH", provider);
+        ka.init(a.getPrivate());
+        KeyAgreementCalls.phase(ka, b.getPublic());
+        byte[] first = KeyAgreementCalls.secret(ka);
+        IllegalStateException again = Assertions.assertThrows(IllegalStateException.class,
+                () -> KeyAgreementCalls.secret(ka), provider);
+        if (ours)
+        {
+            Assertions.assertEquals(before.getMessage(), again.getMessage());
+            KeyAgreementCalls.phase(ka, b.getPublic());
+            Assertions.assertArrayEquals(first, KeyAgreementCalls.secret(ka));
+        }
+    }
+
+    @Test
+    public void aSecondSecretCallNeedsANewPhaseCall() throws Exception
+    {
+        assertASecondSecretCallNeedsANewPhaseCall(JSL, true);
+        assertASecondSecretCallNeedsANewPhaseCall(SUN, false);
+    }
+
+    /** The private-value length in a DHParameterSpec bounds x and is reported back, by ours, SunJCE and BC. */
+    @Test
+    public void explicitPrivateValueLengthIsHonouredByEveryProvider() throws Exception
+    {
+        DHParameterSpec group = ffdhe2048Params();
+        for (String provider : new String[]{JSL, SUN, BC})
+        {
+            KeyPairGenerator g = KeyPairGenerator.getInstance("DH", provider);
+            g.initialize(new DHParameterSpec(group.getP(), group.getG(), 256));
+            KeyPair kp = g.generateKeyPair();
+            // x is drawn below 2^256: at most 256 bits (exactly 256 where a provider sets the top bit).
+            Assertions.assertTrue(((DHPrivateKey) kp.getPrivate()).getX().bitLength() <= 256, provider);
+            Assertions.assertEquals(256, ((DHPublicKey) kp.getPublic()).getParams().getL(), provider);
+        }
+    }
+
+    /** A public value outside [2, p-2] is refused at import by ours and by BC, both as InvalidKeySpecException. */
+    @Test
+    public void publicValueOutOfRangeIsRefusedAtImportByOursAndBC() throws Exception
+    {
+        DHParameterSpec group = ffdhe2048Params();
+        BigInteger p = group.getP();
+        for (BigInteger y : new BigInteger[]{BigInteger.ONE, p.subtract(BigInteger.ONE), p, p.add(BigInteger.ONE)})
+        {
+            for (String provider : new String[]{JSL, BC})
+            {
+                KeyFactory kf = KeyFactory.getInstance("DH", provider);
+                Assertions.assertThrows(InvalidKeySpecException.class,
+                        () -> kf.generatePublic(new DHPublicKeySpec(y, p, group.getG())), provider);
+            }
+        }
     }
 }
