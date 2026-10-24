@@ -7,6 +7,7 @@
 
 
 #include <stdint.h>
+#include <string.h>
 #include <openssl/crypto.h>
 
 #include "../util/bc_err_codes.h"
@@ -14,6 +15,12 @@
 #include "../util/key_spec.h"
 #include "../util/rsa_oaep.h"
 #include "types.h"
+
+
+/* name_len is the name's UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI. */
+static int oaep_name_unusable(const char *name, size_t name_len) {
+    return name_len == 0 || strnlen(name, name_len) != name_len;
+}
 
 
 // =============================================================
@@ -25,9 +32,6 @@ rsa_oaep_ctx *JoRSAOAEP_allocateCipher(int32_t *err) {
 }
 
 void JoRSAOAEP_disposeCipher(rsa_oaep_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
     rsa_oaep_ctx_destroy(ctx);
 }
 
@@ -38,19 +42,27 @@ void JoRSAOAEP_disposeCipher(rsa_oaep_ctx *ctx) {
 
 int32_t JoRSAOAEP_init(rsa_oaep_ctx *ctx, key_spec *key,
                       int32_t op_mode,
-                      const char *oaep_md_name,
-                      const char *mgf1_md_name,
+                      const char *oaep_md_name, size_t oaep_md_len,
+                      const char *mgf1_md_name, size_t mgf1_md_len,
                       uint8_t *label, size_t label_len,
                       void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t ret_code = rsa_oaep_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(key);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
     if (oaep_md_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (oaep_name_unusable(oaep_md_name, oaep_md_len)
+        || (mgf1_md_name != NULL && oaep_name_unusable(mgf1_md_name, mgf1_md_len))) {
+        return JO_RSA_DIGEST_NOT_SUPPORTED;
     }
     return rsa_oaep_init(ctx, key, op_mode,
                          oaep_md_name, mgf1_md_name,
@@ -65,8 +77,12 @@ int32_t JoRSAOAEP_doFinal(rsa_oaep_ctx *ctx,
                          uint8_t *output, size_t output_size,
                          int32_t out_off,
                          void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t ret_code = rsa_oaep_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     if (input == NULL) {

@@ -37,6 +37,8 @@ import java.util.TreeSet;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 
 /**
  * Group C item 1: every registered {@code AlgorithmParameters} name must be
@@ -131,6 +133,12 @@ public class AlgorithmParametersNameCompleteSmokeTest
         if (spiClass.endsWith("ECAlgorithmParameters"))
         {
             return new ECGenParameterSpec("secp256r1");
+        }
+        if (spiClass.endsWith("RSAOAEPAlgorithmParameters"))
+        {
+            // Non-DEFAULT in every field, so the encode exercises all three.
+            return new OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256,
+                    new PSource.PSpecified(new byte[]{1, 2, 3}));
         }
         if (spiClass.endsWith("RSAPSSAlgorithmParameters"))
         {

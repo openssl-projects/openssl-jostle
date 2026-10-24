@@ -11,6 +11,8 @@
 #include <string.h>
 
 #include "bytearrays.h"
+#include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipherJNI.h"
 #include "types.h"
 #include "../util/jo_assert.h"
@@ -64,13 +66,17 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
     UNUSED(jo);
 
     rsa_oaep_ctx *ctx = (rsa_oaep_ctx *) rsa_ref;
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t ret_code = rsa_oaep_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
     key_spec *key = (key_spec *) key_ref;
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(key);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
     if (_oaep_md == NULL) {
         return JO_NAME_IS_NULL;
@@ -80,7 +86,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
     const char *mgf1_md = NULL;
     java_bytearray_ctx label;
     init_bytearray_ctx(&label);
-    int32_t ret_code = JO_FAIL;
 
     oaep_md = (*env)->GetStringUTFChars(env, _oaep_md, NULL);
     if (OPS_FAILED_ACCESS_2 oaep_md == NULL) {
@@ -93,6 +98,11 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
             ret_code = JO_UNABLE_TO_ACCESS_NAME;
             goto exit;
         }
+    }
+    // An empty name or an embedded NUL names nothing, as on FFM.
+    if (modified_utf8_names_nothing(oaep_md) || (mgf1_md != NULL && modified_utf8_names_nothing(mgf1_md))) {
+        ret_code = JO_RSA_DIGEST_NOT_SUPPORTED;
+        goto exit;
     }
 
     const uint8_t *label_bytes = NULL;
@@ -136,8 +146,12 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
     UNUSED(jo);
 
     rsa_oaep_ctx *ctx = (rsa_oaep_ctx *) ref;
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t ret_code = rsa_oaep_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     if (_input == NULL) {
@@ -150,17 +164,17 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
         return JO_INPUT_LEN_IS_NEGATIVE;
     }
 
-    int32_t ret_code = JO_FAIL;
-    java_bytearray_ctx in_ctx;
-    java_bytearray_ctx out_ctx;
-    init_bytearray_ctx(&in_ctx);
-    init_bytearray_ctx(&out_ctx);
+    // The plaintext is the input on encrypt and the output on decrypt; both copies are cleansed.
+    java_secret_bytearray_ctx in_ctx;
+    java_secret_bytearray_ctx out_ctx;
+    init_secret_bytearray_ctx(&in_ctx);
+    init_secret_bytearray_ctx(&out_ctx);
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&in_ctx, env, _input)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&in_ctx, env, _input)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
-    if (!check_bytearray_in_range(&in_ctx, in_off, in_len)) {
+    if (!check_secret_in_range(&in_ctx, (size_t) in_off, (size_t) in_len)) {
         ret_code = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -178,7 +192,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
         ret_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
         goto exit;
     }
-    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&out_ctx, env, _output)) {
+    if (OPS_FAILED_ACCESS_2 !load_secret_output_ctx(&out_ctx, env, _output)) {
         ret_code = JO_FAILED_ACCESS_OUTPUT;
         goto exit;
     }
@@ -194,7 +208,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_rsa_RSAOAEPCipher
                                 rnd_src);
 
 exit:
-    release_bytearray_ctx(&in_ctx);
-    release_bytearray_ctx(&out_ctx);
+    release_secret_bytearray_ctx(&in_ctx);
+    release_secret_bytearray_ctx(&out_ctx);
     return ret_code;
 }

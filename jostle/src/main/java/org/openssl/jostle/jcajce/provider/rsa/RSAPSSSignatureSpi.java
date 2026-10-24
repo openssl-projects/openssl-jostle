@@ -158,7 +158,7 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
             }
             // JDK and BouncyCastle spellings in, the canonical name out; a known digest other than
             // the name's is accepted, an unknown spelling is not.
-            digest = RSAPSSAlgorithmParameters.canonicalDigestName(requested);
+            digest = RSADigestNames.canonicalDigestName(requested);
             if (digest == null)
             {
                 throw new InvalidAlgorithmParameterException("unsupported PSS digest: " + requested);
@@ -181,7 +181,7 @@ public class RSAPSSSignatureSpi extends RSASignatureSpiBase
             else if (mgfParams instanceof MGF1ParameterSpec)
             {
                 String h = ((MGF1ParameterSpec) mgfParams).getDigestAlgorithm();
-                mgfHash = (h == null || h.isEmpty()) ? digest : RSAPSSAlgorithmParameters.canonicalDigestName(h);
+                mgfHash = (h == null || h.isEmpty()) ? digest : RSADigestNames.canonicalDigestName(h);
                 if (mgfHash == null)
                 {
                     throw new InvalidAlgorithmParameterException("unsupported PSS digest: " + h);

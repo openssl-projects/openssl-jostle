@@ -66,8 +66,13 @@ public interface RSAOAEPCipherNI extends DefaultServiceNI
                       byte[] label,
                       RandSource rndSource)
     {
-        handleErrors(ni_init(ref, keyRef, opMode,
-                oaepMdName, mgf1MdName, label, rndSource));
+        int code = ni_init(ref, keyRef, opMode, oaepMdName, mgf1MdName, label, rndSource);
+        if (code == ErrorCode.JO_RSA_DIGEST_NOT_SUPPORTED.getCode())
+        {
+            throw new IllegalArgumentException("the loaded provider does not serve RSA-OAEP with " + oaepMdName
+                    + " and MGF1 " + (mgf1MdName == null ? oaepMdName : mgf1MdName));
+        }
+        handleErrors(code);
     }
 
     default int doFinal(long ref,

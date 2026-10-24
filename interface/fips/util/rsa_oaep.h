@@ -20,6 +20,7 @@
 // Java side.
 #define RSA_OAEP_OP_ENCRYPT 1
 #define RSA_OAEP_OP_DECRYPT 2
+#define RSA_OAEP_OP_NONE 0         /* no session: what a dropped or never-made session leaves */
 
 
 /*
@@ -30,7 +31,15 @@
  * the ctx, dofinal performs the encrypt or decrypt in a single
  * EVP_PKEY_{encrypt,decrypt} call.
  */
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as an rsa_oaep_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define RSA_OAEP_CTX_KIND 0x524f4101u /* "ROA\1" */
+#define RSA_OAEP_CTX_NONE 0u          /* what a freed ctx is left with; never a valid kind */
+
 typedef struct rsa_oaep_ctx {
+    uint32_t kind;
     EVP_PKEY_CTX *pctx;
     int op_mode;        // RSA_OAEP_OP_*
 } rsa_oaep_ctx;
@@ -38,6 +47,12 @@ typedef struct rsa_oaep_ctx {
 
 rsa_oaep_ctx *rsa_oaep_ctx_create(int32_t *err);
 
+/*
+ * JO_CIPHER_CTX_IS_NULL, JO_RSA_OAEP_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t rsa_oaep_ctx_check(const rsa_oaep_ctx *ctx);
+
+/* Frees nothing unless ctx is a live rsa_oaep_ctx. */
 void rsa_oaep_ctx_destroy(rsa_oaep_ctx *ctx);
 
 
@@ -52,9 +67,13 @@ void rsa_oaep_ctx_destroy(rsa_oaep_ctx *ctx);
  *   label:          optional OAEP label bytes (PKCS#1 v2.2 L). May
  *                   be NULL with label_len = 0 for the empty label.
  *   label_len:      bytes in label.
- *   rnd_src:        Java RandSource handle. Required for encrypt
- *                   (OAEP consumes entropy for the seed); ignored
- *                   for decrypt.
+ *   rnd_src:        Java RandSource handle, checked by the bridges.
+ *                   Encrypt consumes it for the OAEP seed, decrypt
+ *                   for RSA blinding.
+ *
+ * Any previous session is dropped first, so a refused re-init leaves
+ * the ctx uninitialised. An empty, unfetchable or refused digest name
+ * answers JO_RSA_DIGEST_NOT_SUPPORTED.
  *
  * The label, if provided, is copied into the EVP_PKEY_CTX via
  * EVP_PKEY_CTX_set0_rsa_oaep_label, which transfers ownership to

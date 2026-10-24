@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.interfaces.RSAKey;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
@@ -44,6 +45,8 @@ import java.security.spec.InvalidParameterSpecException;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.Provider;
+import java.security.ProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
@@ -80,6 +83,7 @@ public class RSAOAEPCipherSpi extends CipherSpi
     // NI backend its provider passes in (NISelector for JSL, FIPSNISelector
     // for JSLFIPS); foreign keys translate through the matching KeyFactory.
     private final RSAOAEPCipherNI cipherNI;
+    private final MDServiceNI mdServiceNI;
     private final RSAKeyFactorySpi keyFactory;
 
     /** Modern safe default — see class javadoc. */
@@ -100,6 +104,10 @@ public class RSAOAEPCipherSpi extends CipherSpi
     private CipherRef ref;
     private int opMode;
     private int modulusBytes;
+    /** The most input doFinal accepts: k - 2hLen - 2 to encrypt, k to decrypt. */
+    private int inputLimit;
+    /** Set when update was handed more than the modulus size; doFinal then refuses. */
+    private boolean overflow;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
     private final WipingByteArrayOutputStream buffer = new WipingByteArrayOutputStream();
 
@@ -118,12 +126,13 @@ public class RSAOAEPCipherSpi extends CipherSpi
 
     public RSAOAEPCipherSpi()
     {
-        this(NISelector.RSAOAEPCipherNI, new RSAKeyFactorySpi());
+        this(NISelector.RSAOAEPCipherNI, NISelector.MDServiceNI, new RSAKeyFactorySpi());
     }
 
-    public RSAOAEPCipherSpi(RSAOAEPCipherNI cipherNI, RSAKeyFactorySpi keyFactory)
+    public RSAOAEPCipherSpi(RSAOAEPCipherNI cipherNI, MDServiceNI mdServiceNI, RSAKeyFactorySpi keyFactory)
     {
         this.cipherNI = cipherNI;
+        this.mdServiceNI = mdServiceNI;
         this.keyFactory = keyFactory;
     }
 
@@ -206,13 +215,42 @@ public class RSAOAEPCipherSpi extends CipherSpi
         return null;
     }
 
+    /**
+     * The effective digest, MGF1 digest and label as OAEP AlgorithmParameters, resolved through this SPI's own
+     * provider instance. An unbound SPI has no provider to resolve through and reports null, as does a digest
+     * spelling this SPI would refuse at init.
+     */
     @Override
     protected AlgorithmParameters engineGetParameters()
     {
-        // Returning null is JCE-permissible; OAEPParameterSpec is the
-        // canonical way callers retrieve OAEP params and most providers
-        // return null here when they were initialised with defaults.
-        return null;
+        Provider provider = keyFactory == null ? null : keyFactory.ownProviderInstance();
+        if (provider == null)
+        {
+            return null;
+        }
+        String d = RSADigestNames.canonicalDigestName(oaepDigest);
+        String m = RSADigestNames.canonicalDigestName(mgf1Digest);
+        if (ref == null)
+        {
+            // Before init the effective digests are the padding name's, or the default.
+            d = RSADigestNames.canonicalDigestName(paddingDigest != null ? paddingDigest : DEFAULT_DIGEST);
+            m = d;
+        }
+        if (d == null || m == null)
+        {
+            return null;
+        }
+        try
+        {
+            AlgorithmParameters params = AlgorithmParameters.getInstance("OAEP", provider);
+            params.init(new OAEPParameterSpec(d, "MGF1", new MGF1ParameterSpec(m),
+                    label == null ? PSource.PSpecified.DEFAULT : new PSource.PSpecified(label)));
+            return params;
+        }
+        catch (NoSuchAlgorithmException | InvalidParameterSpecException e)
+        {
+            throw new ProviderException("unable to encode RSAES-OAEP parameters", e);
+        }
     }
 
     @Override
@@ -239,6 +277,7 @@ public class RSAOAEPCipherSpi extends CipherSpi
             // below scrubs it — not only a successful re-init (which no longer
             // needs a trailing wipe: nothing writes to the buffer during init).
             buffer.wipe();
+            overflow = false;
 
             // Resolve digest + MGF1 + label, in priority order:
             //   1. Explicit OAEPParameterSpec from the caller.
@@ -258,6 +297,20 @@ public class RSAOAEPCipherSpi extends CipherSpi
                 throw new InvalidAlgorithmParameterException(
                         "expected OAEPParameterSpec, got " + params.getClass().getName());
             }
+
+            // One spelling table with PSS; an unknown spelling is refused before any native call.
+            String canonicalDigest = RSADigestNames.canonicalDigestName(oaepDigest);
+            if (canonicalDigest == null)
+            {
+                throw new InvalidAlgorithmParameterException("unsupported OAEP digest: " + oaepDigest);
+            }
+            String canonicalMgf1 = RSADigestNames.canonicalDigestName(mgf1Digest);
+            if (canonicalMgf1 == null)
+            {
+                throw new InvalidAlgorithmParameterException("unsupported OAEP MGF1 digest: " + mgf1Digest);
+            }
+            oaepDigest = canonicalDigest;
+            mgf1Digest = canonicalMgf1;
 
             // Validate key + opmode and compute modulus size for getOutputSize.
             // ENCRYPT_MODE / WRAP_MODE both map to OP_ENCRYPT (engineWrap
@@ -294,9 +347,23 @@ public class RSAOAEPCipherSpi extends CipherSpi
             ensureRef();
             // Both encrypt and decrypt require a RandSource: encrypt for the
             // OAEP seed, decrypt for RSA blinding (timing-channel countermeasure).
-            cipherNI.init(ref.getReference(), keyRef, this.opMode,
-                    oaepDigest, mgf1Digest, label,
-                    this.randSource);
+            try
+            {
+                cipherNI.init(ref.getReference(), keyRef, this.opMode,
+                        oaepDigest, mgf1Digest, label,
+                        this.randSource);
+            }
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // The JCE-canonical init failure and the provider-fallback trigger; the library's reason is the cause.
+                throw new InvalidKeyException(e.getMessage(), e);
+            }
+
+            // Sized once: update never grows the stream, so no plaintext copy is left behind in a discarded array.
+            buffer.presize(modulusBytes);
+            inputLimit = this.opMode == RSAOAEPCipherNI.OP_ENCRYPT
+                    ? Math.max(0, modulusBytes - 2 * mdServiceNI.digestOutputLength(oaepDigest) - 2)
+                    : modulusBytes;
         }
         finally
         {
@@ -332,7 +399,15 @@ public class RSAOAEPCipherSpi extends CipherSpi
             requireInitialised();
             if (input != null && inputLen > 0)
             {
-                buffer.write(input, inputOffset, inputLen);
+                // Past the modulus size no input can be served; stop buffering and let doFinal refuse it.
+                if (overflow || inputLen > modulusBytes - buffer.size())
+                {
+                    overflow = true;
+                }
+                else
+                {
+                    buffer.write(input, inputOffset, inputLen);
+                }
             }
             return null;
         }
@@ -362,6 +437,10 @@ public class RSAOAEPCipherSpi extends CipherSpi
             try
             {
                 engineUpdate(input, inputOffset, inputLen);
+                if (overflow || buffer.size() > inputLimit)
+                {
+                    throw new IllegalBlockSizeException("Data must not be longer than " + inputLimit + " bytes");
+                }
                 in = buffer.toByteArray();
                 // Eager wipe (accumulator may hold plaintext key material in
                 // WRAP_MODE): keep the plaintext only in `in` during the native
@@ -421,6 +500,7 @@ public class RSAOAEPCipherSpi extends CipherSpi
                 // plaintext when trimmed). The directly-returned array was
                 // detached above (out = null).
                 buffer.wipe();
+                overflow = false;
                 Arrays.clear(in);
                 Arrays.clear(out);
             }

@@ -75,6 +75,8 @@ public class FIPSServedSurfaceSnapshotTest
             "AlgorithmParameters.DSA",
             "AlgorithmParameters.EC",
             "AlgorithmParameters.GCM",
+            // RFC 4055 RSAES-OAEP-params. Pure ASN.1, no operation.
+            "AlgorithmParameters.OAEP",
             // RFC 4055 RSASSA-PSS-params. Pure ASN.1, no operation.
             "AlgorithmParameters.RSASSA-PSS",
             "CertificateFactory.X.509",

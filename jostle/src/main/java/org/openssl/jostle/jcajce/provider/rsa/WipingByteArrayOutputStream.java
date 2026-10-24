@@ -36,4 +36,17 @@ final class WipingByteArrayOutputStream extends ByteArrayOutputStream
         Arrays.fill(buf, (byte) 0);
         count = 0;
     }
+
+    /**
+     * Wipe, then make room for capacity bytes in one allocation, so writes up to that size never grow the array
+     * and never leave an uncleared copy behind.
+     */
+    void presize(int capacity)
+    {
+        wipe();
+        if (buf.length < capacity)
+        {
+            buf = new byte[capacity];
+        }
+    }
 }

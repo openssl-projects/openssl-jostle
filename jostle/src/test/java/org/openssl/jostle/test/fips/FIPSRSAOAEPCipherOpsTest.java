@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
 import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
@@ -95,7 +96,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:86
+            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:91
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -127,7 +128,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:92
+            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:97
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", "SHA-256", null, TestUtil.RNDSrc);
@@ -158,7 +159,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:116
+            // Exercises interface/fips/util/rsa_oaep.c:148
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -185,7 +186,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:127
+            // Exercises interface/fips/util/rsa_oaep.c:159
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -212,7 +213,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:127
+            // Exercises interface/fips/util/rsa_oaep.c:159
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_DECRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -243,7 +244,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:132
+            // Exercises interface/fips/util/rsa_oaep.c:164
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -270,7 +271,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:137
+            // Exercises interface/fips/util/rsa_oaep.c:169
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -297,7 +298,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:145
+            // Exercises interface/fips/util/rsa_oaep.c:174
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
             int code = cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
@@ -324,7 +325,7 @@ public class FIPSRSAOAEPCipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:161
+            // Exercises interface/fips/util/rsa_oaep.c:190
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
             // Provide a non-empty label so the set0_rsa_oaep_label call is
             // reached (it lives behind `if (label != NULL && label_len > 0)`).
@@ -361,7 +362,7 @@ public class FIPSRSAOAEPCipherOpsTest
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/fips/util/rsa_oaep.c:215
+            // Exercises interface/fips/util/rsa_oaep.c:240
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // Offset 2002 + JO_OPENSSL_ERROR (-2) → -2004.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -390,7 +391,7 @@ public class FIPSRSAOAEPCipherOpsTest
             cipherNI.init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/util/rsa_oaep.c:224
+            // Exercises interface/fips/util/rsa_oaep.c:249
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     null, 0, TestUtil.RNDSrc);
@@ -429,7 +430,7 @@ public class FIPSRSAOAEPCipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/fips/util/rsa_oaep.c:246
+            // Exercises interface/fips/util/rsa_oaep.c:271
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2003 + JO_OPENSSL_ERROR (-2) → -2005.
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -444,14 +445,13 @@ public class FIPSRSAOAEPCipherOpsTest
         }
     }
 
+    /**
+     * A decrypt failure under either flag is JO_INVALID_CIPHER_TEXT bare: the base is not JO_OPENSSL_ERROR, so it
+     * takes no offset and the cell names the site by its flag. The positive control decrypts first.
+     */
     @Test
     public void RSAOAEPCipher_doFinal_decryptFailure_returnsInvalidCipherText() throws Exception
     {
-        // OPS-driven assertion of the decrypt-mode error code split:
-        // when EVP_PKEY_decrypt fails, the C layer returns
-        // JO_INVALID_CIPHER_TEXT (-21) instead of JO_OPENSSL_ERROR (-2).
-        // The bridge translates to InvalidCipherTextException; the SPI
-        // then to BadPaddingException for JCE callers.
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
         long encRef = 0;
@@ -462,31 +462,25 @@ public class FIPSRSAOAEPCipherOpsTest
             encRef = cipherNI.allocateCipher();
             decRef = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
-            cipherNI.init(encRef, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
-                    "SHA-256", null, null, TestUtil.RNDSrc);
-
-            // Produce a real ciphertext to feed to the decrypt path —
-            // structure must be valid so the size-query path succeeds
-            // before the OPS flag trips the second EVP_PKEY_decrypt.
-            int needed = cipherNI.doFinal(encRef, new byte[]{1, 2, 3}, 0, 3,
-                    null, 0, TestUtil.RNDSrc);
-            byte[] ct = new byte[needed];
+            cipherNI.init(encRef, keyRef, RSAOAEPCipherNI.OP_ENCRYPT, "SHA-256", null, null, TestUtil.RNDSrc);
+            byte[] ct = new byte[cipherNI.doFinal(encRef, new byte[]{1, 2, 3}, 0, 3, null, 0, TestUtil.RNDSrc)];
             cipherNI.doFinal(encRef, new byte[]{1, 2, 3}, 0, 3, ct, 0, TestUtil.RNDSrc);
+            cipherNI.init(decRef, keyRef, RSAOAEPCipherNI.OP_DECRYPT, "SHA-256", null, null, TestUtil.RNDSrc);
 
-            cipherNI.init(decRef, keyRef, RSAOAEPCipherNI.OP_DECRYPT,
-                    "SHA-256", null, null, TestUtil.RNDSrc);
-            int sizeQuery = cipherNI.doFinal(decRef, ct, 0, ct.length,
-                    null, 0, TestUtil.RNDSrc);
-            byte[] pt = new byte[sizeQuery];
+            // Positive control: the same ciphertext decrypts with no flag set.
+            byte[] pt = new byte[cipherNI.doFinal(decRef, ct, 0, ct.length, null, 0, TestUtil.RNDSrc)];
+            Assertions.assertEquals(3, cipherNI.doFinal(decRef, ct, 0, ct.length, pt, 0, TestUtil.RNDSrc));
+            Assertions.assertArrayEquals(new byte[]{1, 2, 3}, new byte[]{pt[0], pt[1], pt[2]});
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/fips/util/rsa_oaep.c:246
+            // Exercises interface/fips/util/rsa_oaep.c:271
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            // JO_INVALID_CIPHER_TEXT (-21) + offset(-2003) = -2024.
-            int code = cipherNI.ni_doFinal(decRef, ct, 0, ct.length,
-                    pt, 0, TestUtil.RNDSrc);
-            Assertions.assertEquals(-2024, code,
-                    "decrypt-mode OPS failure must surface JO_INVALID_CIPHER_TEXT-based code");
+            Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER_TEXT.getCode(),
+                    cipherNI.ni_doFinal(decRef, ct, 0, ct.length, pt, 0, TestUtil.RNDSrc));
+            final long dec = decRef;
+            InvalidCipherTextException e = Assertions.assertThrows(InvalidCipherTextException.class,
+                    () -> cipherNI.doFinal(dec, ct, 0, ct.length, new byte[256], 0, TestUtil.RNDSrc));
+            Assertions.assertEquals("invalid cipher text: null", e.getMessage());
         }
         finally
         {
@@ -497,6 +491,75 @@ public class FIPSRSAOAEPCipherOpsTest
         }
     }
 
+    /** The decrypt size query under its flag: JO_INVALID_CIPHER_TEXT bare, after a positive control. */
+    @Test
+    public void RSAOAEPCipher_doFinal_decryptSizeQuery_returnsInvalidCipherText() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long encRef = 0;
+        long decRef = 0;
+        long keyRef = 0;
+        try
+        {
+            encRef = cipherNI.allocateCipher();
+            decRef = cipherNI.allocateCipher();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            cipherNI.init(encRef, keyRef, RSAOAEPCipherNI.OP_ENCRYPT, "SHA-256", null, null, TestUtil.RNDSrc);
+            byte[] ct = new byte[cipherNI.doFinal(encRef, new byte[]{1, 2, 3}, 0, 3, null, 0, TestUtil.RNDSrc)];
+            cipherNI.doFinal(encRef, new byte[]{1, 2, 3}, 0, 3, ct, 0, TestUtil.RNDSrc);
+            cipherNI.init(decRef, keyRef, RSAOAEPCipherNI.OP_DECRYPT, "SHA-256", null, null, TestUtil.RNDSrc);
+
+            // Positive control: the size query answers the modulus length with no flag set.
+            Assertions.assertEquals(256, cipherNI.ni_doFinal(decRef, ct, 0, ct.length, null, 0, TestUtil.RNDSrc));
+
+            OpenSSL.getOpenSSLErrors(); // purge
+            // Exercises interface/fips/util/rsa_oaep.c:240
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER_TEXT.getCode(),
+                    cipherNI.ni_doFinal(decRef, ct, 0, ct.length, null, 0, TestUtil.RNDSrc));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            cipherNI.disposeCipher(encRef);
+            cipherNI.disposeCipher(decRef);
+            specNI.dispose(keyRef);
+        }
+    }
+
+    /** The label load at init. JNI only: the FFM bridge copies the label in Java. */
+    @Test
+    public void RSAOAEPCipher_init_accessLabel_failure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+        Assumptions.assumeFalse(Loader.isFFM());
+
+        long ref = 0;
+        long keyRef = 0;
+        try
+        {
+            ref = cipherNI.allocateCipher();
+            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
+            // Positive control: the same init with a label succeeds with no flag set.
+            Assertions.assertEquals(0, cipherNI.ni_init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT, "SHA-256", null,
+                    new byte[]{1, 2, 3}, TestUtil.RNDSrc));
+            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:111
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
+            final long cipher = ref;
+            final long key = keyRef;
+            AccessException e = Assertions.assertThrows(AccessException.class,
+                    () -> cipherNI.init(cipher, key, RSAOAEPCipherNI.OP_ENCRYPT, "SHA-256", null,
+                            new byte[]{1, 2, 3}, TestUtil.RNDSrc));
+            Assertions.assertEquals("unable to access input array", e.getMessage());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            cipherNI.disposeCipher(ref);
+            specNI.dispose(keyRef);
+        }
+    }
 
     // -----------------------------------------------------------------
     // doFinal — input/output access faults (JNI only)
@@ -517,7 +580,7 @@ public class FIPSRSAOAEPCipherOpsTest
             cipherNI.init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT,
                     "SHA-256", null, null, TestUtil.RNDSrc);
 
-            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:159
+            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:173
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     null, 0, TestUtil.RNDSrc);
@@ -555,7 +618,7 @@ public class FIPSRSAOAEPCipherOpsTest
                     null, 0, TestUtil.RNDSrc);
             byte[] out = new byte[needed];
 
-            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:181
+            // Exercises interface/fips/jni/rsa_oaep_ni_jni.c:195
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     out, 0, TestUtil.RNDSrc);

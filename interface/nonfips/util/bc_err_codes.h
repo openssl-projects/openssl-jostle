@@ -734,6 +734,8 @@
 #define JO_DSA_PRIVATE_VALUE_INVALID -225
 /* The library generated DSA parameters of a size other than the one requested. */
 #define JO_DSA_PARAMGEN_SIZE_MISMATCH -226
+/* A handle passed as an RSA-OAEP cipher context that is not one. */
+#define JO_RSA_OAEP_CTX_WRONG_KIND -227
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

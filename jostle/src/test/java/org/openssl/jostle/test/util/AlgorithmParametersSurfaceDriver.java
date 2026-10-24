@@ -17,6 +17,8 @@ import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 import java.security.AlgorithmParameterGenerator;
 import java.security.AlgorithmParameters;
 import java.security.Provider;
@@ -123,6 +125,15 @@ public final class AlgorithmParametersSurfaceDriver
                 return new PSSParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, 32, 1);
             }
         }, "RSASSA-PSS"));
+        // Non-DEFAULT in every field, so the encode exercises all three.
+        t.put("RSAOAEPAlgorithmParameters", new Row(new SpecSource()
+        {
+            public AlgorithmParameterSpec get()
+            {
+                return new OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256,
+                        new PSource.PSpecified(new byte[]{1, 2, 3}));
+            }
+        }, "OAEP"));
         t.put("ECAlgorithmParameters", new Row(new SpecSource()
         {
             public AlgorithmParameterSpec get()

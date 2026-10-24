@@ -44,9 +44,19 @@ public interface PKCSObjectIdentifiers
     ASN1ObjectIdentifier sha1WithRSAEncryption = pkcs_1.branch("5").intern();
 
     /**
+     * 1.2.840.113549.1.1.7 -- id-RSAES-OAEP, RFC 8017 line 3174
+     */
+    ASN1ObjectIdentifier id_RSAES_OAEP = pkcs_1.branch("7").intern();
+
+    /**
      * 1.2.840.113549.1.1.8 -- id-mgf1, RFC 8017 line 3749
      */
     ASN1ObjectIdentifier id_mgf1 = pkcs_1.branch("8").intern();
+
+    /**
+     * 1.2.840.113549.1.1.9 -- id-pSpecified, RFC 8017 line 3273
+     */
+    ASN1ObjectIdentifier id_pSpecified = pkcs_1.branch("9").intern();
 
     /**
      * 1.2.840.113549.1.1.10 -- id-RSASSA-PSS, RFC 8017 line 3325
@@ -201,6 +211,11 @@ public interface PKCSObjectIdentifiers
      * 1.2.840.113549.2 -- digestAlgorithm, RFC 8018 line 2037
      */
     ASN1ObjectIdentifier digestAlgorithm = new ASN1ObjectIdentifier("1.2.840.113549.2").intern();
+
+    /**
+     * 1.2.840.113549.2.5 -- id-md5, RFC 8017 line 3555
+     */
+    ASN1ObjectIdentifier md5 = digestAlgorithm.branch("5").intern();
 
     /**
      * 1.2.840.113549.2.7 -- id-hmacWithSHA1, RFC 8018 line 1556

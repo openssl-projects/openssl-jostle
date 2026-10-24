@@ -300,9 +300,16 @@ public class RSAPSSAlgorithmParametersTest
     public void unsupportedDigestAndMaskFunctionAreRefused()
         throws Exception
     {
+        // An unknown spelling is refused by name; MD5 is a JCA name and encodes under its OID.
         AlgorithmParameters params = AlgorithmParameters.getInstance("RSASSA-PSS", "JSL");
-        Assertions.assertThrows(InvalidParameterSpecException.class,
-                () -> params.init(spec("MD5", 16)));
+        InvalidParameterSpecException unknown = Assertions.assertThrows(InvalidParameterSpecException.class,
+                () -> params.init(spec("FOO", 16)));
+        Assertions.assertEquals("unsupported PSS digest: FOO", unknown.getMessage());
+        AlgorithmParameters md5 = AlgorithmParameters.getInstance("RSASSA-PSS", "JSL");
+        md5.init(spec("MD5", 16));
+        AlgorithmParameters back = AlgorithmParameters.getInstance("RSASSA-PSS", "JSL");
+        back.init(md5.getEncoded());
+        Assertions.assertEquals("MD5", back.getParameterSpec(PSSParameterSpec.class).getDigestAlgorithm());
 
         AlgorithmParameters mgf = AlgorithmParameters.getInstance("RSASSA-PSS", "JSL");
         Assertions.assertThrows(InvalidParameterSpecException.class,

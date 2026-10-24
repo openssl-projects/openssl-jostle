@@ -11,8 +11,6 @@
 package org.openssl.jostle.jcajce.provider.rsa;
 
 import org.openssl.jostle.util.asn1.Der;
-import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
-import org.openssl.jostle.util.asn1.oids.OIWObjectIdentifiers;
 import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
 
 import java.io.IOException;
@@ -21,10 +19,6 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
 
 /**
  * RFC 4055 {@code RSASSA-PSS-params}, encoded and decoded in house.
@@ -71,7 +65,6 @@ public class RSAPSSAlgorithmParameters
     private static final int TAG_MGF = 0xA1;
     private static final int TAG_SALT = 0xA2;
     private static final int TAG_TRAILER = 0xA3;
-    private static final int TAG_NULL = 0x05;
 
     private static final String DEFAULT_DIGEST = "SHA-1";
     private static final int DEFAULT_SALT_LENGTH = 20;
@@ -87,52 +80,6 @@ public class RSAPSSAlgorithmParameters
 
     /** Whole-blob ceiling: the structure is a handful of OIDs and two integers. */
     private static final int MAX_ENCODED_BYTES = 512;
-
-    /** Canonical JCA digest name to its OID. Insertion order is arc order. */
-    private static final Map<String, String> DIGEST_TO_OID;
-    /** OID back to the canonical JCA name. */
-    private static final Map<String, String> OID_TO_DIGEST;
-    /** Accepted spelling, upper-cased, to the canonical JCA name. */
-    private static final Map<String, String> ALIASES;
-
-    static
-    {
-        Map<String, String> toOid = new LinkedHashMap<String, String>();
-        toOid.put("SHA-1", OIWObjectIdentifiers.idSHA1.getId());
-        toOid.put("SHA-224", NISTObjectIdentifiers.id_sha224.getId());
-        toOid.put("SHA-256", NISTObjectIdentifiers.id_sha256.getId());
-        toOid.put("SHA-384", NISTObjectIdentifiers.id_sha384.getId());
-        toOid.put("SHA-512", NISTObjectIdentifiers.id_sha512.getId());
-        toOid.put("SHA-512/224", NISTObjectIdentifiers.id_sha512_224.getId());
-        toOid.put("SHA-512/256", NISTObjectIdentifiers.id_sha512_256.getId());
-        toOid.put("SHA3-224", NISTObjectIdentifiers.id_sha3_224.getId());
-        toOid.put("SHA3-256", NISTObjectIdentifiers.id_sha3_256.getId());
-        toOid.put("SHA3-384", NISTObjectIdentifiers.id_sha3_384.getId());
-        toOid.put("SHA3-512", NISTObjectIdentifiers.id_sha3_512.getId());
-        DIGEST_TO_OID = Collections.unmodifiableMap(toOid);
-
-        Map<String, String> fromOid = new LinkedHashMap<String, String>();
-        for (Map.Entry<String, String> e : toOid.entrySet())
-        {
-            fromOid.put(e.getValue(), e.getKey());
-        }
-        OID_TO_DIGEST = Collections.unmodifiableMap(fromOid);
-
-        Map<String, String> aliases = new LinkedHashMap<String, String>();
-        for (String canonical : toOid.keySet())
-        {
-            aliases.put(canonical.toUpperCase(Locale.ROOT), canonical);
-        }
-        aliases.put("SHA1", "SHA-1");
-        aliases.put("SHA224", "SHA-224");
-        aliases.put("SHA256", "SHA-256");
-        aliases.put("SHA384", "SHA-384");
-        aliases.put("SHA512", "SHA-512");
-        // BouncyCastle's spelling of the truncated SHA-512s.
-        aliases.put("SHA512(224)", "SHA-512/224");
-        aliases.put("SHA512(256)", "SHA-512/256");
-        ALIASES = Collections.unmodifiableMap(aliases);
-    }
 
     private String digest;
     private String mgfDigest;
@@ -151,7 +98,7 @@ public class RSAPSSAlgorithmParameters
 
         PSSParameterSpec pss = (PSSParameterSpec) paramSpec;
 
-        String hash = canonicalDigestName(pss.getDigestAlgorithm());
+        String hash = RSADigestNames.canonicalDigestName(pss.getDigestAlgorithm());
         if (hash == null)
         {
             throw new InvalidParameterSpecException(
@@ -172,7 +119,7 @@ public class RSAPSSAlgorithmParameters
         }
         else if (mgfParams instanceof MGF1ParameterSpec)
         {
-            mgfHash = canonicalDigestName(((MGF1ParameterSpec) mgfParams).getDigestAlgorithm());
+            mgfHash = RSADigestNames.canonicalDigestName(((MGF1ParameterSpec) mgfParams).getDigestAlgorithm());
             if (mgfHash == null)
             {
                 throw new InvalidParameterSpecException("unsupported MGF1 digest: "
@@ -232,7 +179,7 @@ public class RSAPSSAlgorithmParameters
 
         if (seq.peekTag() == TAG_HASH)
         {
-            hash = readDigestAlgorithm(seq.readTLV(TAG_HASH, "hashAlgorithm [0]"), "hashAlgorithm");
+            hash = RSADigestNames.readHashAlgorithm(seq.readTLV(TAG_HASH, "hashAlgorithm [0]"), "hashAlgorithm");
         }
         if (seq.peekTag() == TAG_MGF)
         {
@@ -244,7 +191,7 @@ public class RSAPSSAlgorithmParameters
             {
                 throw new IOException("only MGF1 is supported (got " + mgfOid + ")");
             }
-            mgfHash = readDigestAlgorithm(mgfAlg, "MGF1 hash");
+            mgfHash = RSADigestNames.readHashAlgorithm(mgfAlg, "MGF1 hash");
             mgfAlg.requireEnd("trailing bytes in MaskGenAlgorithm");
         }
         if (seq.peekTag() == TAG_SALT)
@@ -273,31 +220,6 @@ public class RSAPSSAlgorithmParameters
         this.digest = hash;
         this.mgfDigest = mgfHash;
         this.saltLength = salt;
-    }
-
-    /**
-     * Read a {@code HashAlgorithm} — an AlgorithmIdentifier whose parameters
-     * are absent or NULL — and return the canonical JCA digest name.
-     */
-    private static String readDigestAlgorithm(Der.Reader outer, String what)
-        throws IOException
-    {
-        Der.Reader alg = outer.readTLV(Der.SEQUENCE, what + " AlgorithmIdentifier");
-        outer.requireEnd("trailing bytes in " + what);
-        String oid = alg.readObjectIdentifier(what + " OID");
-        if (!alg.atEnd())
-        {
-            // Absent parameters and an explicit NULL both mean the same thing
-            // here; anything else is a structure we did not write.
-            alg.readTLV(TAG_NULL, what + " NULL parameters");
-            alg.requireEnd("trailing bytes after " + what + " parameters");
-        }
-        String name = OID_TO_DIGEST.get(oid);
-        if (name == null)
-        {
-            throw new IOException("unsupported " + what + ": " + oid);
-        }
-        return name;
     }
 
     @Override
@@ -340,31 +262,18 @@ public class RSAPSSAlgorithmParameters
         }
         byte[] hashPart = DEFAULT_DIGEST.equals(digest)
                 ? null
-                : Der.tlv(TAG_HASH, digestAlgorithm(digest));
+                : Der.tlv(TAG_HASH, RSADigestNames.hashAlgorithmIdentifier(digest));
         byte[] mgfPart = DEFAULT_DIGEST.equals(mgfDigest)
                 ? null
                 : Der.tlv(TAG_MGF, Der.sequence(
                         Der.objectIdentifier(PKCSObjectIdentifiers.id_mgf1.getId()),
-                        digestAlgorithm(mgfDigest)));
+                        RSADigestNames.hashAlgorithmIdentifier(mgfDigest)));
         byte[] saltPart = saltLength == DEFAULT_SALT_LENGTH
                 ? null
                 : Der.tlv(TAG_SALT, Der.integer(saltLength));
         // trailerField is always 1 here, which is the DEFAULT, so it is never
         // emitted.
         return Der.sequence(nonNull(hashPart, mgfPart, saltPart));
-    }
-
-    private static byte[] digestAlgorithm(String jcaName)
-        throws IOException
-    {
-        String oid = DIGEST_TO_OID.get(jcaName);
-        if (oid == null)
-        {
-            throw new IOException("unsupported digest: " + jcaName);
-        }
-        // The explicit NULL is what both references emit; an absent-parameters
-        // form would decode the same and encode differently.
-        return Der.sequence(Der.objectIdentifier(oid), Der.tlv(TAG_NULL, new byte[0]));
     }
 
     private static byte[][] nonNull(byte[]... items)
@@ -418,16 +327,6 @@ public class RSAPSSAlgorithmParameters
         {
             throw new InvalidParameterSpecException("RSASSA-PSS parameters not initialised");
         }
-    }
-
-    /** The canonical JCA name for an accepted spelling, or null; the PSS SPI canonicalises through it. */
-    static String canonicalDigestName(String name)
-    {
-        if (name == null || name.isEmpty())
-        {
-            return null;
-        }
-        return ALIASES.get(name.toUpperCase(Locale.ROOT));
     }
 
     /** The salt bound shared with the PSS SPI: 0 to MAX_SALT_LENGTH. */

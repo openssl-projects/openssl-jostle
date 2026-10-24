@@ -21,6 +21,8 @@ import javax.crypto.interfaces.DHPublicKey;
 import javax.crypto.spec.DHParameterSpec;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.OAEPParameterSpec;
+import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
 import java.security.KeyPairGenerator;
@@ -126,5 +128,26 @@ public class FipsAlgorithmParametersExamplesTest
         AlgorithmParameters dsaBack = AlgorithmParameters.getInstance("DSA", "JSLFIPS");
         dsaBack.init(dsaParams.getEncoded());
         Assertions.assertEquals(dsaSpec.getQ(), dsaBack.getParameterSpec(DSAParameterSpec.class).getQ());
+    }
+
+    /**
+     * RSAES-OAEP parameters, the form an OAEP key-transport AlgorithmIdentifier carries: digest, mask generation
+     * and label. An OAEP cipher reports the parameters it was initialised with.
+     */
+    @Test
+    public void rsaOaepParametersFromACipher()
+            throws Exception
+    {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", "JSLFIPS");
+        kpg.initialize(2048);
+        OAEPParameterSpec oaep = new OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256,
+                new PSource.PSpecified(new byte[]{1, 2, 3}));
+        Cipher enc = Cipher.getInstance("RSA/ECB/OAEPPadding", "JSLFIPS");
+        enc.init(Cipher.ENCRYPT_MODE, kpg.generateKeyPair().getPublic(), oaep);
+        AlgorithmParameters decoded = AlgorithmParameters.getInstance("OAEP", "JSLFIPS");
+        decoded.init(enc.getParameters().getEncoded());
+        OAEPParameterSpec back = decoded.getParameterSpec(OAEPParameterSpec.class);
+        Assertions.assertEquals("SHA-256", back.getDigestAlgorithm());
+        Assertions.assertArrayEquals(new byte[]{1, 2, 3}, ((PSource.PSpecified) back.getPSource()).getValue());
     }
 }

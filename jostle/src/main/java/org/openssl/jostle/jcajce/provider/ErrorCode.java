@@ -422,6 +422,8 @@ public enum ErrorCode
     JO_DSA_PRIVATE_VALUE_INVALID(-225),
     // The library generated DSA parameters of a size other than the one requested.
     JO_DSA_PARAMGEN_SIZE_MISMATCH(-226),
+    // A handle passed as an RSA-OAEP cipher context that is not one.
+    JO_RSA_OAEP_CTX_WRONG_KIND(-227),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

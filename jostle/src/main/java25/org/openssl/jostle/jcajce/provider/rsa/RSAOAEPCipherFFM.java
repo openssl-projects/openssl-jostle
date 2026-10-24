@@ -23,6 +23,7 @@ import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -81,7 +82,7 @@ public class RSAOAEPCipherFFM implements RSAOAEPCipherNI
                 lookup.find(symPrefix + "JoRSAOAEP_disposeCipher").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
-        // JoRSAOAEP_init(ctx, key, op_mode, oaep_md*, mgf1_md*,
+        // JoRSAOAEP_init(ctx, key, op_mode, oaep_md*, oaep_md_len, mgf1_md*, mgf1_md_len,
         //                label*, label_len, rnd_src) -> int
         initH = linker.downcallHandle(
                 lookup.find(symPrefix + "JoRSAOAEP_init").orElseThrow(),
@@ -91,7 +92,9 @@ public class RSAOAEPCipherFFM implements RSAOAEPCipherNI
                         ValueLayout.ADDRESS,    // key
                         ValueLayout.JAVA_INT,   // op_mode
                         ValueLayout.ADDRESS,    // oaep_md_name
+                        ValueLayout.JAVA_LONG,  // oaep_md_name UTF-8 length
                         ValueLayout.ADDRESS,    // mgf1_md_name (nullable)
+                        ValueLayout.JAVA_LONG,  // mgf1_md_name UTF-8 length
                         ValueLayout.ADDRESS,    // label
                         ValueLayout.JAVA_LONG,  // label_len
                         ValueLayout.ADDRESS));  // rnd_src upcall
@@ -136,6 +139,21 @@ public class RSAOAEPCipherFFM implements RSAOAEPCipherNI
     private static MemorySegment arrayOrNull(byte[] a)
     {
         return a == null ? MemorySegment.NULL : MemorySegment.ofArray(a);
+    }
+
+    /** The name's UTF-8 byte count, which C compares with strnlen to find an embedded NUL. */
+    private static long utf8Length(String s)
+    {
+        return s == null ? 0L : s.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
     }
 
 
@@ -203,7 +221,7 @@ public class RSAOAEPCipherFFM implements RSAOAEPCipherNI
             }
 
             return (int) initH.invokeExact(ctx, key, opMode,
-                    oaepSeg, mgfSeg,
+                    oaepSeg, utf8Length(oaepMdName), mgfSeg, utf8Length(mgf1MdName),
                     labelSeg, labelLen,
                     entropyStub(a, rndSource));
         }
@@ -255,19 +273,28 @@ public class RSAOAEPCipherFFM implements RSAOAEPCipherNI
                 outSize = output.length;
             }
 
-            int rc = (int) doFinalH.invokeExact(ctx,
-                    inSeg, inSize, inOff, inLen,
-                    outSeg, outSize, outOff,
-                    entropyStub(a, rndSource));
-
-            // Copy back only the bytes the C side actually wrote, at
-            // their original offset. A blanket get(0, output, 0, len)
-            // would clobber caller-provided bytes preceding outOff.
-            if (output != null && rc > 0)
+            try
             {
-                outSeg.asByteBuffer().get(outOff, output, outOff, rc);
+                int rc = (int) doFinalH.invokeExact(ctx,
+                        inSeg, inSize, inOff, inLen,
+                        outSeg, outSize, outOff,
+                        entropyStub(a, rndSource));
+
+                // Copy back only the bytes the C side actually wrote, at
+                // their original offset. A blanket get(0, output, 0, len)
+                // would clobber caller-provided bytes preceding outOff.
+                if (output != null && rc > 0)
+                {
+                    outSeg.asByteBuffer().get(outOff, output, outOff, rc);
+                }
+                return rc;
             }
-            return rc;
+            finally
+            {
+                // The plaintext is the input on encrypt and the output on decrypt; both copies are cleared.
+                zero(inSeg);
+                zero(outSeg);
+            }
         }
         catch (Throwable t)
         {

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
@@ -1161,5 +1162,39 @@ public class FIPSRSATest
         InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
                 () -> over.initSign(kp.getPrivate()));
         Assertions.assertEquals("Key is too short, need min 257 bytes", e.getMessage());
+    }
+
+    /**
+     * OAEP digests and key sizes the module refuses, measured the same on both modules: MD5 is a JCA name the
+     * module cannot fetch, refused at init naming both digests; a 1024-bit key is refused for encryption with the
+     * module's reason, per version, and accepted for decryption.
+     */
+    @Test
+    public void oaepRefusalsArePinnedPerModule() throws Exception
+    {
+        String module = measuredModule();
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(2048);
+        PublicKey pub = KeyFactory.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME).generatePublic(
+                new X509EncodedKeySpec(kpg.generateKeyPair().getPublic().getEncoded()));
+        Cipher md5 = Cipher.getInstance("RSA/ECB/OAEPWithMD5AndMGF1Padding", JostleFIPSProvider.PROVIDER_NAME);
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                () -> md5.init(Cipher.ENCRYPT_MODE, pub));
+        Assertions.assertEquals("the loaded provider does not serve RSA-OAEP with MD5 and MGF1 MD5", e.getMessage());
+        Assertions.assertTrue(e.getCause() instanceof IllegalArgumentException, String.valueOf(e.getCause()));
+
+        kpg.initialize(1024);
+        KeyPair small = kpg.generateKeyPair();
+        KeyFactory kf = KeyFactory.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
+        PublicKey smallPub = kf.generatePublic(new X509EncodedKeySpec(small.getPublic().getEncoded()));
+        Cipher enc = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
+        e = Assertions.assertThrows(InvalidKeyException.class, () -> enc.init(Cipher.ENCRYPT_MODE, smallPub));
+        Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
+        String reason = MODULE_3_1_2.equals(module) ? "ossl_rsa_check_key:invalid key length"
+                : "ossl_fips_ind_rsa_key_check:invalid key length";
+        Assertions.assertTrue(e.getMessage().contains(reason), e.getMessage());
+        Assertions.assertEquals(OpenSSLException.class, e.getCause().getClass());
+        Cipher dec = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, kf.generatePrivate(new PKCS8EncodedKeySpec(small.getPrivate().getEncoded())));
     }
 }

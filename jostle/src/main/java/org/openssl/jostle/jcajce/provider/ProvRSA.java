@@ -112,6 +112,12 @@ class ProvRSA
         provider.addAlias("AlgorithmParameters", "RSASSA-PSS",
                 PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "PSS", "RSAPSS");
 
+        // AlgorithmParameters OAEP: RFC 4055 RSAES-OAEP-params, this provider's own codec.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "OAEP",
+                RSAOAEPAlgorithmParameters.class.getName(), attr,
+                (arg) -> new RSAOAEPAlgorithmParameters());
+        provider.addAlias("AlgorithmParameters", "OAEP", PKCSObjectIdentifiers.id_RSAES_OAEP.getId());
+
         // Per-digest RSASSA-PSS convenience names. BouncyCastle's PKIX/CMS layer
         // derives "<digest>WITHRSAANDMGF1" from an id-RSASSA-PSS AlgorithmIdentifier
         // (with "<digest>WITHRSASSA-PSS" as the fallback name) and, for default PSS
@@ -152,7 +158,8 @@ class ProvRSA
         Map<String, String> cipherAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA",
                 RSAOAEPCipherSpi.class.getName(), cipherAttr,
-                (arg) -> new RSAOAEPCipherSpi(NISelector.RSAOAEPCipherNI, keyFactory(provider)));
+                (arg) -> new RSAOAEPCipherSpi(NISelector.RSAOAEPCipherNI, NISelector.MDServiceNI,
+                        keyFactory(provider)));
         provider.addAlias("Cipher", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
 
         // RSA-PKCS#1 v1.5 cipher. Registered as a separate primary

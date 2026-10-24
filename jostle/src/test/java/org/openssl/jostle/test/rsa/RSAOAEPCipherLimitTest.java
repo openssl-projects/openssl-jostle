@@ -472,4 +472,29 @@ public class RSAOAEPCipherLimitTest
             specNI.dispose(keyRef);
         }
     }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        RSAOAEPBridgeCells.wrongKindHandlesAreRefused(cipherNI, TestNISelector.getRSAPKCS1CipherNi(), rsaServiceNI,
+                specNI, TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_unusableDigestNamesAreRefused()
+    {
+        RSAOAEPBridgeCells.unusableDigestNamesAreRefused(cipherNI, rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aRefusedReinitLeavesNoSession()
+    {
+        RSAOAEPBridgeCells.aRefusedReinitLeavesNoSession(cipherNI, rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aNullRandSourceIsRefusedAtTheBridge()
+    {
+        RSAOAEPBridgeCells.aNullRandSourceIsRefusedAtTheBridge(cipherNI, rsaServiceNI, specNI);
+    }
 }

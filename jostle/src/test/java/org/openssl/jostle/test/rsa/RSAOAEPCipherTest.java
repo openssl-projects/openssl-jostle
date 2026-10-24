@@ -996,4 +996,54 @@ public class RSAOAEPCipherTest
         return m;
     }
 
+    /**
+     * Digest spellings outside the shared JCA table are refused at init before any native call, through the spec
+     * as InvalidAlgorithmParameterException and through a padding name as InvalidKeyException with that cause;
+     * the JDK and BouncyCastle spellings configure. OpenSSL's own spelling is refused here, though the NI accepts
+     * it.
+     */
+    @Test
+    public void unknownDigestSpellingsAreRefusedAtInit() throws Exception
+    {
+        PublicKey pub = sharedKeyPair.getPublic();
+        for (String bad : new String[]{"FOO", "SHA2-256"})
+        {
+            Cipher c = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
+            InvalidAlgorithmParameterException e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                    () -> c.init(Cipher.ENCRYPT_MODE, pub, new OAEPParameterSpec(bad, "MGF1",
+                            MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT)));
+            Assertions.assertEquals("unsupported OAEP digest: " + bad, e.getMessage());
+            e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                    () -> c.init(Cipher.ENCRYPT_MODE, pub, new OAEPParameterSpec("SHA-256", "MGF1",
+                            new MGF1ParameterSpec(bad), PSource.PSpecified.DEFAULT)));
+            Assertions.assertEquals("unsupported OAEP MGF1 digest: " + bad, e.getMessage());
+            Cipher named = Cipher.getInstance("RSA/ECB/OAEPWith" + bad + "AndMGF1Padding",
+                    JostleProvider.PROVIDER_NAME);
+            InvalidKeyException k = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> named.init(Cipher.ENCRYPT_MODE, pub));
+            Assertions.assertEquals("unsupported OAEP digest: " + bad, k.getMessage());
+            Assertions.assertTrue(k.getCause() instanceof InvalidAlgorithmParameterException, bad);
+        }
+        for (String good : new String[]{"SHA-256", "SHA256", "SHA512(256)", "SHA-512/256"})
+        {
+            Cipher c = Cipher.getInstance("RSA/ECB/OAEPPadding", JostleProvider.PROVIDER_NAME);
+            c.init(Cipher.ENCRYPT_MODE, pub, new OAEPParameterSpec(good, "MGF1", new MGF1ParameterSpec(good),
+                    PSource.PSpecified.DEFAULT));
+            Assertions.assertEquals(256, c.doFinal(new byte[16]).length, good);
+        }
+    }
+
+    /** MD5 is a JCA name in the shared table, and the base library serves it for OAEP. */
+    @Test
+    public void md5IsServedByTheBaseLibrary() throws Exception
+    {
+        KeyPair kp = sharedKeyPair;
+        byte[] msg = new byte[32];
+        new SecureRandom().nextBytes(msg);
+        Cipher enc = Cipher.getInstance("RSA/ECB/OAEPWithMD5AndMGF1Padding", JostleProvider.PROVIDER_NAME);
+        enc.init(Cipher.ENCRYPT_MODE, kp.getPublic());
+        Cipher dec = Cipher.getInstance("RSA/ECB/OAEPWithMD5AndMGF1Padding", JostleProvider.PROVIDER_NAME);
+        dec.init(Cipher.DECRYPT_MODE, kp.getPrivate());
+        Assertions.assertArrayEquals(msg, dec.doFinal(enc.doFinal(msg)));
+    }
 }

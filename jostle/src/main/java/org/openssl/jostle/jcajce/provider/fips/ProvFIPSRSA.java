@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.fips;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKEMCipherSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyFactorySpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAKeyPairGenerator;
+import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPSSAlgorithmParameters;
 import org.openssl.jostle.jcajce.provider.rsa.RSAPSSSignatureSpi;
@@ -128,6 +129,12 @@ class ProvFIPSRSA
         provider.addAlias("AlgorithmParameters", "RSASSA-PSS",
                 PKCSObjectIdentifiers.id_RSASSA_PSS.getId(), "PSS", "RSAPSS");
 
+        // AlgorithmParameters OAEP: RFC 4055 RSAES-OAEP-params, this provider's own codec.
+        provider.addAlgorithmImplementation("AlgorithmParameters", "OAEP",
+                RSAOAEPAlgorithmParameters.class.getName(), attr,
+                (arg) -> new RSAOAEPAlgorithmParameters());
+        provider.addAlias("AlgorithmParameters", "OAEP", PKCSObjectIdentifiers.id_RSAES_OAEP.getId());
+
         registerPssSignature(provider, attr, "SHA1", "SHA-1");
         registerPssSignature(provider, attr, "SHA224", "SHA-224");
         registerPssSignature(provider, attr, "SHA256", "SHA-256");
@@ -152,7 +159,8 @@ class ProvFIPSRSA
         Map<String, String> cipherAttr = new HashMap<>(attr);
         provider.addAlgorithmImplementation("Cipher", "RSA",
                 RSAOAEPCipherSpi.class.getName(), cipherAttr,
-                (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, keyFactory(provider)));
+                (arg) -> new RSAOAEPCipherSpi(FIPSNISelector.RSAOAEPCipherNI, FIPSNISelector.MDServiceNI,
+                        keyFactory(provider)));
         provider.addAlias("Cipher", "RSA", PKCSObjectIdentifiers.rsaEncryption.getId());
 
         // RSA-KEM key transport (ISO 18033-2 / RFC 9690). Ungated: RSASVE

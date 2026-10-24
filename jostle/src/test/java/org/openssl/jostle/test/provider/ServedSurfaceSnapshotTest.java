@@ -77,6 +77,8 @@ public class ServedSurfaceSnapshotTest
             "AlgorithmParameters.CHACHA20-POLY1305", "AlgorithmParameters.DESEDE",
             "AlgorithmParameters.DH", "AlgorithmParameters.DSA", "AlgorithmParameters.EC",
             "AlgorithmParameters.GCM",
+            // RFC 4055 RSAES-OAEP-params. Pure ASN.1, no operation.
+            "AlgorithmParameters.OAEP",
             // RFC 4055 RSASSA-PSS-params. Pure ASN.1, no operation.
             "AlgorithmParameters.RSASSA-PSS",
             "AlgorithmParameters.SM4",

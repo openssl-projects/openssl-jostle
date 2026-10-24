@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
@@ -220,6 +221,9 @@ public final class NativeAbortProbeRunner
         }
         controlRow(rows, p + "dsa-control");
 
+        jniAbortFfmThrowsRow(rows, p + "oaep-allocate-null-err", "err != NULL", jniDir + "rsa_oaep_ni_jni.c");
+        controlRow(rows, p + "oaep-control");
+
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
         // the FIPS block is a fact about the tree, not an omission.
@@ -357,6 +361,7 @@ public final class NativeAbortProbeRunner
         RSAServiceNI rsa;
         DHServiceNI dh;
         DSAServiceNI dsa;
+        RSAOAEPCipherNI oaep;
         if (fips)
         {
             new JostleProvider();
@@ -367,6 +372,7 @@ public final class NativeAbortProbeRunner
             rsa = FIPSNISelector.RSAServiceNI;
             dh = FIPSNISelector.DHServiceNI;
             dsa = FIPSNISelector.DSAServiceNI;
+            oaep = FIPSNISelector.RSAOAEPCipherNI;
         }
         else
         {
@@ -377,6 +383,7 @@ public final class NativeAbortProbeRunner
             rsa = NISelector.RSAServiceNI;
             dh = NISelector.DHServiceNI;
             dsa = NISelector.DSAServiceNI;
+            oaep = NISelector.RSAOAEPCipherNI;
         }
         KSServiceNI ks = NISelector.KSServiceNI;
 
@@ -526,6 +533,16 @@ public final class NativeAbortProbeRunner
             int[] err = new int[1];
             long ref = dsa.ni_allocateSigner(err);
             report(ref != 0 && err[0] == 0, "dsa ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("oaep-allocate-null-err".equals(c))
+        {
+            oaep.ni_allocateCipher(null);
+        }
+        else if ("oaep-control".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = oaep.ni_allocateCipher(err);
+            report(ref != 0 && err[0] == 0, "oaep ref=" + (ref != 0) + " err=" + err[0]);
         }
         else if ("ks-null-err".equals(c))
         {

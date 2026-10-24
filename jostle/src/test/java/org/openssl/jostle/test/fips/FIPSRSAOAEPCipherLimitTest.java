@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.rsa.RSAOAEPBridgeCells;
 
 import java.security.SecureRandom;
 import java.util.Arrays;
@@ -364,5 +365,30 @@ public class FIPSRSAOAEPCipherLimitTest
             cipherNI.init(ref, keyRef, RSAOAEPCipherNI.OP_ENCRYPT, "SHA-256", null, null, RND);
             body.run(ref, keyRef);
         });
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        RSAOAEPBridgeCells.wrongKindHandlesAreRefused(cipherNI, FIPSNISelector.RSAPKCS1CipherNI, rsaServiceNI, specNI,
+                FIPSNISelector.MDServiceNI);
+    }
+
+    @Test
+    public void bridge_unusableDigestNamesAreRefused()
+    {
+        RSAOAEPBridgeCells.unusableDigestNamesAreRefused(cipherNI, rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aRefusedReinitLeavesNoSession()
+    {
+        RSAOAEPBridgeCells.aRefusedReinitLeavesNoSession(cipherNI, rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aNullRandSourceIsRefusedAtTheBridge()
+    {
+        RSAOAEPBridgeCells.aNullRandSourceIsRefusedAtTheBridge(cipherNI, rsaServiceNI, specNI);
     }
 }

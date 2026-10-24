@@ -25,9 +25,13 @@ import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
+import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -897,5 +901,263 @@ public class RSAAgreementTest
     {
         return KeyFactory.getInstance("RSA", SUN).generatePrivate(
                 new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
+    }
+
+
+    private static final String SUN_JCE = "SunJCE";
+
+    /** OAEP specs non-DEFAULT in turn in each field, and the all-DEFAULT one. */
+    private static OAEPParameterSpec[] oaepSpecs()
+    {
+        return new OAEPParameterSpec[]{
+                OAEPParameterSpec.DEFAULT,
+                new OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT),
+                new OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256,
+                        new PSource.PSpecified(new byte[]{1, 2, 3})),
+                new OAEPParameterSpec("SHA-1", "MGF1", MGF1ParameterSpec.SHA1, new PSource.PSpecified(new byte[]{9}))};
+    }
+
+    private static String describe(OAEPParameterSpec spec)
+    {
+        return spec.getDigestAlgorithm() + "/" + ((MGF1ParameterSpec) spec.getMGFParameters()).getDigestAlgorithm()
+                + "/" + ((PSource.PSpecified) spec.getPSource()).getValue().length;
+    }
+
+    private static void assertSameOaep(OAEPParameterSpec want, OAEPParameterSpec got, String what)
+    {
+        Assertions.assertEquals(want.getDigestAlgorithm(), got.getDigestAlgorithm(), what);
+        Assertions.assertEquals(((MGF1ParameterSpec) want.getMGFParameters()).getDigestAlgorithm(),
+                ((MGF1ParameterSpec) got.getMGFParameters()).getDigestAlgorithm(), what);
+        Assertions.assertArrayEquals(((PSource.PSpecified) want.getPSource()).getValue(),
+                ((PSource.PSpecified) got.getPSource()).getValue(), what);
+    }
+
+    /**
+     * OAEP AlgorithmParameters on the provider named: DER byte-equal to BouncyCastle's, decodable by SunJCE, and
+     * decoding both references' encodings (SunJCE writes every DEFAULT out); an OAEP cipher's getParameters
+     * answers the same bytes for the spec it was initialised with.
+     */
+    public static void assertOaepParametersAgree(String ours, PublicKey publicKey) throws Exception
+    {
+        for (OAEPParameterSpec spec : oaepSpecs())
+        {
+            String what = describe(spec);
+            AlgorithmParameters mine = AlgorithmParameters.getInstance("OAEP", ours);
+            mine.init(spec);
+            AlgorithmParameters bc = AlgorithmParameters.getInstance("OAEP", BC);
+            bc.init(spec);
+            Assertions.assertEquals(Hex.toHexString(bc.getEncoded()), Hex.toHexString(mine.getEncoded()), what);
+
+            AlgorithmParameters sun = AlgorithmParameters.getInstance("OAEP", SUN_JCE);
+            sun.init(mine.getEncoded());
+            assertSameOaep(spec, sun.getParameterSpec(OAEPParameterSpec.class), what + " SunJCE decodes ours");
+
+            for (byte[] theirs : new byte[][]{bc.getEncoded(), sunEncoding(spec)})
+            {
+                AlgorithmParameters back = AlgorithmParameters.getInstance("OAEP", ours);
+                back.init(theirs);
+                assertSameOaep(spec, back.getParameterSpec(OAEPParameterSpec.class), what + " ours decodes");
+            }
+
+            Cipher c = Cipher.getInstance("RSA/ECB/OAEPPadding", ours);
+            c.init(Cipher.ENCRYPT_MODE, publicKey, spec);
+            Assertions.assertEquals(Hex.toHexString(bc.getEncoded()),
+                    Hex.toHexString(c.getParameters().getEncoded()), what + " cipher");
+        }
+    }
+
+    private static byte[] sunEncoding(OAEPParameterSpec spec) throws Exception
+    {
+        AlgorithmParameters sun = AlgorithmParameters.getInstance("OAEP", SUN_JCE);
+        sun.init(spec);
+        return sun.getEncoded();
+    }
+
+    /**
+     * The OAEP input bound on the provider named, at 2048 bits: k - 2hLen - 2 encrypts, one more is refused with
+     * IllegalBlockSizeException naming the limit through doFinal and through update; decrypt refuses past k the
+     * same way. SunJCE refuses with the same type and message; BouncyCastle refuses the same inputs with an
+     * unchecked ArrayIndexOutOfBoundsException, off the JCA contract. All three halves are pinned.
+     */
+    public static void assertOaepBoundsBesideBouncyCastle(String ours, PublicKey publicKey, PrivateKey privateKey,
+                                                          PublicKey bcPublicKey, PrivateKey bcPrivateKey)
+        throws Exception
+    {
+        KeyFactory sunKf = KeyFactory.getInstance("RSA", "SunRsaSign");
+        KeyPair sunKeys = new KeyPair(sunKf.generatePublic(new X509EncodedKeySpec(publicKey.getEncoded())),
+                sunKf.generatePrivate(new PKCS8EncodedKeySpec(privateKey.getEncoded())));
+        String[][] rows = {{"SHA-1", "214"}, {"SHA-256", "190"}, {"SHA-512", "126"}};
+        for (String[] row : rows)
+        {
+            String xf = "RSA/ECB/OAEPWith" + row[0] + "AndMGF1Padding";
+            int limit = Integer.parseInt(row[1]);
+            String refusal = "Data must not be longer than " + limit + " bytes";
+
+            Cipher c = Cipher.getInstance(xf, ours);
+            c.init(Cipher.ENCRYPT_MODE, publicKey);
+            Assertions.assertEquals(256, c.doFinal(new byte[limit]).length, xf);
+            IllegalBlockSizeException e = Assertions.assertThrows(IllegalBlockSizeException.class,
+                    () -> c.doFinal(new byte[limit + 1]), xf);
+            Assertions.assertEquals(refusal, e.getMessage(), xf);
+            c.update(new byte[limit]);
+            e = Assertions.assertThrows(IllegalBlockSizeException.class, () -> c.doFinal(new byte[1]), xf);
+            Assertions.assertEquals(refusal, e.getMessage(), xf + " update");
+            Assertions.assertEquals(256, c.doFinal(new byte[limit]).length, xf + " after a refusal");
+
+            Cipher bc = Cipher.getInstance(xf, BC);
+            bc.init(Cipher.ENCRYPT_MODE, bcPublicKey);
+            Assertions.assertEquals(256, bc.doFinal(new byte[limit]).length, xf);
+            Assertions.assertThrows(ArrayIndexOutOfBoundsException.class, () -> bc.doFinal(new byte[limit + 1]), xf);
+
+            Cipher sun = Cipher.getInstance(xf, SUN_JCE);
+            sun.init(Cipher.ENCRYPT_MODE, sunKeys.getPublic());
+            Assertions.assertEquals(256, sun.doFinal(new byte[limit]).length, xf);
+            e = Assertions.assertThrows(IllegalBlockSizeException.class, () -> sun.doFinal(new byte[limit + 1]), xf);
+            Assertions.assertEquals(refusal, e.getMessage(), xf + " SunJCE");
+        }
+
+        Cipher d = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding", ours);
+        d.init(Cipher.DECRYPT_MODE, privateKey);
+        IllegalBlockSizeException e = Assertions.assertThrows(IllegalBlockSizeException.class,
+                () -> d.doFinal(new byte[257]));
+        Assertions.assertEquals("Data must not be longer than 256 bytes", e.getMessage());
+        Cipher bd = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding", BC);
+        bd.init(Cipher.DECRYPT_MODE, bcPrivateKey);
+        Assertions.assertThrows(ArrayIndexOutOfBoundsException.class, () -> bd.doFinal(new byte[257]));
+        Cipher sd = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding", SUN_JCE);
+        sd.init(Cipher.DECRYPT_MODE, sunKeys.getPrivate());
+        e = Assertions.assertThrows(IllegalBlockSizeException.class, () -> sd.doFinal(new byte[257]));
+        Assertions.assertEquals("Data must not be longer than 256 bytes", e.getMessage(), "SunJCE");
+    }
+
+    @Test
+    public void oaepParametersAgreeWithBouncyCastleAndSunJce() throws Exception
+    {
+        assertOaepParametersAgree(JSL, keyPair.getPublic());
+    }
+
+    @Test
+    public void oaepBoundsBesideBouncyCastle() throws Exception
+    {
+        assertOaepBoundsBesideBouncyCastle(JSL, keyPair.getPublic(), keyPair.getPrivate(), bcPublic(), bcPrivate());
+    }
+
+    /** SunJCE's keys for the shared pair, through SunRsaSign, which serves its RSA keys. */
+    private static KeyPair sunPair() throws Exception
+    {
+        KeyFactory kf = KeyFactory.getInstance("RSA", "SunRsaSign");
+        return new KeyPair(kf.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded())),
+                kf.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded())));
+    }
+
+    private static byte[] encrypt(String xf, String provider, PublicKey key, byte[] msg) throws Exception
+    {
+        Cipher c = Cipher.getInstance(xf, provider);
+        c.init(Cipher.ENCRYPT_MODE, key);
+        return c.doFinal(msg);
+    }
+
+    private static byte[] decrypt(String xf, String provider, PrivateKey key, byte[] ct) throws Exception
+    {
+        Cipher c = Cipher.getInstance(xf, provider);
+        c.init(Cipher.DECRYPT_MODE, key);
+        return c.doFinal(ct);
+    }
+
+    /**
+     * One OAEPWith name against both references, both directions. Ours defaults MGF1 to the name's digest, as
+     * BouncyCastle does; SunJCE defaults MGF1 to SHA-1 for every name, so only SHA-1 crosses with it. A name a
+     * reference does not serve is pinned as its refusal.
+     */
+    private static void assertOaepNameBesideReferences(String digest, boolean bcServes, int sun) throws Exception
+    {
+        String xf = "RSA/ECB/OAEPWith" + digest + "AndMGF1Padding";
+        byte[] msg = new byte[24];
+        RANDOM.nextBytes(msg);
+        if (bcServes)
+        {
+            Assertions.assertArrayEquals(msg, decrypt(xf, BC, bcPrivate(), encrypt(xf, JSL, keyPair.getPublic(), msg)));
+            Assertions.assertArrayEquals(msg, decrypt(xf, JSL, keyPair.getPrivate(), encrypt(xf, BC, bcPublic(), msg)));
+        }
+        else
+        {
+            Assertions.assertThrows(NoSuchPaddingException.class, () -> Cipher.getInstance(xf, BC));
+        }
+        KeyPair sunKeys = sunPair();
+        if (sun == SUN_REFUSES)
+        {
+            Assertions.assertThrows(NoSuchPaddingException.class, () -> Cipher.getInstance(xf, SUN_JCE));
+            return;
+        }
+        byte[] ours = encrypt(xf, JSL, keyPair.getPublic(), msg);
+        byte[] theirs = encrypt(xf, SUN_JCE, sunKeys.getPublic(), msg);
+        if (sun == SUN_CROSSES)
+        {
+            Assertions.assertArrayEquals(msg, decrypt(xf, SUN_JCE, sunKeys.getPrivate(), ours));
+            Assertions.assertArrayEquals(msg, decrypt(xf, JSL, keyPair.getPrivate(), theirs));
+        }
+        else
+        {
+            Assertions.assertThrows(BadPaddingException.class, () -> decrypt(xf, SUN_JCE, sunKeys.getPrivate(), ours));
+            Assertions.assertThrows(BadPaddingException.class, () -> decrypt(xf, JSL, keyPair.getPrivate(), theirs));
+        }
+    }
+
+    private static final int SUN_CROSSES = 0;
+    private static final int SUN_DIFFERS = 1;
+    private static final int SUN_REFUSES = 2;
+
+    @Test
+    public void oaepWithMd5BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("MD5", true, SUN_DIFFERS);
+    }
+
+    @Test
+    public void oaepWithSha1BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA-1", true, SUN_CROSSES);
+    }
+
+    @Test
+    public void oaepWithSha224BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA-224", true, SUN_DIFFERS);
+    }
+
+    @Test
+    public void oaepWithSha256BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA-256", true, SUN_DIFFERS);
+    }
+
+    @Test
+    public void oaepWithSha384BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA-384", true, SUN_DIFFERS);
+    }
+
+    @Test
+    public void oaepWithSha512BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA-512", true, SUN_DIFFERS);
+    }
+
+    @Test
+    public void oaepWithSha512224BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA-512/224", false, SUN_DIFFERS);
+    }
+
+    @Test
+    public void oaepWithSha512256BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA-512/256", false, SUN_DIFFERS);
+    }
+
+    @Test
+    public void oaepWithSha3256BesideReferences() throws Exception
+    {
+        assertOaepNameBesideReferences("SHA3-256", true, SUN_REFUSES);
     }
 }
