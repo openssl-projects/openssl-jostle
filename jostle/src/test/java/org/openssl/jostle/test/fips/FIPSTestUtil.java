@@ -134,16 +134,18 @@ final class FIPSTestUtil
     }
 
     /**
-     * The message a verify-only FIPS module's {@code initSign} must carry.
-     * Pinned once so every DSA test asserts the same text — see
-     * {@code DefaultServiceNI.baseErrorHandler}'s
-     * {@code JO_DSA_SIGN_UNAVAILABLE} arm and
-     * {@code DSASignatureSpi.engineInitSign}, which translates it to
-     * {@link java.security.InvalidKeyException}.
+     * The message a FIPS module's {@code initSign} must carry when it verifies with a DSA key of pBits but will not
+     * sign with it. Pinned once so every DSA test asserts the same text; see {@code DSAServiceNI.initSign} and
+     * {@code DSASignatureSpi.engineInitSign}, which translates it to {@link java.security.InvalidKeyException}.
      */
-    static final String DSA_SIGN_REFUSED_MESSAGE =
-            "DSA signature generation is not supported by the loaded provider;"
-                    + " signature verification remains available";
+    static String dsaSignRefusedMessage(int pBits)
+    {
+        return "the loaded provider does not sign DSA with this key (p of " + pBits
+                + " bits); verification remains available";
+    }
+
+    /** The refusal for the shared 2048-bit key. */
+    static final String DSA_SIGN_REFUSED_MESSAGE = dsaSignRefusedMessage(2048);
 
     /** Cached {@link #dsaPublicEncoding()} / {@link #dsaPrivateEncoding()}. */
     private static byte[] dsaPubEnc;

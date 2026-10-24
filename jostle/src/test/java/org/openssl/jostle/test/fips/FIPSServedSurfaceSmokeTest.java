@@ -17,6 +17,7 @@ import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.util.CipherFamilies;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.DHGenParameterSpec;
@@ -33,7 +34,10 @@ import java.security.Provider;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.interfaces.DSAPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.DSAGenParameterSpec;
+import java.security.spec.DSAParameterSpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -511,6 +515,97 @@ public class FIPSServedSurfaceSmokeTest
         bySpec.init(new DHGenParameterSpec(2048, 256));
         e = Assertions.assertThrows(ProviderException.class, bySpec::generateParameters);
         Assertions.assertEquals(refusal, e.getMessage());
+    }
+
+    /**
+     * Every DSA service stays registered on both measured modules, and each refusal is typed and pinned by version.
+     * 3.5.8 refuses generation and signing, naming the key size, and verifies; 3.1.2 generates, signs under every
+     * name but SHA-1 (refused naming the digest) and verifies. An unmeasured module fails the cell.
+     */
+    @Test
+    public void dsaIsRegisteredAndServedAsMeasuredPerModule() throws Exception
+    {
+        Provider provider = FIPSTestUtil.assumeFipsProvider();
+        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
+                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        boolean verifyOnly = "OpenSSL FIPS Provider 3.5.8".equals(module);
+        for (String type : new String[]{"KeyPairGenerator", "AlgorithmParameterGenerator", "KeyFactory",
+                "AlgorithmParameters"})
+        {
+            Assertions.assertNotNull(provider.getService(type, "DSA"), type + ".DSA is not registered");
+        }
+
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", FIPS);
+        kpg.initialize(2048);
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DSA", FIPS);
+        apg.init(new DSAGenParameterSpec(2048, 224));
+        if (verifyOnly)
+        {
+            ProviderException e = Assertions.assertThrows(ProviderException.class, kpg::generateKeyPair);
+            Assertions.assertTrue(e.getMessage().startsWith("DSA key generation is not supported"), e.getMessage());
+            e = Assertions.assertThrows(ProviderException.class, apg::generateParameters);
+            Assertions.assertTrue(e.getMessage().startsWith("DSA key generation is not supported"), e.getMessage());
+        }
+        else
+        {
+            Assertions.assertEquals(2048,
+                    ((DSAPublicKey) kpg.generateKeyPair().getPublic()).getParams().getP().bitLength());
+            DSAParameterSpec gen = apg.generateParameters().getParameterSpec(DSAParameterSpec.class);
+            Assertions.assertEquals(2048, gen.getP().bitLength());
+            Assertions.assertEquals(224, gen.getQ().bitLength());
+        }
+
+        KeyPair kp = FIPSTestUtil.dsaKeyPair(FIPS);
+        byte[] msg = new byte[32];
+        new SecureRandom().nextBytes(msg);
+        List<String> names = new ArrayList<String>();
+        for (Provider.Service s : provider.getServices())
+        {
+            if ("Signature".equals(s.getType()) && s.getClassName().startsWith(CipherFamilies.DSA_PREFIX))
+            {
+                names.add(s.getAlgorithm());
+            }
+        }
+        Assertions.assertEquals(10, names.size(), "DSA Signatures " + names);
+        for (String name : names)
+        {
+            Signature signer = Signature.getInstance(name, FIPS);
+            boolean sha1 = name.toUpperCase(Locale.ROOT).startsWith("SHA1");
+            if (verifyOnly || sha1)
+            {
+                InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                        () -> signer.initSign(kp.getPrivate()), name);
+                if (verifyOnly)
+                {
+                    Assertions.assertEquals(FIPSTestUtil.dsaSignRefusedMessage(2048), e.getMessage(), name);
+                }
+                else
+                {
+                    Assertions.assertEquals("the loaded provider does not sign DSA with SHA-1", e.getMessage(), name);
+                }
+            }
+            else
+            {
+                signer.initSign(kp.getPrivate());
+                signer.update(msg);
+                byte[] sig = signer.sign();
+                Signature verifier = Signature.getInstance(name, FIPS);
+                verifier.initVerify(kp.getPublic());
+                verifier.update(msg);
+                Assertions.assertTrue(verifier.verify(sig), name);
+            }
+        }
+
+        // Verification is served on both modules: a signature made by the base provider verifies.
+        Signature base = Signature.getInstance("SHA256withDSA", JostleProvider.PROVIDER_NAME);
+        base.initSign(FIPSTestUtil.dsaKeyPair(JostleProvider.PROVIDER_NAME).getPrivate());
+        base.update(msg);
+        byte[] sig = base.sign();
+        Signature verifier = Signature.getInstance("SHA256withDSA", FIPS);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig));
     }
 
     /**

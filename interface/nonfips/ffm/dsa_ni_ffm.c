@@ -7,6 +7,7 @@
 
 
 #include <stdint.h>
+#include <string.h>
 #include <openssl/crypto.h>
 
 #include "../util/bc_err_codes.h"
@@ -32,6 +33,12 @@ static int32_t check_component_len(size_t buf_len) {
         return JO_INPUT_TOO_LONG_INT32;
     }
     return JO_SUCCESS;
+}
+
+
+/* name_len is the name's UTF-8 byte count: an empty name or an embedded NUL names nothing, as on JNI. */
+static int dsa_name_unusable(const char *name, size_t name_len) {
+    return name_len == 0 || strnlen(name, name_len) != name_len;
 }
 
 
@@ -109,8 +116,9 @@ key_spec *JoDSA_generateKeyPair(key_spec *params,
     jo_assert(ret_val != NULL);
     *ret_val = JO_FAIL;
 
-    if (params == NULL) {
-        *ret_val = JO_KEY_SPEC_IS_NULL;
+    int32_t check = key_spec_check(params);
+    if (UNSUCCESSFUL(check)) {
+        *ret_val = check;
         return NULL;
     }
     if (rnd_src == NULL) {
@@ -214,8 +222,9 @@ key_spec *JoDSA_makePublicFromComponents(uint8_t *p, size_t p_size,
 
 int32_t JoDSA_getComponent(key_spec *spec, int32_t component,
                            uint8_t *out, size_t out_len) {
-    if (spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t check = key_spec_check(spec);
+    if (UNSUCCESSFUL(check)) {
+        return check;
     }
     return dsa_get_component(spec, component, out, out_len);
 }
@@ -230,40 +239,47 @@ dsa_ctx *JoDSA_allocateSigner(int32_t *err) {
 }
 
 void JoDSA_disposeSigner(dsa_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
     dsa_ctx_destroy(ctx);
 }
 
 int32_t JoDSA_initSign(dsa_ctx *ctx, key_spec *key,
-                       const char *digest_name,
+                       const char *digest_name, size_t name_len,
                        void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    ret_code = key_spec_check(key);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
-    }
     if (digest_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (dsa_name_unusable(digest_name, name_len)) {
+        return JO_DSA_DIGEST_NOT_SUPPORTED;
     }
     return dsa_ctx_init_sign(ctx, key, digest_name, rnd_src);
 }
 
 int32_t JoDSA_initVerify(dsa_ctx *ctx, key_spec *key,
-                         const char *digest_name) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+                         const char *digest_name, size_t name_len) {
+    int32_t ret_code = dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(key);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (digest_name == NULL) {
         return JO_NAME_IS_NULL;
+    }
+    if (dsa_name_unusable(digest_name, name_len)) {
+        return JO_DSA_DIGEST_NOT_SUPPORTED;
     }
     return dsa_ctx_init_verify(ctx, key, digest_name);
 }
@@ -271,8 +287,9 @@ int32_t JoDSA_initVerify(dsa_ctx *ctx, key_spec *key,
 int32_t JoDSA_update(dsa_ctx *ctx,
                      uint8_t *input, size_t input_size,
                      int32_t in_off, int32_t in_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (input == NULL) {
         return JO_INPUT_IS_NULL;
@@ -294,8 +311,9 @@ int32_t JoDSA_sign(dsa_ctx *ctx,
                    uint8_t *output, size_t output_size,
                    int32_t out_off,
                    void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -319,8 +337,9 @@ int32_t JoDSA_verify(dsa_ctx *ctx,
                      uint8_t *sig, size_t sig_size,
                      int32_t sig_len,
                      void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;

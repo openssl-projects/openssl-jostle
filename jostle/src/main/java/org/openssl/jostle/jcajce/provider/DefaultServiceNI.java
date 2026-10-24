@@ -120,6 +120,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("handle is not a key-agreement context");
             case JO_DH_KEX_CTX_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not a DH key-agreement context");
+            case JO_DSA_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not a DSA signer context");
             case JO_EC_DIGEST_NOT_SUPPORTED:
                 throw new IllegalArgumentException("digest is not supported");
             case JO_EC_SCALAR_OUT_OF_RANGE:
@@ -334,16 +336,10 @@ public interface DefaultServiceNI
                 throw new ProviderCapabilityException(
                         "DSA key generation is not supported by the loaded provider; DSA key import and signature verification remain available");
             case JO_DSA_SIGN_UNAVAILABLE:
-                // Verify-only DSA: the provider verifies with this key but
-                // refuses to sign with it (OpenSSL's 3.5+ FIPS module runs its
-                // "sign-check" indicator only on the signing path). Named
-                // separately from the keygen code because verification still
-                // works, and reported at all because the module's refusal is
-                // silent — it raises nothing, so the generic path would say
-                // "OpenSSL Error: null". DSASignatureSpi translates at
-                // engineInitSign.
+                // The provider verifies with the key and will not sign with it. DSAServiceNI.initSign names the
+                // key's size; this arm cannot know it.
                 throw new ProviderCapabilityException(
-                        "DSA signature generation is not supported by the loaded provider; signature verification remains available");
+                        "the loaded provider does not sign DSA with this key; verification remains available");
             case JO_TDES_ENCRYPT_UNAVAILABLE:
                 // Decrypt-only Triple-DES: the provider decrypts with this
                 // cipher but refuses to encrypt (OpenSSL's FIPS module

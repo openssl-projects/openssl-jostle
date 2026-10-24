@@ -279,6 +279,11 @@ public class DSASignatureSpi extends SignatureSpi
             System.arraycopy(sig, 0, trimmed, 0, actualLen);
             return trimmed;
         }
+        catch (OpenSSLException e)
+        {
+            // Signature.sign declares SignatureException for a failed signing operation.
+            throw new SignatureException(e.getMessage(), e);
+        }
         finally
         {
             try

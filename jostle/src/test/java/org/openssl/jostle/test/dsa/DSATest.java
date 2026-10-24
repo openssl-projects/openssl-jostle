@@ -28,6 +28,7 @@ import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
+import java.security.ProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
@@ -36,6 +37,7 @@ import java.security.interfaces.DSAParams;
 import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.DSAPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.DSAGenParameterSpec;
 import java.security.spec.DSAParameterSpec;
 import java.security.spec.DSAPrivateKeySpec;
 import java.security.spec.DSAPublicKeySpec;
@@ -700,5 +702,36 @@ public class DSATest
         Assertions.assertEquals("DSA", kp.getPrivate().getAlgorithm());
         Assertions.assertEquals("X.509", kp.getPublic().getFormat());
         Assertions.assertEquals("PKCS#8", kp.getPrivate().getFormat());
+    }
+
+    /** The default provider answers a 2000-bit request with 2048 bits; the size check refuses it by name. */
+    @Test
+    public void parameterGeneration_sizeNotHonouredIsRefused() throws Exception
+    {
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DSA", JostleProvider.PROVIDER_NAME);
+        apg.init(2000);
+        ProviderException e = Assertions.assertThrows(ProviderException.class, apg::generateParameters);
+        Assertions.assertEquals(
+                "DSA parameter generation did not honour the requested sizes: p of 2000 bits, q of 160 bits",
+                e.getMessage());
+    }
+
+    /** The four FIPS 186-4 pairs generate at the sizes asked for; another spec is refused typed. */
+    @Test
+    public void parameterGeneration_acceptsDSAGenParameterSpec() throws Exception
+    {
+        for (int[] pq : new int[][]{{1024, 160}, {2048, 224}, {2048, 256}, {3072, 256}})
+        {
+            AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DSA",
+                    JostleProvider.PROVIDER_NAME);
+            apg.init(new DSAGenParameterSpec(pq[0], pq[1]));
+            DSAParameterSpec spec = apg.generateParameters().getParameterSpec(DSAParameterSpec.class);
+            Assertions.assertEquals(pq[0], spec.getP().bitLength(), pq[0] + "/" + pq[1]);
+            Assertions.assertEquals(pq[1], spec.getQ().bitLength(), pq[0] + "/" + pq[1]);
+        }
+        AlgorithmParameterGenerator apg = AlgorithmParameterGenerator.getInstance("DSA", JostleProvider.PROVIDER_NAME);
+        InvalidAlgorithmParameterException e = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> apg.init(new ECGenParameterSpec("P-256")));
+        Assertions.assertEquals("DSA parameter generation takes a key size or a DSAGenParameterSpec", e.getMessage());
     }
 }

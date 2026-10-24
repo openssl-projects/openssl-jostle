@@ -14,8 +14,10 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import java.security.KeyPair;
@@ -201,41 +203,36 @@ public class FIPSSha1SignatureGateTest
     }
 
     /**
-     * SHA-1 DSA signature GENERATION is refused.
-     * <p>
-     * Only meaningful where the module signs with DSA at all. OpenSSL's 3.5.x
-     * FIPS module refuses DSA signing outright, which subsumes the SHA-1 gate
-     * — asserted explicitly rather than skipped, so a module that quietly
-     * started signing SHA-1 DSA could not pass by looking verify-only. The
-     * keypair comes from {@link FIPSTestUtil#dsaKeyPair} because 3.5.x also
-     * refuses every DSA generation path.
+     * SHA-1 DSA signature generation is refused on both measured modules, and verification is served. 3.1.2 signs
+     * DSA and refuses the digest, naming it; 3.5.8 refuses every DSA signature, naming the key. An unmeasured module
+     * fails the cell.
      */
     @Test
-    public void sha1DsaSignatureGeneration_refusedOrWorks() throws Exception
+    public void sha1DsaSignatureGenerationIsRefusedPerModule() throws Exception
     {
+        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
+                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
         KeyPair dsa = FIPSTestUtil.dsaKeyPair(FIPS);
+        String expected = "OpenSSL FIPS Provider 3.1.2".equals(module)
+                ? "the loaded provider does not sign DSA with SHA-1"
+                : FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE;
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                () -> Signature.getInstance("SHA1withDSA", FIPS).initSign(dsa.getPrivate()));
+        Assertions.assertEquals(expected, e.getMessage());
+        Assertions.assertTrue(e.getCause() instanceof ProviderCapabilityException, String.valueOf(e.getCause()));
 
-        if (!FIPSTestUtil.fipsDsaCanSign())
-        {
-            // The broader gate must cover SHA-1 too: no DSA digest may sign.
-            InvalidKeyException e = Assertions.assertThrows(
-                    InvalidKeyException.class,
-                    () -> Signature.getInstance("SHA1withDSA", FIPS).initSign(dsa.getPrivate()),
-                    "a verify-only module must refuse SHA1withDSA signing too");
-            Assertions.assertEquals(FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE, e.getMessage());
-            return;
-        }
-
-        // Control: SHA-256 signing works (proves the key/provider are sound, so
-        // the SHA-1 rejection below is specifically about the digest).
+        // Verification is served: a SHA-1 signature made by the base provider over the same key verifies.
         byte[] msg = new byte[64];
         RANDOM.nextBytes(msg);
-        Signature control = Signature.getInstance("SHA256withDSA", FIPS);
-        control.initSign(dsa.getPrivate());
-        control.update(msg);
-        Assertions.assertTrue(control.sign().length > 0, "SHA-256 DSA signing must work");
-
-        assertSha1SignRefusedOrWorks(dsa, "SHA1withDSA");
+        Signature signer = Signature.getInstance("SHA1withDSA", JostleProvider.PROVIDER_NAME);
+        signer.initSign(FIPSTestUtil.dsaKeyPair(JostleProvider.PROVIDER_NAME).getPrivate());
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Signature verifier = Signature.getInstance("SHA1withDSA", FIPS);
+        verifier.initVerify(dsa.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig));
     }
 
     @Test

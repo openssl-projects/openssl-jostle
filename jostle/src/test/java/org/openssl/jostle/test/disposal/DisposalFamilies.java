@@ -32,6 +32,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.security.SecureRandom;
 import java.security.Signature;
+import java.security.interfaces.DSAKey;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,10 +77,9 @@ public final class DisposalFamilies
             "DSA key generation is not supported by the loaded provider;"
                     + " DSA key import and signature verification remain available";
 
-    /** The typed refusal a verify-only module raises at {@code initSign}. */
-    static final String DSA_SIGN_REFUSED =
-            "DSA signature generation is not supported by the loaded provider;"
-                    + " signature verification remains available";
+    /** The typed refusal a verify-only module raises at {@code initSign}; %d is p's size in bits. */
+    static final String DSA_SIGN_REFUSED_FORMAT =
+            "the loaded provider does not sign DSA with this key (p of %d bits); verification remains available";
 
     /** One family, and the smallest real use of it. */
     public abstract static class Driver
@@ -437,7 +437,8 @@ public final class DisposalFamilies
                 catch (InvalidKeyException refused)
                 {
                     // Only the pinned verify-only refusal falls back; anything else is a defect.
-                    if (!DSA_SIGN_REFUSED.equals(refused.getMessage()))
+                    if (!(kp.getPrivate() instanceof DSAKey) || !String.format(DSA_SIGN_REFUSED_FORMAT,
+                            ((DSAKey) kp.getPrivate()).getParams().getP().bitLength()).equals(refused.getMessage()))
                     {
                         throw refused;
                     }

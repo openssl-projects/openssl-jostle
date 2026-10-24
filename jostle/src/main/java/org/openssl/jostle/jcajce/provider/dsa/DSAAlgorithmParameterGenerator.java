@@ -29,6 +29,7 @@ import java.security.Provider;
 import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.DSAGenParameterSpec;
 import java.security.spec.DSAParameterSpec;
 
 /**
@@ -122,27 +123,35 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
     {
         // AlgorithmParameterGenerator.init(int) throws
         // InvalidParameterException (RuntimeException) per the JCA contract.
+        String refusal = sizeRefusal(size);
+        if (refusal != null)
+        {
+            throw new InvalidParameterException(refusal);
+        }
+
+        // FIPS 186-4 4.2 pairs N with L; q follows the modulus, it does not
+        // restrict it. The generated sizes are checked against the request natively.
+        this.qBits = size < 2048 ? 160 : 256;
+        this.pBits = size;
+        this.random = DefaultRandSource.replaceWith(this.random, random);
+    }
+
+    /** Why this generator refuses a modulus size, or null when it accepts it. */
+    private String sizeRefusal(int size)
+    {
         if (acceptedPBits != null)
         {
             if (!Arrays.contains(acceptedPBits, size))
             {
-                throw new InvalidParameterException(
-                        "DSA parameter size " + size + " is not supported. "
-                                + "Supported sizes: " + sizeList());
+                return "DSA parameter size " + size + " is not supported. Supported sizes: " + sizeList();
             }
         }
         else if (size < MIN_P_BITS || size > MAX_P_BITS)
         {
-            throw new InvalidParameterException(
-                    "DSA parameter size " + size + " is not supported. "
-                            + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS + ".");
+            return "DSA parameter size " + size + " is not supported. "
+                    + "Sizes must be " + MIN_P_BITS + ".." + MAX_P_BITS + ".";
         }
-
-        // FIPS 186-4 4.2 pairs N with L; q follows the modulus, it does not
-        // restrict it.
-        this.qBits = size < 2048 ? 160 : 256;
-        this.pBits = size;
-        this.random = DefaultRandSource.replaceWith(this.random, random);
+        return null;
     }
 
     private String sizeList()
@@ -159,12 +168,22 @@ public class DSAAlgorithmParameterGenerator extends AlgorithmParameterGeneratorS
     protected void engineInit(AlgorithmParameterSpec genParamSpec, SecureRandom random)
             throws InvalidAlgorithmParameterException
     {
-        // The JCA-standard generation spec for DSA is the size-only
-        // form; there is no standard DSAGenParameterSpec on the Java 8
-        // baseline this provider compiles against.
-        throw new InvalidAlgorithmParameterException(
-                "DSA parameter generation takes a key size, not an AlgorithmParameterSpec; "
-                        + "use init(int, SecureRandom)");
+        // The JDK's constructor has already refused any pair FIPS 186-4 does not list. The seed length is not
+        // passed on: OpenSSL takes only the two sizes.
+        if (!(genParamSpec instanceof DSAGenParameterSpec))
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "DSA parameter generation takes a key size or a DSAGenParameterSpec");
+        }
+        DSAGenParameterSpec gen = (DSAGenParameterSpec) genParamSpec;
+        String refusal = sizeRefusal(gen.getPrimePLength());
+        if (refusal != null)
+        {
+            throw new InvalidAlgorithmParameterException(refusal);
+        }
+        this.pBits = gen.getPrimePLength();
+        this.qBits = gen.getSubprimeQLength();
+        this.random = DefaultRandSource.replaceWith(this.random, random);
     }
 
     @Override

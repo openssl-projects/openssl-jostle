@@ -123,7 +123,15 @@ int32_t dsa_make_public_from_components(key_spec *spec,
 // Sign / verify session
 // =============================================================
 
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as a dsa_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define DSA_CTX_KIND 0x44534101u      /* "DSA\1" */
+#define DSA_CTX_NONE 0u               /* what a freed ctx is left with; never a valid kind */
+
 typedef struct dsa_ctx {
+    uint32_t kind;
     EVP_MD_CTX *digest_ctx;
     int opp;            // DSA_OP_SIGN | DSA_OP_VERIFY
     // Raw DSA ("NoneWithDSA", digest name "NONE") session state: the
@@ -140,6 +148,12 @@ typedef struct dsa_ctx {
 
 dsa_ctx *dsa_ctx_create(int32_t *err);
 
+/*
+ * JO_SIGNER_CTX_IS_NULL, JO_DSA_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t dsa_ctx_check(const dsa_ctx *ctx);
+
+/* Frees nothing unless ctx is a live dsa_ctx. */
 void dsa_ctx_destroy(dsa_ctx *ctx);
 
 /*

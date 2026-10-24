@@ -724,6 +724,16 @@
 #define JO_DH_KEX_CTX_WRONG_KIND -220
 /* A DH x outside its range (1 <= x < q with q, 1 <= x <= p - 2 without). */
 #define JO_DH_PRIVATE_VALUE_INVALID -221
+/* A handle passed as a DSA signer context that is not one. */
+#define JO_DSA_CTX_WRONG_KIND -222
+/* An empty DSA digest name, one with an embedded NUL, or one the library cannot fetch. */
+#define JO_DSA_DIGEST_NOT_SUPPORTED -223
+/* A DSA y outside its range or outside the subgroup of order q. */
+#define JO_DSA_PUBLIC_VALUE_INVALID -224
+/* A DSA x outside 0 < x < q. */
+#define JO_DSA_PRIVATE_VALUE_INVALID -225
+/* The library generated DSA parameters of a size other than the one requested. */
+#define JO_DSA_PARAMGEN_SIZE_MISMATCH -226
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

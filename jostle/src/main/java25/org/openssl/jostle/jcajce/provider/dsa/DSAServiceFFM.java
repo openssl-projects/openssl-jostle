@@ -163,21 +163,24 @@ public class DSAServiceFFM implements DSAServiceNI
                 lookup.find(symPrefix + "JoDSA_disposeSigner").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
 
-        // JoDSA_initSign(dsa_ctx*, key_spec*, const char* digest, void* rnd_src) -> int
+        // JoDSA_initSign(dsa_ctx*, key_spec*, const char* digest, size_t name_len, void* rnd_src) -> int
         initSignH = bind(lookup, symPrefix + "JoDSA_initSign",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,
                         ValueLayout.ADDRESS));
 
+        // JoDSA_initVerify(dsa_ctx*, key_spec*, const char* digest, size_t name_len) -> int
         initVerifyH = bind(lookup, symPrefix + "JoDSA_initVerify",
                 FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS));
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG));
 
         // JoDSA_update(dsa_ctx*, uint8_t* in, size_t in_size, int32_t off, int32_t len) -> int
         updateH = bind(lookup, symPrefix + "JoDSA_update",
@@ -288,6 +291,21 @@ public class DSAServiceFFM implements DSAServiceNI
         return bytes == null ? 0L : bytes.length;
     }
 
+    /** The name's UTF-8 byte count, which C compares with strnlen to find an embedded NUL. */
+    private static long utf8Length(String s)
+    {
+        return s == null ? 0L : s.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
+    }
+
 
     @Override
     public long ni_generateParameters(int pBits, int qBits, int[] err, RandSource rndSource)
@@ -353,14 +371,23 @@ public class DSAServiceFFM implements DSAServiceNI
         try (Arena a = Arena.ofConfined())
         {
             MemorySegment errSeg = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
-                    nativeBytes(a, p), sizeOf(p),
-                    nativeBytes(a, q), sizeOf(q),
-                    nativeBytes(a, g), sizeOf(g),
-                    nativeBytes(a, x), sizeOf(x),
-                    errSeg, entropyStub(a, rndSource));
-            err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
-            return ref.address();
+            MemorySegment xSeg = nativeBytes(a, x);
+            try
+            {
+                MemorySegment ref = (MemorySegment) makePrivateFromComponentsH.invokeExact(
+                        nativeBytes(a, p), sizeOf(p),
+                        nativeBytes(a, q), sizeOf(q),
+                        nativeBytes(a, g), sizeOf(g),
+                        xSeg, sizeOf(x),
+                        errSeg, entropyStub(a, rndSource));
+                err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
+                return ref.address();
+            }
+            finally
+            {
+                // The arena's copy of x is cleared before the arena frees it.
+                zero(xSeg);
+            }
         }
         catch (Throwable t)
         {
@@ -453,7 +480,7 @@ public class DSAServiceFFM implements DSAServiceNI
             return (int) initSignH.invokeExact(
                     MemorySegment.ofAddress(ref),
                     MemorySegment.ofAddress(keyRef),
-                    nativeString(a, digestName),
+                    nativeString(a, digestName), utf8Length(digestName),
                     entropyStub(a, rndSource));
         }
         catch (Throwable t)
@@ -471,7 +498,7 @@ public class DSAServiceFFM implements DSAServiceNI
             return (int) initVerifyH.invokeExact(
                     MemorySegment.ofAddress(ref),
                     MemorySegment.ofAddress(keyRef),
-                    nativeString(a, digestName));
+                    nativeString(a, digestName), utf8Length(digestName));
         }
         catch (Throwable t)
         {

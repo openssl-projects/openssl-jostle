@@ -52,9 +52,9 @@ class ProvDSA
                 (arg) -> keyFactory(provider));
         provider.addAlias("KeyFactory", "DSA", ID_DSA_OID);
 
-        // AlgorithmParameters DSA — Dss-Parms SEQUENCE { p, q, g } codec
-        // delegated to the platform (SUN). Needed by callers that carry
-        // DSA domain parameters in AlgorithmIdentifier.parameters.
+        // AlgorithmParameters DSA: DSAAlgorithmParameters, this provider's own DER codec for
+        // Dss-Parms SEQUENCE { p, q, g }. Needed by callers that carry DSA domain parameters in
+        // AlgorithmIdentifier.parameters.
         provider.addAlgorithmImplementation("AlgorithmParameters", "DSA",
                 DSAAlgorithmParameters.class.getName(), new HashMap<>(),
                 (arg) -> new DSAAlgorithmParameters());

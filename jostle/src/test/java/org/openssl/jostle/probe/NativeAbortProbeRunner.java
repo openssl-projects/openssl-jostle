@@ -20,6 +20,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
+import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
@@ -75,6 +76,8 @@ public final class NativeAbortProbeRunner
     private static final String[] DH_NULL_ERR_CELLS = {"dh-allocatekex-null-err", "dh-bygroup-null-err",
             "dh-paramgen-null-err", "dh-makeparams-null-err", "dh-generate-null-err", "dh-makeprivate-null-err",
             "dh-makepublic-null-err"};
+    private static final String[] DSA_NULL_ERR_CELLS = {"dsa-allocate-null-err", "dsa-paramgen-null-err",
+            "dsa-makeparams-null-err", "dsa-generate-null-err", "dsa-makeprivate-null-err", "dsa-makepublic-null-err"};
     private static final RandSource RND = TestUtil.RNDSrc;
 
     private static final String NONFIPS_JNI = "interface/nonfips/jni/";
@@ -209,6 +212,13 @@ public final class NativeAbortProbeRunner
                     jniDir + "dh_ni_jni.c");
         }
         controlRow(rows, p + "dh-control");
+
+        for (String c : DSA_NULL_ERR_CELLS)
+        {
+            jniAbortFfmThrowsRow(rows, p + c, c.equals("dsa-allocate-null-err") ? "err != NULL" : "err_out != NULL",
+                    jniDir + "dsa_ni_jni.c");
+        }
+        controlRow(rows, p + "dsa-control");
 
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
@@ -346,6 +356,7 @@ public final class NativeAbortProbeRunner
         RandServiceNI rand;
         RSAServiceNI rsa;
         DHServiceNI dh;
+        DSAServiceNI dsa;
         if (fips)
         {
             new JostleProvider();
@@ -355,6 +366,7 @@ public final class NativeAbortProbeRunner
             rand = FIPSNISelector.RandServiceNI;
             rsa = FIPSNISelector.RSAServiceNI;
             dh = FIPSNISelector.DHServiceNI;
+            dsa = FIPSNISelector.DSAServiceNI;
         }
         else
         {
@@ -364,6 +376,7 @@ public final class NativeAbortProbeRunner
             rand = NISelector.RandServiceNI;
             rsa = NISelector.RSAServiceNI;
             dh = NISelector.DHServiceNI;
+            dsa = NISelector.DSAServiceNI;
         }
         KSServiceNI ks = NISelector.KSServiceNI;
 
@@ -483,6 +496,36 @@ public final class NativeAbortProbeRunner
             int[] err = new int[1];
             long ref = dh.ni_allocateKex(err);
             report(ref != 0 && err[0] == 0, "dh ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("dsa-allocate-null-err".equals(c))
+        {
+            dsa.ni_allocateSigner(null);
+        }
+        else if ("dsa-paramgen-null-err".equals(c))
+        {
+            dsa.ni_generateParameters(512, 160, null, RND);
+        }
+        else if ("dsa-makeparams-null-err".equals(c))
+        {
+            dsa.ni_makeParamsFromComponents(new byte[]{23}, new byte[]{11}, new byte[]{4}, null);
+        }
+        else if ("dsa-generate-null-err".equals(c))
+        {
+            dsa.ni_generateKeyPair(0L, null, RND);
+        }
+        else if ("dsa-makeprivate-null-err".equals(c))
+        {
+            dsa.ni_makePrivateFromComponents(new byte[]{23}, new byte[]{11}, new byte[]{4}, new byte[]{3}, null, RND);
+        }
+        else if ("dsa-makepublic-null-err".equals(c))
+        {
+            dsa.ni_makePublicFromComponents(new byte[]{23}, new byte[]{11}, new byte[]{4}, new byte[]{3}, null);
+        }
+        else if ("dsa-control".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = dsa.ni_allocateSigner(err);
+            report(ref != 0 && err[0] == 0, "dsa ref=" + (ref != 0) + " err=" + err[0]);
         }
         else if ("ks-null-err".equals(c))
         {

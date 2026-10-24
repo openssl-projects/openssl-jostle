@@ -16,7 +16,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.dsa.DSAAgreementTest;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 
@@ -484,20 +487,21 @@ public class FIPSDSAAgreementTest
     }
 
     /**
-     * SHA1withDSA, asserted as a CONTRACT rather than one answer: the module
-     * either signs — in which case BC must verify the result — or refuses
-     * naming the digest. A module with {@code signature-digest-check} off and
-     * one with it on are both legitimate deployments.
-     * <p>
-     * The BC-signs / JSLFIPS-verifies direction runs either way: SHA-1
-     * verification is legacy-approved, so a module that refuses to SIGN must
-     * still verify.
+     * SHA1withDSA beside BouncyCastle, pinned per module: a BouncyCastle SHA-1 signature verifies on both, since
+     * SHA-1 verification is legacy-approved. Signing is refused on both: 3.1.2 refuses the digest, naming it; 3.5.8
+     * refuses every DSA signature, naming the key. An unmeasured module fails the cell.
      */
     @Test
-    public void sha1WithDsaAgreesWithBcOrIsRefusedNamingTheDigest() throws Exception
+    public void sha1WithDsaVerifiesBesideBcAndSigningIsRefusedPerModule() throws Exception
     {
+        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
+                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        String refusal = "OpenSSL FIPS Provider 3.1.2".equals(module)
+                ? "the loaded provider does not sign DSA with SHA-1"
+                : FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE;
         ensureSharedKeyPair();
-        SecureRandom sr = seededRandom("sha1WithDsaAgreesWithBcOrIsRefusedNamingTheDigest");
+        SecureRandom sr = seededRandom("sha1WithDsaVerifiesBesideBcAndSigningIsRefusedPerModule");
 
         ProviderKeys fips = keysFor(FIPS);
         ProviderKeys bc = keysFor(BC);
@@ -514,34 +518,11 @@ public class FIPSDSAAgreementTest
             Assertions.assertFalse(verify(sigAlg, FIPS, fips.pub, tampered, sigBc),
                     sigAlg + ": tampered message must not verify");
 
-            if (!FIPSTestUtil.fipsDsaCanSign())
-            {
-                continue;
-            }
-
-            try
-            {
-                byte[] sigFips = sign(sigAlg, FIPS, fips.priv, msg);
-                Assertions.assertTrue(verify(sigAlg, BC, bc.pub, msg, sigFips),
-                        sigAlg + ": the module signed, so BC must verify the result");
-            }
-            catch (InvalidKeyException ex)
-            {
-                // MT-76: the module's refusal now reaches callers as the
-                // JCE-canonical InvalidKeyException with the OpenSSLException
-                // preserved as the cause; the message text is unchanged.
-                Assertions.assertTrue(ex.getCause() instanceof OpenSSLException,
-                        "the OpenSSLException must be preserved as the cause, got: " + ex.getCause());
-                // The module's wording differs between the two supported
-                // versions, so both are accepted — 3.1.2 says "digest not
-                // allowed", 3.5.x says "invalid digest". Pinning only the
-                // first passes on 3.1.2 and on any 3.5.x config where this
-                // branch is unreachable, and fails exactly where the gate
-                // fires. FIPSSha1SignatureGateTest is the source of this pair.
-                String m = String.valueOf(ex.getMessage());
-                Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
-                        sigAlg + ": expected a module digest rejection, got: " + m);
-            }
+            InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> sign(sigAlg, FIPS, fips.priv, msg), sigAlg);
+            Assertions.assertEquals(refusal, ex.getMessage(), sigAlg);
+            Assertions.assertTrue(ex.getCause() instanceof ProviderCapabilityException,
+                    sigAlg + ": " + ex.getCause());
         }
     }
 
@@ -673,5 +654,12 @@ public class FIPSDSAAgreementTest
         Assertions.assertEquals(expected.getP(), actual.getP(), what + ": p differs");
         Assertions.assertEquals(expected.getQ(), actual.getQ(), what + ": q differs");
         Assertions.assertEquals(expected.getG(), actual.getG(), what + ": g differs");
+    }
+
+    /** The import ranges beside BouncyCastle on JSLFIPS, over the shared key: measured the same on both modules. */
+    @Test
+    public void importRangesAreCheckedBesideBouncyCastle() throws Exception
+    {
+        DSAAgreementTest.assertImportRangesBesideBouncyCastle(FIPS, FIPSTestUtil.dsaKeyPair(FIPS));
     }
 }

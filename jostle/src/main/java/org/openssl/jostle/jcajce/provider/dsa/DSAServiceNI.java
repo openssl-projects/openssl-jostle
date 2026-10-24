@@ -13,7 +13,11 @@ package org.openssl.jostle.jcajce.provider.dsa;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.rand.RandSource;
+
+import java.math.BigInteger;
+import java.security.ProviderException;
 
 /**
  * Native interface for DSA operations. Component selectors are stable
@@ -28,6 +32,10 @@ public interface DSAServiceNI extends DefaultServiceNI
     int COMP_G = 2;
     int COMP_PUBLIC_VALUE = 3;
     int COMP_PRIVATE_VALUE = 4;
+
+    /** The refusal when the provider verifies with a key but will not sign with it; %d is p's size in bits. */
+    String SIGN_KEY_REFUSED_FORMAT =
+            "the loaded provider does not sign DSA with this key (p of %d bits); verification remains available";
 
 
     /**
@@ -98,6 +106,12 @@ public interface DSAServiceNI extends DefaultServiceNI
     {
         int[] err = new int[1];
         long r = ni_generateParameters(pBits, qBits, err, rndSource);
+        if (err[0] == ErrorCode.JO_DSA_PARAMGEN_SIZE_MISMATCH.getCode())
+        {
+            throw new ProviderException(String.format(
+                    "DSA parameter generation did not honour the requested sizes: p of %d bits, q of %d bits",
+                    pBits, qBits));
+        }
         handleErrors(err[0]);
         return r;
     }
@@ -159,12 +173,34 @@ public interface DSAServiceNI extends DefaultServiceNI
 
     default void initSign(long ref, long keyRef, String digestName, RandSource rndSource)
     {
-        handleErrors(ni_initSign(ref, keyRef, digestName, rndSource));
+        int code = ni_initSign(ref, keyRef, digestName, rndSource);
+        if (code == ErrorCode.JO_DSA_SIGN_UNAVAILABLE.getCode())
+        {
+            throw new ProviderCapabilityException(String.format(SIGN_KEY_REFUSED_FORMAT, pBits(keyRef)));
+        }
+        if (code == ErrorCode.JO_DSA_DIGEST_NOT_SUPPORTED.getCode())
+        {
+            throw new ProviderCapabilityException("the loaded provider does not sign DSA with " + digestName);
+        }
+        handleErrors(code);
+    }
+
+    /** The bit length of p in the key; the caller keeps the key reachable. */
+    default int pBits(long keyRef)
+    {
+        byte[] p = new byte[getComponent(keyRef, COMP_P, null)];
+        getComponent(keyRef, COMP_P, p);
+        return new BigInteger(1, p).bitLength();
     }
 
     default void initVerify(long ref, long keyRef, String digestName)
     {
-        handleErrors(ni_initVerify(ref, keyRef, digestName));
+        int code = ni_initVerify(ref, keyRef, digestName);
+        if (code == ErrorCode.JO_DSA_DIGEST_NOT_SUPPORTED.getCode())
+        {
+            throw new ProviderCapabilityException("the loaded provider does not verify DSA with " + digestName);
+        }
+        handleErrors(code);
     }
 
     default void update(long ref, byte[] input, int inOff, int inLen)
@@ -208,6 +244,10 @@ public interface DSAServiceNI extends DefaultServiceNI
                 throw new IllegalArgumentException("invalid key type for DSA");
             case JO_DSA_BITS_OUT_OF_RANGE:
                 throw new IllegalArgumentException("DSA parameter bit size out of range");
+            case JO_DSA_PUBLIC_VALUE_INVALID:
+                throw new IllegalArgumentException("DSA y is outside its range or outside the subgroup of order q");
+            case JO_DSA_PRIVATE_VALUE_INVALID:
+                throw new IllegalArgumentException("DSA x is outside its range: [1, q-1]");
             default:
         }
 

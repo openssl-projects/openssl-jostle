@@ -102,7 +102,8 @@ static int32_t classify_dsa_gen_failure(EVP_PKEY_CTX *ctx, int32_t generic) {
 /*
  * Classify a FAILED DSA sign-init. Returns JO_DSA_SIGN_UNAVAILABLE only when
  * the provider refuses to SIGN with this key at all while still VERIFYING
- * with it; JO_OPENSSL_ERROR otherwise.
+ * with it; JO_DSA_DIGEST_NOT_SUPPORTED on the digest path when the key signs
+ * under the probe digest; JO_OPENSSL_ERROR otherwise.
  *
  * Diagnosis-on-failure, and both probes ask for the property semantically
  * rather than reading an indicator name that could drift:
@@ -130,7 +131,7 @@ static int32_t classify_dsa_gen_failure(EVP_PKEY_CTX *ctx, int32_t generic) {
  * displace the sign-init error the caller is about to be told about.
  */
 static int32_t classify_dsa_sign_failure(OSSL_LIB_CTX *libctx, EVP_PKEY *key,
-                                         int32_t generic) {
+                                         int digest_path, int32_t generic) {
     jo_assert(libctx != NULL);
     jo_assert(key != NULL);
 
@@ -155,7 +156,76 @@ static int32_t classify_dsa_sign_failure(OSSL_LIB_CTX *libctx, EVP_PKEY *key,
     if (!sign_ok && verify_ok) {
         return JO_DSA_SIGN_UNAVAILABLE;
     }
+    // The key signs under the probe digest, so the caller's digest was the refusal.
+    if (sign_ok && digest_path) {
+        return JO_DSA_DIGEST_NOT_SUPPORTED;
+    }
     return generic;
+}
+
+/*
+ * After a failed digest verify-init: JO_DSA_DIGEST_NOT_SUPPORTED when the key verifies under the probe digest,
+ * the generic code otherwise. The probe's own errors are scoped out; the caller has ruled out an injected failure.
+ */
+static int32_t classify_dsa_verify_failure(OSSL_LIB_CTX *libctx, EVP_PKEY *key, int32_t generic) {
+    jo_assert(libctx != NULL);
+    jo_assert(key != NULL);
+
+    ERR_set_mark();
+    EVP_MD_CTX *verify_probe = EVP_MD_CTX_new();
+    int verify_ok = verify_probe != NULL
+                    && 1 == EVP_DigestVerifyInit_ex(verify_probe, NULL, DSA_SIGN_PROBE_DIGEST, libctx,
+                                                    NULL, key, NULL);
+    EVP_MD_CTX_free(verify_probe);
+    ERR_pop_to_mark();
+
+    return verify_ok ? JO_DSA_DIGEST_NOT_SUPPORTED : generic;
+}
+
+/* 1 when the library can fetch the digest; the probe's own error is scoped out. */
+static int dsa_digest_fetchable(OSSL_LIB_CTX *libctx, const char *digest_name) {
+    ERR_set_mark();
+    EVP_MD *md = EVP_MD_fetch(libctx, digest_name, NULL);
+    ERR_pop_to_mark();
+    if (md == NULL) {
+        return 0;
+    }
+    EVP_MD_free(md);
+    return 1;
+}
+
+/* 1 when the generated parameters have the requested p and q sizes; the probe's own errors are scoped out. */
+static int dsa_params_have_sizes(EVP_PKEY *key, int32_t p_bits, int32_t q_bits) {
+    ERR_set_mark();
+    BIGNUM *p_bn = NULL;
+    BIGNUM *q_bn = NULL;
+    int ok = 1 == EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_P, &p_bn)
+             && 1 == EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_FFC_Q, &q_bn)
+             && BN_num_bits(p_bn) == p_bits && BN_num_bits(q_bn) == q_bits;
+    BN_free(p_bn);
+    BN_free(q_bn);
+    ERR_pop_to_mark();
+    return ok;
+}
+
+/*
+ * OpenSSL's public check (2 <= y <= p - 2 and y^q = 1 mod p) or private check (0 < x < q) on an imported key;
+ * the check's own errors are scoped out.
+ */
+static int32_t dsa_check_imported(const key_spec *spec, int private_half) {
+    ERR_set_mark();
+    EVP_PKEY_CTX *check_ctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_ossl_lib_ctx(), spec->key, NULL);
+    int32_t ret_code = JO_OPENSSL_ERROR;
+    if (check_ctx != NULL) {
+        if (private_half) {
+            ret_code = 1 == EVP_PKEY_private_check(check_ctx) ? JO_SUCCESS : JO_DSA_PRIVATE_VALUE_INVALID;
+        } else {
+            ret_code = 1 == EVP_PKEY_public_check(check_ctx) ? JO_SUCCESS : JO_DSA_PUBLIC_VALUE_INVALID;
+        }
+    }
+    EVP_PKEY_CTX_free(check_ctx);
+    ERR_pop_to_mark();
+    return ret_code;
 }
 
 // =============================================================
@@ -213,6 +283,14 @@ int32_t dsa_generate_parameters(key_spec *spec, int32_t p_bits,
 
     if (OPS_OPENSSL_ERROR_5 spec->key == NULL) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_5(5004);
+        goto exit;
+    }
+
+    // The library may answer with a size it serves rather than the one asked for.
+    if (!dsa_params_have_sizes(spec->key, p_bits, q_bits)) {
+        EVP_PKEY_free(spec->key);
+        spec->key = NULL;
+        ret_code = JO_DSA_PARAMGEN_SIZE_MISMATCH;
         goto exit;
     }
 
@@ -438,6 +516,9 @@ int32_t dsa_make_private_from_components(key_spec *spec,
 
     int32_t ret_code = dsa_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
                                     NULL, 0, x_be, x_len);
+    if (ret_code == JO_SUCCESS) {
+        ret_code = dsa_check_imported(spec, 1);
+    }
     rand_clear_java_srand_call();
     return ret_code;
 }
@@ -454,8 +535,12 @@ int32_t dsa_make_public_from_components(key_spec *spec,
     jo_assert(g_be != NULL && g_len > 0 && g_len <= (size_t) INT32_MAX);
     jo_assert(y_be != NULL && y_len > 0 && y_len <= (size_t) INT32_MAX);
 
-    return dsa_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
-                        y_be, y_len, NULL, 0);
+    int32_t ret_code = dsa_fromdata(spec, p_be, p_len, q_be, q_len, g_be, g_len,
+                                    y_be, y_len, NULL, 0);
+    if (ret_code == JO_SUCCESS) {
+        ret_code = dsa_check_imported(spec, 0);
+    }
+    return ret_code;
 }
 
 
@@ -617,6 +702,7 @@ dsa_ctx *dsa_ctx_create(int32_t *err) {
     dsa_ctx *ctx = (dsa_ctx *) OPENSSL_zalloc(sizeof(dsa_ctx));
     jo_assert(ctx != NULL);
 
+    ctx->kind = DSA_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_DSA_CTX);
     return ctx;
@@ -625,12 +711,24 @@ dsa_ctx *dsa_ctx_create(int32_t *err) {
 
 static void dsa_ctx_clear_session(dsa_ctx *ctx);
 
-void dsa_ctx_destroy(dsa_ctx *ctx) {
+int32_t dsa_ctx_check(const dsa_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (ctx->kind != DSA_CTX_KIND) {
+        return JO_DSA_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+void dsa_ctx_destroy(dsa_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as a dsa_ctx corrupts it.
+    if (dsa_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_DSA_CTX);
     dsa_ctx_clear_session(ctx);
+    ctx->kind = DSA_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -675,7 +773,7 @@ static int32_t dsa_raw_init(dsa_ctx *ctx, OSSL_LIB_CTX *libctx,
         EVP_PKEY_CTX_free(pctx);
         int32_t generic = JO_OPENSSL_ERROR OPS_OFFSET_FAILED_INIT_2(5093);
         if (op == DSA_OP_SIGN && !JO_ERROR_WAS_INJECTED(generic)) {
-            return classify_dsa_sign_failure(libctx, key, generic);
+            return classify_dsa_sign_failure(libctx, key, 0, generic);
         }
         return generic;
     }
@@ -767,6 +865,11 @@ int32_t dsa_ctx_init_sign(dsa_ctx *ctx, const key_spec *key,
         return raw_ret;
     }
 
+    if (!dsa_digest_fetchable(libctx, digest_name)) {
+        rand_clear_java_srand_call();
+        return JO_DSA_DIGEST_NOT_SUPPORTED;
+    }
+
     // Reuses OPS_OPENSSL_ERROR_3 / _4. Each test drives only one path.
     md_ctx = EVP_MD_CTX_new();
     if (OPS_OPENSSL_ERROR_3 md_ctx == NULL) {
@@ -778,7 +881,7 @@ int32_t dsa_ctx_init_sign(dsa_ctx *ctx, const key_spec *key,
             md_ctx, &pctx, digest_name, libctx, NULL, key->key, NULL)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(5041);
         if (!JO_ERROR_WAS_INJECTED(ret_code)) {
-            ret_code = classify_dsa_sign_failure(libctx, key->key, ret_code);
+            ret_code = classify_dsa_sign_failure(libctx, key->key, 1, ret_code);
         }
         goto exit;
     }
@@ -828,6 +931,10 @@ int32_t dsa_ctx_init_verify(dsa_ctx *ctx, const key_spec *key,
         return dsa_raw_init(ctx, libctx, key->key, DSA_OP_VERIFY);
     }
 
+    if (!dsa_digest_fetchable(libctx, digest_name)) {
+        return JO_DSA_DIGEST_NOT_SUPPORTED;
+    }
+
     // Reuses OPS_OPENSSL_ERROR_5 / _6. Each test drives only one path.
     md_ctx = EVP_MD_CTX_new();
     if (OPS_OPENSSL_ERROR_5 md_ctx == NULL) {
@@ -838,6 +945,9 @@ int32_t dsa_ctx_init_verify(dsa_ctx *ctx, const key_spec *key,
     if (OPS_OPENSSL_ERROR_6 1 != EVP_DigestVerifyInit_ex(
             md_ctx, &pctx, digest_name, libctx, NULL, key->key, NULL)) {
         ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_6(5051);
+        if (!JO_ERROR_WAS_INJECTED(ret_code)) {
+            ret_code = classify_dsa_verify_failure(libctx, key->key, ret_code);
+        }
         goto exit;
     }
 

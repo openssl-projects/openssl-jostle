@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
 
@@ -1200,5 +1201,37 @@ public class DSALimitTest
                 dsa.disposeSigner(verifyRef);
             }
         }
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused() throws Exception
+    {
+        DSABridgeCells.wrongKindHandlesAreRefused(dsa, TestNISelector.getSpecNI(), TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_unusableDigestNamesAreRefused() throws Exception
+    {
+        DSABridgeCells.unusableDigestNamesAreRefused(dsa, TestNISelector.getSpecNI());
+    }
+
+    @Test
+    public void bridge_keyValuesAreRangeChecked() throws Exception
+    {
+        DSABridgeCells.keyValuesAreRangeChecked(dsa, TestNISelector.getSpecNI());
+    }
+
+    /** The default provider answers a 2000-bit request with 2048 bits, which the size check refuses. */
+    @Test
+    public void DSAServiceNI_generateParameters_sizeNotHonouredIsRefused()
+    {
+        int[] err = new int[1];
+        Assertions.assertEquals(0L, dsa.ni_generateParameters(2000, 160, err, TestUtil.RNDSrc));
+        Assertions.assertEquals(ErrorCode.JO_DSA_PARAMGEN_SIZE_MISMATCH.getCode(), err[0]);
+        ProviderException e = Assertions.assertThrows(ProviderException.class,
+                () -> dsa.generateParameters(2000, 160, TestUtil.RNDSrc));
+        Assertions.assertEquals(
+                "DSA parameter generation did not honour the requested sizes: p of 2000 bits, q of 160 bits",
+                e.getMessage());
     }
 }

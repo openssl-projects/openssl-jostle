@@ -19,8 +19,10 @@ import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
+import java.math.BigInteger;
 import java.security.AlgorithmParameterGenerator;
 import java.security.AlgorithmParameters;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -31,8 +33,13 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.interfaces.DSAParams;
+import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.DSAPublicKey;
 import java.security.spec.DSAParameterSpec;
+import java.security.spec.DSAPrivateKeySpec;
+import java.security.spec.DSAPublicKeySpec;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
@@ -513,5 +520,76 @@ public class DSAAgreementTest
         Assertions.assertTrue(
                 verify("SHA256withDSA", JSL, pair.getPublic(), msg, sign("SHA256withDSA", BC, peerPriv, msg)),
                 what + ": JSL rejected a BC signature made under them");
+    }
+
+    /**
+     * Component imports beside BouncyCastle, on the provider named: a y outside [2, p-2] or outside the subgroup
+     * and an even p are refused by both as InvalidKeySpecException. g = 1 and x outside [1, q-1] are refused by
+     * ours and imported by BouncyCastle, a divergence pinned in both halves. At initialize, g = 1 and an even p are
+     * InvalidAlgorithmParameterException from ours; BouncyCastle accepts them there and fails at generation with
+     * an unchecked IllegalArgumentException, off the JCA contract.
+     */
+    public static void assertImportRangesBesideBouncyCastle(String ours, KeyPair pair) throws Exception
+    {
+        DSAParams params = ((DSAPrivateKey) pair.getPrivate()).getParams();
+        BigInteger p = params.getP();
+        BigInteger q = params.getQ();
+        BigInteger g = params.getG();
+        BigInteger y = ((DSAPublicKey) pair.getPublic()).getY();
+        KeyFactory ourKf = KeyFactory.getInstance("DSA", ours);
+        KeyFactory bcKf = KeyFactory.getInstance("DSA", BC);
+
+        for (BigInteger bad : new BigInteger[]{BigInteger.ONE, BigInteger.valueOf(2), p.subtract(BigInteger.ONE), p})
+        {
+            DSAPublicKeySpec spec = new DSAPublicKeySpec(bad, p, q, g);
+            InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> ourKf.generatePublic(spec), bad.toString(16));
+            Assertions.assertEquals("DSA y is outside its range or outside the subgroup of order q", e.getMessage());
+            Assertions.assertThrows(InvalidKeySpecException.class, () -> bcKf.generatePublic(spec), bad.toString(16));
+        }
+        DSAPublicKeySpec evenP = new DSAPublicKeySpec(y, p.subtract(BigInteger.ONE), q, g);
+        InvalidKeySpecException e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> ourKf.generatePublic(evenP));
+        Assertions.assertEquals("DSA prime p must be odd", e.getMessage());
+        Assertions.assertThrows(InvalidKeySpecException.class, () -> bcKf.generatePublic(evenP));
+        e = Assertions.assertThrows(InvalidKeySpecException.class,
+                () -> ourKf.generatePublic(new DSAPublicKeySpec(BigInteger.ZERO, p, q, g)));
+        Assertions.assertEquals("DSA component 'y' must be positive", e.getMessage());
+
+        DSAPublicKeySpec gOne = new DSAPublicKeySpec(y, p, q, BigInteger.ONE);
+        e = Assertions.assertThrows(InvalidKeySpecException.class, () -> ourKf.generatePublic(gOne));
+        Assertions.assertEquals("DSA generator g must be at least 2", e.getMessage());
+        Assertions.assertNotNull(bcKf.generatePublic(gOne));
+
+        for (BigInteger bad : new BigInteger[]{q, q.add(BigInteger.ONE)})
+        {
+            DSAPrivateKeySpec spec = new DSAPrivateKeySpec(bad, p, q, g);
+            e = Assertions.assertThrows(InvalidKeySpecException.class,
+                    () -> ourKf.generatePrivate(spec), bad.toString(16));
+            Assertions.assertEquals("DSA x is outside its range: [1, q-1]", e.getMessage());
+            Assertions.assertNotNull(bcKf.generatePrivate(spec), bad.toString(16));
+        }
+        for (BigInteger good : new BigInteger[]{BigInteger.ONE, q.subtract(BigInteger.ONE)})
+        {
+            DSAPrivateKeySpec spec = new DSAPrivateKeySpec(good, p, q, g);
+            Assertions.assertNotNull(ourKf.generatePrivate(spec), good.toString(16));
+            Assertions.assertNotNull(bcKf.generatePrivate(spec), good.toString(16));
+        }
+
+        for (DSAParameterSpec bad : new DSAParameterSpec[]{new DSAParameterSpec(p, q, BigInteger.ONE),
+                new DSAParameterSpec(p.subtract(BigInteger.ONE), q, g)})
+        {
+            KeyPairGenerator ourKpg = KeyPairGenerator.getInstance("DSA", ours);
+            Assertions.assertThrows(InvalidAlgorithmParameterException.class, () -> ourKpg.initialize(bad));
+            KeyPairGenerator bcKpg = KeyPairGenerator.getInstance("DSA", BC);
+            bcKpg.initialize(bad);
+            Assertions.assertThrows(IllegalArgumentException.class, bcKpg::generateKeyPair);
+        }
+    }
+
+    @Test
+    public void importRangesAreCheckedBesideBouncyCastle() throws Exception
+    {
+        assertImportRangesBesideBouncyCastle(JSL, jslPair);
     }
 }

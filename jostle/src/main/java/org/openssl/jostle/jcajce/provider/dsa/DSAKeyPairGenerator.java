@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.dsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.util.asn1.Asn1Ni;
@@ -192,6 +193,14 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
             throw new InvalidAlgorithmParameterException(
                     "DSAParameterSpec p, q and g must all be positive");
         }
+        if (!dsaSpec.getP().testBit(0))
+        {
+            throw new InvalidAlgorithmParameterException("DSA prime p must be odd");
+        }
+        if (dsaSpec.getG().compareTo(BigInteger.valueOf(2)) < 0)
+        {
+            throw new InvalidAlgorithmParameterException("DSA generator g must be at least 2");
+        }
         int pBits = dsaSpec.getP().bitLength();
         int qBits = dsaSpec.getQ().bitLength();
         if (pBits < MIN_P_BITS || pBits > MAX_P_BITS)
@@ -276,6 +285,11 @@ public class DSAKeyPairGenerator extends KeyPairGenerator
                     e.getMessage()
                             + " — obtain a DSA key from an external source and import it via"
                             + " KeyFactory.getInstance(\"DSA\")", e);
+        }
+        catch (OpenSSLException e)
+        {
+            // generateKeyPair declares no checked type; the library's failure travels as the cause.
+            throw new ProviderException("unable to generate a DSA key pair: " + e.getMessage(), e);
         }
         if (ref == 0)
         {

@@ -24,6 +24,7 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.dsa.DSABridgeCells;
 
 import java.security.SecureRandom;
 
@@ -932,5 +933,45 @@ public class FIPSDSALimitTest
     {
         IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, action);
         Assertions.assertEquals(message, e.getMessage());
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused() throws Exception
+    {
+        DSABridgeCells.wrongKindHandlesAreRefused(dsa, specNI, FIPSNISelector.MDServiceNI);
+    }
+
+    @Test
+    public void bridge_unusableDigestNamesAreRefused() throws Exception
+    {
+        DSABridgeCells.unusableDigestNamesAreRefused(dsa, specNI);
+    }
+
+    @Test
+    public void bridge_keyValuesAreRangeChecked() throws Exception
+    {
+        DSABridgeCells.keyValuesAreRangeChecked(dsa, specNI);
+    }
+
+    /** A size the module does not serve: 3.1.2 refuses it itself, 3.5.8 refuses every generation. */
+    @Test
+    public void DSAServiceNI_generateParameters_unservedSizeIsRefused()
+    {
+        int expected = MODULE_3_1_2.equals(measuredModule())
+                ? ErrorCode.JO_OPENSSL_ERROR.getCode() : ErrorCode.JO_DSA_KEYGEN_UNAVAILABLE.getCode();
+        int[] err = new int[1];
+        Assertions.assertEquals(0L, dsa.ni_generateParameters(2000, 160, err, RND));
+        Assertions.assertEquals(expected, err[0]);
+    }
+
+    private static final String MODULE_3_1_2 = "OpenSSL FIPS Provider 3.1.2";
+    private static final String MODULE_3_5_8 = "OpenSSL FIPS Provider 3.5.8";
+
+    /** The loaded module's version, failing the cell for a module these pins were not measured on. */
+    private static String measuredModule()
+    {
+        String v = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
+        Assertions.assertTrue(MODULE_3_1_2.equals(v) || MODULE_3_5_8.equals(v), "unmeasured module: " + v);
+        return v;
     }
 }

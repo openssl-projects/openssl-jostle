@@ -412,6 +412,16 @@ public enum ErrorCode
     JO_DH_KEX_CTX_WRONG_KIND(-220),
     // A DH x outside its range.
     JO_DH_PRIVATE_VALUE_INVALID(-221),
+    // A handle passed as a DSA signer context that is not one.
+    JO_DSA_CTX_WRONG_KIND(-222),
+    // An empty DSA digest name, one with an embedded NUL, or one the library cannot fetch.
+    JO_DSA_DIGEST_NOT_SUPPORTED(-223),
+    // A DSA y outside its range or outside the subgroup of order q.
+    JO_DSA_PUBLIC_VALUE_INVALID(-224),
+    // A DSA x outside 0 < x < q.
+    JO_DSA_PRIVATE_VALUE_INVALID(-225),
+    // The library generated DSA parameters of a size other than the one requested.
+    JO_DSA_PARAMGEN_SIZE_MISMATCH(-226),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

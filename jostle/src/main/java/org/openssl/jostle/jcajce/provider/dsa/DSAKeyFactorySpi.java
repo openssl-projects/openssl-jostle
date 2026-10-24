@@ -122,12 +122,21 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
         if (keySpec instanceof DSAPublicKeySpec)
         {
             DSAPublicKeySpec pubSpec = (DSAPublicKeySpec) keySpec;
-            byte[] p = magnitude(pubSpec.getP(), "p");
+            byte[] p = magnitude(oddPrime(pubSpec.getP()), "p");
             byte[] q = magnitude(pubSpec.getQ(), "q");
-            byte[] g = magnitude(pubSpec.getG(), "g");
+            byte[] g = magnitude(generator(pubSpec.getG()), "g");
             byte[] y = magnitude(pubSpec.getY(), "y");
-            long ref = dsaServiceNI.makePublicFromComponents(p, q, g, y);
-            return new JODSAPublicKey(dsaServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA, providerInstance));
+            try
+            {
+                long ref = dsaServiceNI.makePublicFromComponents(p, q, g, y);
+                return new JODSAPublicKey(dsaServiceNI, asn1NI,
+                        new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA, providerInstance));
+            }
+            catch (RuntimeException e)
+            {
+                // The native arm names the check y failed; the type is the KeyFactory's.
+                throw new InvalidKeySpecException(e.getMessage(), e);
+            }
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use X509EncodedKeySpec or DSAPublicKeySpec.");
@@ -163,10 +172,23 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
             byte[] q = magnitude(privSpec.getQ(), "q");
             byte[] g = magnitude(privSpec.getG(), "g");
             byte[] x = magnitude(privSpec.getX(), "x");
-            long ref = dsaServiceNI.makePrivateFromComponents(
-                    p, q, g, x,
-                    DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
-            return new JODSAPrivateKey(dsaServiceNI, asn1NI, new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA, providerInstance));
+            try
+            {
+                long ref = dsaServiceNI.makePrivateFromComponents(
+                        p, q, g, x,
+                        DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom()));
+                return new JODSAPrivateKey(dsaServiceNI, asn1NI,
+                        new PKEYKeySpec(specNI, ref, OSSLKeyType.DSA, providerInstance));
+            }
+            catch (RuntimeException e)
+            {
+                // The native arm names the range x was outside; the type is the KeyFactory's.
+                throw new InvalidKeySpecException(e.getMessage(), e);
+            }
+            finally
+            {
+                Arrays.clear(x);
+            }
         }
         throw new InvalidKeySpecException("unsupported key spec: " + keySpec
                 + ". Use PKCS8EncodedKeySpec or DSAPrivateKeySpec.");
@@ -299,6 +321,26 @@ public class DSAKeyFactorySpi extends KeyFactorySpi
                     + MAX_COMPONENT_BITS + " bits");
         }
         return DSAComponents.unsignedMagnitude(value);
+    }
+
+    /** Structural, one bit: a prime modulus is odd. Null and non-positive values are magnitude's to refuse. */
+    private static BigInteger oddPrime(BigInteger p) throws InvalidKeySpecException
+    {
+        if (p != null && p.signum() > 0 && !p.testBit(0))
+        {
+            throw new InvalidKeySpecException("DSA prime p must be odd");
+        }
+        return p;
+    }
+
+    /** A generator of the subgroup is at least 2. Null and non-positive values are magnitude's to refuse. */
+    private static BigInteger generator(BigInteger g) throws InvalidKeySpecException
+    {
+        if (g != null && g.signum() > 0 && g.compareTo(BigInteger.valueOf(2)) < 0)
+        {
+            throw new InvalidKeySpecException("DSA generator g must be at least 2");
+        }
+        return g;
     }
 
     private static void requireDSA(PKEYKeySpec spec) throws InvalidKeySpecException
