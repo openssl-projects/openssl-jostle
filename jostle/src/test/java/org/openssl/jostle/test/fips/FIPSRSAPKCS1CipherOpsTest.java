@@ -219,16 +219,12 @@ public class FIPSRSAPKCS1CipherOpsTest
         }
     }
 
-    private static final String MODULE_3_1_2 = "OpenSSL FIPS Provider 3.1.2";
-    private static final String MODULE_3_5_8 = "OpenSSL FIPS Provider 3.5.8";
     private static final int IMPLICIT_REJECTION_UNAVAILABLE = ErrorCode.JO_IMPLICIT_REJECTION_UNAVAILABLE.getCode();
 
-    /** The loaded module, one of the two measured; any other fails the cell. */
-    private static String measuredModule()
+    /** Implicit rejection is a version property: the parameter entered OpenSSL in 3.2, after the 3.1.2 module. */
+    private static boolean implicitRejectionAvailable()
     {
-        String v = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue(MODULE_3_1_2.equals(v) || MODULE_3_5_8.equals(v), "unmeasured module: " + v);
-        return v;
+        return FipsModuleProfile.MODULE_3_5_8.equals(FipsModuleProfile.get().version());
     }
 
     /**
@@ -240,7 +236,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_init_decrypt_capabilityProbe_failure() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        int unflagged = MODULE_3_5_8.equals(measuredModule()) ? 0 : IMPLICIT_REJECTION_UNAVAILABLE;
+        int unflagged = implicitRejectionAvailable() ? 0 : IMPLICIT_REJECTION_UNAVAILABLE;
 
         long ref = 0;
         long keyRef = 0;
@@ -273,7 +269,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     public void RSAPKCS1Cipher_init_decrypt_setImplicitRejection_opensslError() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-        int flagged = MODULE_3_5_8.equals(measuredModule()) ? -2113 : IMPLICIT_REJECTION_UNAVAILABLE;
+        int flagged = implicitRejectionAvailable() ? -2113 : IMPLICIT_REJECTION_UNAVAILABLE;
 
         long ref = 0;
         long keyRef = 0;

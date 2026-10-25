@@ -920,9 +920,7 @@ public class FIPSDHLimitTest
     @Test
     public void bridge_qLessPrivateValueRangeIsChecked()
     {
-        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
-                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        FipsModuleProfile.get();
         DHBridgeCells.qLessPrivateValueRangeIsChecked(dh, specNI,
                 Hex.decode(FIPSTestUtil.NON_NAMED_SAFE_PRIME_2048_HEX));
     }

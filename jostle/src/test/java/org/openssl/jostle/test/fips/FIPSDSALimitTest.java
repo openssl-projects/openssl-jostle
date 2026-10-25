@@ -953,25 +953,14 @@ public class FIPSDSALimitTest
         DSABridgeCells.keyValuesAreRangeChecked(dsa, specNI);
     }
 
-    /** A size the module does not serve: 3.1.2 refuses it itself, 3.5.8 refuses every generation. */
+    /** A size the module does not serve: 3.1.2 refuses it itself, 3.5.8 refuses it typed. A version property. */
     @Test
     public void DSAServiceNI_generateParameters_unservedSizeIsRefused()
     {
-        int expected = MODULE_3_1_2.equals(measuredModule())
+        int expected = FipsModuleProfile.get().isVersion312()
                 ? ErrorCode.JO_OPENSSL_ERROR.getCode() : ErrorCode.JO_DSA_KEYGEN_UNAVAILABLE.getCode();
         int[] err = new int[1];
         Assertions.assertEquals(0L, dsa.ni_generateParameters(2000, 160, err, RND));
         Assertions.assertEquals(expected, err[0]);
-    }
-
-    private static final String MODULE_3_1_2 = "OpenSSL FIPS Provider 3.1.2";
-    private static final String MODULE_3_5_8 = "OpenSSL FIPS Provider 3.5.8";
-
-    /** The loaded module's version, failing the cell for a module these pins were not measured on. */
-    private static String measuredModule()
-    {
-        String v = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue(MODULE_3_1_2.equals(v) || MODULE_3_5_8.equals(v), "unmeasured module: " + v);
-        return v;
     }
 }

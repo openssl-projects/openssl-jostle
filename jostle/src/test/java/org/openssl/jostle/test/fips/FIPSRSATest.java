@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
-import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.util.Arrays;
 
@@ -1065,26 +1064,15 @@ public class FIPSRSATest
         return signer.sign();
     }
 
-    private static final String MODULE_3_1_2 = "OpenSSL FIPS Provider 3.1.2";
-    private static final String MODULE_3_5_8 = "OpenSSL FIPS Provider 3.5.8";
-
-    /** The loaded module's version, failing the cell for a module these pins were not measured on. */
-    private static String measuredModule()
-    {
-        String v = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue(MODULE_3_1_2.equals(v) || MODULE_3_5_8.equals(v), "unmeasured module: " + v);
-        return v;
-    }
-
     /**
-     * A module that refuses to sign says which cause it refused: the digest (the SHA-1 names, the 2048-bit key
-     * signing under SHA-256) or the key (1024 bits, verified and never signed). Measured the same on 3.1.2 and
-     * 3.5.8; the module still verifies a signature made elsewhere.
+     * A module that refuses to sign says which cause it refused: the digest (the SHA-1 names) or the key (1024
+     * bits), and still verifies a signature made elsewhere. Each refusal is an installed option: where the option is
+     * off the module signs and verifies instead.
      */
     @Test
     public void signRefusalsNameTheirCause() throws Exception
     {
-        measuredModule();
+        FipsModuleProfile profile = FipsModuleProfile.get();
         KeyPair strong = keyPair();
         KeyPairGenerator jslKpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         jslKpg.initialize(1024);
@@ -1095,15 +1083,44 @@ public class FIPSRSATest
 
         String digestRefused = "the loaded provider does not sign RSA with SHA-1; verification remains available";
         PrivateKey strongJsl = FIPSTestUtil.crossPrivate(strong.getPrivate(), "RSA", JostleProvider.PROVIDER_NAME);
-        assertSignRefused("SHA1withRSA", strong.getPrivate(), strong.getPublic(), strongJsl, digestRefused);
-        assertSignRefused("SHA1WITHRSAANDMGF1", strong.getPrivate(), strong.getPublic(), strongJsl, digestRefused);
+        for (String alg : new String[]{"SHA1withRSA", "SHA1WITHRSAANDMGF1"})
+        {
+            if (profile.sha1SigningRefused())
+            {
+                assertSignRefused(alg, strong.getPrivate(), strong.getPublic(), strongJsl, digestRefused);
+            }
+            else
+            {
+                assertSignServed(alg, strong.getPrivate(), strong.getPublic());
+            }
+        }
 
         String keyRefused = "the loaded provider does not sign RSA with this key (n of 1024 bits);"
                 + " verification remains available";
         for (String alg : new String[]{"SHA256withRSA", "SHA256WITHRSAANDMGF1", "RSASSA-PSS", "NoneWithRSA"})
         {
-            assertSignRefused(alg, weakPrivate, weakPublic, jslWeak.getPrivate(), keyRefused);
+            if (profile.rsaSmallKeySigningRefused())
+            {
+                assertSignRefused(alg, weakPrivate, weakPublic, jslWeak.getPrivate(), keyRefused);
+            }
+            else
+            {
+                assertSignServed(alg, weakPrivate, weakPublic);
+            }
         }
+    }
+
+    private static void assertSignServed(String alg, PrivateKey priv, PublicKey pub) throws Exception
+    {
+        byte[] msg = randomMessage(32);
+        Signature signer = Signature.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
+        signer.initSign(priv);
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Signature verifier = Signature.getInstance(alg, JostleFIPSProvider.PROVIDER_NAME);
+        verifier.initVerify(pub);
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig), alg + ": the module must sign and verify");
     }
 
     private static void assertSignRefused(String alg, PrivateKey priv, PublicKey pub, PrivateKey jslPriv,
@@ -1127,13 +1144,13 @@ public class FIPSRSATest
 
     /**
      * The PSS salt is bounded by the key at init on both modules: past 222 (2048 bits, SHA-256) it is refused with
-     * SunRsaSign's type and message shape. Within the key's bound the modules differ, pinned by version: 3.1.2 signs
-     * every salt up to 222; 3.5.8 refuses a salt above hLen (32) at sign as a SignatureException.
+     * SunRsaSign's type and message shape. Within the key's bound a salt above hLen (32) is refused at sign as a
+     * SignatureException where 3.5.8 is installed with rsa-pss-saltlen-check, and signed everywhere else.
      */
     @Test
     public void pssSaltIsBoundedByTheKeyAtInit() throws Exception
     {
-        boolean refusesAboveHLen = MODULE_3_5_8.equals(measuredModule());
+        boolean refusesAboveHLen = FipsModuleProfile.get().pssSaltLengthChecked();
         KeyPair kp = keyPair();
         for (int salt : new int[]{0, 32, 33, 222})
         {
@@ -1172,7 +1189,7 @@ public class FIPSRSATest
     @Test
     public void oaepRefusalsArePinnedPerModule() throws Exception
     {
-        String module = measuredModule();
+        String module = FipsModuleProfile.get().version();
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
         kpg.initialize(2048);
         PublicKey pub = KeyFactory.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME).generatePublic(
@@ -1190,7 +1207,7 @@ public class FIPSRSATest
         Cipher enc = Cipher.getInstance("RSA", JostleFIPSProvider.PROVIDER_NAME);
         e = Assertions.assertThrows(InvalidKeyException.class, () -> enc.init(Cipher.ENCRYPT_MODE, smallPub));
         Assertions.assertTrue(e.getMessage().startsWith("OpenSSL Error:"), e.getMessage());
-        String reason = MODULE_3_1_2.equals(module) ? "ossl_rsa_check_key:invalid key length"
+        String reason = FipsModuleProfile.MODULE_3_1_2.equals(module) ? "ossl_rsa_check_key:invalid key length"
                 : "ossl_fips_ind_rsa_key_check:invalid key length";
         Assertions.assertTrue(e.getMessage().contains(reason), e.getMessage());
         Assertions.assertEquals(OpenSSLException.class, e.getCause().getClass());

@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
-import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.test.dsa.DSAAgreementTest;
 import org.openssl.jostle.test.util.CipherFamilies;
@@ -487,19 +486,17 @@ public class FIPSDSAAgreementTest
     }
 
     /**
-     * SHA1withDSA beside BouncyCastle, pinned per module: a BouncyCastle SHA-1 signature verifies on both, since
-     * SHA-1 verification is legacy-approved. Signing is refused on both: 3.1.2 refuses the digest, naming it; 3.5.8
-     * refuses every DSA signature, naming the key. An unmeasured module fails the cell.
+     * SHA1withDSA beside BouncyCastle, pinned per installed options: a BouncyCastle SHA-1 signature verifies
+     * everywhere, since SHA-1 verification is legacy-approved. Signing is refused naming the key under
+     * dsa-sign-disabled, naming the digest where SHA-1 signing is refused, and otherwise signs and verifies in
+     * BouncyCastle. An unmeasured module fails the cell.
      */
     @Test
     public void sha1WithDsaVerifiesBesideBcAndSigningIsRefusedPerModule() throws Exception
     {
-        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
-                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
-        String refusal = "OpenSSL FIPS Provider 3.1.2".equals(module)
-                ? "the loaded provider does not sign DSA with SHA-1"
-                : FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE;
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        String refusal = profile.dsaSigningDisabled() ? FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE
+                : profile.sha1SigningRefused() ? "the loaded provider does not sign DSA with SHA-1" : null;
         ensureSharedKeyPair();
         SecureRandom sr = seededRandom("sha1WithDsaVerifiesBesideBcAndSigningIsRefusedPerModule");
 
@@ -518,6 +515,12 @@ public class FIPSDSAAgreementTest
             Assertions.assertFalse(verify(sigAlg, FIPS, fips.pub, tampered, sigBc),
                     sigAlg + ": tampered message must not verify");
 
+            if (refusal == null)
+            {
+                Assertions.assertTrue(verify(sigAlg, BC, bc.pub, msg, sign(sigAlg, FIPS, fips.priv, msg)),
+                        sigAlg + ": a FIPS SHA-1 signature must verify in BouncyCastle");
+                continue;
+            }
             InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class,
                     () -> sign(sigAlg, FIPS, fips.priv, msg), sigAlg);
             Assertions.assertEquals(refusal, ex.getMessage(), sigAlg);

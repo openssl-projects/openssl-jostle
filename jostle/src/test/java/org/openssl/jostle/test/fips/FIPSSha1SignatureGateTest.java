@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
-import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 
 import java.security.KeyPair;
@@ -94,45 +93,30 @@ public class FIPSSha1SignatureGateTest
      * either, and requires the underlying module message beneath it.
      */
     /**
-     * SHA-1 signature generation is either refused naming the digest, or it
+     * SHA-1 signature generation is refused naming the digest where the installed options refuse it, and otherwise
      * works and produces a signature that verifies.
      * <p>
-     * Whether it is refused is a <b>deployment configuration</b>, not a module
-     * property: {@code signature-digest-check} is a {@code fipsinstall}
-     * option, set by {@code -pedantic} and <b>0 at defaults</b>. So an
-     * unconditional "must be rejected" assertion fails against a
-     * default-configured module while proving nothing about it — the same
-     * hardcoded-answer bug as the DSA and PKCS#1 tests.
+     * Whether it is refused is a deployment configuration, not a module property: {@code signature-digest-check}
+     * (3.5.8) and {@code security-checks} (3.1.2) are fipsinstall options, so the expected answer comes from
+     * {@link FipsModuleProfile}, and each answer is pinned for the configuration that gives it.
      * <p>
-     * Both branches are load-bearing. The refusal must name the DIGEST (not a
-     * key or provider problem — the SHA-256 control in each caller rules those
-     * out), and where SHA-1 is permitted the signature must actually verify
-     * rather than being silently wrong.
+     * A refusal must name the DIGEST (the SHA-256 control in each caller rules out a key or provider problem),
+     * reach the caller as InvalidKeyException with the OpenSSLException as the cause, in every family; a permitted
+     * signature must verify, and a tampered message must not.
      */
-    private static void assertSha1SignRefusedOrWorks(KeyPair kp, String sigAlg) throws Exception
+    private static void assertSha1SignAsInstalled(KeyPair kp, String sigAlg) throws Exception
     {
+        FipsModuleProfile profile = FipsModuleProfile.get();
         byte[] msg = new byte[32];
         RANDOM.nextBytes(msg);
 
-        byte[] sig;
-        try
+        if (profile.sha1SigningRefused())
         {
-            Signature s = Signature.getInstance(sigAlg, FIPS);
-            s.initSign(kp.getPrivate());
-            s.update(msg);
-            sig = s.sign();
-        }
-        catch (Exception ex)
-        {
-            // MT-76: the refusal happens at initSign, and EVERY family must
-            // surface it as InvalidKeyException with the OpenSSLException as the
-            // cause. This helper used to accept either shape, which is how RSA
-            // translating and EC/DSA not went unnoticed; accepting either is
-            // what would let the inconsistency return.
-            Assertions.assertTrue(ex instanceof InvalidKeyException,
-                    sigAlg + ": the module's refusal must reach the caller as InvalidKeyException"
-                            + " - the JCE-canonical init failure and the provider-fallback"
-                            + " trigger - got: " + ex.getClass().getName());
+            InvalidKeyException ex = Assertions.assertThrows(InvalidKeyException.class, () ->
+            {
+                Signature s = Signature.getInstance(sigAlg, FIPS);
+                s.initSign(kp.getPrivate());
+            }, sigAlg);
             Throwable openssl = ex.getCause();
             Assertions.assertTrue(openssl instanceof OpenSSLException,
                     sigAlg + ": the OpenSSLException must be preserved as the cause, got: " + openssl);
@@ -145,17 +129,18 @@ public class FIPSSha1SignatureGateTest
                 Assertions.assertTrue(openssl instanceof ProviderCapabilityException, sigAlg + ": " + openssl);
                 return;
             }
-            // The module's wording changed between the two supported versions,
-            // so both are pinned rather than either being matched loosely:
-            //   3.1.2 : "... securitycheck: digest not allowed"
-            //   3.5.8 : "... ossl_fips_ind_digest_sign_check: invalid digest"
+            // The module's wording is a version property: 3.1.2 "securitycheck: digest not allowed", 3.5.8
+            // "ossl_fips_ind_digest_sign_check: invalid digest".
+            String wording = profile.isVersion312() ? "digest not allowed" : "invalid digest";
             String m = String.valueOf(openssl.getMessage());
-            Assertions.assertTrue(m.contains("digest not allowed") || m.contains("invalid digest"),
-                    sigAlg + ": expected a module digest rejection, got: " + m);
+            Assertions.assertTrue(m.contains(wording), sigAlg + ": expected \"" + wording + "\", got: " + m);
             return;
         }
 
-        // Permitted by this configuration - then it must be a real signature.
+        Signature s = Signature.getInstance(sigAlg, FIPS);
+        s.initSign(kp.getPrivate());
+        s.update(msg);
+        byte[] sig = s.sign();
         Signature v = Signature.getInstance(sigAlg, FIPS);
         v.initVerify(kp.getPublic());
         v.update(msg);
@@ -167,8 +152,7 @@ public class FIPSSha1SignatureGateTest
         Signature t = Signature.getInstance(sigAlg, FIPS);
         t.initVerify(kp.getPublic());
         t.update(tampered);
-        Assertions.assertFalse(t.verify(sig),
-                sigAlg + ": a tampered message verified");
+        Assertions.assertFalse(t.verify(sig), sigAlg + ": a tampered message verified");
     }
 
     @Test
@@ -187,8 +171,8 @@ public class FIPSSha1SignatureGateTest
         control.update(msg);
         Assertions.assertTrue(control.sign().length > 0, "SHA-256 RSA signing must work");
 
-        assertSha1SignRefusedOrWorks(rsa, "SHA1withRSA");
-        assertSha1SignRefusedOrWorks(rsa, "SHA1withRSAandMGF1");
+        assertSha1SignAsInstalled(rsa, "SHA1withRSA");
+        assertSha1SignAsInstalled(rsa, "SHA1withRSAandMGF1");
 
         KeyPairGenerator ecKpg = KeyPairGenerator.getInstance("EC", FIPS);
         ecKpg.initialize(new ECGenParameterSpec("secp256r1"));
@@ -199,32 +183,43 @@ public class FIPSSha1SignatureGateTest
         ecControl.update(msg);
         Assertions.assertTrue(ecControl.sign().length > 0, "SHA-256 ECDSA signing must work");
 
-        assertSha1SignRefusedOrWorks(ec, "SHA1withECDSA");
+        assertSha1SignAsInstalled(ec, "SHA1withECDSA");
     }
 
     /**
-     * SHA-1 DSA signature generation is refused on both measured modules, and verification is served. 3.1.2 signs
-     * DSA and refuses the digest, naming it; 3.5.8 refuses every DSA signature, naming the key. An unmeasured module
-     * fails the cell.
+     * SHA-1 DSA signature generation follows the installed options, and verification is always served. Under
+     * dsa-sign-disabled every DSA signature is refused, naming the key; where SHA-1 signing is refused the digest is
+     * named; otherwise the module signs and its signature verifies. An unmeasured module fails the cell.
      */
     @Test
     public void sha1DsaSignatureGenerationIsRefusedPerModule() throws Exception
     {
-        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
-                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        FipsModuleProfile profile = FipsModuleProfile.get();
         KeyPair dsa = FIPSTestUtil.dsaKeyPair(FIPS);
-        String expected = "OpenSSL FIPS Provider 3.1.2".equals(module)
-                ? "the loaded provider does not sign DSA with SHA-1"
-                : FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE;
-        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
-                () -> Signature.getInstance("SHA1withDSA", FIPS).initSign(dsa.getPrivate()));
-        Assertions.assertEquals(expected, e.getMessage());
-        Assertions.assertTrue(e.getCause() instanceof ProviderCapabilityException, String.valueOf(e.getCause()));
-
-        // Verification is served: a SHA-1 signature made by the base provider over the same key verifies.
         byte[] msg = new byte[64];
         RANDOM.nextBytes(msg);
+        if (profile.dsaSigningDisabled() || profile.sha1SigningRefused())
+        {
+            String expected = profile.dsaSigningDisabled() ? FIPSTestUtil.DSA_SIGN_REFUSED_MESSAGE
+                    : "the loaded provider does not sign DSA with SHA-1";
+            InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> Signature.getInstance("SHA1withDSA", FIPS).initSign(dsa.getPrivate()));
+            Assertions.assertEquals(expected, e.getMessage());
+            Assertions.assertTrue(e.getCause() instanceof ProviderCapabilityException, String.valueOf(e.getCause()));
+        }
+        else
+        {
+            Signature fipsSigner = Signature.getInstance("SHA1withDSA", FIPS);
+            fipsSigner.initSign(dsa.getPrivate());
+            fipsSigner.update(msg);
+            byte[] fipsSig = fipsSigner.sign();
+            Signature fipsVerifier = Signature.getInstance("SHA1withDSA", FIPS);
+            fipsVerifier.initVerify(dsa.getPublic());
+            fipsVerifier.update(msg);
+            Assertions.assertTrue(fipsVerifier.verify(fipsSig));
+        }
+
+        // Verification is served: a SHA-1 signature made by the base provider over the same key verifies.
         Signature signer = Signature.getInstance("SHA1withDSA", JostleProvider.PROVIDER_NAME);
         signer.initSign(FIPSTestUtil.dsaKeyPair(JostleProvider.PROVIDER_NAME).getPrivate());
         signer.update(msg);

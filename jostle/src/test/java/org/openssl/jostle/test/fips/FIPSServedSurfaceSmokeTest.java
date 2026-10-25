@@ -15,7 +15,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
-import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.test.util.CipherFamilies;
 
@@ -49,6 +48,7 @@ import java.security.AlgorithmParameters;
 import java.security.KeyFactory;
 import java.security.Signature;
 import java.util.Arrays;
+import java.util.Collections;
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
 import javax.crypto.KeyGenerator;
@@ -412,22 +412,22 @@ public class FIPSServedSurfaceSmokeTest
     }
 
     /**
-     * Every registered RSA Signature signs and verifies, except the two SHA-1 names, which are "registered,
-     * refuses signing on this module" on both measured modules (3.1.2 and 3.5.8): refused typed naming the digest,
-     * and still verifying. An unmeasured module fails the cell.
+     * Every registered RSA Signature signs and verifies, except the two SHA-1 names where the installed options
+     * refuse SHA-1 signing: those are "registered, refuses signing on this module", refused typed naming the digest
+     * and still verifying. Where SHA-1 signing is permitted every name signs. An unmeasured module fails the cell.
      */
     @Test
     public void everyRegisteredRsaSignatureSignsExceptSha1() throws Exception
     {
         Provider provider = FIPSTestUtil.assumeFipsProvider();
-        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
-                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        String module = profile.version();
         if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
         {
             Security.addProvider(new JostleProvider());
         }
-        List<String> refusesSigning = Arrays.asList("SHA1WITHRSA", "SHA1WITHRSAANDMGF1");
+        List<String> refusesSigning = profile.sha1SigningRefused()
+                ? Arrays.asList("SHA1WITHRSA", "SHA1WITHRSAANDMGF1") : Collections.<String>emptyList();
         String refusal = "the loaded provider does not sign RSA with SHA-1; verification remains available";
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", FIPS);
         kpg.initialize(2048);
@@ -501,9 +501,7 @@ public class FIPSServedSurfaceSmokeTest
     public void dhParameterGenerationIsRegisteredAndRefusedTyped() throws Exception
     {
         FIPSTestUtil.assumeFipsProvider();
-        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
-                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
+        FipsModuleProfile.get();
         String refusal = "DH parameter generation is not supported by the loaded provider, "
                 + "which substitutes a named group where one exists and refuses otherwise; "
                 + "use named-group key generation instead";
@@ -518,18 +516,18 @@ public class FIPSServedSurfaceSmokeTest
     }
 
     /**
-     * Every DSA service stays registered on both measured modules, and each refusal is typed and pinned by version.
-     * 3.5.8 refuses generation and signing, naming the key size, and verifies; 3.1.2 generates, signs under every
-     * name but SHA-1 (refused naming the digest) and verifies. An unmeasured module fails the cell.
+     * Every DSA service stays registered, and each refusal is typed and pinned by the installed options. Under
+     * dsa-sign-disabled (3.5.8) generation and signing are refused, naming the key size, and verification works;
+     * otherwise the module generates, signs under every name (SHA-1 refused naming the digest where SHA-1 signing
+     * is refused) and verifies. An unmeasured module fails the cell.
      */
     @Test
     public void dsaIsRegisteredAndServedAsMeasuredPerModule() throws Exception
     {
         Provider provider = FIPSTestUtil.assumeFipsProvider();
-        String module = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-        Assertions.assertTrue("OpenSSL FIPS Provider 3.1.2".equals(module)
-                || "OpenSSL FIPS Provider 3.5.8".equals(module), "unmeasured module: " + module);
-        boolean verifyOnly = "OpenSSL FIPS Provider 3.5.8".equals(module);
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        boolean verifyOnly = profile.dsaSigningDisabled();
+        boolean sha1Refused = profile.sha1SigningRefused();
         for (String type : new String[]{"KeyPairGenerator", "AlgorithmParameterGenerator", "KeyFactory",
                 "AlgorithmParameters"})
         {
@@ -571,7 +569,7 @@ public class FIPSServedSurfaceSmokeTest
         for (String name : names)
         {
             Signature signer = Signature.getInstance(name, FIPS);
-            boolean sha1 = name.toUpperCase(Locale.ROOT).startsWith("SHA1");
+            boolean sha1 = sha1Refused && name.toUpperCase(Locale.ROOT).startsWith("SHA1");
             if (verifyOnly || sha1)
             {
                 InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
@@ -597,7 +595,7 @@ public class FIPSServedSurfaceSmokeTest
             }
         }
 
-        // Verification is served on both modules: a signature made by the base provider verifies.
+        // Verification is served on every install: a signature made by the base provider verifies.
         Signature base = Signature.getInstance("SHA256withDSA", JostleProvider.PROVIDER_NAME);
         base.initSign(FIPSTestUtil.dsaKeyPair(JostleProvider.PROVIDER_NAME).getPrivate());
         base.update(msg);
