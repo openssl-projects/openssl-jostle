@@ -41,7 +41,8 @@ import java.security.Security;
  * {@code EVP_PKEY_encapsulate}'s size query outright, and refuses it mutely
  * (measured: {@code fips-c-review/probes/rsakem_probe.c}). So running this
  * inherited suite against 3.1.2 is what proves the pin is present and correct;
- * remove it and 11 of these tests fail while the base class stays green.
+ * remove it and the inherited cells that wrap fail while the base class stays
+ * green ({@link FIPSRSAKEMAgreementTest} holds the BouncyCastle comparisons).
  *
  * <p><b>Ungated.</b> RSASVE encapsulate/decapsulate works on both supported
  * modules at 2048 and 3072, under both fipsinstall configurations, so there is

@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
 import org.openssl.jostle.jcajce.provider.dsa.DSAServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAOAEPCipherNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAPKCS1CipherNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
@@ -224,6 +225,9 @@ public final class NativeAbortProbeRunner
         jniAbortFfmThrowsRow(rows, p + "oaep-allocate-null-err", "err != NULL", jniDir + "rsa_oaep_ni_jni.c");
         controlRow(rows, p + "oaep-control");
 
+        jniAbortFfmThrowsRow(rows, p + "pkcs1-allocate-null-err", "err != NULL", jniDir + "rsa_pkcs1_ni_jni.c");
+        controlRow(rows, p + "pkcs1-control");
+
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
         // the FIPS block is a fact about the tree, not an omission.
@@ -362,6 +366,7 @@ public final class NativeAbortProbeRunner
         DHServiceNI dh;
         DSAServiceNI dsa;
         RSAOAEPCipherNI oaep;
+        RSAPKCS1CipherNI pkcs1;
         if (fips)
         {
             new JostleProvider();
@@ -373,6 +378,7 @@ public final class NativeAbortProbeRunner
             dh = FIPSNISelector.DHServiceNI;
             dsa = FIPSNISelector.DSAServiceNI;
             oaep = FIPSNISelector.RSAOAEPCipherNI;
+            pkcs1 = FIPSNISelector.RSAPKCS1CipherNI;
         }
         else
         {
@@ -384,6 +390,7 @@ public final class NativeAbortProbeRunner
             dh = NISelector.DHServiceNI;
             dsa = NISelector.DSAServiceNI;
             oaep = NISelector.RSAOAEPCipherNI;
+            pkcs1 = NISelector.RSAPKCS1CipherNI;
         }
         KSServiceNI ks = NISelector.KSServiceNI;
 
@@ -543,6 +550,16 @@ public final class NativeAbortProbeRunner
             int[] err = new int[1];
             long ref = oaep.ni_allocateCipher(err);
             report(ref != 0 && err[0] == 0, "oaep ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("pkcs1-allocate-null-err".equals(c))
+        {
+            pkcs1.ni_allocateCipher(null);
+        }
+        else if ("pkcs1-control".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = pkcs1.ni_allocateCipher(err);
+            report(ref != 0 && err[0] == 0, "pkcs1 ref=" + (ref != 0) + " err=" + err[0]);
         }
         else if ("ks-null-err".equals(c))
         {

@@ -28,20 +28,34 @@ rsa_pkcs1_ctx *rsa_pkcs1_ctx_create(int32_t *err) {
     rsa_pkcs1_ctx *ctx = (rsa_pkcs1_ctx *) OPENSSL_zalloc(sizeof(rsa_pkcs1_ctx));
     jo_assert(ctx != NULL);
 
+    ctx->kind = RSA_PKCS1_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_RSA_PKCS1_CTX);
     return ctx;
 }
 
 
-void rsa_pkcs1_ctx_destroy(rsa_pkcs1_ctx *ctx) {
+int32_t rsa_pkcs1_ctx_check(const rsa_pkcs1_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_CIPHER_CTX_IS_NULL;
+    }
+    if (ctx->kind != RSA_PKCS1_CTX_KIND) {
+        return JO_RSA_PKCS1_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
+void rsa_pkcs1_ctx_destroy(rsa_pkcs1_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as an rsa_pkcs1_ctx corrupts it.
+    if (rsa_pkcs1_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_RSA_PKCS1_CTX);
     if (ctx->pctx != NULL) {
         EVP_PKEY_CTX_free(ctx->pctx);
     }
+    ctx->kind = RSA_PKCS1_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -67,17 +81,21 @@ int32_t rsa_pkcs1_init(rsa_pkcs1_ctx *ctx, const key_spec *key,
                        void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(key != NULL);
+    // Both directions need a RAND source: encrypt for the PS bytes, decrypt for RSA blinding.
+    jo_assert(rnd_src != NULL);
+
+    // Drop the previous session before any check, so a refused re-init cannot leave the old key and direction live.
+    if (ctx->pctx != NULL) {
+        EVP_PKEY_CTX_free(ctx->pctx);
+        ctx->pctx = NULL;
+    }
+    ctx->op_mode = RSA_PKCS1_OP_NONE;
 
     if (key->key == NULL) {
         return JO_KEY_SPEC_HAS_NULL_KEY;
     }
     if (op_mode != RSA_PKCS1_OP_ENCRYPT && op_mode != RSA_PKCS1_OP_DECRYPT) {
         return JO_INVALID_OP_MODE;
-    }
-    // Both directions need a RAND source: encrypt for the PS bytes,
-    // decrypt for RSA blinding (timing-channel countermeasure).
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     int32_t check = check_is_rsa(key->key);
@@ -90,11 +108,6 @@ int32_t rsa_pkcs1_init(rsa_pkcs1_ctx *ctx, const key_spec *key,
     ERR_clear_error();
 
     int32_t ret_code = JO_FAIL;
-
-    if (ctx->pctx != NULL) {
-        EVP_PKEY_CTX_free(ctx->pctx);
-        ctx->pctx = NULL;
-    }
 
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key->key, NULL);
     if (OPS_OPENSSL_ERROR_1 pctx == NULL) {
@@ -200,9 +213,8 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
         return JO_INPUT_TOO_LONG_INT32;
     }
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    // Checked by the bridges: RSA blinding and the PS bytes draw from it in both directions.
+    jo_assert(rnd_src != NULL);
     rand_set_java_srand_call(rnd_src);
     ERR_clear_error();
 
@@ -215,14 +227,12 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
         rc = EVP_PKEY_decrypt(ctx->pctx, NULL, &out_required, in, in_len);
     }
     if (OPS_OPENSSL_ERROR_1 rc != 1) {
-        // Decrypt failures map to JO_INVALID_CIPHER_TEXT (the bridge
-        // surfaces InvalidCipherTextException; the JCE SPI translates
-        // to BadPaddingException — rsa_oaep.c model). Encrypt failures
-        // stay JO_OPENSSL_ERROR (IllegalBlockSizeException at the SPI).
-        int32_t base = (ctx->op_mode == RSA_PKCS1_OP_DECRYPT)
-                ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
         rand_clear_java_srand_call();
-        return base OPS_OFFSET_OPENSSL_ERROR_1(2102);
+        // A decrypt failure is JO_INVALID_CIPHER_TEXT, which takes no OPS offset: the test names the flag.
+        if (ctx->op_mode == RSA_PKCS1_OP_DECRYPT) {
+            return JO_INVALID_CIPHER_TEXT;
+        }
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(2102);
     }
 
     if (OPS_INT32_OVERFLOW_1 out_required > (size_t) INT32_MAX) {
@@ -253,11 +263,12 @@ int32_t rsa_pkcs1_dofinal(rsa_pkcs1_ctx *ctx,
         // plaintext and returns success. Structural failures (e.g.
         // ciphertext value >= modulus) still land here and map to
         // JO_INVALID_CIPHER_TEXT on decrypt so the SPI can surface the
-        // JCE-canonical BadPaddingException uniformly.
-        int32_t base = (ctx->op_mode == RSA_PKCS1_OP_DECRYPT)
-                ? JO_INVALID_CIPHER_TEXT : JO_OPENSSL_ERROR;
+        // JCE-canonical BadPaddingException uniformly; no OPS offset on it.
         rand_clear_java_srand_call();
-        return base OPS_OFFSET_OPENSSL_ERROR_2(2103);
+        if (ctx->op_mode == RSA_PKCS1_OP_DECRYPT) {
+            return JO_INVALID_CIPHER_TEXT;
+        }
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(2103);
     }
 
     if (actual > (size_t) INT32_MAX) {

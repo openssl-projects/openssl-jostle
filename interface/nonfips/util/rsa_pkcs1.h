@@ -20,6 +20,7 @@
 // Java side. Mirror the rsa_oaep.h values for consistency.
 #define RSA_PKCS1_OP_ENCRYPT 1
 #define RSA_PKCS1_OP_DECRYPT 2
+#define RSA_PKCS1_OP_NONE 0         /* no session: what a dropped or never-made session leaves */
 
 
 /*
@@ -39,7 +40,15 @@
  * is absent, and otherwise pins the value to 1 explicitly. See the
  * block comment in rsa_pkcs1_init (rsa_pkcs1.c) for the full contract.
  */
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as an rsa_pkcs1_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define RSA_PKCS1_CTX_KIND 0x52503101u /* "RP1\1" */
+#define RSA_PKCS1_CTX_NONE 0u          /* what a freed ctx is left with; never a valid kind */
+
 typedef struct rsa_pkcs1_ctx {
+    uint32_t kind;
     EVP_PKEY_CTX *pctx;
     int op_mode;        // RSA_PKCS1_OP_*
 } rsa_pkcs1_ctx;
@@ -47,6 +56,12 @@ typedef struct rsa_pkcs1_ctx {
 
 rsa_pkcs1_ctx *rsa_pkcs1_ctx_create(int32_t *err);
 
+/*
+ * JO_CIPHER_CTX_IS_NULL, JO_RSA_PKCS1_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t rsa_pkcs1_ctx_check(const rsa_pkcs1_ctx *ctx);
+
+/* Frees nothing unless ctx is a live rsa_pkcs1_ctx. */
 void rsa_pkcs1_ctx_destroy(rsa_pkcs1_ctx *ctx);
 
 
@@ -54,9 +69,12 @@ void rsa_pkcs1_ctx_destroy(rsa_pkcs1_ctx *ctx);
  * Configure the context for PKCS#1 v1.5 encrypt or decrypt.
  *
  *   op_mode:  RSA_PKCS1_OP_ENCRYPT or RSA_PKCS1_OP_DECRYPT.
- *   rnd_src:  Java RandSource handle. Required for both directions —
- *             encrypt uses entropy for the PS padding bytes, decrypt
- *             uses entropy for RSA blinding (timing-channel countermeasure).
+ *   rnd_src:  Java RandSource handle, checked by the bridges. Encrypt
+ *             uses entropy for the PS padding bytes, decrypt for RSA
+ *             blinding (timing-channel countermeasure).
+ *
+ * Any previous session is dropped first, so a refused re-init leaves
+ * the ctx uninitialised.
  */
 int32_t rsa_pkcs1_init(rsa_pkcs1_ctx *ctx, const key_spec *key,
                        int32_t op_mode,

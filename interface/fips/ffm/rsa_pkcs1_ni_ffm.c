@@ -25,9 +25,6 @@ rsa_pkcs1_ctx *JoRSAPKCS1_allocateCipher(int32_t *err) {
 }
 
 void JoRSAPKCS1_disposeCipher(rsa_pkcs1_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
     rsa_pkcs1_ctx_destroy(ctx);
 }
 
@@ -39,12 +36,16 @@ void JoRSAPKCS1_disposeCipher(rsa_pkcs1_ctx *ctx) {
 int32_t JoRSAPKCS1_init(rsa_pkcs1_ctx *ctx, key_spec *key,
                        int32_t op_mode,
                        void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t ret_code = rsa_pkcs1_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    if (key == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    ret_code = key_spec_check(key);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
     return rsa_pkcs1_init(ctx, key, op_mode, rnd_src);
 }
@@ -56,8 +57,12 @@ int32_t JoRSAPKCS1_doFinal(rsa_pkcs1_ctx *ctx,
                           uint8_t *output, size_t output_size,
                           int32_t out_off,
                           void *rnd_src) {
-    if (ctx == NULL) {
-        return JO_CIPHER_CTX_IS_NULL;
+    int32_t ret_code = rsa_pkcs1_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     if (input == NULL) {

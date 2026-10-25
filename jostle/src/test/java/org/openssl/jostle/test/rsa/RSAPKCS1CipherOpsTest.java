@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.InvalidCipherTextException;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
@@ -42,10 +43,10 @@ import java.security.Security;
  *       2111 (implicit-rejection EVP_PKEY_CTX_set_params, DECRYPT only);
  *       plus the DECRYPT-only capability probe (OPS_FAILED_INIT_1) whose
  *       raw code is JO_IMPLICIT_REJECTION_UNAVAILABLE (-135, no offset).</li>
- *   <li>doFinal — offset 2102 (size query), 2103 (final call). The base
- *       error code is classified by op mode: ENCRYPT stays
- *       JO_OPENSSL_ERROR (-2 → -2104 / -2105); DECRYPT maps to
- *       JO_INVALID_CIPHER_TEXT (-21 → -2123 / -2124).</li>
+ *   <li>doFinal: offset 2102 (size query), 2103 (final call) on ENCRYPT,
+ *       which stays JO_OPENSSL_ERROR (-2 -> -2104 / -2105). DECRYPT returns
+ *       bare JO_INVALID_CIPHER_TEXT (-21) at both sites: it takes no offset,
+ *       so those cells name the site by its flag.</li>
  * </ol>
  */
 public class RSAPKCS1CipherOpsTest
@@ -92,7 +93,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:100
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:113
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2100 + JO_OPENSSL_ERROR (-2) → -2102.
@@ -118,7 +119,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:111
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:124
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // Offset 2101 + JO_OPENSSL_ERROR (-2) → -2103.
@@ -144,7 +145,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:111
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:124
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
             Assertions.assertEquals(-2103, code);
@@ -170,7 +171,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:116
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:129
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
             // -2 + (-2110) = -2112.
@@ -207,7 +208,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:155
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:168
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_INIT_1);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
             // JO_IMPLICIT_REJECTION_UNAVAILABLE — raw code, no OPS offset.
@@ -256,7 +257,7 @@ public class RSAPKCS1CipherOpsTest
             ref = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:167
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:180
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
             int code = cipherNI.ni_init(ref, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
             // Offset 2111 + JO_OPENSSL_ERROR (-2) → -2113.
@@ -293,7 +294,7 @@ public class RSAPKCS1CipherOpsTest
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:217
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:229
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             // Offset 2102 + JO_OPENSSL_ERROR (-2) → -2104 (ENCRYPT mode).
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -321,7 +322,7 @@ public class RSAPKCS1CipherOpsTest
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:228
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:238
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3, null, 0, TestUtil.RNDSrc);
             Assertions.fail();
@@ -356,7 +357,7 @@ public class RSAPKCS1CipherOpsTest
             byte[] out = new byte[needed];
 
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:249
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:259
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             // Offset 2103 + JO_OPENSSL_ERROR (-2) → -2105 (ENCRYPT mode).
             int code = cipherNI.ni_doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
@@ -373,14 +374,16 @@ public class RSAPKCS1CipherOpsTest
 
 
     // -----------------------------------------------------------------
-    // doFinal — DECRYPT-mode classification: the same fault sites map to
-    // base JO_INVALID_CIPHER_TEXT (-21) instead of JO_OPENSSL_ERROR (-2).
-    // Decrypt init succeeds on the base provider (implicit rejection is
-    // supported), so the fault is injected AFTER a real init + ciphertext.
+    // doFinal: DECRYPT-mode failures: the same fault sites return bare
+    // JO_INVALID_CIPHER_TEXT (-21), which takes no offset, so each cell names
+    // its site by the flag. Decrypt init succeeds on the base provider
+    // (implicit rejection is supported), so the fault is injected AFTER a
+    // real init and a positive control on the same ciphertext.
     // -----------------------------------------------------------------
 
+    /** The decrypt size query under its flag: JO_INVALID_CIPHER_TEXT bare, after a positive control. */
     @Test
-    public void RSAPKCS1Cipher_doFinal_decrypt_sizeQuery_invalidCipherText() throws Exception
+    public void RSAPKCS1Cipher_doFinal_decryptSizeQuery_returnsInvalidCipherText() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
@@ -393,53 +396,20 @@ public class RSAPKCS1CipherOpsTest
             decRef = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
             byte[] ct = encrypt(encRef, keyRef, new byte[]{1, 2, 3});
-
             cipherNI.init(decRef, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
 
+            // Positive control: the size query answers the modulus length with no flag set.
+            Assertions.assertEquals(256, cipherNI.ni_doFinal(decRef, ct, 0, ct.length, null, 0, TestUtil.RNDSrc));
+
             OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:217
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:229
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            // Offset 2102 + JO_INVALID_CIPHER_TEXT (-21) → -2123 (DECRYPT mode).
-            int code = cipherNI.ni_doFinal(decRef, ct, 0, ct.length,
-                    null, 0, TestUtil.RNDSrc);
-            Assertions.assertEquals(-2123, code);
-        }
-        finally
-        {
-            operationsTestNI.resetFlags();
-            cipherNI.disposeCipher(encRef);
-            cipherNI.disposeCipher(decRef);
-            specNI.dispose(keyRef);
-        }
-    }
-
-    @Test
-    public void RSAPKCS1Cipher_doFinal_decrypt_finalCall_invalidCipherText() throws Exception
-    {
-        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
-
-        long encRef = 0;
-        long decRef = 0;
-        long keyRef = 0;
-        try
-        {
-            encRef = cipherNI.allocateCipher();
-            decRef = cipherNI.allocateCipher();
-            keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
-            byte[] ct = encrypt(encRef, keyRef, new byte[]{1, 2, 3});
-
-            cipherNI.init(decRef, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
-            int needed = cipherNI.doFinal(decRef, ct, 0, ct.length,
-                    null, 0, TestUtil.RNDSrc);
-            byte[] out = new byte[needed];
-
-            OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:249
-            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
-            // Offset 2103 + JO_INVALID_CIPHER_TEXT (-21) → -2124 (DECRYPT mode).
-            int code = cipherNI.ni_doFinal(decRef, ct, 0, ct.length,
-                    out, 0, TestUtil.RNDSrc);
-            Assertions.assertEquals(-2124, code);
+            Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER_TEXT.getCode(),
+                    cipherNI.ni_doFinal(decRef, ct, 0, ct.length, null, 0, TestUtil.RNDSrc));
+            final long dec = decRef;
+            InvalidCipherTextException e = Assertions.assertThrows(InvalidCipherTextException.class,
+                    () -> cipherNI.doFinal(dec, ct, 0, ct.length, null, 0, TestUtil.RNDSrc));
+            Assertions.assertEquals("invalid cipher text: null", e.getMessage());
         }
         finally
         {
@@ -451,18 +421,11 @@ public class RSAPKCS1CipherOpsTest
     }
 
     /**
-     * Wrapped-call variant: {@code JO_INVALID_CIPHER_TEXT} surfaces as
-     * {@link InvalidCipherTextException}. The OPS flag and the OPS offset
-     * share one index, so an injected fault always carries the offset
-     * (-2123) — a code only an instrumented build can produce, which the
-     * wrapped handler maps to the JO_UNKNOWN fallback. The release-build
-     * code is the bare {@code JO_INVALID_CIPHER_TEXT} (-21); drive that
-     * through the wrapped handler with an empty OpenSSL error queue and pin
-     * the exact formatted message. (The real-failure path is pinned by
-     * {@code RSAPKCS1CipherLimitTest} with a structural decrypt failure.)
+     * A decrypt failure at the final call under its flag is JO_INVALID_CIPHER_TEXT bare, and the wrapped call
+     * raises InvalidCipherTextException. The positive control decrypts first.
      */
     @Test
-    public void RSAPKCS1Cipher_doFinal_decrypt_wrapped_invalidCipherTextException() throws Exception
+    public void RSAPKCS1Cipher_doFinal_decryptFailure_returnsInvalidCipherText() throws Exception
     {
         Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
 
@@ -475,27 +438,22 @@ public class RSAPKCS1CipherOpsTest
             decRef = cipherNI.allocateCipher();
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
             byte[] ct = encrypt(encRef, keyRef, new byte[]{1, 2, 3});
-
             cipherNI.init(decRef, keyRef, RSAPKCS1CipherNI.OP_DECRYPT, TestUtil.RNDSrc);
 
-            OpenSSL.getOpenSSLErrors(); // purge
-            // Exercises interface/nonfips/util/rsa_pkcs1.c:217
-            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
-            int code = cipherNI.ni_doFinal(decRef, ct, 0, ct.length,
-                    null, 0, TestUtil.RNDSrc);
-            Assertions.assertEquals(-2123, code);
-            operationsTestNI.resetFlags();
+            // Positive control: the same ciphertext decrypts with no flag set.
+            byte[] pt = new byte[cipherNI.doFinal(decRef, ct, 0, ct.length, null, 0, TestUtil.RNDSrc)];
+            Assertions.assertEquals(3, cipherNI.doFinal(decRef, ct, 0, ct.length, pt, 0, TestUtil.RNDSrc));
+            Assertions.assertArrayEquals(new byte[]{1, 2, 3}, new byte[]{pt[0], pt[1], pt[2]});
 
-            OpenSSL.getOpenSSLErrors(); // purge — empty queue formats "null"
-            try
-            {
-                cipherNI.handleErrors(-21);
-                Assertions.fail();
-            }
-            catch (InvalidCipherTextException e)
-            {
-                Assertions.assertEquals("invalid cipher text: null", e.getMessage());
-            }
+            OpenSSL.getOpenSSLErrors(); // purge
+            // Exercises interface/nonfips/util/rsa_pkcs1.c:259
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
+            Assertions.assertEquals(ErrorCode.JO_INVALID_CIPHER_TEXT.getCode(),
+                    cipherNI.ni_doFinal(decRef, ct, 0, ct.length, pt, 0, TestUtil.RNDSrc));
+            final long dec = decRef;
+            InvalidCipherTextException e = Assertions.assertThrows(InvalidCipherTextException.class,
+                    () -> cipherNI.doFinal(dec, ct, 0, ct.length, new byte[256], 0, TestUtil.RNDSrc));
+            Assertions.assertEquals("invalid cipher text: null", e.getMessage());
         }
         finally
         {
@@ -535,7 +493,7 @@ public class RSAPKCS1CipherOpsTest
             keyRef = rsaServiceNI.generateKeyPair(2048, PUB_EXP_F4, TestUtil.RNDSrc);
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, TestUtil.RNDSrc);
 
-            // Exercises interface/nonfips/jni/rsa_pkcs1_ni_jni.c:113
+            // Exercises interface/nonfips/jni/rsa_pkcs1_ni_jni.c:122
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     null, 0, TestUtil.RNDSrc);
@@ -571,7 +529,7 @@ public class RSAPKCS1CipherOpsTest
                     null, 0, TestUtil.RNDSrc);
             byte[] out = new byte[needed];
 
-            // Exercises interface/nonfips/jni/rsa_pkcs1_ni_jni.c:134
+            // Exercises interface/nonfips/jni/rsa_pkcs1_ni_jni.c:143
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_2);
             cipherNI.doFinal(ref, new byte[]{1, 2, 3}, 0, 3,
                     out, 0, TestUtil.RNDSrc);

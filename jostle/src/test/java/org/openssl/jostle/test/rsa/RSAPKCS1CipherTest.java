@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.test.rsa;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -32,13 +31,13 @@ import java.security.spec.MGF1ParameterSpec;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.GeneralSecurityException;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 
 /**
- * JCE-level tests for the RSA-PKCS#1 v1.5 cipher: round-trips, BC parity,
- * wrap/unwrap, vandalism handling, and parameter rejection.
+ * JCE-level tests for the RSA-PKCS#1 v1.5 cipher: round-trips, wrap/unwrap,
+ * vandalism handling, and parameter rejection. Comparisons with other
+ * providers live in RSAPKCS1AgreementTest.
  */
 public class RSAPKCS1CipherTest
 {
@@ -48,10 +47,6 @@ public class RSAPKCS1CipherTest
     @BeforeAll
     static void before() throws Exception
     {
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
-        {
-            Security.addProvider(new BouncyCastleProvider());
-        }
         if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
         {
             Security.addProvider(new JostleProvider());
@@ -149,12 +144,9 @@ public class RSAPKCS1CipherTest
 
         Cipher dec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
         dec.init(Cipher.DECRYPT_MODE, sharedKeyPair.getPrivate());
-        // Wrong-length ciphertext; OpenSSL rejects without invoking the
-        // implicit-rejection plaintext path. Either BadPaddingException or
-        // IllegalBlockSizeException is acceptable depending on which check
-        // fires first.
-        Assertions.assertThrows(GeneralSecurityException.class,
-                () -> dec.doFinal(new byte[good.length + 1]));
+        // Longer than the modulus: refused on its length before any native call.
+        Assertions.assertEquals("Data must not be longer than 256 bytes", Assertions.assertThrows(
+                IllegalBlockSizeException.class, () -> dec.doFinal(new byte[good.length + 1])).getMessage());
 
         byte[] pt = dec.doFinal(good);
         Assertions.assertArrayEquals(msg, pt);
@@ -507,83 +499,8 @@ public class RSAPKCS1CipherTest
     }
 
 
-    // -----------------------------------------------------------------
-    // BouncyCastle parity
-    // -----------------------------------------------------------------
-
-    @Test
-    public void testPKCS1_BCEncrypt_JostleDecrypt() throws Exception
-    {
-        byte[] msg = randomMessage(64);
-        Cipher bcEnc = Cipher.getInstance("RSA/ECB/PKCS1Padding",
-                BouncyCastleProvider.PROVIDER_NAME);
-        bcEnc.init(Cipher.ENCRYPT_MODE, sharedKeyPair.getPublic());
-        byte[] ct = bcEnc.doFinal(msg);
-
-        Cipher joDec = Cipher.getInstance("RSA/ECB/PKCS1Padding",
-                JostleProvider.PROVIDER_NAME);
-        joDec.init(Cipher.DECRYPT_MODE, sharedKeyPair.getPrivate());
-        Assertions.assertArrayEquals(msg, joDec.doFinal(ct));
-    }
-
-    @Test
-    public void testPKCS1_JostleEncrypt_BCDecrypt() throws Exception
-    {
-        byte[] msg = randomMessage(64);
-        Cipher joEnc = Cipher.getInstance("RSA/ECB/PKCS1Padding",
-                JostleProvider.PROVIDER_NAME);
-        joEnc.init(Cipher.ENCRYPT_MODE, sharedKeyPair.getPublic());
-        byte[] ct = joEnc.doFinal(msg);
-
-        Cipher bcDec = Cipher.getInstance("RSA/ECB/PKCS1Padding",
-                BouncyCastleProvider.PROVIDER_NAME);
-        bcDec.init(Cipher.DECRYPT_MODE, sharedKeyPair.getPrivate());
-        Assertions.assertArrayEquals(msg, bcDec.doFinal(ct));
-    }
 
 
-    /**
-     * Multi-trial PKCS#1 v1.5 cipher agreement: per-trial fresh
-     * keypair, random plaintext length and content, both directions
-     * (Jostle→BC and BC→Jostle).
-     */
-    @Test
-    public void testPKCS1_AgreementWithBC_MultiTrial() throws Exception
-    {
-        SecureRandom sr = seededRandom("testPKCS1_AgreementWithBC_MultiTrial");
-
-        for (int trial = 0; trial < 10; trial++)
-        {
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", JostleProvider.PROVIDER_NAME);
-            kpg.initialize(2048);
-            KeyPair kp = kpg.generateKeyPair();
-
-            // PKCS#1 v1.5 max plaintext for 2048-bit modulus = 256 - 11 = 245.
-            int msgLen = sr.nextInt(246);
-            byte[] msg = new byte[msgLen];
-            sr.nextBytes(msg);
-
-            // Jostle encrypt → BC decrypt
-            Cipher joEnc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
-            joEnc.init(Cipher.ENCRYPT_MODE, kp.getPublic());
-            byte[] ct = joEnc.doFinal(msg);
-
-            Cipher bcDec = Cipher.getInstance("RSA/ECB/PKCS1Padding", BouncyCastleProvider.PROVIDER_NAME);
-            bcDec.init(Cipher.DECRYPT_MODE, kp.getPrivate());
-            Assertions.assertArrayEquals(msg, bcDec.doFinal(ct),
-                    "trial=" + trial + " msgLen=" + msgLen + ": BC failed to decrypt Jostle ct");
-
-            // BC encrypt → Jostle decrypt
-            Cipher bcEnc = Cipher.getInstance("RSA/ECB/PKCS1Padding", BouncyCastleProvider.PROVIDER_NAME);
-            bcEnc.init(Cipher.ENCRYPT_MODE, kp.getPublic());
-            byte[] ct2 = bcEnc.doFinal(msg);
-
-            Cipher joDec = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
-            joDec.init(Cipher.DECRYPT_MODE, kp.getPrivate());
-            Assertions.assertArrayEquals(msg, joDec.doFinal(ct2),
-                    "trial=" + trial + " msgLen=" + msgLen + ": Jostle failed to decrypt BC ct");
-        }
-    }
 
 
     // -----------------------------------------------------------------
@@ -609,24 +526,6 @@ public class RSAPKCS1CipherTest
         Assertions.assertArrayEquals(aesKey.getEncoded(), unwrapped.getEncoded());
     }
 
-    @Test
-    public void testPKCS1_BCWrap_JostleUnwrap_AESKey() throws Exception
-    {
-        KeyGenerator kg = KeyGenerator.getInstance("AES");
-        kg.init(128);
-        SecretKey aesKey = kg.generateKey();
-
-        Cipher bcWrap = Cipher.getInstance("RSA/ECB/PKCS1Padding",
-                BouncyCastleProvider.PROVIDER_NAME);
-        bcWrap.init(Cipher.WRAP_MODE, sharedKeyPair.getPublic());
-        byte[] wrapped = bcWrap.wrap(aesKey);
-
-        Cipher joUnwrap = Cipher.getInstance("RSA/ECB/PKCS1Padding",
-                JostleProvider.PROVIDER_NAME);
-        joUnwrap.init(Cipher.UNWRAP_MODE, sharedKeyPair.getPrivate());
-        Key unwrapped = joUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
-        Assertions.assertArrayEquals(aesKey.getEncoded(), unwrapped.getEncoded());
-    }
 
 
     // -----------------------------------------------------------------
@@ -736,12 +635,8 @@ public class RSAPKCS1CipherTest
 
         Cipher enc = Cipher.getInstance("RSA/ECB/PKCS1Padding", JostleProvider.PROVIDER_NAME);
         enc.init(Cipher.ENCRYPT_MODE, sharedKeyPair.getPublic());
-        try
-        {
-            enc.doFinal(msg);
-            Assertions.fail("encrypt of 246 bytes must be rejected");
-        }
-        catch (IllegalBlockSizeException expected) {}
+        Assertions.assertEquals("Data must not be longer than 245 bytes",
+                Assertions.assertThrows(IllegalBlockSizeException.class, () -> enc.doFinal(msg)).getMessage());
     }
 
 

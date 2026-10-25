@@ -452,4 +452,23 @@ public class RSAPKCS1CipherLimitTest
             specNI.dispose(keyRef);
         }
     }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        RSAPKCS1BridgeCells.wrongKindHandlesAreRefused(cipherNI, TestNISelector.getRSAOAEPCipherNi(), rsaServiceNI,
+                specNI, TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_aRefusedReinitLeavesNoSession()
+    {
+        RSAPKCS1BridgeCells.aRefusedReinitLeavesNoSession(cipherNI, rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aNullRandSourceIsRefusedAtTheBridge()
+    {
+        RSAPKCS1BridgeCells.aNullRandSourceIsRefusedAtTheBridge(cipherNI, rsaServiceNI, specNI);
+    }
 }

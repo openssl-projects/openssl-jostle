@@ -32,6 +32,7 @@ import java.lang.ref.Reference;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -84,7 +85,7 @@ public class RSAKEMCipherSpi
      * (native-code.md) in its strongest form: the pin is not defensive against
      * a future default changing, it is REQUIRED TODAY on the CMVP-validated
      * 3.1.2 module. Measured on all four supported environments
-     * ({@code fips-c-review/probes/rsakem_probe.c}): mainline and the 3.5.7
+     * ({@code fips-c-review/probes/rsakem_probe.c}): mainline and the 3.5.8
      * module default to RSASVE and work without it, while 3.1.2 refuses
      * {@code EVP_PKEY_encapsulate}'s size query outright - and refuses it
      * MUTELY, with an empty error queue. A build tested only against mainline
@@ -202,7 +203,8 @@ public class RSAKEMCipherSpi
     {
         if (opmode != Cipher.WRAP_MODE && opmode != Cipher.UNWRAP_MODE)
         {
-            throw new InvalidAlgorithmParameterException("RSA-KTS-KEM-KWS only supports WRAP_MODE/UNWRAP_MODE");
+            // The type Cipher.init declares for an opmode the cipher does not support.
+            throw new InvalidParameterException("RSA-KTS-KEM-KWS only supports WRAP_MODE/UNWRAP_MODE");
         }
         if (!(key instanceof OSSLKey))
         {

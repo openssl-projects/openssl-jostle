@@ -99,7 +99,7 @@ public class OpsCoverageParityTest
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 79;
+    static final int BASELINE_SIZE = 77;
 
     private static final Set<String> BASELINE = baseline();
 
@@ -164,8 +164,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_7");
         add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_8");
         add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_9");
-        add(s, "interface/fips/util/rsa_pkcs1.c", "OPS_FAILED_INIT_1");
-        add(s, "interface/fips/util/rsa_pkcs1.c", "OPS_OPENSSL_ERROR_4");
         add(s, "interface/fips/util/slhdsa.c", "OPS_FAILED_CREATE_1");
         add(s, "interface/fips/util/slhdsa.c", "OPS_FAILED_CREATE_2");
         add(s, "interface/fips/util/slhdsa.c", "OPS_INT32_OVERFLOW_1");

@@ -25,6 +25,7 @@ import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.rsa.RSAPKCS1BridgeCells;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
@@ -678,5 +679,24 @@ public class FIPSRSAPKCS1CipherLimitTest
             cipherNI.init(ref, keyRef, RSAPKCS1CipherNI.OP_ENCRYPT, RND);
             body.run(ref, keyRef);
         });
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        RSAPKCS1BridgeCells.wrongKindHandlesAreRefused(cipherNI, FIPSNISelector.RSAOAEPCipherNI, rsaServiceNI, specNI,
+                FIPSNISelector.MDServiceNI);
+    }
+
+    @Test
+    public void bridge_aRefusedReinitLeavesNoSession()
+    {
+        RSAPKCS1BridgeCells.aRefusedReinitLeavesNoSession(cipherNI, rsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aNullRandSourceIsRefusedAtTheBridge()
+    {
+        RSAPKCS1BridgeCells.aNullRandSourceIsRefusedAtTheBridge(cipherNI, rsaServiceNI, specNI);
     }
 }

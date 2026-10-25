@@ -77,6 +77,10 @@ public class RSAPKCS1CipherSpi extends CipherSpi
     private int modulusBytes;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
     private final WipingByteArrayOutputStream buffer = new WipingByteArrayOutputStream();
+    /** The most input doFinal accepts: k - 11 to encrypt, k to decrypt. */
+    private int inputLimit;
+    /** Set when update was handed more than the modulus size; doFinal then refuses. */
+    private boolean overflow;
 
     /**
      * Pin the most recently bound key reachable so its {@code PKEYKeySpec}'s
@@ -187,6 +191,7 @@ public class RSAPKCS1CipherSpi extends CipherSpi
             // below scrubs it — not only a successful re-init (which no longer
             // needs a trailing wipe: nothing writes to the buffer during init).
             buffer.wipe();
+            overflow = false;
 
             // PKCS#1 v1.5 takes no algorithm parameters.
             if (params != null)
@@ -237,6 +242,10 @@ public class RSAPKCS1CipherSpi extends CipherSpi
                 // can do it safely.
                 throw (InvalidKeyException) new InvalidKeyException(e.getMessage()).initCause(e);
             }
+
+            // Sized once: update never grows the stream, so no plaintext copy is left behind in a discarded array.
+            buffer.presize(modulusBytes);
+            inputLimit = this.opMode == RSAPKCS1CipherNI.OP_ENCRYPT ? Math.max(0, modulusBytes - 11) : modulusBytes;
         }
     }
 
@@ -260,7 +269,15 @@ public class RSAPKCS1CipherSpi extends CipherSpi
             requireInitialised();
             if (input != null && inputLen > 0)
             {
-                buffer.write(input, inputOffset, inputLen);
+                // Past the modulus size no input can be served; stop buffering and let doFinal refuse it.
+                if (overflow || inputLen > modulusBytes - buffer.size())
+                {
+                    overflow = true;
+                }
+                else
+                {
+                    buffer.write(input, inputOffset, inputLen);
+                }
             }
             return null;
         }
@@ -286,6 +303,10 @@ public class RSAPKCS1CipherSpi extends CipherSpi
             try
             {
                 engineUpdate(input, inputOffset, inputLen);
+                if (overflow || buffer.size() > inputLimit)
+                {
+                    throw new IllegalBlockSizeException("Data must not be longer than " + inputLimit + " bytes");
+                }
                 in = buffer.toByteArray();
                 // Eager wipe (accumulator may hold plaintext key material in
                 // WRAP_MODE): keep the plaintext only in `in` during the native
@@ -330,6 +351,7 @@ public class RSAPKCS1CipherSpi extends CipherSpi
                 // plaintext when trimmed). The directly-returned array was
                 // detached above (out = null).
                 buffer.wipe();
+                overflow = false;
                 Arrays.clear(in);
                 Arrays.clear(out);
             }

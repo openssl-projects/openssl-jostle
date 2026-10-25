@@ -24,6 +24,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -102,13 +103,12 @@ public class KtsStreamingRefusalTest
                 () -> d.doFinal(in, 0, in.length, out, 0), transformation + ": doFinal into");
     }
 
-    /** The mode refusal is ours, so its message is asserted exactly. */
+    /** The mode refusal is ours, so its type and message are asserted exactly. */
     private static void assertEncryptModeRefused(String transformation, KeyPair kp,
-                                                 String expected) throws Exception
+                                                 Class<? extends Exception> type, String expected) throws Exception
     {
         Cipher c = Cipher.getInstance(transformation, JSL);
-        InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                InvalidAlgorithmParameterException.class,
+        Exception e = Assertions.assertThrows(type,
                 () -> c.init(Cipher.ENCRYPT_MODE, kp.getPublic(), kts()),
                 transformation + ": ENCRYPT_MODE must be refused");
         Assertions.assertEquals(expected, e.getMessage(), transformation + ": mode refusal message");
@@ -130,7 +130,8 @@ public class KtsStreamingRefusalTest
     {
         KeyPair kp = mlKemPair();
         assertNoStreamingSurface("ML-KEM", kp);
-        assertEncryptModeRefused("ML-KEM", kp, "ML-KEM KTS cipher only supports WRAP_MODE/UNWRAP_MODE");
+        assertEncryptModeRefused("ML-KEM", kp, InvalidAlgorithmParameterException.class,
+                "ML-KEM KTS cipher only supports WRAP_MODE/UNWRAP_MODE");
         assertNoParamsInitRefused("ML-KEM");
     }
 
@@ -139,7 +140,7 @@ public class KtsStreamingRefusalTest
     {
         KeyPair kp = rsaPair();
         assertNoStreamingSurface("RSA-KTS-KEM-KWS", kp);
-        assertEncryptModeRefused("RSA-KTS-KEM-KWS", kp,
+        assertEncryptModeRefused("RSA-KTS-KEM-KWS", kp, InvalidParameterException.class,
                 "RSA-KTS-KEM-KWS only supports WRAP_MODE/UNWRAP_MODE");
         assertNoParamsInitRefused("RSA-KTS-KEM-KWS");
     }

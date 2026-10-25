@@ -13,31 +13,23 @@ package org.openssl.jostle.test.rsa;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
-import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.kts.KtsKdf;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.io.IOException;
-import java.security.spec.AlgorithmParameterSpec;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 
 /**
  * RSA-KEM key transport (ISO 18033-2 / RFC 9690) through {@code RSA-KTS-KEM-KWS}.
@@ -49,7 +41,7 @@ import java.security.PublicKey;
  * {@code R = asUnsignedByteArray(modLen, r)} - measured on mainline and both
  * FIPS modules ({@code fips-c-review/probes/rsakem_probe.c}). Given the same
  * KDF and wrap parameters the two providers therefore produce the same bytes,
- * and that is what the agreement tests below pin.
+ * and that is what {@link RSAKEMAgreementTest} pins.
  *
  * <p>The KEM operation name is hard-coded to {@code RSASVE} in
  * {@code RSAKEMCipherSpi} because the CMVP-validated 3.1.2 module REQUIRES it -
@@ -62,290 +54,8 @@ import java.security.PublicKey;
  * against the FIPS interface library and lib ctx.
  */
 public class RSAKEMCipherTest
+    extends RSAKEMFixtures
 {
-    protected static final String XFORM = "RSA-KTS-KEM-KWS";
-
-    /** ISO 18033-2 id-kem-rsa, as named in CMS KEMRecipientInfo.kem. */
-    protected static final String ID_KEM_RSA = "1.0.18033.2.2.4";
-    /** PKCS-arc id-rsa-KEM (RFC 9690 s3.3). */
-    protected static final String ID_RSA_KEM = "1.2.840.113549.1.9.16.3.14";
-
-    protected static final String BC = BouncyCastleProvider.PROVIDER_NAME;
-
-    private static final SecureRandom RANDOM = new SecureRandom();
-
-    /** One 2048-bit keypair per JVM - RSA keygen is slow and none of these tests need a fresh one. */
-    private static KeyPair sharedKeyPair;
-
-    /**
-     * The KDF3 digests BouncyCastle will accept. BC's
-     * {@code KdfUtil.isSupportedKdf} allows SHA-256, SHA-512, SHAKE-128 and
-     * SHAKE-256 - notably NOT SHA-384 - so an agreement test can only use
-     * these. Measured, not assumed: asking BC for SHA-384 raises
-     * {@code InvalidKeyException: unrecognized digest OID: 2.16.840.1.101.3.4.2.2}.
-     */
-    protected static final ASN1ObjectIdentifier[] BC_SUPPORTED_KDF3_DIGESTS = {
-            NISTObjectIdentifiers.id_sha256,
-            NISTObjectIdentifiers.id_sha512,
-            NISTObjectIdentifiers.id_shake128,
-            NISTObjectIdentifiers.id_shake256,
-    };
-
-    protected static SecureRandom seededRandom(String testName) throws Exception
-    {
-        long seed = RANDOM.nextLong();
-        System.out.println(testName + " seed=" + seed);
-        SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
-        sr.setSeed(seed);
-        return sr;
-    }
-
-    @BeforeAll
-    static void before()
-    {
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
-        {
-            Security.addProvider(new BouncyCastleProvider());
-        }
-        if (Security.getProvider(JostleProvider.PROVIDER_NAME) == null)
-        {
-            Security.addProvider(new JostleProvider());
-        }
-    }
-
-    /** Overridden by the FIPS subclass. */
-    protected String providerName()
-    {
-        return JostleProvider.PROVIDER_NAME;
-    }
-
-    /**
-     * The keypair every test wraps to. Generated through THIS test's provider so
-     * the private half belongs to the library under test - RSA private keys do
-     * not cross the JSL/JSLFIPS boundary.
-     */
-    protected KeyPair keyPair() throws Exception
-    {
-        if (sharedKeyPair == null || !ownsKey(sharedKeyPair))
-        {
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA", providerName());
-            kpg.initialize(2048);
-            sharedKeyPair = kpg.generateKeyPair();
-        }
-        return sharedKeyPair;
-    }
-
-    private boolean ownsKey(KeyPair kp) throws Exception
-    {
-        // Cheap probe: an UNWRAP init refuses a private key from the other
-        // provider, so a successful init means the cached pair is ours.
-        try
-        {
-            Cipher c = Cipher.getInstance(XFORM, providerName());
-            c.init(Cipher.UNWRAP_MODE, kp.getPrivate(),
-                    kdf3Spec(256, null, NISTObjectIdentifiers.id_sha256).forProvider(providerName()));
-            return true;
-        }
-        catch (InvalidKeyException e)
-        {
-            return false;
-        }
-    }
-
-    /**
-     * Provider-agnostic description of a KTSParameterSpec. BC and Jostle each
-     * accept only their OWN spec type directly (no more reflection), so a
-     * single spec object cannot drive both providers any more — this
-     * descriptor builds the right one, from the same content, at
-     * {@link #forProvider(String)} time.
-     */
-    protected static final class KtsSpec
-    {
-        private final String keyAlgorithmName;
-        private final int keySizeInBits;
-        private final byte[] otherInfo;
-        /** null means {@code withNoKdf()}. */
-        private final AlgorithmIdentifier kdf;
-
-        KtsSpec(String keyAlgorithmName, int keySizeInBits, byte[] otherInfo, AlgorithmIdentifier kdf)
-        {
-            this.keyAlgorithmName = keyAlgorithmName;
-            this.keySizeInBits = keySizeInBits;
-            this.otherInfo = otherInfo;
-            this.kdf = kdf;
-        }
-
-        public AlgorithmParameterSpec forProvider(String provider) throws IOException
-        {
-            if (BC.equals(provider))
-            {
-                // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-                org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder b =
-                        new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
-                                keyAlgorithmName, keySizeInBits, otherInfo);
-                return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf).build();
-            }
-            KTSParameterSpec.Builder b = new KTSParameterSpec.Builder(keyAlgorithmName, keySizeInBits, otherInfo);
-            return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf.getEncoded()).build();
-        }
-    }
-
-    protected static KtsSpec kdf3Spec(int keyBits, byte[] otherInfo, ASN1ObjectIdentifier digestOid)
-    {
-        return new KtsSpec("AESWRAP", keyBits, otherInfo,
-                new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(digestOid)));
-    }
-
-
-    // -----------------------------------------------------------------
-    // Agreement with BouncyCastle, both directions.
-    // -----------------------------------------------------------------
-
-    /**
-     * Jostle wraps, BC unwraps - across every KEK size and KDF digest, with a
-     * random CEK each trial. A wrong KDF, a wrong secret encoding or a wrong
-     * output layout all surface here as BC failing to recover the CEK.
-     */
-    @Test
-    public void jostleWrapsBouncyCastleUnwraps() throws Exception
-    {
-        SecureRandom sr = seededRandom("jostleWrapsBouncyCastleUnwraps");
-        KeyPair kp = keyPair();
-
-        for (int kekBits : new int[]{128, 192, 256})
-        {
-            // These four are the whole accepted set on both sides. SHA-384 is
-            // refused by both - see sha384KdfIsRefusedByBothProviders.
-            for (ASN1ObjectIdentifier dig : BC_SUPPORTED_KDF3_DIGESTS)
-            {
-                byte[] otherInfo = randomBytes(sr, sr.nextInt(24));
-                KtsSpec spec = kdf3Spec(kekBits, otherInfo, dig);
-                SecretKey cek = randomCek(sr);
-
-                byte[] wrapped = wrap(providerName(), kp, spec, cek);
-                Key back = unwrap(BC, kp, spec, wrapped);
-
-                Assertions.assertArrayEquals(cek.getEncoded(), back.getEncoded(),
-                        "kek=" + kekBits + " digest=" + dig + ": BC must recover the CEK");
-            }
-        }
-    }
-
-    /** The reverse direction - a different code path on both sides. */
-    @Test
-    public void bouncyCastleWrapsJostleUnwraps() throws Exception
-    {
-        SecureRandom sr = seededRandom("bouncyCastleWrapsJostleUnwraps");
-        KeyPair kp = keyPair();
-
-        for (int kekBits : new int[]{128, 192, 256})
-        {
-            // These four are the whole accepted set on both sides. SHA-384 is
-            // refused by both - see sha384KdfIsRefusedByBothProviders.
-            for (ASN1ObjectIdentifier dig : BC_SUPPORTED_KDF3_DIGESTS)
-            {
-                byte[] otherInfo = randomBytes(sr, sr.nextInt(24));
-                KtsSpec spec = kdf3Spec(kekBits, otherInfo, dig);
-                SecretKey cek = randomCek(sr);
-
-                byte[] wrapped = wrap(BC, kp, spec, cek);
-                Key back = unwrap(providerName(), kp, spec, wrapped);
-
-                Assertions.assertArrayEquals(cek.getEncoded(), back.getEncoded(),
-                        "kek=" + kekBits + " digest=" + dig + ": Jostle must recover the CEK");
-            }
-        }
-    }
-
-    /**
-     * {@code withNoKdf()} - the shared secret used directly as the KEK. A
-     * separate branch in both providers, and one where BC's WrapUtil clamps to
-     * the secret length while the KDF path does not.
-     */
-    @Test
-    public void noKdfAgreesWithBouncyCastle() throws Exception
-    {
-        SecureRandom sr = seededRandom("noKdfAgreesWithBouncyCastle");
-        KeyPair kp = keyPair();
-
-        for (int kekBits : new int[]{128, 192, 256})
-        {
-            KtsSpec spec = new KtsSpec("AESWRAP", kekBits, null, null);
-            SecretKey cek = randomCek(sr);
-
-            Assertions.assertArrayEquals(cek.getEncoded(),
-                    unwrap(BC, kp, spec, wrap(providerName(), kp, spec, cek)).getEncoded(),
-                    "kek=" + kekBits + ": Jostle wrap -> BC unwrap with no KDF");
-            Assertions.assertArrayEquals(cek.getEncoded(),
-                    unwrap(providerName(), kp, spec, wrap(BC, kp, spec, cek)).getEncoded(),
-                    "kek=" + kekBits + ": BC wrap -> Jostle unwrap with no KDF");
-        }
-    }
-
-    /**
-     * otherInfo is fed to the KDF, so changing it must change the KEK - and
-     * both providers must change it the same way. Without this, an
-     * implementation that silently dropped otherInfo would still round-trip
-     * against itself and still agree with BC on the empty case.
-     */
-    @Test
-    public void otherInfoIsHonouredAndAgrees() throws Exception
-    {
-        SecureRandom sr = seededRandom("otherInfoIsHonouredAndAgrees");
-        KeyPair kp = keyPair();
-        SecretKey cek = randomCek(sr);
-
-        byte[] infoA = randomBytes(sr, 20);
-        byte[] infoB = randomBytes(sr, 20);
-
-        KtsSpec specA = kdf3Spec(256, infoA, NISTObjectIdentifiers.id_sha256);
-        KtsSpec specB = kdf3Spec(256, infoB, NISTObjectIdentifiers.id_sha256);
-
-        // Cross-decoding with the wrong otherInfo must fail: a different KEK
-        // means the AES-KW integrity check rejects.
-        byte[] wrappedA = wrap(providerName(), kp, specA, cek);
-        Assertions.assertArrayEquals(cek.getEncoded(),
-                unwrap(BC, kp, specA, wrappedA).getEncoded(), "matching otherInfo must recover");
-        Assertions.assertThrows(InvalidKeyException.class,
-                () -> unwrap(providerName(), kp, specB, wrappedA),
-                "a different otherInfo must not unwrap");
-    }
-
-    /**
-     * SHA-384 is refused as an X9.44 KDF digest, and BouncyCastle refuses it
-     * too — the narrowing brought the two into agreement rather than away from
-     * it. Both halves asserted, so a drift on either side is visible.
-     *
-     * <p>The two refuse at different POINTS: we
-     * reject the spec at {@code init}, BC accepts it there and throws
-     * {@code InvalidKeyException} from {@code wrap}. Asserted where each
-     * actually throws, so a move of either boundary fails here.
-     */
-    @Test
-    public void sha384KdfIsRefusedByBothProviders() throws Exception
-    {
-        SecureRandom sr = seededRandom("sha384KdfIsRefusedByBothProviders");
-        KeyPair kp = keyPair();
-        KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha384);
-        SecretKey cek = randomCek(sr);
-
-        Cipher ours = Cipher.getInstance(XFORM, providerName());
-        InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                InvalidAlgorithmParameterException.class,
-                () -> ours.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(providerName())),
-                "we must refuse SHA-384 at init");
-        Assertions.assertEquals(KtsKdf.unsupportedKtsDigestMessage(
-                NISTObjectIdentifiers.id_sha384.getId()), e.getMessage());
-
-        Cipher theirs = Cipher.getInstance(XFORM, BC);
-        theirs.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(BC));   // BC accepts it here
-        InvalidKeyException bc = Assertions.assertThrows(InvalidKeyException.class,
-                () -> theirs.wrap(cek),
-                "BouncyCastle must still refuse SHA-384, at wrap");
-        Assertions.assertEquals("unrecognized digest OID: "
-                + NISTObjectIdentifiers.id_sha384.getId(), bc.getMessage());
-    }
-
     /** Both OIDs resolve to the same behaviour as the name. */
     @Test
     public void bothOidsBehaveAsTheName() throws Exception
@@ -365,10 +75,6 @@ public class RSAKEMCipherTest
             Assertions.assertArrayEquals(cek.getEncoded(),
                     unwrap(providerName(), kp, spec, wrapped).getEncoded(),
                     name + " must behave as " + XFORM);
-            // ...and BC must read it too.
-            Assertions.assertArrayEquals(cek.getEncoded(),
-                    unwrap(BC, kp, spec, wrapped).getEncoded(),
-                    name + " must interoperate with BC");
         }
     }
 
@@ -459,8 +165,8 @@ public class RSAKEMCipherTest
         for (int mode : new int[]{Cipher.ENCRYPT_MODE, Cipher.DECRYPT_MODE})
         {
             Cipher c = Cipher.getInstance(XFORM, providerName());
-            InvalidAlgorithmParameterException e = Assertions.assertThrows(
-                    InvalidAlgorithmParameterException.class,
+            InvalidParameterException e = Assertions.assertThrows(
+                    InvalidParameterException.class,
                     () -> c.init(mode, kp.getPublic(), spec.forProvider(providerName())));
             Assertions.assertEquals("RSA-KTS-KEM-KWS only supports WRAP_MODE/UNWRAP_MODE", e.getMessage());
         }
@@ -584,7 +290,7 @@ public class RSAKEMCipherTest
         Assertions.assertEquals(384 + 40, wrapped.length,
                 "output is modulus length + AES-KW of a 32-byte CEK");
         Assertions.assertArrayEquals(cek.getEncoded(),
-                unwrap(BC, kp, spec, wrapped).getEncoded(), "BC must read a 3072-bit wrap");
+                unwrap(providerName(), kp, spec, wrapped).getEncoded(), "a 3072-bit wrap must unwrap");
     }
 
 
@@ -603,58 +309,5 @@ public class RSAKEMCipherTest
             Assertions.assertDoesNotThrow(() -> Cipher.getInstance(oid, providerName()),
                     oid + " must resolve");
         }
-    }
-
-
-    // -----------------------------------------------------------------
-    // Helpers.
-    // -----------------------------------------------------------------
-
-    protected static byte[] randomBytes(SecureRandom sr, int n)
-    {
-        byte[] b = new byte[n];
-        sr.nextBytes(b);
-        return b;
-    }
-
-    private static SecretKey randomCek(SecureRandom sr) throws Exception
-    {
-        KeyGenerator kg = KeyGenerator.getInstance("AES");
-        kg.init(256, sr);
-        return kg.generateKey();
-    }
-
-    protected byte[] wrap(String provider, KeyPair kp, KtsSpec spec, SecretKey cek)
-        throws Exception
-    {
-        return wrap(provider, kp.getPublic(), spec, cek);
-    }
-
-    /**
-     * Key-level overload. Needed by the FIPS subclass, where the two providers
-     * do not share key objects and the public half has to be re-decoded before
-     * use — so the wrapping key is not the one in the caller's KeyPair.
-     */
-    protected byte[] wrap(String provider, PublicKey pub, KtsSpec spec, SecretKey cek)
-        throws Exception
-    {
-        Cipher c = Cipher.getInstance(XFORM, provider);
-        c.init(Cipher.WRAP_MODE, pub, spec.forProvider(provider));
-        return c.wrap(cek);
-    }
-
-    protected Key unwrap(String provider, KeyPair kp, KtsSpec spec, byte[] wrapped)
-        throws Exception
-    {
-        return unwrap(provider, kp.getPrivate(), spec, wrapped);
-    }
-
-    /** Key-level overload; see {@link #wrap(String, java.security.PublicKey, KtsSpec, SecretKey)}. */
-    protected Key unwrap(String provider, PrivateKey priv, KtsSpec spec, byte[] wrapped)
-        throws Exception
-    {
-        Cipher c = Cipher.getInstance(XFORM, provider);
-        c.init(Cipher.UNWRAP_MODE, priv, spec.forProvider(provider));
-        return c.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
     }
 }

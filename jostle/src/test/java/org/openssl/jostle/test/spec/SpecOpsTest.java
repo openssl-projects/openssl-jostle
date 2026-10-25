@@ -18,6 +18,7 @@ import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
@@ -31,6 +32,7 @@ public class SpecOpsTest
 
 
     MLKEMServiceNI mlkemServiceNI = TestNISelector.getMLKEMNI();
+    RSAServiceNI rsaServiceNI = TestNISelector.getRSANi();
     SpecNI specNI = TestNISelector.getSpecNI();
     OperationsTestNI operationsTestNI = TestNISelector.getOperationsTestNI();
 
@@ -152,6 +154,31 @@ public class SpecOpsTest
             // Exercises interface/nonfips/util/encapdecap.c:44
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1102, specNI.ni_encap(keyRef, null, new byte[32], 0, 32, new byte[1024], 0, 1024, TestUtil.RNDSrc));
+        } finally
+        {
+            operationsTestNI.resetFlags();
+            specNI.dispose(keyRef);
+        }
+    }
+
+    /**
+     * The encapsulate call with an RSA key and RSASVE, the RSA-KTS-KEM-KWS path. The positive control encapsulates
+     * to the modulus length with no flag set.
+     */
+    @Test
+    public void encap_rsasve_EVP_PKEY_encapsulate() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        long keyRef = rsaServiceNI.generateKeyPair(2048, new byte[]{1, 0, 1}, TestUtil.RNDSrc);
+        try
+        {
+            Assertions.assertEquals(256,
+                    specNI.ni_encap(keyRef, "RSASVE", new byte[256], 0, 256, new byte[1024], 0, 1024, TestUtil.RNDSrc));
+            // Exercises interface/nonfips/util/encapdecap.c:88
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode() - 1105,
+                    specNI.ni_encap(keyRef, "RSASVE", new byte[256], 0, 256, new byte[1024], 0, 1024, TestUtil.RNDSrc));
         } finally
         {
             operationsTestNI.resetFlags();

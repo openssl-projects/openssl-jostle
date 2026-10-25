@@ -31,6 +31,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -201,7 +202,8 @@ public class RSAKEMCipherSpi
     {
         if (opmode != Cipher.WRAP_MODE && opmode != Cipher.UNWRAP_MODE)
         {
-            throw new InvalidAlgorithmParameterException("RSA-KTS-KEM-KWS only supports WRAP_MODE/UNWRAP_MODE");
+            // The type Cipher.init declares for an opmode the cipher does not support.
+            throw new InvalidParameterException("RSA-KTS-KEM-KWS only supports WRAP_MODE/UNWRAP_MODE");
         }
         if (!(key instanceof OSSLKey))
         {

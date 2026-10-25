@@ -126,6 +126,15 @@ public class RSAPKCS1CipherFFM implements RSAPKCS1CipherNI
         }
     }
 
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
+    }
+
 
     @Override
     public long ni_allocateCipher(int[] err)
@@ -214,18 +223,27 @@ public class RSAPKCS1CipherFFM implements RSAPKCS1CipherNI
                 outSize = output.length;
             }
 
-            int rc = (int) doFinalH.invokeExact(ctx,
-                    inSeg, inSize, inOff, inLen,
-                    outSeg, outSize, outOff,
-                    entropyStub(a, rndSource));
-
-            // Copy back only the bytes the C side wrote, at the original
-            // offset. Mirrors the OAEP fix from the prior review pass.
-            if (output != null && rc > 0)
+            try
             {
-                outSeg.asByteBuffer().get(outOff, output, outOff, rc);
+                int rc = (int) doFinalH.invokeExact(ctx,
+                        inSeg, inSize, inOff, inLen,
+                        outSeg, outSize, outOff,
+                        entropyStub(a, rndSource));
+
+                // Copy back only the bytes the C side wrote, at the original
+                // offset. Mirrors the OAEP fix from the prior review pass.
+                if (output != null && rc > 0)
+                {
+                    outSeg.asByteBuffer().get(outOff, output, outOff, rc);
+                }
+                return rc;
             }
-            return rc;
+            finally
+            {
+                // The plaintext is the input on encrypt and the output on decrypt; both copies are cleared.
+                zero(inSeg);
+                zero(outSeg);
+            }
         }
         catch (Throwable t)
         {
