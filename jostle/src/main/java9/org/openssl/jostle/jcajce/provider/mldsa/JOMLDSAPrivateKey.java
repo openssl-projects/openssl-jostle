@@ -109,7 +109,7 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
                 return null;
             }
             mldsaServiceNI.handleErrors(len);
-            byte[] out = new byte[len];
+            byte[] out = new byte[mldsaServiceNI.boundedKeyLength(spec.getType(), MLDSAServiceNI.KeyPart.SEED, len)];
             mldsaServiceNI.handleErrors(mldsaServiceNI.ni_getSeed(spec.getReference(), out));
 
             return out;
@@ -128,8 +128,9 @@ class JOMLDSAPrivateKey extends AsymmetricKeyImpl implements MLDSAPrivateKey, OS
         //
         try
         {
-            long len = mldsaServiceNI.getPrivateKey(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
+            int len = mldsaServiceNI.boundedKeyLength(spec.getType(), MLDSAServiceNI.KeyPart.PRIVATE,
+                    mldsaServiceNI.getPrivateKey(spec.getReference(), null));
+            byte[] out = new byte[len];
             mldsaServiceNI.getPrivateKey(spec.getReference(), out);
 
             return out;

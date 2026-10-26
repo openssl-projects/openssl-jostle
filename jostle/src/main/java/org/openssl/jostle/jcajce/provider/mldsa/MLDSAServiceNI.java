@@ -135,7 +135,7 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param ref               Signer Reference
      * @param keyReference      reference to key_spec type
      * @param context           context bytes
-     * @param contextLen        length, use -1 to prevent initial updating of Mu generating xof
+     * @param contextLen        length; -1 is the FIPS 204 internal form: no domain separator, no length byte
      * @param muHandlingOrdinal
      * @return response code
      */
@@ -150,7 +150,7 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      * @param reference         the signer reference
      * @param keyReference      reference to key_spec type
      * @param context           context bytes
-     * @param contextLen        length, use -1 to prevent initial updating of Mu generating xof
+     * @param contextLen        length; -1 is the FIPS 204 internal form: no domain separator, no length byte
      * @param muHandlingOrdinal
      * @param randSource
      * @return response code
@@ -215,10 +215,6 @@ public interface MLDSAServiceNI extends DefaultServiceNI
         {
             case JO_UNKNOWN_MU_MODE:
                 throw new IllegalArgumentException("unknown Mu mode");
-            case JO_INVALID_MU_MODE_FOR_VERIFY:
-                throw new IllegalArgumentException("invalid Mu mode for verify");
-            case JO_INVALID_MU_MODE_FOR_SIGN:
-                throw new IllegalArgumentException("invalid Mu mode for sign");
             case JO_EXTERNAL_MU_INVALID_LEN:
                 throw new IllegalArgumentException("external Mu invalid length");
             case JO_INCORRECT_KEY_TYPE:
@@ -247,5 +243,34 @@ public interface MLDSAServiceNI extends DefaultServiceNI
             lengthCache().cache(type, len);
         }
         return len;
+    }
+
+    /** The parts of an ML-DSA key whose encoded length the library reports. */
+    enum KeyPart
+    {
+        PUBLIC, PRIVATE, SEED
+    }
+
+    /** This implementation's memo of key encoding lengths, keyed by type and part. */
+    NativeLengthCache<String> keyLengthCache();
+
+    /**
+     * A key encoding length the library reported, checked before anything is allocated from it: the first
+     * answer for a type and part is memoised, and a later answer that disagrees is IllegalStateException.
+     */
+    default int boundedKeyLength(OSSLKeyType type, KeyPart part, long reported)
+    {
+        String key = type.name() + "/" + part.name();
+        if (keyLengthCache().get(key) == NativeLengthCache.UNKNOWN && reported > 0 && reported <= Integer.MAX_VALUE)
+        {
+            keyLengthCache().cache(key, (int) reported);
+        }
+        int memo = keyLengthCache().get(key);
+        if (reported != memo)
+        {
+            throw new IllegalStateException(
+                    "the library reported a " + part + " length of " + reported + " for " + type + ", not " + memo);
+        }
+        return memo;
     }
 }

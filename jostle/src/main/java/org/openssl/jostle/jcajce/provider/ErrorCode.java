@@ -71,8 +71,8 @@ public enum ErrorCode
     JO_UNEXPECTED_POINTER_CHANGE(-56),
     @Deprecated JO_UNKNOWN_OSSL_KEY_TYPE(-57),
     JO_UNKNOWN_MU_MODE(-58),
-    JO_INVALID_MU_MODE_FOR_VERIFY(-59),
-    JO_INVALID_MU_MODE_FOR_SIGN(-60),
+    JO_INVALID_MU_MODE_FOR_VERIFY(-59), // Retired: no producer.
+    JO_INVALID_MU_MODE_FOR_SIGN(-60), // Retired: no producer.
     JO_EXTERNAL_MU_INVALID_LEN(-61),
     JO_UNEXPECTED_SIG_LEN_CHANGE(-62),
     JO_INVALID_SEED_LEN(-63),
@@ -426,6 +426,10 @@ public enum ErrorCode
     JO_RSA_OAEP_CTX_WRONG_KIND(-227),
     // A handle passed as an RSA-PKCS1 cipher context that is not one.
     JO_RSA_PKCS1_CTX_WRONG_KIND(-228),
+    // A handle passed as an ML-DSA signer context that is not one.
+    JO_MLDSA_CTX_WRONG_KIND(-229),
+    // A signing session asked of a key that holds only its public half.
+    JO_KEY_HAS_NO_PRIVATE_HALF(-230),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

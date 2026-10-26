@@ -39,15 +39,21 @@ int32_t mldsa_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
 
 
 #define Mu_BYTES 64
-#define TR_PRIVATE_KEY_OFFSET 64
 #define TR_LEN 64
 #define MAX_CTX_LEN 256
 #define MLDSA_SEED_LEN 32
 
 // #define HASH_SHA512_LEN 64
 
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as an mldsa_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define MLDSA_CTX_KIND 0x4D445301u /* "MDS\1" */
+#define MLDSA_CTX_NONE 0u          /* what a freed ctx is left with; never a valid kind */
+
 typedef struct mldsa_ctx {
-    int32_t type;
+    uint32_t kind;
     EVP_SIGNATURE *sig;
     EVP_PKEY_CTX *pctx;
     int32_t opp;
@@ -63,6 +69,12 @@ typedef struct mldsa_ctx {
 
 mldsa_ctx *mldsa_ctx_create(int *err);
 
+/*
+ * JO_SIGNER_CTX_IS_NULL, JO_MLDSA_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t mldsa_ctx_check(const mldsa_ctx *ctx);
+
+/* Frees nothing unless ctx is a live mldsa_ctx. */
 void mldsa_ctx_destroy(mldsa_ctx *ctx);
 
 int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,

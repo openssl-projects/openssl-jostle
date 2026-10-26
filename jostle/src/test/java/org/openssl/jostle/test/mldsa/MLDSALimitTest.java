@@ -1206,33 +1206,20 @@ public class MLDSALimitTest
     }
 
     @Test()
-    public void MLDSAServiceJNI_initVerify_invalidMuMode() throws Exception
+    public void MLDSAServiceJNI_initVerify_calculateMuOpensAMuSession() throws Exception
     {
-
-        long mldsaRef = 0;
-        long keyRef = 0;
-
+        // CALCULATE_MU opens a mu comparison on the verify side.
+        long mldsaRef = mldsaServiceNI.allocateSigner();
+        long keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
         try
         {
-            mldsaRef = mldsaServiceNI.allocateSigner();
-            Assertions.assertTrue(mldsaRef > 0);
-            keyRef = mldsaServiceNI.generateKeyPair(OSSLKeyType.ML_DSA_44.getKsType(), TestUtil.RNDSrc);
-            Assertions.assertTrue(keyRef > 0);
-            mldsaServiceNI.initVerify(
-                    mldsaRef,
-                    keyRef,
-                    new byte[1], 1, MLDSASignatureSpi.MuHandling.CALCULATE_MU.ordinal());
-            Assertions.fail();
-        }
-        catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("invalid Mu mode for verify", e.getMessage());
+            Assertions.assertEquals(0, mldsaServiceNI.initVerify(mldsaRef, keyRef, new byte[1], 1,
+                    MLDSASignatureSpi.MuHandling.CALCULATE_MU.ordinal()));
         }
         finally
         {
             mldsaServiceNI.disposeSigner(mldsaRef);
             specNI.dispose(keyRef);
-
         }
     }
 
@@ -2305,4 +2292,29 @@ public class MLDSALimitTest
         }
     }
 
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        MLDSABridgeCells.wrongKindHandlesAreRefused(mldsaServiceNI, specNI, TestNISelector.getRSANi(),
+                TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_theContextThenTheKeyThenTheRandSourceAreChecked()
+    {
+        MLDSABridgeCells.theContextThenTheKeyThenTheRandSourceAreChecked(mldsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aPublicOnlyKeyOpensOnlyAMuSession()
+    {
+        MLDSABridgeCells.aPublicOnlyKeyOpensOnlyAMuSession(mldsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aMuVerifiesThroughTheCalculateMode()
+    {
+        MLDSABridgeCells.aMuVerifiesThroughTheCalculateMode(mldsaServiceNI, specNI);
+    }
 }

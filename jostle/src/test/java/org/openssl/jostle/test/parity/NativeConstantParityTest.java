@@ -31,6 +31,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Every numeric constant Java mirrors from a C header carries the same value.
@@ -190,6 +191,53 @@ public class NativeConstantParityTest
             Assertions.assertTrue(seen > 100, header + ": saw only " + seen + " #define JO_ lines");
         }
         Assertions.assertEquals(0, bad.length(), "defines the parity reader does not parse:" + bad);
+    }
+
+    /** A switch arm naming an error code: {@code case JO_X:}. */
+    private static final Pattern JAVA_ARM = Pattern.compile("case\\s+(JO_[A-Z0-9_]+)\\s*:");
+
+    /**
+     * Every arm of the ML-DSA error handler names a code some C file in each tree produces, the header aside. An
+     * arm with no producer is a refusal no input can reach, and its message is never seen.
+     */
+    @Test
+    public void everyMlDsaHandlerArmHasAProducerInBothTrees() throws Exception
+    {
+        String handler = read("jostle/src/main/java/org/openssl/jostle/jcajce/provider/mldsa/MLDSAServiceNI.java")
+                .replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
+        Set<String> arms = new TreeSet<>();
+        Matcher m = JAVA_ARM.matcher(handler);
+        while (m.find())
+        {
+            arms.add(m.group(1));
+        }
+        Assertions.assertTrue(arms.size() >= 3, "read only " + arms + " from the ML-DSA handler");
+
+        StringBuilder bad = new StringBuilder();
+        for (String tree : new String[]{"interface/nonfips", "interface/fips"})
+        {
+            StringBuilder c = new StringBuilder();
+            try (Stream<Path> walk = Files.walk(repoRoot().resolve(tree)))
+            {
+                for (Path f : (Iterable<Path>) walk::iterator)
+                {
+                    String name = f.getFileName().toString();
+                    if ((name.endsWith(".c") || name.endsWith(".h")) && !name.equals("bc_err_codes.h"))
+                    {
+                        c.append(new String(Files.readAllBytes(f), StandardCharsets.UTF_8)).append('\n');
+                    }
+                }
+            }
+            String code = c.toString().replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
+            for (String arm : arms)
+            {
+                if (!Pattern.compile("\\b" + arm + "\\b").matcher(code).find())
+                {
+                    bad.append("\n  ").append(tree).append(": ").append(arm);
+                }
+            }
+        }
+        Assertions.assertEquals(0, bad.length(), "ML-DSA handler arms with no C producer:" + bad);
     }
 
     /**

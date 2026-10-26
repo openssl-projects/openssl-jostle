@@ -9,6 +9,7 @@
 
 
 #include <string.h>
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/core_names.h>
 #include <openssl/err.h>
@@ -706,14 +707,27 @@ exit:
 mldsa_ctx *mldsa_ctx_create(int *err) {
     mldsa_ctx *ctx = (mldsa_ctx *) OPENSSL_zalloc(sizeof(mldsa_ctx));
     jo_assert(ctx != NULL);
+    ctx->kind = MLDSA_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_MLDSA_CTX);
     return ctx;
 }
 
 
-void mldsa_ctx_destroy(mldsa_ctx *ctx) {
+int32_t mldsa_ctx_check(const mldsa_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (ctx->kind != MLDSA_CTX_KIND) {
+        return JO_MLDSA_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
+void mldsa_ctx_destroy(mldsa_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as an mldsa_ctx corrupts it.
+    if (mldsa_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_MLDSA_CTX);
@@ -734,6 +748,7 @@ void mldsa_ctx_destroy(mldsa_ctx *ctx) {
         BIO_free_all(ctx->mu_buf);
     }
 
+    ctx->kind = MLDSA_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -758,6 +773,35 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
     if (sign_ctx_len >= MAX_CTX_LEN) {
         ret_code = JO_CONTEXT_BYTES_TOO_LONG;
         goto exit;
+    }
+
+    int32_t typeId = KS_NONE;
+    const char *alg = NULL;
+    if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {
+        alg = "ML-DSA-44";
+        typeId = KS_MLDSA_44;
+    } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-65")) {
+        alg = "ML-DSA-65";
+        typeId = KS_MLDSA_65;
+    } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-87")) {
+        alg = "ML-DSA-87";
+        typeId = KS_MLDSA_87;
+    } else {
+        ret_code = JO_INCORRECT_KEY_TYPE;
+        goto exit;
+    }
+
+    // A signature needs the private half; computing mu needs only the public half.
+    if (mu_mode == MLDSA_Mu_INTERNAL || mu_mode == MLDSA_Mu_EXTERNAL) {
+        size_t priv_len = 0;
+        ERR_set_mark();
+        const int has_priv = EVP_PKEY_get_octet_string_param(key_spec->key, OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0,
+                                                             &priv_len);
+        ERR_pop_to_mark();
+        if (has_priv != 1 || priv_len == 0) {
+            ret_code = JO_KEY_HAS_NO_PRIVATE_HALF;
+            goto exit;
+        }
     }
 
     // Clear after soft-error checks, before resource-allocating work.
@@ -812,24 +856,10 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
             goto exit;
     }
 
-    int32_t typeId = KS_NONE;
-
     OSSL_LIB_CTX *libctx = get_global_jostle_ossl_lib_ctx();
     rand_set_java_srand_call(rnd_src);
 
-    if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-44")) {
-        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-44",NULL);
-        typeId = KS_MLDSA_44;
-    } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-65")) {
-        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-65",NULL);
-        typeId = KS_MLDSA_65;
-    } else if (EVP_PKEY_is_a(key_spec->key, "ML-DSA-87")) {
-        ctx->sig = EVP_SIGNATURE_fetch(libctx, "ML-DSA-87",NULL);
-        typeId = KS_MLDSA_87;
-    } else {
-        ret_code = JO_INCORRECT_KEY_TYPE;
-        goto exit;
-    }
+    ctx->sig = EVP_SIGNATURE_fetch(libctx, alg, NULL);
 
     // Short-circuit on fetch failure to preserve the real diagnostic.
     if (OPS_FAILED_CREATE_1 ctx->sig == NULL) {
@@ -873,7 +903,7 @@ int32_t mldsa_ctx_init_sign(mldsa_ctx *ctx, const key_spec *key_spec, const uint
     ctx->pctx = EVP_PKEY_CTX_new_from_pkey(libctx, key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1005);
         goto exit;
     }
 
@@ -980,11 +1010,8 @@ int32_t mldsa_ctx_init_verify(
             }
             break;
         case MLDSA_Mu_INTERNAL:
-            break;
-
         case MLDSA_Mu_CALCULATE_ONLY:
-            ret_code = JO_INVALID_MU_MODE_FOR_VERIFY;
-            goto exit;
+            break;
         default:
             ret_code = JO_UNKNOWN_MU_MODE;
             goto exit;
@@ -1015,7 +1042,7 @@ int32_t mldsa_ctx_init_verify(
     }
 
 
-    if (ctx->mu_mode == MLDSA_Mu_INTERNAL) {
+    if (ctx->mu_mode == MLDSA_Mu_INTERNAL || ctx->mu_mode == MLDSA_Mu_CALCULATE_ONLY) {
         if (!extract_tr(key_spec, typeId, ctx->tr, &ret_code)) {
             goto exit;
         }
@@ -1195,6 +1222,17 @@ int32_t mldsa_ctx_verify(mldsa_ctx *ctx, const uint8_t *sig, const size_t sig_le
     uint8_t mu[Mu_BYTES] = {0};
 
     if (!derive_mu(ctx, mu, &ret_code)) {
+        goto exit;
+    }
+
+    // CALCULATE_ONLY verifies a mu, not a signature: equal to the one derived, in constant time.
+    if (ctx->mu_mode == MLDSA_Mu_CALCULATE_ONLY) {
+        if (sig_len == Mu_BYTES && CRYPTO_memcmp(mu, sig, Mu_BYTES) == 0) {
+            ret_code = JO_SUCCESS;
+        } else {
+            ret_code = JO_FAIL;
+        }
+        OPENSSL_cleanse(mu, Mu_BYTES);
         goto exit;
     }
 

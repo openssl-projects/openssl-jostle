@@ -14,6 +14,7 @@ package org.openssl.jostle.probe;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.openssl.jostle.jcajce.provider.JostleProvider;
@@ -27,8 +28,11 @@ import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.provider.ks.KSServiceNI;
 import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
+import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.certpath.PkitsCertificates;
@@ -74,6 +78,9 @@ public final class NativeAbortProbeRunner
     private static final String KS_TYPE = "PKCS12";
     // JO_KS_CTX_WRONG_KIND.
     private static final int KS_CTX_WRONG_KIND = -210;
+    // JO_MLDSA_CTX_WRONG_KIND.
+    private static final int MLDSA_CTX_WRONG_KIND = -229;
+    private static final int KS_MLDSA_44 = OSSLKeyType.ML_DSA_44.getKsType();
     private static final byte[] RSA_F4 = {0x01, 0x00, 0x01};
     private static final String[] DH_NULL_ERR_CELLS = {"dh-allocatekex-null-err", "dh-bygroup-null-err",
             "dh-paramgen-null-err", "dh-makeparams-null-err", "dh-generate-null-err", "dh-makeprivate-null-err",
@@ -228,6 +235,13 @@ public final class NativeAbortProbeRunner
         jniAbortFfmThrowsRow(rows, p + "pkcs1-allocate-null-err", "err != NULL", jniDir + "rsa_pkcs1_ni_jni.c");
         controlRow(rows, p + "pkcs1-control");
 
+        jniAbortFfmThrowsRow(rows, p + "mldsa-allocate-null-err", "err != NULL", jniDir + "mldsa_ni_jni.c");
+        jniAbortFfmThrowsRow(rows, p + "mldsa-generate-null-err", "_err != NULL", jniDir + "mldsa_ni_jni.c");
+        jniAbortFfmThrowsRow(rows, p + "mldsa-generate-seed-null-err", "_err != NULL", jniDir + "mldsa_ni_jni.c");
+        controlRow(rows, p + "mldsa-control");
+        // The SLH-DSA context is untagged until its own row; a crash here is a finding, so it runs only here.
+        controlRow(rows, p + "mldsa-slhdsa-ctx-as-signer");
+
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
         // the FIPS block is a fact about the tree, not an omission.
@@ -367,6 +381,8 @@ public final class NativeAbortProbeRunner
         DSAServiceNI dsa;
         RSAOAEPCipherNI oaep;
         RSAPKCS1CipherNI pkcs1;
+        MLDSAServiceNI mldsa;
+        SLHDSAServiceNI slhdsa;
         if (fips)
         {
             new JostleProvider();
@@ -379,6 +395,8 @@ public final class NativeAbortProbeRunner
             dsa = FIPSNISelector.DSAServiceNI;
             oaep = FIPSNISelector.RSAOAEPCipherNI;
             pkcs1 = FIPSNISelector.RSAPKCS1CipherNI;
+            mldsa = FIPSNISelector.MLDSAServiceNI;
+            slhdsa = FIPSNISelector.SLHDSAServiceNI;
         }
         else
         {
@@ -391,6 +409,8 @@ public final class NativeAbortProbeRunner
             dsa = NISelector.DSAServiceNI;
             oaep = NISelector.RSAOAEPCipherNI;
             pkcs1 = NISelector.RSAPKCS1CipherNI;
+            mldsa = NISelector.MLDSAServiceNI;
+            slhdsa = NISelector.SLHDSAServiceNI;
         }
         KSServiceNI ks = NISelector.KSServiceNI;
 
@@ -560,6 +580,44 @@ public final class NativeAbortProbeRunner
             int[] err = new int[1];
             long ref = pkcs1.ni_allocateCipher(err);
             report(ref != 0 && err[0] == 0, "pkcs1 ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("mldsa-allocate-null-err".equals(c))
+        {
+            mldsa.ni_allocateSigner(null);
+        }
+        else if ("mldsa-generate-null-err".equals(c))
+        {
+            mldsa.ni_generateKeyPair(KS_MLDSA_44, null, RND);
+        }
+        else if ("mldsa-generate-seed-null-err".equals(c))
+        {
+            mldsa.ni_generateKeyPair(KS_MLDSA_44, null, new byte[32], 32, RND);
+        }
+        else if ("mldsa-control".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = mldsa.ni_allocateSigner(err);
+            report(ref != 0 && err[0] == 0, "mldsa ref=" + (ref != 0) + " err=" + err[0]);
+        }
+        else if ("mldsa-slhdsa-ctx-as-signer".equals(c))
+        {
+            int[] err = new int[1];
+            long slh = slhdsa.ni_allocateSigner(err);
+            int[] rc = {
+                    mldsa.ni_initSign(slh, 0, new byte[0], 0, 0, RND),
+                    mldsa.ni_initVerify(slh, 0, new byte[0], 0, 0),
+                    mldsa.ni_update(slh, new byte[1], 0, 1),
+                    mldsa.ni_sign(slh, new byte[64], 0, RND),
+                    mldsa.ni_verify(slh, new byte[64], 64)};
+            boolean ok = slh != 0 && err[0] == 0;
+            for (int r : rc)
+            {
+                ok &= r == MLDSA_CTX_WRONG_KIND;
+            }
+            // A dispose of the wrong kind frees nothing, so the owner's dispose that follows is the only free.
+            mldsa.ni_disposeSigner(slh);
+            slhdsa.ni_disposeSigner(slh);
+            report(ok, "mldsa entries on an SLH-DSA ctx rc=" + Arrays.toString(rc));
         }
         else if ("ks-null-err".equals(c))
         {

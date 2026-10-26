@@ -35,6 +35,7 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
@@ -705,5 +706,100 @@ public class FIPSMLDSAAgreementTest
         }
         Assertions.assertTrue(missing.isEmpty(),
                 "the module serves ML-DSA but JSLFIPS registers only part of it; missing: " + missing);
+    }
+
+    /** ML-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    @Test
+    public void mlDsaIsServedPerModuleVersion() throws Exception
+    {
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        boolean registered = FIPSTestUtil.assumeFipsProvider().getService("Signature", "ML-DSA-65") != null;
+        if (profile.isVersion312())
+        {
+            Assertions.assertFalse(registered);
+            return;
+        }
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertTrue(registered);
+        KeyPair kp = keyPair(DEFAULT_SET);
+        byte[] msg = new byte[40];
+        RANDOM.nextBytes(msg);
+        byte[] sig = sign(FIPS, DEFAULT_SET, kp.getPrivate(), msg, null);
+        Assertions.assertTrue(verify(BC, DEFAULT_SET, bcPublic(kp.getPublic()), msg, sig, null));
+    }
+
+    /**
+     * An external mu of the wrong length is a SignatureException on both sides: JSLFIPS refuses an update that
+     * takes the total past 64 bytes, BouncyCastle accepts any update and refuses at sign and verify.
+     */
+    @Test
+    public void aWrongLengthExternalMuIsASignatureExceptionOnBothSides() throws Exception
+    {
+        assumeMlDsa();
+        KeyPair kp = keyPair(DEFAULT_SET);
+        byte[] sig = sign(FIPS, DEFAULT_SET, kp.getPrivate(), new byte[1], null);
+        for (int len : new int[]{0, 63, 65})
+        {
+            byte[] mu = new byte[len];
+            RANDOM.nextBytes(mu);
+            Signature signer = Signature.getInstance("ML-DSA-EXTERNAL-MU", FIPS);
+            signer.initSign(kp.getPrivate());
+            Signature verifier = Signature.getInstance("ML-DSA-EXTERNAL-MU", FIPS);
+            verifier.initVerify(kp.getPublic());
+            SignatureException e;
+            SignatureException v;
+            if (len > 64)
+            {
+                e = Assertions.assertThrows(SignatureException.class, () -> signer.update(mu));
+                v = Assertions.assertThrows(SignatureException.class, () -> verifier.update(mu));
+            }
+            else
+            {
+                signer.update(mu);
+                e = Assertions.assertThrows(SignatureException.class, signer::sign);
+                verifier.update(mu);
+                v = Assertions.assertThrows(SignatureException.class, () -> verifier.verify(sig));
+            }
+            for (SignatureException x : new SignatureException[]{e, v})
+            {
+                Assertions.assertEquals("external Mu invalid length", x.getMessage(), "length " + len);
+                Assertions.assertEquals(IllegalArgumentException.class, x.getCause().getClass(), "length " + len);
+            }
+
+            Signature bcSign = bcSignature("ML-DSA-EXTERNAL-MU");
+            bcSign.initSign(bcPrivate(kp.getPrivate()));
+            bcSign.update(mu);
+            Assertions.assertEquals("mu value must be 64 bytes",
+                    Assertions.assertThrows(SignatureException.class, bcSign::sign).getMessage());
+        }
+    }
+
+    /**
+     * CALCULATE-MU on the JSLFIPS verify side compares the mu derived from the public key and the message with the
+     * 64 bytes passed as the signature: BouncyCastle's mu verifies, and the negatives answer false.
+     */
+    @Test
+    public void aMuVerifiesOnTheCalculateMuVerifySide() throws Exception
+    {
+        assumeMlDsa();
+        SecureRandom sr = seededRandom("aMuVerifiesOnTheCalculateMuVerifySide");
+        String alg = "ML-DSA-CALCULATE-MU";
+        for (String set : PARAM_SETS)
+        {
+            KeyPair kp = keyPair(set);
+            byte[] msg = new byte[1 + sr.nextInt(300)];
+            sr.nextBytes(msg);
+            byte[] ctx = new byte[1 + sr.nextInt(32)];
+            sr.nextBytes(ctx);
+            byte[] fipsMu = sign(FIPS, alg, kp.getPrivate(), msg, ctx);
+            byte[] bcMu = sign(BC, alg, bcPrivate(kp.getPrivate()), msg, ctx);
+            Assertions.assertArrayEquals(bcMu, fipsMu, set);
+            Assertions.assertTrue(verify(FIPS, alg, kp.getPublic(), msg, bcMu, ctx), set);
+            byte[] flipped = fipsMu.clone();
+            flipped[sr.nextInt(flipped.length)] ^= 1;
+            Assertions.assertFalse(verify(FIPS, alg, kp.getPublic(), msg, flipped, ctx), set);
+            Assertions.assertFalse(verify(FIPS, alg, kp.getPublic(), msg, Arrays.copyOfRange(fipsMu, 0, 63), ctx), set);
+            Assertions.assertFalse(verify(FIPS, alg, kp.getPublic(), msg, fipsMu, null), set + ": context ignored");
+        }
     }
 }

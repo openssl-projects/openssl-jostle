@@ -19,6 +19,7 @@ import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -113,8 +114,8 @@ public class MLDSASignatureSpi extends SignatureSpi
             }
             catch (IllegalArgumentException e)
             {
-                // NI mode / key-type rejections (JO_INVALID_MU_MODE_FOR_VERIFY,
-                // JO_INCORRECT_KEY_TYPE, JO_UNKNOWN_MU_MODE, ...) surface as
+                // NI mode / key rejections (JO_INCORRECT_KEY_TYPE, JO_UNKNOWN_MU_MODE,
+                // JO_KEY_HAS_NO_PRIVATE_HALF, ...) surface as
                 // IllegalArgumentException; the JCE init contract requires
                 // InvalidKeyException so provider fallback works.
                 throw new InvalidKeyException(e.getMessage(), e);
@@ -260,7 +261,15 @@ public class MLDSASignatureSpi extends SignatureSpi
         try
         {
             updateCalled = true;
-            mldsaServiceNI.update(ref.getReference(), b, off, len);
+            try
+            {
+                mldsaServiceNI.update(ref.getReference(), b, off, len);
+            }
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // Signature declares SignatureException for refused input; IllegalStateException stays raw.
+                throw new SignatureException(e.getMessage(), e);
+            }
         }
         finally
         {
@@ -271,25 +280,36 @@ public class MLDSASignatureSpi extends SignatureSpi
     @Override
     protected byte[] engineSign() throws SignatureException
     {
-        byte[] sig = null;
         try
         {
-            // The CALCULATE_MU path is variable-length, so it is neither read
-            // from nor written to the fixed-length cache.
-            boolean fixedLength = lastKey != null && muHandling != MuHandling.CALCULATE_MU;
-            int len = mldsaServiceNI.signatureLength(ref.getReference(),
-                    fixedLength ? lastKey.getSpec().getType() : null, randSource);
-            sig = new byte[len];
-            int written = mldsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
-            if (written != sig.length)
+            try
             {
-                throw new SignatureException("signature length mismatch");
+                // The CALCULATE_MU path is variable-length, so it is neither read
+                // from nor written to the fixed-length cache.
+                boolean fixedLength = lastKey != null && muHandling != MuHandling.CALCULATE_MU;
+                int len = mldsaServiceNI.signatureLength(ref.getReference(),
+                        fixedLength ? lastKey.getSpec().getType() : null, randSource);
+                byte[] sig = new byte[len];
+                int written = mldsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
+                if (written != sig.length)
+                {
+                    throw new SignatureException("signature length mismatch");
+                }
+                return sig;
             }
-            return sig;
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // Signature declares SignatureException for a failed signing operation.
+                throw new SignatureException(e.getMessage(), e);
+            }
+            finally
+            {
+                reInit();
+            }
         }
         finally
         {
-            reInit();
+            Reference.reachabilityFence(this);
         }
     }
 
@@ -299,12 +319,24 @@ public class MLDSASignatureSpi extends SignatureSpi
     {
         try
         {
-            int code = mldsaServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
-            return code == ErrorCode.JO_SUCCESS.getCode();
+            try
+            {
+                int code = mldsaServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
+                return code == ErrorCode.JO_SUCCESS.getCode();
+            }
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // Signature declares SignatureException for a failed verification operation.
+                throw new SignatureException(e.getMessage(), e);
+            }
+            finally
+            {
+                reInit();
+            }
         }
         finally
         {
-            reInit();
+            Reference.reachabilityFence(this);
         }
     }
 

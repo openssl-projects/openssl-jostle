@@ -10,6 +10,7 @@
 
 #include "bytearrays.h"
 #include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
@@ -64,8 +65,9 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
 
     key_spec *key_spec = NULL;
 
-    java_bytearray_ctx seed; // Non critical access
-    init_bytearray_ctx(&seed);
+    // The seed is the private key: cleansed before release.
+    java_secret_bytearray_ctx seed;
+    init_secret_bytearray_ctx(&seed);
 
     int32_t ret_code = JO_FAIL;
 
@@ -85,7 +87,7 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
     }
 
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&seed, env, _seed)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&seed, env, _seed)) {
         ret_code = JO_FAILED_ACCESS_SEED;
         goto exit;
     }
@@ -105,7 +107,7 @@ Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServiceJNI_ni_1generateKeyPai
     }
 
 exit:
-    release_bytearray_ctx(&seed);
+    release_secret_bytearray_ctx(&seed);
     (*env)->SetIntArrayRegion(env, _err, 0, 1, &ret_code);
     return (jlong) key_spec;
 }
@@ -121,15 +123,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    if (key_spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
 
     java_bytearray_ctx output; // Non critical access
     init_bytearray_ctx(&output);
-
-    int32_t ret_code = JO_FAIL;
 
     if (_output == NULL) {
         ret_code = mldsa_get_public_encoded(key_spec,NULL, 0);
@@ -159,33 +159,29 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    java_bytearray_ctx output; // Non critical access
-    init_bytearray_ctx(&output);
-
-    int32_t ret_code = JO_FAIL;
-
-
-    if (key_spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
 
     if (_output == NULL) {
-        ret_code = mldsa_get_private_encoded(key_spec,NULL, 0);
-        goto exit;
+        return mldsa_get_private_encoded(key_spec, NULL, 0);
     }
 
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
-        goto exit;
+    // The private key goes through the secret helper: cleansed, and written back only on success.
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&output, env, _output)) {
+        discard_secret_bytearray_ctx(&output);
+        return JO_FAILED_ACCESS_OUTPUT;
     }
 
     ret_code = mldsa_get_private_encoded(key_spec, output.bytearray, output.size);
-
-exit:
-    release_bytearray_ctx(&output);
+    if (SUCCESSFUL(ret_code)) {
+        release_secret_bytearray_ctx(&output);
+    } else {
+        discard_secret_bytearray_ctx(&output);
+    }
     return ret_code;
 }
 
@@ -200,37 +196,33 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-
-    java_bytearray_ctx output; // Non critical access
-    init_bytearray_ctx(&output);
-
-    int32_t ret_code = JO_FAIL;
-
-    if (key_spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
 
     if (key_spec->key == NULL) {
-        ret_code = JO_KEY_SPEC_HAS_NULL_KEY;
-        goto exit;
+        return JO_KEY_SPEC_HAS_NULL_KEY;
     }
 
     if (_output == NULL) {
-        ret_code = mldsa_get_private_seed(key_spec,NULL, 0);
-        goto exit;
+        return mldsa_get_private_seed(key_spec, NULL, 0);
     }
 
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
-        goto exit;
+    // The seed is the private key: cleansed, and written back only on success.
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&output, env, _output)) {
+        discard_secret_bytearray_ctx(&output);
+        return JO_FAILED_ACCESS_OUTPUT;
     }
 
     ret_code = mldsa_get_private_seed(key_spec, output.bytearray, output.size);
-
-exit:
-    release_bytearray_ctx(&output);
+    if (SUCCESSFUL(ret_code)) {
+        release_secret_bytearray_ctx(&output);
+    } else {
+        discard_secret_bytearray_ctx(&output);
+    }
     return ret_code;
 }
 
@@ -247,18 +239,16 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
 
     key_spec *key_spec = (void *) ref;
 
+    jint ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
+    }
 
-    jint ret_val = JO_FAIL;
     java_bytearray_ctx input; // Non critical access
     init_bytearray_ctx(&input);
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
-    }
-
     if (_input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -305,22 +295,21 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
 
     key_spec *key_spec = (void *) ref;
 
-
-    jint ret_val = JO_FAIL;
-    java_bytearray_ctx input; // Non critical access
-    init_bytearray_ctx(&input);
-
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    jint ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
+
+    // The private key goes through the secret helper: cleansed before release.
+    java_secret_bytearray_ctx input;
+    init_secret_bytearray_ctx(&input);
 
     if (_input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&input, env, _input)) {
         ret_val = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
@@ -335,7 +324,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
         goto exit;
     }
 
-    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+    if (!check_secret_in_range(&input, in_off, in_len)) {
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
@@ -346,7 +335,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
 
 
 exit:
-    release_bytearray_ctx(&input);
+    release_secret_bytearray_ctx(&input);
     return ret_val;
 }
 
@@ -398,24 +387,21 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(jo);
 
     mldsa_ctx *mldsa = (mldsa_ctx *) mldsa_ref;
-    if (mldsa == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = mldsa_ctx_check(mldsa);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    int32_t ret_code = JO_FAIL;
+    key_spec *spec = (key_spec *) key_ref;
+    ret_code = key_spec_check(spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
 
     java_bytearray_ctx context;
     init_bytearray_ctx(&context);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)) {
         ret_code = JO_FAILED_ACCESS_CONTEXT;
-        goto exit;
-    }
-
-    key_spec *spec = (key_spec *) key_ref;
-
-    if (spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
         goto exit;
     }
 
@@ -452,26 +438,24 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(jo);
 
     mldsa_ctx *mldsa = (mldsa_ctx *) mldsa_ref;
-    if (mldsa == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = mldsa_ctx_check(mldsa);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+    key_spec *spec = (key_spec *) key_ref;
+    ret_code = key_spec_check(spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
     }
-
-    int32_t ret_code = JO_FAIL;
 
     java_bytearray_ctx context;
     init_bytearray_ctx(&context);
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&context, env, _context)) {
         ret_code = JO_FAILED_ACCESS_CONTEXT;
-        goto exit;
-    }
-
-    key_spec *spec = (key_spec *) key_ref;
-    if (spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
         goto exit;
     }
 
@@ -504,11 +488,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
 (JNIEnv *env, jobject jo, jlong ref, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(jo);
     mldsa_ctx *mldsa = (mldsa_ctx *) ref;
-    if (mldsa == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = mldsa_ctx_check(mldsa);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    int32_t ret_code = JO_FAIL;
 
     critical_bytearray_ctx input;
     init_critical_ctx(&input, env, _input);
@@ -560,8 +543,9 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(env);
     UNUSED(jo);
     mldsa_ctx *mldsa = (mldsa_ctx *) ref;
-    if (mldsa == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = mldsa_ctx_check(mldsa);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     if (rnd_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
@@ -572,7 +556,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
         return mldsa_ctx_sign(mldsa, NULL, 0, rnd_src);
     }
 
-    int32_t ret_code = JO_FAIL;
     size_t out_len = 0;
 
 
@@ -620,15 +603,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mldsa_MLDSAServic
     UNUSED(jo);
 
     mldsa_ctx *mldsa = (mldsa_ctx *) ref;
-    if (mldsa == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = mldsa_ctx_check(mldsa);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
 
     java_bytearray_ctx sig;
     init_bytearray_ctx(&sig);
-
-
-    int32_t ret_code = JO_FAIL;
 
     if (_sig == NULL) {
         ret_code = JO_SIG_IS_NULL;

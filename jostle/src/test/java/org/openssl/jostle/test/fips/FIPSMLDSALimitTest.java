@@ -23,9 +23,14 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.mldsa.MLDSABridgeCells;
 import org.openssl.jostle.util.Arrays;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Signature;
 
 /**
  * Input validation at the ML-DSA NI surface of the FIPS interface library
@@ -437,9 +442,8 @@ public class FIPSMLDSALimitTest
                     () -> ni.initSign(sig, k, new byte[1], 1, 3, RND));
             assertTyped(IllegalArgumentException.class, "unknown Mu mode",
                     () -> ni.initVerify(sig, k, new byte[1], 1, -1));
-            // CALCULATE_MU is a signing-side mode only.
-            assertTyped(IllegalArgumentException.class, "invalid Mu mode for verify",
-                    () -> ni.initVerify(sig, k, new byte[1], 1, MU_CALCULATE));
+            // CALCULATE_MU opens a mu comparison on the verify side.
+            Assertions.assertEquals(0, ni.initVerify(sig, k, new byte[1], 1, MU_CALCULATE));
         }
         finally
         {
@@ -744,5 +748,60 @@ public class FIPSMLDSALimitTest
                                     Executable call)
     {
         Assertions.assertEquals(message, Assertions.assertThrows(type, call).getMessage());
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        MLDSABridgeCells.wrongKindHandlesAreRefused(ni, specNI, FIPSNISelector.RSAServiceNI,
+                FIPSNISelector.MDServiceNI);
+    }
+
+    @Test
+    public void bridge_theContextThenTheKeyThenTheRandSourceAreChecked()
+    {
+        MLDSABridgeCells.theContextThenTheKeyThenTheRandSourceAreChecked(ni, specNI);
+    }
+
+    @Test
+    public void bridge_aPublicOnlyKeyOpensOnlyAMuSession()
+    {
+        assumeMlDsa();
+        MLDSABridgeCells.aPublicOnlyKeyOpensOnlyAMuSession(ni, specNI);
+    }
+
+    @Test
+    public void bridge_aMuVerifiesThroughTheCalculateMode()
+    {
+        assumeMlDsa();
+        MLDSABridgeCells.aMuVerifiesThroughTheCalculateMode(ni, specNI);
+    }
+
+    /** ML-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    @Test
+    public void mlDsaIsServedPerModuleVersion() throws Exception
+    {
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        Provider fips = FIPSTestUtil.assumeFipsProvider();
+        boolean registered = fips.getService("Signature", "ML-DSA-65") != null;
+        if (profile.isVersion312())
+        {
+            Assertions.assertFalse(registered);
+            Assertions.assertFalse(moduleServesMlDsa());
+            return;
+        }
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertTrue(registered);
+        KeyPair kp = KeyPairGenerator.getInstance("ML-DSA-65", fips).generateKeyPair();
+        byte[] msg = new byte[33];
+        new SecureRandom().nextBytes(msg);
+        Signature signer = Signature.getInstance("ML-DSA-65", fips);
+        signer.initSign(kp.getPrivate());
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Signature verifier = Signature.getInstance("ML-DSA-65", fips);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig));
     }
 }

@@ -80,7 +80,7 @@ TEST_TO_C_FILES = {
     "RSAOpsTest":            ["rsa.c"],
     "RSAOAEPCipherOpsTest":  ["rsa_oaep.c"],
     "RSAPKCS1CipherOpsTest": ["rsa_pkcs1.c"],
-    "MLDSOpsTest":           ["mldsa.c"],
+    "MLDSAOpsTest":          ["mldsa.c"],
     "MLKEMOpsTest":          ["mlkem.c"],
     "SLHDSAOpsTest":         ["slhdsa.c"],
     "EdDSAOpsTest":          ["edec.c"],

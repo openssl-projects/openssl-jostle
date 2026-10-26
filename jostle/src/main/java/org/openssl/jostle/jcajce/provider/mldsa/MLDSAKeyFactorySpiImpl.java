@@ -76,6 +76,11 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
      */
     private final Provider providerInstance;
 
+    // First byte of the PKCS#8 privateKey content: the ML-DSA private key CHOICE it carries.
+    private static final int FORM_SEED = 0x80;
+    private static final int FORM_EXPANDED = 0x04;
+    private static final int FORM_BOTH = 0x30;
+
     public MLDSAKeyFactorySpiImpl(MLDSAServiceNI mldsaServiceNI, SpecNI specNI, Asn1Ni asn1NI,
                                   OSSLKeyType keyType, Provider providerInstance)
     {
@@ -212,7 +217,13 @@ public class MLDSAKeyFactorySpiImpl extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-DSA key but got " + pkeySpec.getType());
                 }
 
-                return new JOMLDSAPrivateKey(mldsaServiceNI, asn1NI, pkeySpec);
+                // The encoding follows the input: a seed-only key re-encodes seed-only.
+                int form = KeyInfoCanonicalizer.privateKeyFirstByte(encoded);
+                if (form != FORM_SEED && form != FORM_EXPANDED && form != FORM_BOTH)
+                {
+                    throw new InvalidKeySpecException("unrecognised ML-DSA private key form");
+                }
+                return new JOMLDSAPrivateKey(mldsaServiceNI, asn1NI, pkeySpec, form == FORM_SEED);
             }
             catch (RuntimeException e)
             {

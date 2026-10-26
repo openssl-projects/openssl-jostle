@@ -12,22 +12,17 @@
 package org.openssl.jostle.test.mldsa;
 
 
-import org.bouncycastle.asn1.ASN1Primitive;
-import org.bouncycastle.asn1.util.ASN1Dump;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAKeyPairGeneratorImpl;
+import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
-import org.openssl.jostle.jcajce.spec.MLDSAPrivateKeySpec;
-import org.openssl.jostle.jcajce.spec.MLDSAPublicKeySpec;
-import org.openssl.jostle.util.Arrays;
-import org.openssl.jostle.util.MLDSAProxyPrivateKey;
 import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.encoders.Hex;
 
@@ -36,8 +31,6 @@ import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.HashMap;
-import java.util.Map;
 
 public class MLDSATest
 {
@@ -70,25 +63,6 @@ public class MLDSATest
 
     };
 
-    // MLDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-    private static org.bouncycastle.jcajce.spec.MLDSAParameterSpec[] bcSpec = new org.bouncycastle.jcajce.spec.MLDSAParameterSpec[]{
-            org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44,
-            org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65,
-            org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_87,
-    };
-
-    private static Map<org.bouncycastle.jcajce.spec.MLDSAParameterSpec, MLDSAParameterSpec> bcToJostle = new HashMap<>();
-    private static Map<MLDSAParameterSpec, org.bouncycastle.jcajce.spec.MLDSAParameterSpec> jostleToBc = new HashMap<>();
-
-    static
-    {
-        for (int i = 0; i < joSpec.length; i++)
-        {
-            bcToJostle.put(bcSpec[i], joSpec[i]);
-            jostleToBc.put(joSpec[i], bcSpec[i]);
-        }
-    }
-
 
     @BeforeAll
     public static void before()
@@ -100,10 +74,6 @@ public class MLDSATest
                 Security.addProvider(new JostleProvider());
             }
 
-            if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
-            {
-                Security.addProvider(new BouncyCastleProvider());
-            }
 
         }
     }
@@ -466,108 +436,6 @@ public class MLDSATest
     }
 
 
-    @Test
-    public void testSingleByteUpdateSign() throws Exception
-    {
-        SecureRandom sr = seededRandom("testSingleByteUpdateSign");
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
-        KeyPair keyPair = keyGen.generateKeyPair();
-
-        byte[] publicKey = keyPair.getPublic().getEncoded();
-        byte[] privateKey = keyPair.getPrivate().getEncoded();
-
-        KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
-        PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
-        PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
-
-        byte[] message = new byte[1025];
-        sr.nextBytes(message);
-
-        Signature signatureJo = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        signatureJo.initSign(keyPair.getPrivate());
-        signatureJo.update(message);
-        byte[] signatureBytes = signatureJo.sign();
-
-
-        for (int i = 0; i < message.length; i++)
-        {
-            signatureJo.update(message[i]);
-        }
-
-        byte[] sigBytesSingleByteUpdate = signatureJo.sign();
-
-        // -- you cannot compare signatures directly..
-
-        //
-        // Verify both signature against BC
-        //
-        Signature verifierBc = Signature.getInstance("MLDSA", "BC");
-        verifierBc.initVerify(pubKeyBC);
-        verifierBc.update(message);
-        Assertions.assertTrue(verifierBc.verify(signatureBytes));
-
-        verifierBc.update(message);
-        Assertions.assertTrue(verifierBc.verify(sigBytesSingleByteUpdate));
-
-    }
-
-
-    @Test
-    public void testSingleByteUpdateVerify() throws Exception
-    {
-        SecureRandom sr = seededRandom("testSingleByteUpdateVerify");
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        keyGen.initialize(MLDSAParameterSpec.ml_dsa_65);
-        KeyPair keyPair = keyGen.generateKeyPair();
-
-        byte[] publicKey = keyPair.getPublic().getEncoded();
-        byte[] privateKey = keyPair.getPrivate().getEncoded();
-
-        KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
-        PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
-        PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
-
-
-        byte[] message = new byte[1025];
-        sr.nextBytes(message);
-
-
-        Signature signatureBc = Signature.getInstance("MLDSA", "BC");
-        signatureBc.initSign(privKeyBC);
-        signatureBc.update(message);
-        byte[] signatureBytesBc = signatureBc.sign();
-
-
-        Signature verifierJo = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        verifierJo.initVerify(keyPair.getPublic());
-
-        // whole message in one
-        verifierJo.update(message);
-        Assertions.assertTrue(verifierJo.verify(signatureBytesBc));
-
-        // Pass in each byte
-        for (int i = 0; i < message.length; i++)
-        {
-            verifierJo.update(message[i]);
-        }
-        Assertions.assertTrue(verifierJo.verify(signatureBytesBc));
-
-        // Damage message
-        message[0] ^= 1;
-
-        // Should fail verification
-        verifierJo.update(message);
-        Assertions.assertFalse(verifierJo.verify(signatureBytesBc));
-
-        for (int i = 0; i < message.length; i++)
-        {
-            verifierJo.update(message[i]);
-        }
-        Assertions.assertFalse(verifierJo.verify(signatureBytesBc));
-    }
-
-
     /**
      * Streaming chunking matrix per CLAUDE.md, iterated over every
      * ML-DSA parameter set. ML-DSA's mu computation absorbs the
@@ -695,376 +563,6 @@ public class MLDSATest
         return verifier.verify(sig);
     }
 
-
-    @Test
-    public void testCalculateRawMu() throws Exception
-    {
-        SecureRandom sr = seededRandom("testCalculateRawMu");
-        for (MLDSAParameterSpec spec : joSpec)
-        {
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            byte[] publicKey = keyPair.getPublic().getEncoded();
-            byte[] privateKey = keyPair.getPrivate().getEncoded();
-
-            KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
-            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
-            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
-
-            // Random content AND random length per CLAUDE.md "Random message
-            // content AND length" — a single fixed message would miss bugs in
-            // mu computation that ignores parts of the input, or external-mu
-            // sign/verify desync tied to message-bit patterns.
-            byte[] msg = new byte[16 + sr.nextInt(256)];
-            sr.nextBytes(msg);
-
-            Signature jostle = Signature.getInstance("ML-DSA-CALCULATE-MU", JostleProvider.PROVIDER_NAME);
-            jostle.initSign(keyPair.getPrivate());
-            jostle.update(msg);
-            byte[] jostleMuBytes = jostle.sign();
-
-            Assertions.assertEquals(jostleMuBytes.length, 64);
-
-
-            Signature bc = Signature.getInstance("ML-DSA-CALCULATE-MU", BouncyCastleProvider.PROVIDER_NAME);
-            bc.initSign(privKeyBC);
-            bc.update(msg);
-            byte[] bcMuBytes = bc.sign();
-
-            Assertions.assertEquals(bcMuBytes.length, 64);
-
-            Assertions.assertArrayEquals(bcMuBytes, jostleMuBytes);
-
-            // Mu is the same between both providers.
-            // Create a signature from the external mu.
-
-            jostle = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
-            jostle.initSign(keyPair.getPrivate());
-            jostle.update(jostleMuBytes);
-            byte[] jostleSigFromExternalMu = jostle.sign();
-
-
-            // Check that BC in external Mu mode will verify the signature.
-            bc = Signature.getInstance("ML-DSA-EXTERNAL-MU", BouncyCastleProvider.PROVIDER_NAME);
-            bc.initVerify(pubKeyBC);
-            bc.update(jostleMuBytes);
-            Assertions.assertTrue(bc.verify(jostleSigFromExternalMu));
-
-            // Use BC to create a signature from an external mu
-
-            bc = Signature.getInstance("ML-DSA-EXTERNAL-MU", BouncyCastleProvider.PROVIDER_NAME);
-            bc.initSign(privKeyBC);
-            bc.update(bcMuBytes);
-            byte[] bcSigFromExternalMu = bc.sign();
-
-            // Use jostle to verify an external signature
-            jostle = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
-            jostle.initVerify(keyPair.getPublic());
-            jostle.update(jostleMuBytes);
-            Assertions.assertTrue(jostle.verify(bcSigFromExternalMu));
-
-
-//            //
-//            // Using proxy private key
-//            //
-//            Signature jostle = Signature.getInstance("ML-DSA-CALCULATE-MU", JostleProvider.PROVIDER_NAME);
-//            jostle.initSign(keyPair.getPrivate());
-//            jostle.update(msg);
-//            byte[] jostleMuBytes = jostle.sign();
-//
-//            Assertions.assertEquals(jostleMuBytes.length, 64);
-
-
-        }
-    }
-
-
-    @Test
-    public void testCalculateRawMuProxyKey() throws Exception
-    {
-        SecureRandom sr = seededRandom("testCalculateRawMuProxyKey");
-        for (MLDSAParameterSpec spec : joSpec)
-        {
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            byte[] publicKey = keyPair.getPublic().getEncoded();
-            byte[] privateKey = keyPair.getPrivate().getEncoded();
-
-            KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
-            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
-            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
-
-            // Random content AND random length per CLAUDE.md "Random message
-            // content AND length" — a single fixed message would miss bugs in
-            // mu computation that ignores parts of the input, or external-mu
-            // sign/verify desync tied to message-bit patterns.
-            byte[] msg = new byte[16 + sr.nextInt(256)];
-            sr.nextBytes(msg);
-
-            Signature jostle = Signature.getInstance("ML-DSA-CALCULATE-MU", JostleProvider.PROVIDER_NAME);
-            jostle.initSign(new MLDSAProxyPrivateKey(keyPair.getPublic()));
-            jostle.update(msg);
-            byte[] jostleMuBytes = jostle.sign();
-
-            Assertions.assertEquals(jostleMuBytes.length, 64);
-
-
-            Signature bc = Signature.getInstance("ML-DSA-CALCULATE-MU", BouncyCastleProvider.PROVIDER_NAME);
-            bc.initSign(privKeyBC);
-            bc.update(msg);
-            byte[] bcMuBytes = bc.sign();
-
-            Assertions.assertEquals(bcMuBytes.length, 64);
-
-            Assertions.assertArrayEquals(bcMuBytes, jostleMuBytes);
-
-            // Mu is the same between both providers.
-            // Create a signature from the external mu.
-
-            jostle = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
-            jostle.initSign(keyPair.getPrivate());
-            jostle.update(jostleMuBytes);
-            byte[] jostleSigFromExternalMu = jostle.sign();
-
-
-            // Check that BC in external Mu mode will verify the signature.
-            bc = Signature.getInstance("ML-DSA-EXTERNAL-MU", BouncyCastleProvider.PROVIDER_NAME);
-            bc.initVerify(pubKeyBC);
-            bc.update(jostleMuBytes);
-            Assertions.assertTrue(bc.verify(jostleSigFromExternalMu));
-
-            // Use BC to create a signature from an external mu
-
-            bc = Signature.getInstance("ML-DSA-EXTERNAL-MU", BouncyCastleProvider.PROVIDER_NAME);
-            bc.initSign(privKeyBC);
-            bc.update(bcMuBytes);
-            byte[] bcSigFromExternalMu = bc.sign();
-
-            // Use jostle to verify an external signature
-            jostle = Signature.getInstance("ML-DSA-EXTERNAL-MU", JostleProvider.PROVIDER_NAME);
-            jostle.initVerify(keyPair.getPublic());
-            jostle.update(jostleMuBytes);
-            Assertions.assertTrue(jostle.verify(bcSigFromExternalMu));
-
-
-        }
-    }
-
-
-    @Test
-    public void testKeyGen() throws Exception
-    {
-        SecureRandom sr = seededRandom("testKeyGen");
-        for (MLDSAParameterSpec spec : joSpec)
-        {
-
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            byte[] publicKey = keyPair.getPublic().getEncoded();
-            byte[] privateKey = keyPair.getPrivate().getEncoded();
-
-            //
-            // Verify encoded key can be handled by BC and is usable
-            //
-            KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
-            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
-            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
-
-            byte[] msg = new byte[65];
-
-            sr.nextBytes(msg);
-
-            Signature signatureBC = Signature.getInstance("MLDSA", "BC");
-            signatureBC.initSign(privKeyBC);
-            signatureBC.update(msg);
-            byte[] signature = signatureBC.sign();
-
-            Signature verifierBC = Signature.getInstance("MLDSA", "BC");
-            verifierBC.initVerify(pubKeyBC);
-            verifierBC.update(msg);
-
-            Assertions.assertTrue(verifierBC.verify(signature));
-        }
-    }
-
-    @Test
-    public void testKeyRecovery() throws Exception
-    {
-        SecureRandom sr = seededRandom("testKeyRecovery");
-        for (org.bouncycastle.jcajce.spec.MLDSAParameterSpec spec : bcSpec)
-        {
-
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", "BC");
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            byte[] publicKeyX509 = keyPair.getPublic().getEncoded();
-            byte[] privateKeyX509 = keyPair.getPrivate().getEncoded();
-
-
-            KeyFactory jostleFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            PrivateKey privateKey = jostleFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyX509));
-            PublicKey publicKey = jostleFactory.generatePublic(new X509EncodedKeySpec(publicKeyX509));
-
-
-            byte[] msg = new byte[65];
-            sr.nextBytes(msg);
-
-            Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            signature.initSign(privateKey);
-            signature.update(msg);
-            byte[] signatureBytes = signature.sign();
-
-            Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            verifier.initVerify(publicKey);
-            verifier.update(msg);
-            Assertions.assertTrue(verifier.verify(signatureBytes));
-        }
-
-    }
-
-
-    @Test
-    public void testSeedImportRoundTrip() throws Exception
-    {
-        // Regression for the seed-import path: MLDSAPrivateKeySpec(params, seed)
-        // must deterministically expand the 32-byte seed into a full key pair
-        // via EVP_PKEY_fromdata. The previous EVP_PKEY_new_raw_private_key_ex
-        // path mapped the seed to PRIV_KEY, which the provider rejected, so
-        // every seed import threw - and nothing exercised it.
-        SecureRandom sr = seededRandom("testSeedImportRoundTrip");
-        for (MLDSAParameterSpec spec : joSpec)
-        {
-            byte[] seed = new byte[32];
-            sr.nextBytes(seed);
-
-            KeyFactory jostleFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-
-            // Previously-dead path: importing a seed must succeed.
-            MLDSAPrivateKey priv = (MLDSAPrivateKey) jostleFactory.generatePrivate(
-                    new MLDSAPrivateKeySpec(spec, seed));
-
-            // Deterministic expansion: the same seed yields byte-identical
-            // expanded private data on a second import.
-            MLDSAPrivateKey priv2 = (MLDSAPrivateKey) jostleFactory.generatePrivate(
-                    new MLDSAPrivateKeySpec(spec, seed));
-            Assertions.assertArrayEquals(priv.getPrivateData(), priv2.getPrivateData());
-
-            // Both halves were derived (fromdata produced the public key too).
-            MLDSAPublicKey pub = priv.getPublicKey();
-            Assertions.assertNotNull(pub.getEncoded());
-
-            byte[] msg = new byte[65];
-            sr.nextBytes(msg);
-            Signature signer = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            signer.initSign(priv);
-            signer.update(msg);
-            byte[] sig = signer.sign();
-
-            Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            verifier.initVerify(pub);
-            verifier.update(msg);
-            Assertions.assertTrue(verifier.verify(sig));
-
-            // Negative path: a tampered message must not verify against the sig.
-            byte[] tampered = Arrays.clone(msg);
-            tampered[0] ^= 0x01;
-            Signature verifier2 = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            verifier2.initVerify(pub);
-            verifier2.update(tampered);
-            Assertions.assertFalse(verifier2.verify(sig));
-
-            // The seed-derived expanded key round-trips through BC's KeyFactory.
-            KeyFactory bcFactory = KeyFactory.getInstance("MLDSA", "BC");
-            PublicKey bcPub = bcFactory.generatePublic(new X509EncodedKeySpec(pub.getEncoded()));
-            Assertions.assertNotNull(bcPub);
-        }
-    }
-
-    @Test
-    public void testExpandedKeySeedFallback() throws Exception
-    {
-        // A key imported from an expanded (long-form) encoding has no seed:
-        // getSeed() must return null (not throw), and getPrivateKey(true) must
-        // fall back to the expanded key instead of surfacing an OpenSSL error.
-        SecureRandom sr = seededRandom("testExpandedKeySeedFallback");
-        for (org.bouncycastle.jcajce.spec.MLDSAParameterSpec spec : bcSpec)
-        {
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", "BC");
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            // MLDSAPrivateKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
-            byte[] privateData = ((org.bouncycastle.jcajce.interfaces.MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
-            // MLDSAPublicKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
-            byte[] publicData = ((org.bouncycastle.jcajce.interfaces.MLDSAPublicKey) keyPair.getPublic()).getPublicData();
-
-            KeyFactory jostleFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            MLDSAPrivateKey priv = (MLDSAPrivateKey) jostleFactory.generatePrivate(
-                    new MLDSAPrivateKeySpec(bcToJostle.get(spec), privateData, publicData));
-
-            // No seed present on an expanded import.
-            Assertions.assertNull(priv.getSeed());
-
-            // Fallback must not throw and must yield a usable signing key.
-            MLDSAPrivateKey fallback = priv.getPrivateKey(true);
-            Assertions.assertNotNull(fallback);
-
-            byte[] msg = new byte[65];
-            sr.nextBytes(msg);
-            Signature signer = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            signer.initSign(fallback);
-            signer.update(msg);
-            Assertions.assertNotNull(signer.sign());
-        }
-    }
-
-
-    @Test
-    public void testLoadRawKey() throws Exception
-    {
-        SecureRandom sr = seededRandom("testLoadRawKey");
-
-        for (org.bouncycastle.jcajce.spec.MLDSAParameterSpec spec : bcSpec)
-        {
-            // Generate on BC
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", "BC");
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            // Get the raw encoding, not the X509 / PKCS8 version
-            byte[] publicKey = ((org.bouncycastle.jcajce.interfaces.MLDSAPublicKey) keyPair.getPublic()).getPublicData();
-            byte[] privateKey = ((org.bouncycastle.jcajce.interfaces.MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
-
-            // Jostle specs
-            MLDSAPrivateKeySpec privateKeySpec = new MLDSAPrivateKeySpec(bcToJostle.get(spec), privateKey, publicKey);
-            MLDSAPublicKeySpec publicKeySpec = new MLDSAPublicKeySpec(bcToJostle.get(spec), publicKey);
-
-            // Jostle KeyFactory
-            KeyFactory keyFactory = KeyFactory.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            PrivateKey privKey = keyFactory.generatePrivate(privateKeySpec);
-            PublicKey pubKey = keyFactory.generatePublic(publicKeySpec);
-
-            byte[] msg = new byte[65];
-            sr.nextBytes(msg);
-            Signature signatureJostle = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            signatureJostle.initSign(privKey);
-            signatureJostle.update(msg);
-            byte[] signature = signatureJostle.sign();
-
-            Signature verifierJostle = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            verifierJostle.initVerify(pubKey);
-            verifierJostle.update(msg);
-            Assertions.assertTrue(verifierJostle.verify(signature));
-        }
-
-    }
 
     @Test
     public void testSetParamsAfterUpdateFails() throws Exception
@@ -1288,15 +786,10 @@ public class MLDSATest
 
         Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
         signature.initVerify(keyPair.getPublic());
-        try
-        {
-            signature.verify(null);
-            Assertions.fail();
-
-        } catch (IllegalArgumentException e)
-        {
-            Assertions.assertEquals("sig is null", e.getMessage());
-        }
+        // Signature.verify declares SignatureException; the bridge's refusal travels as the cause.
+        SignatureException e = Assertions.assertThrows(SignatureException.class, () -> signature.verify(null));
+        Assertions.assertEquals("sig is null", e.getMessage());
+        Assertions.assertEquals(IllegalArgumentException.class, e.getCause().getClass());
     }
 
     @Test
@@ -1340,173 +833,6 @@ public class MLDSATest
 
     }
 
-    private void crossProviderVerification(String algoName, MLDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.MLDSAParameterSpec specBC, SecureRandom sr) throws Exception
-    {
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        keyGen.initialize(specJostle);
-        KeyPair keyPair = keyGen.generateKeyPair();
-
-
-        byte[] publicKey = ((MLDSAPublicKey) keyPair.getPublic()).getPublicData();
-        byte[] privateKey = ((MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
-
-        KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
-        // MLDSAPrivateKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-        PrivateKey privKeyBC = factory.generatePrivate(new org.bouncycastle.jcajce.spec.MLDSAPrivateKeySpec(specBC, privateKey, publicKey));
-        // MLDSAPublicKeySpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-        PublicKey pubKeyBC = factory.generatePublic(new org.bouncycastle.jcajce.spec.MLDSAPublicKeySpec(specBC, publicKey));
-
-
-        byte[] msg = new byte[2049];
-        sr.nextBytes(msg);
-
-
-        Signature bcSigner = Signature.getInstance(algoName, "BC");
-        bcSigner.initSign(privKeyBC);
-        bcSigner.update(msg);
-        byte[] bcSignature = bcSigner.sign();
-
-
-        Signature signatureJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
-        signatureJostle.initSign(keyPair.getPrivate());
-        signatureJostle.update(msg);
-        byte[] jostleSignature = signatureJostle.sign();
-
-
-        // BC verifies jostle
-        Signature bcVerifier = Signature.getInstance(algoName, "BC");
-        bcVerifier.initVerify(pubKeyBC);
-        bcVerifier.update(msg);
-        Assertions.assertTrue(bcVerifier.verify(jostleSignature));
-
-
-        {
-            byte[] vandalised = Arrays.clone(jostleSignature);
-            vandalised[0] ^= 1;
-            bcVerifier = Signature.getInstance(algoName, "BC");
-            bcVerifier.initVerify(pubKeyBC);
-            bcVerifier.update(msg);
-            Assertions.assertFalse(bcVerifier.verify(vandalised));
-        }
-
-        // Jostle verifies BC
-        Signature verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
-        verifierJostle.initVerify(keyPair.getPublic());
-        verifierJostle.update(msg);
-        Assertions.assertTrue(verifierJostle.verify(bcSignature));
-
-
-        {
-            byte[] vandalised = Arrays.clone(bcSignature);
-            vandalised[0] ^= 1;
-            verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
-            verifierJostle.initVerify(keyPair.getPublic());
-            verifierJostle.update(msg);
-            Assertions.assertFalse(verifierJostle.verify(vandalised));
-        }
-
-    }
-
-    private void crossProviderVerificationWithContext(String algoName, MLDSAParameterSpec specJostle, org.bouncycastle.jcajce.spec.MLDSAParameterSpec specBC, byte[] ctx, SecureRandom sr) throws Exception
-    {
-        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-        keyGen.initialize(specJostle);
-        KeyPair keyPair = keyGen.generateKeyPair();
-
-
-        byte[] publicKey = ((MLDSAPublicKey) keyPair.getPublic()).getPublicData();
-        byte[] privateKey = ((MLDSAPrivateKey) keyPair.getPrivate()).getPrivateData();
-
-        KeyFactory factory = KeyFactory.getInstance("MLDSA", "BC");
-        PrivateKey privKeyBC = factory.generatePrivate(new org.bouncycastle.jcajce.spec.MLDSAPrivateKeySpec(specBC, privateKey, publicKey));
-        PublicKey pubKeyBC = factory.generatePublic(new org.bouncycastle.jcajce.spec.MLDSAPublicKeySpec(specBC, publicKey));
-
-
-        byte[] msg = new byte[2049];
-        sr.nextBytes(msg);
-
-        Signature bcSigner = Signature.getInstance(algoName, "BC");
-        bcSigner.initSign(privKeyBC);
-        // ContextParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-        bcSigner.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(ctx));
-        bcSigner.update(msg);
-        byte[] bcSignature = bcSigner.sign();
-
-
-        Signature signatureJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
-        signatureJostle.initSign(keyPair.getPrivate());
-        signatureJostle.setParameter(new ContextParameterSpec(ctx));
-        signatureJostle.update(msg);
-        byte[] jostleSignature = signatureJostle.sign();
-
-
-        // BC verifies jostle
-        Signature bcVerifier = Signature.getInstance(algoName, "BC");
-        bcVerifier.initVerify(pubKeyBC);
-        bcVerifier.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(ctx));
-        bcVerifier.update(msg);
-        Assertions.assertTrue(bcVerifier.verify(jostleSignature));
-
-
-        // Vandalise context and check for verification failure.
-        byte[] vandalised = Arrays.clone(ctx);
-        if (vandalised.length == 0)
-        {
-            vandalised = new byte[]{1};
-        }
-        vandalised[0] ^= 1;
-
-
-        bcVerifier = Signature.getInstance(algoName, "BC");
-        bcVerifier.initVerify(pubKeyBC);
-        bcVerifier.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(vandalised));
-        bcVerifier.update(msg);
-        Assertions.assertFalse(bcVerifier.verify(jostleSignature));
-
-
-        // Jostle verifies BC
-        Signature verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
-        verifierJostle.initVerify(keyPair.getPublic());
-        verifierJostle.setParameter(new ContextParameterSpec(ctx));
-        verifierJostle.update(msg);
-        Assertions.assertTrue(verifierJostle.verify(bcSignature));
-
-
-        // Vandalise context and check for verification failure
-        vandalised = Arrays.clone(ctx);
-        if (vandalised.length == 0)
-        {
-            vandalised = new byte[]{1};
-        }
-        vandalised[0] ^= 1;
-        verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
-        verifierJostle.initVerify(keyPair.getPublic());
-        verifierJostle.setParameter(new ContextParameterSpec(vandalised));
-        verifierJostle.update(msg);
-        Assertions.assertFalse(verifierJostle.verify(bcSignature));
-    }
-
-    @Test
-    public void testMLDSASignature() throws Exception
-    {
-        SecureRandom sr = seededRandom("testMLDSASignature");
-
-        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_44, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44, sr);
-        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_65, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65, sr);
-        crossProviderVerification("ML-DSA", MLDSAParameterSpec.ml_dsa_87, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_87, sr);
-
-
-        for (int ctxLen = 0; ctxLen < 256; ctxLen++)
-        {
-
-            byte[] ctx = new byte[ctxLen];
-            sr.nextBytes(ctx);
-
-            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_44, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_44, ctx, sr);
-            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_65, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_65, ctx, sr);
-            crossProviderVerificationWithContext("ML-DSA", MLDSAParameterSpec.ml_dsa_87, org.bouncycastle.jcajce.spec.MLDSAParameterSpec.ml_dsa_87, ctx, sr);
-        }
-    }
 
     @Test
     public void generateFromSeed() throws Exception
@@ -1545,153 +871,6 @@ public class MLDSATest
 
             Assertions.assertNotEquals(54, privateKey.getEncoded().length);
             Assertions.assertNotEquals(54, fullEncodingFromSeedOnly3.getEncoded().length);
-        }
-    }
-
-
-    @Test
-    public void testSeedOnlyKeyEncoding() throws Exception
-    {
-        SecureRandom sr = seededRandom("testSeedOnlyKeyEncoding");
-        for (int i = 0; i < joSpec.length; i++)
-        {
-            MLDSAParameterSpec spec = joSpec[i];
-            org.bouncycastle.jcajce.spec.MLDSAParameterSpec bcSpec = jostleToBc.get(spec);
-
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            byte[] publicKey = keyPair.getPublic().getEncoded();
-
-            MLDSAPrivateKey privKey = (MLDSAPrivateKey) keyPair.getPrivate();
-            byte[] privateKeySeedOnly = privKey.getPrivateKey(true).getEncoded();
-
-
-
-            //
-            // Verify encoded key can be handled by BC and is usable
-            //
-            KeyFactory factory = KeyFactory.getInstance(bcSpec.getName(), "BC");
-            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKeySeedOnly));
-            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
-
-            byte[] msg = new byte[65];
-
-            sr.nextBytes(msg);
-
-            Signature signatureBC = Signature.getInstance(bcSpec.getName(), "BC");
-            signatureBC.initSign(privKeyBC);
-            signatureBC.update(msg);
-            byte[] signature = signatureBC.sign();
-
-            Signature verifierBC = Signature.getInstance(bcSpec.getName(), "BC");
-            verifierBC.initVerify(pubKeyBC);
-            verifierBC.update(msg);
-
-            Assertions.assertTrue(verifierBC.verify(signature));
-        }
-    }
-
-
-    @Test
-    public void keyFactoryByNameTest() throws Exception
-    {
-        String[] names = new String[]{
-                "ML-DSA-44", "ML-DSA-65", "ML-DSA-87"
-        };
-
-
-        for (int t = 0; t < names.length; t++)
-        {
-            String name = names[t];
-
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
-            KeyPair keyPair = keyPairGenerator.generateKeyPair();
-
-            {
-                KeyFactory keyFactory = KeyFactory.getInstance(name, JostleProvider.PROVIDER_NAME);
-                PublicKey pubK = keyFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
-                PrivateKey privK = keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
-
-                Assertions.assertEquals(name, pubK.getAlgorithm());
-                Assertions.assertEquals(name, privK.getAlgorithm());
-            }
-
-            //
-            // Check it will actually fail
-            //
-
-            {
-                String failingName = names[(t + 1) % names.length];
-
-                try
-                {
-                    KeyFactory keyFactory = KeyFactory.getInstance(failingName, JostleProvider.PROVIDER_NAME);
-                    keyFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
-                    keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
-
-                    Assertions.fail();
-                } catch (InvalidKeySpecException ikse)
-                {
-                    Assertions.assertEquals("expected " + failingName + " but got " + name, ikse.getMessage());
-                }
-
-            }
-
-        }
-
-
-    }
-
-
-    @Test
-    public void testEmptyMessageSignVerify() throws Exception
-    {
-        // Sign with no preceding update — valid usage that exercises the
-        // SHAKE-256 finalisation with no message bytes accumulated. Cross-checks
-        // against BC ensure the empty-input encoding is interop-compatible.
-        for (MLDSAParameterSpec spec : joSpec)
-        {
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            keyGen.initialize(spec);
-            KeyPair keyPair = keyGen.generateKeyPair();
-
-            // Roundtrip the keys through BC so we can sign/verify on the BC side.
-            KeyFactory bcFactory = KeyFactory.getInstance("MLDSA", BouncyCastleProvider.PROVIDER_NAME);
-            PrivateKey privKeyBC = bcFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
-            PublicKey pubKeyBC = bcFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
-
-            // Jostle sign empty.
-            Signature signature = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            signature.initSign(keyPair.getPrivate());
-            byte[] jostleSig = signature.sign();
-            Assertions.assertNotNull(jostleSig);
-            Assertions.assertTrue(jostleSig.length > 0);
-
-            // Jostle verifies its own empty-message signature.
-            Signature verifier = Signature.getInstance("MLDSA", JostleProvider.PROVIDER_NAME);
-            verifier.initVerify(keyPair.getPublic());
-            Assertions.assertTrue(verifier.verify(jostleSig));
-
-            // BC verifies Jostle's empty-message signature.
-            Signature bcVerifier = Signature.getInstance("MLDSA", BouncyCastleProvider.PROVIDER_NAME);
-            bcVerifier.initVerify(pubKeyBC);
-            Assertions.assertTrue(bcVerifier.verify(jostleSig));
-
-            // BC signs empty, Jostle verifies — confirms the reverse interop.
-            Signature bcSigner = Signature.getInstance("MLDSA", BouncyCastleProvider.PROVIDER_NAME);
-            bcSigner.initSign(privKeyBC);
-            byte[] bcSig = bcSigner.sign();
-
-            verifier.initVerify(keyPair.getPublic());
-            Assertions.assertTrue(verifier.verify(bcSig));
-
-            // Sanity: a verifier fed a non-empty message must reject the
-            // empty-message signature, so the previous accepts aren't trivial.
-            verifier.initVerify(keyPair.getPublic());
-            verifier.update((byte) 0x01);
-            Assertions.assertFalse(verifier.verify(jostleSig));
         }
     }
 
@@ -1851,6 +1030,31 @@ public class MLDSATest
                 () -> kf.generatePublic(new X509EncodedKeySpec(garbage)));
         Assertions.assertThrows(InvalidKeySpecException.class,
                 () -> kf.generatePrivate(new PKCS8EncodedKeySpec(garbage)));
+    }
+
+
+    /**
+     * The three raw getters answer the FIPS 204 sizes per variant, and each equals the length the library reported
+     * first for that type and part, which bounds every later answer.
+     */
+    @Test
+    public void rawKeyLengthsEqualTheMemoPerVariant() throws Exception
+    {
+        int[][] sizes = {{1312, 2560}, {1952, 4032}, {2592, 4896}};
+        MLDSAServiceNI ni = NISelector.MLDSAServiceNI;
+        for (int i = 0; i < joSpec.length; i++)
+        {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(joSpec[i].getName(), JostleProvider.PROVIDER_NAME);
+            KeyPair kp = kpg.generateKeyPair();
+            MLDSAPrivateKey priv = (MLDSAPrivateKey) kp.getPrivate();
+            String type = priv.getSpec().getType().name();
+            Assertions.assertEquals(sizes[i][0], ((MLDSAPublicKey) kp.getPublic()).getPublicData().length);
+            Assertions.assertEquals(sizes[i][1], priv.getPrivateData().length);
+            Assertions.assertEquals(32, priv.getSeed().length);
+            Assertions.assertEquals(sizes[i][0], ni.keyLengthCache().get(type + "/PUBLIC"));
+            Assertions.assertEquals(sizes[i][1], ni.keyLengthCache().get(type + "/PRIVATE"));
+            Assertions.assertEquals(32, ni.keyLengthCache().get(type + "/SEED"));
+        }
     }
 
 

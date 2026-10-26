@@ -79,8 +79,8 @@
 #define JO_UNEXPECTED_POINTER_CHANGE -56
 #define JO_UNKNOWN_OSSL_KEY_TYPE -57 // TODO Deprecate
 #define JO_UNKNOWN_MU_MODE -58
-#define JO_INVALID_MU_MODE_FOR_VERIFY -59
-#define JO_INVALID_MU_MODE_FOR_SIGN -60
+#define JO_INVALID_MU_MODE_FOR_VERIFY -59 // Retired: no producer.
+#define JO_INVALID_MU_MODE_FOR_SIGN -60 // Retired: no producer.
 #define JO_EXTERNAL_MU_INVALID_LEN -61
 #define JO_UNEXPECTED_SIG_LEN_CHANGE -62
 #define JO_INVALID_SEED_LEN -63
@@ -729,6 +729,10 @@
 #define JO_RSA_OAEP_CTX_WRONG_KIND -227
 /* A handle passed as an RSA-PKCS1 cipher context that is not one. */
 #define JO_RSA_PKCS1_CTX_WRONG_KIND -228
+/* A handle passed as an ML-DSA signer context that is not one. */
+#define JO_MLDSA_CTX_WRONG_KIND -229
+/* A signing session asked of a key that holds only its public half. */
+#define JO_KEY_HAS_NO_PRIVATE_HALF -230
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module

@@ -27,11 +27,18 @@ import org.openssl.jostle.rand.RandSource;
 class MLDSAServiceFIPSJNI implements MLDSAServiceNI
 {
     private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
 
     @Override
     public NativeLengthCache<OSSLKeyType> lengthCache()
     {
         return lengthCache;
+    }
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
     }
 
     @Override

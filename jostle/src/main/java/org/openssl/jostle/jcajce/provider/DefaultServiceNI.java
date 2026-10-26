@@ -53,9 +53,8 @@ public interface DefaultServiceNI
      * <p>The PQ SPIs use this to skip their caller-strength check: rejecting a
      * 128-bit DRBG for ML-DSA-87 is wrong when the module will generate the
      * key at full strength from entropy of its own and never look at the value
-     * supplied. Note the C-side {@code JO_RAND_INSUFFICIENT_STRENGTH} backstop
-     * cannot fire there either - it lives in the base tree's RAND gate, which
-     * is not in that chain.
+     * supplied. That Java check is the only strength gate on either provider;
+     * the module ignores the caller's source.
      *
      * <p>Derived from {@link #providerName()} rather than overridden per class
      * so a new NI cannot forget it. {@code JostleProvider.PROVIDER_NAME} is a
@@ -126,6 +125,10 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("handle is not an RSA-OAEP cipher context");
             case JO_RSA_PKCS1_CTX_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not an RSA-PKCS1 cipher context");
+            case JO_MLDSA_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not an ML-DSA signer context");
+            case JO_KEY_HAS_NO_PRIVATE_HALF:
+                throw new IllegalArgumentException("key has no private half");
             case JO_EC_DIGEST_NOT_SUPPORTED:
                 throw new IllegalArgumentException("digest is not supported");
             case JO_EC_SCALAR_OUT_OF_RANGE:

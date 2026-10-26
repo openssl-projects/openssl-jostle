@@ -78,8 +78,9 @@ class JOMLDSAPublicKey extends AsymmetricKeyImpl implements MLDSAPublicKey
         //
         try
         {
-            long len = mldsaServiceNI.getPublicKey(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
+            int len = mldsaServiceNI.boundedKeyLength(spec.getType(), MLDSAServiceNI.KeyPart.PUBLIC,
+                    mldsaServiceNI.getPublicKey(spec.getReference(), null));
+            byte[] out = new byte[len];
             mldsaServiceNI.getPublicKey(spec.getReference(), out);
 
             return out;

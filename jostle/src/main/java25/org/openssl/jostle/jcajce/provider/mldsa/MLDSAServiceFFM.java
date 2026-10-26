@@ -26,11 +26,18 @@ import java.util.logging.Logger;
 public class MLDSAServiceFFM implements MLDSAServiceNI
 {
     private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
 
     @Override
     public NativeLengthCache<OSSLKeyType> lengthCache()
     {
         return lengthCache;
+    }
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
     }
 
 
@@ -300,6 +307,15 @@ public class MLDSAServiceFFM implements MLDSAServiceNI
         }
     }
 
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
+    }
+
     @Override
     public long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource rndSource)
     {
@@ -322,24 +338,31 @@ public class MLDSAServiceFFM implements MLDSAServiceNI
 
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
-
-            if (seed != null)
+            try
             {
-                seedRef.asByteBuffer().put(seed);
+                if (seed != null)
+                {
+                    seedRef.asByteBuffer().put(seed);
+                }
+
+                MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
+                        type,
+                        retCodeRef,
+                        seedRef,
+                        seedRef.byteSize(),
+                        seedLen,
+                        getEntropySegment
+                );
+
+                err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
+
+                return segment.address();
             }
-
-            MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
-                    type,
-                    retCodeRef,
-                    seedRef,
-                    seedRef.byteSize(),
-                    seedLen,
-                    getEntropySegment
-            );
-
-            err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-
-            return segment.address();
+            finally
+            {
+                // The arena's copy of the seed is cleared before the arena frees it.
+                zero(seedRef);
+            }
         }
         catch (Throwable t)
         {

@@ -20,8 +20,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -124,7 +126,7 @@ public class NativeReferenceParityTest
      * and a later {@code java11} copy that dropped the fence passes it. That is
      * not hypothetical: the {@code java11} XDH key copies were added to gain the
      * JDK {@code XECPublicKey}/{@code XECPrivateKey} interfaces, and their
-     * reason for existing has nothing to do with reachability — so "this level
+     * reason for existing has nothing to do with reachability - so "this level
      * is about interfaces, the fence is handled below" is exactly the plausible
      * mistake, and it would silently reintroduce the use-after-free the
      * {@code java9} copies exist to prevent.
@@ -138,7 +140,7 @@ public class NativeReferenceParityTest
     {
         Path mainJava = findMainJava();
         Assumptions.assumeTrue(mainJava != null,
-                "src/main/java not reachable (packaged test jar) — source lint skipped");
+                "src/main/java not reachable (packaged test jar) - source lint skipped");
 
         List<String> violations = new ArrayList<String>();
         int examined = 0;
@@ -183,7 +185,7 @@ public class NativeReferenceParityTest
         // Vacuity floor: the java9 tree alone carries many fenced classes, so a
         // zero here means the walk found nothing and the check analysed nothing.
         Assertions.assertTrue(examined > 0,
-                "no fenced javaN copies found at all — this lint analysed nothing");
+                "no fenced javaN copies found at all - this lint analysed nothing");
         Assertions.assertTrue(violations.isEmpty(),
                 "a higher javaN copy dropped a fence its lower copy carries;"
                         + " the higher copy must keep BOTH reasons:\n  "
@@ -205,11 +207,11 @@ public class NativeReferenceParityTest
     }
 
     // An SPI's OWN native handle (`<field>ref.getReference()`, the RefWrapper
-    // field convention — `ref`, `signerRef`, etc.) passed as a CALL ARGUMENT
+    // field convention - `ref`, `signerRef`, etc.) passed as a CALL ARGUMENT
     // (preceded by '(' or ','). Scoped to the *-ref receiver on purpose: this
     // guards the disposal-daemon use-after-free on an SPI's own handle (the class
     // of the ML-DSA engineUpdate bug). It deliberately does NOT cover
-    // `spec.getReference()` / `key.getReference()` — there the native handle
+    // `spec.getReference()` / `key.getReference()` - there the native handle
     // belongs to a caller-held key/spec kept reachable via synchronized(spec)
     // (see RSAComponents), a separate lower-risk pattern. Excludes the
     // `+ ref.getReference()` string-concatenation in toString().
@@ -218,7 +220,7 @@ public class NativeReferenceParityTest
 
     /**
      * Per-method strengthening of {@link #everyNativeReferenceClassHasAFenceOverride()}.
-     * That guard is file-granular — it only checks that a class holding a native
+     * That guard is file-granular - it only checks that a class holding a native
      * handle has <em>a</em> fence override somewhere, so it misses a single
      * native-calling method that lacks a reachability guard while its siblings in
      * the same file carry one (the ML-DSA {@code engineUpdate} use-after-free:
@@ -227,7 +229,7 @@ public class NativeReferenceParityTest
      * <p>This check is per-method: in every {@code src/main/java} baseline class,
      * any method that passes its own native handle ({@code <field>.getReference()})
      * as an argument to a native call must keep {@code this} reachable across that
-     * call — via {@code synchronized(this)} (a {@code synchronized (this)} block or
+     * call - via {@code synchronized(this)} (a {@code synchronized (this)} block or
      * a {@code synchronized} method modifier), an explicit
      * {@code Reference.reachabilityFence(this)}, or the terminal-op {@code reInit()}
      * pattern (a guaranteed call on {@code this} in a {@code finally} after the
@@ -241,11 +243,11 @@ public class NativeReferenceParityTest
     {
         List<Path> roots = perMethodRoots();
         Assumptions.assumeTrue(!roots.isEmpty(),
-                "src/main/java not reachable (packaged test jar) — source lint skipped");
+                "src/main/java not reachable (packaged test jar) - source lint skipped");
 
         // Scan the Java 8 baseline AND the java25 override tree: a class present
         // only under src/main/java25 (e.g. an FFM-only handle-holder) applies to
-        // these per-method guards too — there is no java26 to override into — and
+        // these per-method guards too - there is no java26 to override into - and
         // a baseline-only walk would miss it.
         List<Path> sources = new ArrayList<Path>();
         for (Path root : roots)
@@ -296,7 +298,7 @@ public class NativeReferenceParityTest
         Assertions.assertTrue(violations.isEmpty(),
                 "Non-private methods passing their own native handle (<field>.getReference()) to a native call "
                         + "WITHOUT keeping `this` reachable (synchronized(this) / reachabilityFence(this) / trailing "
-                        + "reInit()) — a use-after-free the file-level guard misses (see java-spi.md, \"Native "
+                        + "reInit()) - a use-after-free the file-level guard misses (see java-spi.md, \"Native "
                         + "references must outlive every JNI/FFM call\"): " + violations);
     }
 
@@ -307,12 +309,12 @@ public class NativeReferenceParityTest
     private static final Pattern PKEYSPEC_FIELD =
             Pattern.compile("(?:private|protected|public|final|static|\\s)+PKEYKeySpec\\s+(\\w+)\\s*;");
     // ASN1Encoder encode entry points (as*) read the spec natively but do NOT
-    // fence it — the caller must (see ASN1Encoder.asPrivateKeyInfo). The decode
+    // fence it - the caller must (see ASN1Encoder.asPrivateKeyInfo). The decode
     // side (from*) allocates a fresh spec and is not a call on a held handle.
     private static final Pattern ASN1_ENCODE_CALL =
             Pattern.compile("ASN1Encoder\\.as\\w+\\s*\\(");
     // A field spec's handle passed as a CALL ARGUMENT (preceded by '(' or ','),
-    // i.e. handed to a native call — NOT a bare `return spec.getReference()`
+    // i.e. handed to a native call - NOT a bare `return spec.getReference()`
     // accessor (AsymmetricKeyImpl.getReference), which only yields the handle to
     // a caller who owns the reachability obligation. Mirrors GET_REFERENCE_ARG.
     private static final Pattern ANY_GET_REFERENCE =
@@ -326,7 +328,7 @@ public class NativeReferenceParityTest
      * <em>field</em> handle either inline ({@code <field>.getReference()}) or by
      * handing the field spec to {@code ASN1Encoder} (which reads it natively but
      * does not fence it). Every such non-private method must keep {@code this}
-     * reachable across the call — {@code synchronized(this)} in the baseline (a
+     * reachable across the call - {@code synchronized(this)} in the baseline (a
      * {@code javaN/} override then swaps in {@code reachabilityFence}). This is the
      * ML-KEM / ML-DSA / SLH-DSA key + ML-KEM KTS use-after-free that the
      * {@code *ref}-scoped check above did not cover.
@@ -342,11 +344,11 @@ public class NativeReferenceParityTest
     {
         List<Path> roots = perMethodRoots();
         Assumptions.assumeTrue(!roots.isEmpty(),
-                "src/main/java not reachable (packaged test jar) — source lint skipped");
+                "src/main/java not reachable (packaged test jar) - source lint skipped");
 
         // Scan the Java 8 baseline AND the java25 override tree: a class present
         // only under src/main/java25 (e.g. an FFM-only handle-holder) applies to
-        // these per-method guards too — there is no java26 to override into — and
+        // these per-method guards too - there is no java26 to override into - and
         // a baseline-only walk would miss it.
         List<Path> sources = new ArrayList<Path>();
         for (Path root : roots)
@@ -408,7 +410,7 @@ public class NativeReferenceParityTest
                         continue;
                     }
                     // A method-local of the same name shadows the field and keeps
-                    // the handle reachable on its own — not a field-handle call.
+                    // the handle reachable on its own - not a field-handle call.
                     if (Pattern.compile("\\b\\w[\\w<>\\[\\]]*\\s+" + Pattern.quote(recv) + "\\s*=")
                             .matcher(m.text).find())
                     {
@@ -442,9 +444,116 @@ public class NativeReferenceParityTest
         Assertions.assertTrue(violations.isEmpty(),
                 "Non-private methods making a native call on a FIELD-held PKEYKeySpec (inline "
                         + "<field>.getReference() or via ASN1Encoder) WITHOUT keeping `this` reachable "
-                        + "(synchronized(this) / reachabilityFence(this)) — the ML-KEM/ML-DSA/SLH-DSA key + "
+                        + "(synchronized(this) / reachabilityFence(this)) - the ML-KEM/ML-DSA/SLH-DSA key + "
                         + "KTS use-after-free class (see java-spi.md, \"Native references must outlive every "
                         + "JNI/FFM call\"): " + violations);
+    }
+
+    private static final Pattern NATIVE_REFERENCE_SUBCLASS =
+            Pattern.compile("class\\s+(\\w+)\\s+extends\\s+(\\w+)");
+    // A field declaration: an access modifier, then the type and the name.
+    private static final Pattern ACCESS_FIELD =
+            Pattern.compile("(?:private|protected|public)\\s+(?:(?:final|static|volatile)\\s+)*(\\w+)\\s+(\\w+)"
+                    + "\\s*(?:=[^;]*)?;");
+
+    /**
+     * Any field whose type is a {@code NativeReference} subclass, whatever it is named, whose handle a non-private
+     * method passes to a call must be read under {@code synchronized(this)} or with a
+     * {@code reachabilityFence(this)} in the method. A trailing {@code reInit()} does not count here: the native
+     * call has already run by then. {@link #everyOwnHandleNativeCallIsReachabilityGuarded()} accepts it, which is
+     * how ML-DSA's sign and verify passed unguarded.
+     */
+    @Test
+    public void everyFieldHeldNativeReferenceIsReadUnderAGuard()
+        throws IOException
+    {
+        List<Path> roots = perMethodRoots();
+        Assumptions.assumeTrue(!roots.isEmpty(),
+                "src/main/java not reachable (packaged test jar) - source lint skipped");
+
+        List<Path> sources = new ArrayList<Path>();
+        for (Path root : roots)
+        {
+            try (Stream<Path> walk = Files.walk(root))
+            {
+                walk.filter(p -> p.toString().endsWith(".java")).forEach(sources::add);
+            }
+        }
+
+        // Every class that extends NativeReference, directly or through another such class.
+        Map<String, String> parents = new HashMap<String, String>();
+        Map<Path, String> bodies = new HashMap<Path, String>();
+        for (Path source : sources)
+        {
+            String body = stripComments(read(source));
+            bodies.put(source, body);
+            Matcher cm = NATIVE_REFERENCE_SUBCLASS.matcher(body);
+            while (cm.find())
+            {
+                parents.put(cm.group(1), cm.group(2));
+            }
+        }
+        Set<String> refTypes = new HashSet<String>();
+        refTypes.add("NativeReference");
+        boolean grew = true;
+        while (grew)
+        {
+            grew = false;
+            for (Map.Entry<String, String> e : parents.entrySet())
+            {
+                if (refTypes.contains(e.getValue()) && refTypes.add(e.getKey()))
+                {
+                    grew = true;
+                }
+            }
+        }
+        Assertions.assertTrue(refTypes.size() > 10, "found only " + refTypes + ": the subclass scan is not reading");
+
+        List<String> violations = new ArrayList<String>();
+        int fieldsSeen = 0;
+        for (Path source : sources)
+        {
+            String body = bodies.get(source);
+            Set<String> refFields = new HashSet<String>();
+            Matcher fm = ACCESS_FIELD.matcher(body);
+            while (fm.find())
+            {
+                if (refTypes.contains(fm.group(1)))
+                {
+                    refFields.add(fm.group(2));
+                }
+            }
+            if (refFields.isEmpty())
+            {
+                continue;
+            }
+            fieldsSeen += refFields.size();
+            List<int[]> syncRanges = synchronizedThisRanges(body);
+            for (Method m : methods(body))
+            {
+                if (m.modifiers.contains("private") || m.modifiers.contains("synchronized")
+                        || m.text.contains("reachabilityFence"))
+                {
+                    continue;
+                }
+                Matcher gr = ANY_GET_REFERENCE.matcher(body);
+                while (gr.find())
+                {
+                    if (gr.start() < m.bodyStart || gr.start() >= m.bodyEnd
+                            || !refFields.contains(gr.group(1).replace("this.", ""))
+                            || inAnyRange(syncRanges, gr.start()))
+                    {
+                        continue;
+                    }
+                    int line = 1 + (int) body.substring(0, gr.start()).chars().filter(c -> c == '\n').count();
+                    violations.add(relToRoot(roots, source) + ":" + m.name + " (~line " + line + ")");
+                }
+            }
+        }
+        Assertions.assertTrue(fieldsSeen > 10, "only " + fieldsSeen + " NativeReference fields found");
+        Assertions.assertTrue(violations.isEmpty(),
+                "Non-private methods passing a field-held NativeReference's handle to a call outside "
+                        + "synchronized(this) / reachabilityFence(this): " + violations);
     }
 
     private static final class Method
@@ -467,7 +576,7 @@ public class NativeReferenceParityTest
 
     // Depth-based method extraction: a member body is a `{...}` opened while we
     // are directly inside the (first) type body, whose declaration ends in `)`
-    // (optionally `throws ...`) — i.e. a method, not a field or nested type.
+    // (optionally `throws ...`) - i.e. a method, not a field or nested type.
     private static List<Method> methods(String s)
     {
         List<Method> out = new ArrayList<Method>();
@@ -506,7 +615,8 @@ public class NativeReferenceParityTest
                             name = nm.group(1);
                         }
                         String modifiers = decl.substring(0, Math.max(0, decl.indexOf(name)));
-                        out.add(new Method(modifiers, name, i, bodyEnd, s.substring(i, Math.min(bodyEnd + 1, s.length()))));
+                        out.add(new Method(modifiers, name, i, bodyEnd, s.substring(i, Math.min(bodyEnd + 1,
+                                s.length()))));
                         i = bodyEnd;
                         declStart = bodyEnd + 1;
                         continue;
@@ -557,7 +667,7 @@ public class NativeReferenceParityTest
 
     // Any synchronized(...) block, not just synchronized(this): a
     // `<holder>.getReference()` is kept reachable by holding the monitor of
-    // whatever object owns the handle — synchronized(this) for the SPI's own
+    // whatever object owns the handle - synchronized(this) for the SPI's own
     // handle, synchronized(spec)/synchronized(key) for a key/spec handle (see
     // RSAComponents/DHComponents). The check only needs to catch the "no guard
     // at all" case (the ML-DSA engineUpdate UAF), so accepting any monitor
@@ -629,10 +739,10 @@ public class NativeReferenceParityTest
     /**
      * Source roots for the per-method reachability checks: the Java 8 baseline
      * {@code src/main/java} AND the {@code src/main/java25} override tree (both
-     * layouts — module dir or repo root — are tolerated). Unlike the
+     * layouts - module dir or repo root - are tolerated). Unlike the
      * fence-override check (which is about a baseline class needing a {@code javaN/}
      * override, so it stays baseline-only), the per-method guards apply to
-     * java25-only classes too — there is no java26 to override into — so a
+     * java25-only classes too - there is no java26 to override into - so a
      * handle-holding FFM-only class can't slip past.
      */
     private static List<Path> perMethodRoots()

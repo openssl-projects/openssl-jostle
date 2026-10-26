@@ -100,6 +100,36 @@ public final class KeyInfoCanonicalizer
     }
 
     /**
+     * The first content byte of the privateKey OCTET STRING of a
+     * {@code PrivateKeyInfo}, or -1 when the structure cannot be read. For
+     * ML-DSA it names the private key CHOICE the encoding carries.
+     */
+    public static int privateKeyFirstByte(byte[] pki)
+    {
+        try
+        {
+            int[] pos = {0};
+            readSequenceHeader(pki, pos);                   // PrivateKeyInfo
+            skipTlv(pki, pos);                              // version INTEGER
+            skipTlv(pki, pos);                              // privateKeyAlgorithm
+            if (pos[0] >= pki.length || (pki[pos[0]++] & 0xFF) != 0x04)
+            {
+                return -1;
+            }
+            int len = readLength(pki, pos);
+            if (len == 0 || pos[0] >= pki.length)
+            {
+                return -1;
+            }
+            return pki[pos[0]] & 0xFF;
+        }
+        catch (RuntimeException e)
+        {
+            return -1;
+        }
+    }
+
+    /**
      * RSA key OBJECT IDENTIFIERs, as DER TLVs, that the native decoder will not
      * accept as an RSA key even though the key material underneath is an
      * ordinary RSAPublicKey / RSAPrivateKey. Each differs from rsaEncryption

@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -27,6 +28,7 @@ import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
@@ -198,16 +200,10 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 
         int strengthBits = strengthForKeyType(keyType);
 
-        // Fail fast if the caller supplied a SecureRandom that reports
-        // a strength below the algorithm's requirement (Java 9+ DRBG
-        // path). Sources that don't expose a strength claim
-        // (plain new SecureRandom(), Java 8, custom subclasses) return
-        // 0 here and are accepted — the C-side RAND gate is the safety
-        // net for those.
-        // Skipped under a provider that supplies its own entropy (the FIPS
-        // module): the caller's SecureRandom is never consulted there, so
-        // rejecting it would turn a caller away over a value nothing reads.
-        // See DefaultServiceNI.providerManagesEntropy.
+        // Refuse a SecureRandom that reports a strength below the requirement. This check is the only
+        // strength gate: a source reporting none (0) is accepted, as BouncyCastle accepts every source.
+        // Skipped under a provider that supplies its own entropy (the FIPS module), which never reads
+        // the caller's source. See DefaultServiceNI.providerManagesEntropy.
         if (!mldsaServiceNI.providerManagesEntropy())
         {
             int suppliedStrength = DefaultRandSource.strengthOf(rand);
@@ -249,7 +245,16 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
     @Override
     public KeyPair generateKeyPair()
     {
-        long res = mldsaServiceNI.generateKeyPair(keyType.getKsType(), randSource);
+        long res;
+        try
+        {
+            res = mldsaServiceNI.generateKeyPair(keyType.getKsType(), randSource);
+        }
+        catch (OpenSSLException e)
+        {
+            // generateKeyPair declares no checked type; the library's failure travels as the cause.
+            throw new ProviderException("unable to generate an ML-DSA key pair: " + e.getMessage(), e);
+        }
 
 
         if (res == 0)
