@@ -35,8 +35,15 @@ int32_t slh_dsa_decode_public_key(key_spec *key_spec, int32_t typeId,  uint8_t *
 #define SLH_DSA_NON_DETERMINISTIC 0
 #define SLH_DSA_DETERMINISTIC 1
 
+/*
+ * A non-trivial magic, neither 0 nor 1, so freed or cleared memory does not read as an slh_dsa_ctx.
+ * First field, so a handle to another object is refused before anything past its first word is read.
+ */
+#define SLH_DSA_CTX_KIND 0x53444101u /* "SDA\1" */
+#define SLH_DSA_CTX_NONE 0u          /* what a freed ctx is left with; never a valid kind */
+
 typedef struct slh_dsa_ctx {
-    int32_t type;
+    uint32_t kind;
     EVP_SIGNATURE *sig;
     EVP_PKEY_CTX *pctx;
     int32_t opp;
@@ -52,6 +59,12 @@ typedef struct slh_dsa_ctx {
 
 slh_dsa_ctx *slh_dsa_ctx_create(int32_t *err);
 
+/*
+ * JO_SIGNER_CTX_IS_NULL, JO_SLHDSA_CTX_WRONG_KIND or JO_SUCCESS; reads only the kind.
+ */
+int32_t slh_dsa_ctx_check(const slh_dsa_ctx *ctx);
+
+/* Frees nothing unless ctx is a live slh_dsa_ctx. */
 void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx);
 
 int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
@@ -60,9 +73,11 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
 int32_t slh_dsa_ctx_init_verify(slh_dsa_ctx *ctx, const key_spec *key_spec, const uint8_t *sign_ctx, int32_t sign_ctx_len,
                                 int32_t msg_encoding, int32_t deterministic);
 
-int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rand_src);
+/* A written signature consumes the session: the next sign answers JO_NOT_INITIALIZED. */
+int32_t slh_dsa_ctx_sign(slh_dsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rand_src);
 
-int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const size_t sig_len);
+/* A verification consumes the session: the next verify answers JO_NOT_INITIALIZED. */
+int32_t slh_dsa_ctx_verify(slh_dsa_ctx *ctx, const uint8_t *sig, const size_t sig_len);
 
 int32_t slh_dsa_update(const slh_dsa_ctx *ctx, const uint8_t *in, const size_t in_len);
 

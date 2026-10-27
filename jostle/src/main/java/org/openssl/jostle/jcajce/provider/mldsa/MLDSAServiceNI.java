@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.mldsa;
 
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthBound;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
@@ -260,17 +261,6 @@ public interface MLDSAServiceNI extends DefaultServiceNI
      */
     default int boundedKeyLength(OSSLKeyType type, KeyPart part, long reported)
     {
-        String key = type.name() + "/" + part.name();
-        if (keyLengthCache().get(key) == NativeLengthCache.UNKNOWN && reported > 0 && reported <= Integer.MAX_VALUE)
-        {
-            keyLengthCache().cache(key, (int) reported);
-        }
-        int memo = keyLengthCache().get(key);
-        if (reported != memo)
-        {
-            throw new IllegalStateException(
-                    "the library reported a " + part + " length of " + reported + " for " + type + ", not " + memo);
-        }
-        return memo;
+        return NativeLengthBound.bounded(keyLengthCache(), type.name(), part.name(), reported);
     }
 }

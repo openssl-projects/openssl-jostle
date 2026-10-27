@@ -2297,7 +2297,7 @@ public class MLDSALimitTest
     public void bridge_wrongKindHandlesAreRefused()
     {
         MLDSABridgeCells.wrongKindHandlesAreRefused(mldsaServiceNI, specNI, TestNISelector.getRSANi(),
-                TestNISelector.getMDNI());
+                TestNISelector.getMDNI(), TestNISelector.getSLHDSANI());
     }
 
     @Test

@@ -23,9 +23,14 @@ import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.slhdsa.SLHDSABridgeCells;
 import org.openssl.jostle.util.Arrays;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Signature;
 
 /**
  * Input validation at the SLH-DSA NI surface of the FIPS interface library
@@ -722,5 +727,67 @@ public class FIPSSLHDSALimitTest
                                     Executable call)
     {
         Assertions.assertEquals(message, Assertions.assertThrows(type, call).getMessage());
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        SLHDSABridgeCells.wrongKindHandlesAreRefused(ni, specNI, FIPSNISelector.RSAServiceNI,
+                FIPSNISelector.MDServiceNI, FIPSNISelector.MLDSAServiceNI);
+    }
+
+    @Test
+    public void bridge_theContextThenTheKeyThenTheRandSourceAreChecked()
+    {
+        SLHDSABridgeCells.theContextThenTheKeyThenTheRandSourceAreChecked(ni, specNI);
+    }
+
+    @Test
+    public void bridge_aPublicOnlyKeyOpensNoSigningSession()
+    {
+        assumeSlhDsa();
+        SLHDSABridgeCells.aPublicOnlyKeyOpensNoSigningSession(ni, specNI);
+    }
+
+    @Test
+    public void bridge_aPrivateKeyIsFourNBytesOnly()
+    {
+        assumeSlhDsa();
+        SLHDSABridgeCells.aPrivateKeyIsFourNBytesOnly(ni, specNI);
+    }
+
+    @Test
+    public void bridge_signAndVerifyConsumeTheSession()
+    {
+        assumeSlhDsa();
+        SLHDSABridgeCells.signAndVerifyConsumeTheSession(ni, specNI);
+    }
+
+    /** SLH-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    @Test
+    public void slhDsaIsServedPerModuleVersion() throws Exception
+    {
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        Provider fips = FIPSTestUtil.assumeFipsProvider();
+        boolean registered = fips.getService("Signature", "SLH-DSA-SHA2-128F") != null;
+        if (profile.isVersion312())
+        {
+            Assertions.assertFalse(registered);
+            Assertions.assertFalse(moduleServesSlhDsa());
+            return;
+        }
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertTrue(registered);
+        KeyPair kp = KeyPairGenerator.getInstance("SLH-DSA-SHA2-128F", fips).generateKeyPair();
+        byte[] msg = new byte[33];
+        new SecureRandom().nextBytes(msg);
+        Signature signer = Signature.getInstance("SLH-DSA-SHA2-128F", fips);
+        signer.initSign(kp.getPrivate());
+        signer.update(msg);
+        byte[] sig = signer.sign();
+        Signature verifier = Signature.getInstance("SLH-DSA-SHA2-128F", fips);
+        verifier.initVerify(kp.getPublic());
+        verifier.update(msg);
+        Assertions.assertTrue(verifier.verify(sig));
     }
 }

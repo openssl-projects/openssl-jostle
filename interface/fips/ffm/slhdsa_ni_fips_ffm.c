@@ -37,4 +37,4 @@
 #define JoSLHDSA_verify              JoFIPS_JoSLHDSA_verify
 /* *INDENT-ON* */
 
-#include "slh_dsa_ni_ffm.c"
+#include "slhdsa_ni_ffm.c"

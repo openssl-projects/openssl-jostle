@@ -298,7 +298,6 @@ public class FIPSServedSurfaceSnapshotTest
             "SecureRandom.HMAC-DRBG-SHA1",
             "SecureRandom.HMAC-DRBG-SHA256",
             "SecureRandom.HMAC-DRBG-SHA512",
-            "Signature.DET-SLH-DSA-NONE",   // PQC, capability-gated (see PQC_GATED)
             "Signature.DET-SLH-DSA-PURE",   // PQC, capability-gated (see PQC_GATED)
             "Signature.ED25519",   // EdDSA, capability-gated (see ED_GATED)
             "Signature.ED25519CTX",   // EdDSA, capability-gated per NAME (see ED_CTX_GATED)
@@ -356,7 +355,6 @@ public class FIPSServedSurfaceSnapshotTest
             "Signature.SHA512WITHECDSA",
             "Signature.SHA512WITHRSA",
             "Signature.SHA512WITHRSAANDMGF1",
-            "Signature.SLH-DSA-NONE",   // PQC, capability-gated (see PQC_GATED)
             "Signature.SLH-DSA-PURE",   // PQC, capability-gated (see PQC_GATED)
             "Signature.SLH-DSA-SHA2-128F",   // PQC, capability-gated (see PQC_GATED)
             "Signature.SLH-DSA-SHA2-128S",   // PQC, capability-gated (see PQC_GATED)
@@ -521,7 +519,6 @@ public class FIPSServedSurfaceSnapshotTest
             "KeyPairGenerator.SLH-DSA-SHAKE-256F",
             "KeyPairGenerator.SLH-DSA-SHAKE-256S",
             "KeyPairGenerator.SLHDSA",
-            "Signature.DET-SLH-DSA-NONE",
             "Signature.DET-SLH-DSA-PURE",
             "Signature.ML-DSA-44",
             "Signature.ML-DSA-65",
@@ -529,7 +526,6 @@ public class FIPSServedSurfaceSnapshotTest
             "Signature.ML-DSA-CALCULATE-MU",
             "Signature.ML-DSA-EXTERNAL-MU",
             "Signature.MLDSA",
-            "Signature.SLH-DSA-NONE",
             "Signature.SLH-DSA-PURE",
             "Signature.SLH-DSA-SHA2-128F",
             "Signature.SLH-DSA-SHA2-128S",

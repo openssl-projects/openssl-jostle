@@ -88,8 +88,8 @@ python3 .claude/skills/update-services-md/scripts/update_services_md.py --input 
 
 ## Output format
 
-`SERVICES.md` opens with a "generated — do not edit by hand" banner and the
-total service / type counts, then a `## <Type> (count)` section per JCA service
+`SERVICES.md` opens with a "generated - do not edit by hand" banner and a
+preamble with no counts, then a `## <Type>` section per JCA service
 type (alphabetical, as DumpInfo emits them), each listing the registered
 algorithm names and OID aliases as a numbered list in backticks. The whole file
 is regenerated on every run, so re-running after a registration change produces a
@@ -97,7 +97,7 @@ clean diff of exactly what was added or removed.
 
 ## After regenerating
 
-Show the user the counts and the diff (`git diff SERVICES.md`) so they can see
+Show the user the diff (`git diff SERVICES.md`) so they can see
 which algorithms changed, then let them commit. The file is a generated
 artifact; do not hand-edit it — change the provider registration and re-run.
 

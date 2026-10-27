@@ -14,12 +14,14 @@ import java.security.AlgorithmParameters;
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.disposal.NativeDisposer;
 import org.openssl.jostle.disposal.NativeReference;
-import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
+import org.openssl.jostle.jcajce.interfaces.SLHDSAKey;
+import org.openssl.jostle.jcajce.interfaces.SLHDSAPrivateKey;
+import org.openssl.jostle.jcajce.interfaces.SLHDSAPublicKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
-import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;
@@ -49,7 +51,7 @@ public class SLHDSASignatureSpi extends SignatureSpi
 
     private final OSSLKeyType forcedType;
     private SLHDSARef ref = null;
-    private AsymmetricKeyImpl lastKey = null;
+    private SLHDSAKey lastKey = null;
 
     private AlgorithmParameterSpec algorithmParameterSpec = null;
     private boolean updateCalled = false;
@@ -61,36 +63,21 @@ public class SLHDSASignatureSpi extends SignatureSpi
     // FIPSNISelector for JSLFIPS).
     private final SLHDSAServiceNI slhdsaServiceNI;
 
-    // The SpecNI this SPI is bound to. A private key whose spec came from a
-    // different one was made by the other Jostle provider and must be rejected.
-    private final SpecNI specNI;
+    // Bound to the same interface library as slhdsaServiceNI: translates a foreign key and rejects one made by
+    // another Jostle provider instance.
+    private final SLHDSAKeyFactorySpi keyFactory;
 
     public SLHDSASignatureSpi(OSSLKeyType forcedType, MessageEncoding messageEncoding, Deterministic deterministic)
     {
-        this(NISelector.SLHDSAServiceNI, NISelector.SpecNI, forcedType, messageEncoding, deterministic);
+        this(NISelector.SLHDSAServiceNI, new SLHDSAKeyFactorySpi(OSSLKeyType.NONE), forcedType, messageEncoding,
+                deterministic);
     }
 
-    public SLHDSASignatureSpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, OSSLKeyType forcedType,
+    public SLHDSASignatureSpi(SLHDSAServiceNI slhdsaServiceNI, SLHDSAKeyFactorySpi keyFactory, OSSLKeyType forcedType,
                               MessageEncoding messageEncoding, Deterministic deterministic)
     {
-        this(slhdsaServiceNI, specNI, forcedType, messageEncoding, deterministic, null);
-    }
-
-    /**
-     * The provider INSTANCE this SPI belongs to, or null when constructed
-     * outside any provider. This SPI holds its own specNI and no KeyFactory,
-     * so unlike the RSA/EC/DH consumers it cannot read the binding off a bound
-     * factory — it carries its own. MT-14.
-     */
-    private final Provider providerInstance;
-
-    public SLHDSASignatureSpi(SLHDSAServiceNI slhdsaServiceNI, SpecNI specNI, OSSLKeyType forcedType,
-                              MessageEncoding messageEncoding, Deterministic deterministic,
-                              Provider providerInstance)
-    {
-        this.providerInstance = providerInstance;
         this.slhdsaServiceNI = slhdsaServiceNI;
-        this.specNI = specNI;
+        this.keyFactory = keyFactory;
         this.forcedType = forcedType;
         algorithmParameterSpec = ContextParameterSpec.EMPTY_CONTEXT_SPEC;
         this.messageEncoding = messageEncoding;
@@ -116,53 +103,50 @@ public class SLHDSASignatureSpi extends SignatureSpi
     @Override
     protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
     {
-        if (publicKey instanceof JOSLHDSAPublicKey)
+        SLHDSAPublicKey key = importPublicKey(publicKey);
+        try
         {
+            updateCalled = false;
+
+            if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
+            {
+                throw new InvalidKeyException("required " + SLHDSAParameterSpec.getSpecForOSSLType(forcedType).getName()
+                        + " key type but got "
+                        + SLHDSAParameterSpec.getSpecForOSSLType(key.getSpec().getType()).getName());
+            }
+
+            // Assigned only after the type check, so a refused init leaves the previous key for reInit.
+            lastKey = key;
+
+            if (ref == null)
+            {
+                ref = new SLHDSARef(slhdsaServiceNI, slhdsaServiceNI.allocateSigner(), key.getAlgorithm());
+            }
+
+            byte[] context = null;
+            int contextLen = 0;
+
+            if (algorithmParameterSpec instanceof ContextParameterSpec)
+            {
+                context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                contextLen = context.length;
+            }
+
             try
             {
-                updateCalled = false;
-                JOSLHDSAPublicKey key = (JOSLHDSAPublicKey) publicKey;
-                // MT-14, instance-only: no library half. The instance check
-                // subsumes it for anything a provider made, and public keys
-                // have no reason to be refused between two unbound,
-                // hand-wired SPIs.
-                if (!key.getSpec().usableBy(providerInstance))
-                {
-                    throw new InvalidKeyException(
-                            "public key was created by a different Jostle provider instance; "
-                                    + "encode it with getEncoded() and decode it through this "
-                                    + "provider's KeyFactory");
-                }
-                lastKey = key;
-
-                if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
-                {
-                    throw new InvalidKeyException("required " + SLHDSAParameterSpec.getSpecForOSSLType(forcedType).getName() + " key type but got " + SLHDSAParameterSpec.getSpecForOSSLType(key.getType()).getName());
-                }
-
-                if (ref == null)
-                {
-                    ref = new SLHDSARef(slhdsaServiceNI, slhdsaServiceNI.allocateSigner(), publicKey.getAlgorithm());
-                }
-
-                byte[] context = null;
-                int contextLen = 0;
-
-                if (algorithmParameterSpec instanceof ContextParameterSpec)
-                {
-                    context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                    contextLen = context.length;
-                }
-
-                slhdsaServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen, messageEncoding.ordinal(), deterministic.ordinal());
-                return;
+                slhdsaServiceNI.initVerify(ref.getReference(), key.getSpec().getReference(), context, contextLen,
+                        messageEncoding.ordinal(), deterministic.ordinal());
             }
-            finally
+            catch (IllegalArgumentException e)
             {
-                Reference.reachabilityFence(this);
+                // The JCA init contract is InvalidKeyException, which also triggers provider fallback.
+                throw new InvalidKeyException(e.getMessage(), e);
             }
         }
-        throw new InvalidKeyException("expected only SLHDSAPublicKey");
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
     }
 
     protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
@@ -174,57 +158,101 @@ public class SLHDSASignatureSpi extends SignatureSpi
     protected void engineInitSign(PrivateKey privateKey, SecureRandom random) throws InvalidKeyException
     {
         this.randSource = DefaultRandSource.replaceWith(this.randSource, random);
-        if (privateKey instanceof JOSLHDSAPrivateKey)
+        SLHDSAPrivateKey key = importPrivateKey(privateKey);
+        try
         {
+            updateCalled = false;
+
+            if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
+            {
+                throw new InvalidKeyException("required " + SLHDSAParameterSpec.getSpecForOSSLType(forcedType).getName()
+                        + " key type but got "
+                        + SLHDSAParameterSpec.getSpecForOSSLType(key.getSpec().getType()).getName());
+            }
+
+            // Assigned only after the type check (see engineInitVerify).
+            lastKey = key;
+
+            if (ref == null)
+            {
+                ref = new SLHDSARef(slhdsaServiceNI, slhdsaServiceNI.allocateSigner(), key.getAlgorithm());
+            }
+
+            byte[] context = null;
+            int contextLen = 0;
+
+            if (algorithmParameterSpec instanceof ContextParameterSpec)
+            {
+                context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
+                contextLen = context.length;
+            }
+
             try
             {
-
-                JOSLHDSAPrivateKey key = (JOSLHDSAPrivateKey) privateKey;
-                // Provider isolation, private side. Same check and message as
-                // ECKeyImport / RSAKeyImport. Both halves: the library one is
-                // the only one with teeth when two hand-wired SPIs are both
-                // unbound. The public side has its own check above; since
-                // MT-14 neither half of a keypair crosses as an OBJECT.
-                // See testing.md "JSL <-> JSLFIPS key sharing".
-                if (key.getSpec().getSpecNI() != specNI
-                        || !key.getSpec().usableBy(providerInstance))
-                {
-                    throw new InvalidKeyException(
-                            "private key was created by a different Jostle provider instance; encode it with getEncoded() and decode it through this provider's KeyFactory");
-                }
-                lastKey = key;
-                updateCalled = false;
-
-                if (forcedType != OSSLKeyType.NONE && forcedType != key.getSpec().getType())
-                {
-                    throw new InvalidKeyException("required " + SLHDSAParameterSpec.getSpecForOSSLType(forcedType).getName() + " key type but got " + SLHDSAParameterSpec.getSpecForOSSLType(key.getType()).getName());
-                }
-
-                if (ref == null)
-                {
-                    ref = new SLHDSARef(slhdsaServiceNI, slhdsaServiceNI.allocateSigner(), privateKey.getAlgorithm());
-                }
-
-                byte[] context = null;
-                int contextLen = 0;
-
-                if (algorithmParameterSpec instanceof ContextParameterSpec)
-                {
-                    context = ((ContextParameterSpec) algorithmParameterSpec).getContext();
-                    contextLen = context.length;
-                }
-
                 slhdsaServiceNI.initSign(
                         ref.getReference(),
                         key.getSpec().getReference(),
                         context, contextLen, messageEncoding.ordinal(), deterministic.ordinal(),
                         randSource);
-                return;
             }
-            finally
+            catch (IllegalArgumentException e)
             {
-                Reference.reachabilityFence(this);
+                // See engineInitVerify.
+                throw new InvalidKeyException(e.getMessage(), e);
             }
+        }
+        finally
+        {
+            Reference.reachabilityFence(this);
+        }
+    }
+
+    /**
+     * A Jostle SLH-DSA public key of this provider instance passes; any other SLH-DSA key is re-encoded and decoded
+     * through the bound KeyFactory, so the native key is ours.
+     */
+    private SLHDSAPublicKey importPublicKey(PublicKey publicKey) throws InvalidKeyException
+    {
+        if (publicKey instanceof SLHDSAPublicKey)
+        {
+            SLHDSAPublicKey joKey = (SLHDSAPublicKey) publicKey;
+            if (!joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
+            {
+                throw new InvalidKeyException(
+                        "public key was created by a different Jostle provider instance; "
+                                + "encode it with getEncoded() and decode it through this "
+                                + "provider's KeyFactory");
+            }
+            return joKey;
+        }
+        Key translated = keyFactory.engineTranslateKey(publicKey);
+        if (translated instanceof SLHDSAPublicKey)
+        {
+            return (SLHDSAPublicKey) translated;
+        }
+        throw new InvalidKeyException("expected only SLHDSAPublicKey");
+    }
+
+    /** Private-key counterpart to {@link #importPublicKey}. */
+    private SLHDSAPrivateKey importPrivateKey(PrivateKey privateKey) throws InvalidKeyException
+    {
+        if (privateKey instanceof SLHDSAPrivateKey)
+        {
+            // Both halves: the library check is the only one with teeth when two hand-wired SPIs are unbound.
+            SLHDSAPrivateKey joKey = (SLHDSAPrivateKey) privateKey;
+            if (joKey.getSpec().getSpecNI() != keyFactory.ownSpecNI()
+                    || !joKey.getSpec().usableBy(keyFactory.ownProviderInstance()))
+            {
+                throw new InvalidKeyException(
+                        "private key was created by a different Jostle provider instance; encode it with "
+                                + "getEncoded() and decode it through this provider's KeyFactory");
+            }
+            return joKey;
+        }
+        Key translated = keyFactory.engineTranslateKey(privateKey);
+        if (translated instanceof SLHDSAPrivateKey)
+        {
+            return (SLHDSAPrivateKey) translated;
         }
         throw new InvalidKeyException("expected only SLHDSAPrivateKey");
     }
@@ -241,7 +269,15 @@ public class SLHDSASignatureSpi extends SignatureSpi
         try
         {
             updateCalled = true;
-            slhdsaServiceNI.update(ref.getReference(), b, off, len);
+            try
+            {
+                slhdsaServiceNI.update(ref.getReference(), b, off, len);
+            }
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // Signature declares SignatureException for refused input; IllegalStateException stays raw.
+                throw new SignatureException(e.getMessage(), e);
+            }
         }
         finally
         {
@@ -254,18 +290,22 @@ public class SLHDSASignatureSpi extends SignatureSpi
     {
         try
         {
-            byte[] sig = null;
             try
             {
                 int len = slhdsaServiceNI.signatureLength(ref.getReference(),
-                        lastKey != null ? lastKey.getType() : null, randSource);
-                sig = new byte[len];
-                long written = slhdsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
+                        lastKey != null ? lastKey.getSpec().getType() : null, randSource);
+                byte[] sig = new byte[len];
+                int written = slhdsaServiceNI.sign(ref.getReference(), sig, 0, randSource);
                 if (written != sig.length)
                 {
                     throw new SignatureException("signature length mismatch");
                 }
                 return sig;
+            }
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // Signature declares SignatureException for a failed signing operation.
+                throw new SignatureException(e.getMessage(), e);
             }
             finally
             {
@@ -289,6 +329,11 @@ public class SLHDSASignatureSpi extends SignatureSpi
                 int code = slhdsaServiceNI.verify(ref.getReference(), sigBytes, sigBytes != null ? sigBytes.length : 0);
 
                 return code == ErrorCode.JO_SUCCESS.getCode();
+            }
+            catch (OpenSSLException | IllegalArgumentException e)
+            {
+                // Signature declares SignatureException for a failed verification operation.
+                throw new SignatureException(e.getMessage(), e);
             }
             finally
             {
@@ -334,17 +379,17 @@ public class SLHDSASignatureSpi extends SignatureSpi
     private void reInit()
     {
 
-        try
+        synchronized (this)
         {
             try
             {
-                if (lastKey instanceof JOSLHDSAPublicKey)
+                if (lastKey instanceof SLHDSAPublicKey)
                 {
                     engineInitVerify((PublicKey) lastKey);
                 }
                 else
                 {
-                    if (lastKey instanceof JOSLHDSAPrivateKey)
+                    if (lastKey instanceof SLHDSAPrivateKey)
                     {
                         engineInitSign((PrivateKey) lastKey);
                     }
@@ -364,10 +409,6 @@ public class SLHDSASignatureSpi extends SignatureSpi
             {
                 throw new ProviderException("unable to reinitialize signature engine", e);
             }
-        }
-        finally
-        {
-            Reference.reachabilityFence(this);
         }
     }
 

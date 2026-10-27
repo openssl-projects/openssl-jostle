@@ -2382,4 +2382,34 @@ public class SLHDSALimitTest
         }
     }
 
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        SLHDSABridgeCells.wrongKindHandlesAreRefused(slhdsaServiceNI, specNI, TestNISelector.getRSANi(),
+                TestNISelector.getMDNI(), TestNISelector.getMLDSANI());
+    }
+
+    @Test
+    public void bridge_theContextThenTheKeyThenTheRandSourceAreChecked()
+    {
+        SLHDSABridgeCells.theContextThenTheKeyThenTheRandSourceAreChecked(slhdsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aPublicOnlyKeyOpensNoSigningSession()
+    {
+        SLHDSABridgeCells.aPublicOnlyKeyOpensNoSigningSession(slhdsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_aPrivateKeyIsFourNBytesOnly()
+    {
+        SLHDSABridgeCells.aPrivateKeyIsFourNBytesOnly(slhdsaServiceNI, specNI);
+    }
+
+    @Test
+    public void bridge_signAndVerifyConsumeTheSession()
+    {
+        SLHDSABridgeCells.signAndVerifyConsumeTheSession(slhdsaServiceNI, specNI);
+    }
 }

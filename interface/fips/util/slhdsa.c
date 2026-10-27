@@ -264,7 +264,7 @@ int32_t slh_dsa_get_private_encoded(key_spec *key_spec, uint8_t *out, size_t out
 
 
     if (OPS_OPENSSL_ERROR_2 !EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, out, min_len, &written)) {
-        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1000);
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_2(1006);
     }
 
     return (int32_t) written;
@@ -327,8 +327,8 @@ int32_t slh_dsa_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *
     }
 
 
-    if (src_len != ((size_t) slh_n * 3) && min_len != src_len) {
-        // slh_n not negative by this point
+    // 4n only: the 3n seed form is the seeded generate's, not a second meaning here.
+    if (min_len != src_len) {
         ret_code = JO_ENCODED_PRIVATE_KEY_LEN;
         goto exit;
     }
@@ -456,14 +456,27 @@ exit:
 slh_dsa_ctx *slh_dsa_ctx_create(int32_t *err) {
     slh_dsa_ctx *ctx = (slh_dsa_ctx *) OPENSSL_zalloc(sizeof(slh_dsa_ctx));
     jo_assert(ctx != NULL);
+    ctx->kind = SLH_DSA_CTX_KIND;
     *err = JO_SUCCESS;
     JO_LEDGER_CREATED(JO_LEDGER_SLH_DSA_CTX);
     return ctx;
 }
 
 
-void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx) {
+int32_t slh_dsa_ctx_check(const slh_dsa_ctx *ctx) {
     if (ctx == NULL) {
+        return JO_SIGNER_CTX_IS_NULL;
+    }
+    if (ctx->kind != SLH_DSA_CTX_KIND) {
+        return JO_SLHDSA_CTX_WRONG_KIND;
+    }
+    return JO_SUCCESS;
+}
+
+
+void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx) {
+    // Frees nothing on a wrong kind: freeing another object as an slh_dsa_ctx corrupts it.
+    if (slh_dsa_ctx_check(ctx) != JO_SUCCESS) {
         return;
     }
     JO_LEDGER_DESTROYED(JO_LEDGER_SLH_DSA_CTX);
@@ -481,6 +494,7 @@ void slh_dsa_ctx_destroy(slh_dsa_ctx *ctx) {
         BIO_free_all(ctx->msg_buf);
     }
 
+    ctx->kind = SLH_DSA_CTX_NONE;
     OPENSSL_clear_free(ctx, sizeof(*ctx));
 }
 
@@ -504,6 +518,22 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
 
     if (sign_ctx_len >= MAX_CTX_LEN) {
         ret_code = JO_CONTEXT_BYTES_TOO_LONG;
+        goto exit;
+    }
+
+    const char *algo = EVP_PKEY_get0_type_name(key_spec->key);
+    if (algo == NULL || 0 != strncmp(algo, "SLH-DSA", 7)) {
+        ret_code = JO_INCORRECT_KEY_TYPE;
+        goto exit;
+    }
+
+    // A signature needs the private half, asked of the key before anything is allocated.
+    size_t priv_len = 0;
+    ERR_set_mark();
+    const int has_priv = EVP_PKEY_get_octet_string_param(key_spec->key, OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0, &priv_len);
+    ERR_pop_to_mark();
+    if (has_priv != 1 || priv_len == 0) {
+        ret_code = JO_KEY_HAS_NO_PRIVATE_HALF;
         goto exit;
     }
 
@@ -558,18 +588,6 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
             goto exit;
     }
 
-
-    const char *algo = EVP_PKEY_get0_type_name(key_spec->key);
-    if (algo == NULL) {
-        ret_code = JO_INCORRECT_KEY_TYPE;
-        goto exit;
-    }
-
-    if (0 != strncmp(algo, "SLH-DSA", 7)) {
-        ret_code = JO_INCORRECT_KEY_TYPE;
-        goto exit;
-    }
-
     ctx->sig = EVP_SIGNATURE_fetch(get_global_jostle_fips_ossl_lib_ctx(), algo,NULL);
 
     // Short-circuit on fetch failure to preserve the real diagnostic.
@@ -591,7 +609,7 @@ int32_t slh_dsa_ctx_init_sign(slh_dsa_ctx *ctx, const key_spec *key_spec, const 
     ctx->pctx = EVP_PKEY_CTX_new_from_pkey(get_global_jostle_fips_ossl_lib_ctx(), key_spec->key, NULL);
 
     if (OPS_OPENSSL_ERROR_1 ctx->pctx == NULL) {
-        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1000);
+        ret_code = JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_1(1007);
         goto exit;
     }
 
@@ -782,9 +800,10 @@ exit:
 }
 
 
-int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rand_src) {
+int32_t slh_dsa_ctx_sign(slh_dsa_ctx *ctx, const uint8_t *out, const size_t out_len, void *rand_src) {
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
+    int consumed = 0;
 
     // Hoisted so the cleanse at exit always sees initialised values.
     uint8_t *msg = NULL;
@@ -834,6 +853,7 @@ int32_t slh_dsa_ctx_sign(const slh_dsa_ctx *ctx, const uint8_t *out, const size_
         const size_t sig_len_ = sig_len;
 
         msg_len = BIO_get_mem_data(ctx->msg_buf, &msg);
+        consumed = 1;
 
 
         if (OPS_OPENSSL_ERROR_2 (1 != EVP_PKEY_sign(ctx->pctx, (unsigned char *) out, &sig_len, msg, msg_len))) {
@@ -857,11 +877,15 @@ exit:
     if (msg != NULL && msg_len > 0) {
         OPENSSL_cleanse(msg, msg_len);
     }
+    if (consumed) {
+        BIO_free_all(ctx->msg_buf);
+        ctx->msg_buf = NULL;
+    }
     rand_clear_java_srand_call();
     return ret_code;
 }
 
-int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
+int32_t slh_dsa_ctx_verify(slh_dsa_ctx *ctx, const uint8_t *sig, const size_t sig_len) {
     jo_assert(ctx != NULL);
     int ret_code = JO_FAIL;
 
@@ -883,6 +907,8 @@ int32_t slh_dsa_ctx_verify(const slh_dsa_ctx *ctx, const uint8_t *sig, const siz
     ERR_set_mark();
     int ret = EVP_PKEY_verify(ctx->pctx, sig, sig_len, msg, msg_len);
     OPENSSL_cleanse(msg, msg_len);
+    BIO_free_all(ctx->msg_buf);
+    ctx->msg_buf = NULL;
 
     if (OPS_OPENSSL_ERROR_1 0) {
         ERR_pop_to_mark();

@@ -346,7 +346,7 @@ public class FipsSignatureExamplesTest
     }
 
     /**
-     * The SLH-DSA variants: generic, pure, pre-reduced input, and deterministic.
+     * The SLH-DSA variants: generic, pure and deterministic.
      */
     @Test
     public void slhDsaVariants()
@@ -355,8 +355,7 @@ public class FipsSignatureExamplesTest
         Assumptions.assumeTrue(Security.getProvider("JSLFIPS").getService("Signature", "SLH-DSA-PURE") != null);
         byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
         KeyPair kp = KeyPairGenerator.getInstance("SLH-DSA-SHA2-128F", "JSLFIPS").generateKeyPair();
-        for (String name : new String[]{"SLHDSA", "SLH-DSA-PURE", "SLH-DSA-NONE", "DET-SLH-DSA-PURE",
-                "DET-SLH-DSA-NONE"})
+        for (String name : new String[]{"SLHDSA", "SLH-DSA-PURE", "DET-SLH-DSA-PURE"})
         {
             Signature s = Signature.getInstance(name, "JSLFIPS");
             s.initSign(kp.getPrivate());

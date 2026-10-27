@@ -556,6 +556,81 @@ public class NativeReferenceParityTest
                         + "synchronized(this) / reachabilityFence(this): " + violations);
     }
 
+    // A call result dereferenced straight into getReference() as a call argument: `(..., <call>(...).getReference()`.
+    private static final Pattern CALL_RESULT_HANDLE = Pattern.compile(
+            "[(,]\\s*(?:\\w+\\.)*(\\w+)\\s*\\((?:[^()]++|\\([^()]*+\\))*+\\)\\s*\\.getReference\\s*\\(\\s*\\)");
+    private static final Pattern ANY_HANDLE_ARGUMENT = Pattern.compile("[(,][^(),]*\\.getReference\\s*\\(\\s*\\)");
+
+    /**
+     * A handle read from an object no variable holds, and passed straight to a native call, has nothing keeping its
+     * holder reachable: a collection during the call frees the native object under it. getSpec() is exempt: it
+     * reads a field of a key the caller holds. Over the main and test trees, since a test cell crashed this way.
+     */
+    @Test
+    public void noTemporaryHoldsAHandleAcrossANativeCall()
+        throws IOException
+    {
+        List<Path> roots = new ArrayList<Path>();
+        for (String candidate : new String[]{"src/main", "src/test", "jostle/src/main", "jostle/src/test"})
+        {
+            Path path = Paths.get(candidate);
+            if (Files.isDirectory(path))
+            {
+                roots.add(path.toAbsolutePath().normalize());
+            }
+        }
+        Assumptions.assumeTrue(!roots.isEmpty(),
+                "source trees not reachable (packaged test jar) - source lint skipped");
+
+        List<String> violations = new ArrayList<String>();
+        int handleArguments = 0;
+        int files = 0;
+        for (Path root : roots)
+        {
+            List<Path> sources = new ArrayList<Path>();
+            try (Stream<Path> walk = Files.walk(root))
+            {
+                walk.filter(p -> p.toString().endsWith(".java")).forEach(sources::add);
+            }
+            for (Path source : sources)
+            {
+                String body = stripCommentsKeepingLines(read(source).replace("\r\n", "\n"));
+                files++;
+                Matcher any = ANY_HANDLE_ARGUMENT.matcher(body);
+                while (any.find())
+                {
+                    handleArguments++;
+                }
+                Matcher m = CALL_RESULT_HANDLE.matcher(body);
+                while (m.find())
+                {
+                    if (!"getSpec".equals(m.group(1)))
+                    {
+                        int line = 1 + (int) body.substring(0, m.start()).chars().filter(c -> c == '\n').count();
+                        violations.add(root.relativize(source) + ":" + line + " " + m.group(1) + "(...)");
+                    }
+                }
+            }
+        }
+        Assertions.assertTrue(files > 500, "read only " + files + " sources; the scan is not reading the trees");
+        Assertions.assertTrue(handleArguments > 100, "only " + handleArguments + " handle arguments seen");
+        Assertions.assertTrue(violations.isEmpty(),
+                "a call result's handle passed to a native call with nothing holding the object: " + violations);
+    }
+
+    /** Comments blanked out with their newlines kept, so a match's line number is the source line. */
+    private static String stripCommentsKeepingLines(String s)
+    {
+        StringBuffer out = new StringBuffer();
+        Matcher m = Pattern.compile("(?s)/\\*.*?\\*/").matcher(s);
+        while (m.find())
+        {
+            m.appendReplacement(out, Matcher.quoteReplacement(m.group().replaceAll("[^\\n]", " ")));
+        }
+        m.appendTail(out);
+        return out.toString().replaceAll("//[^\\n]*", "");
+    }
+
     private static final class Method
     {
         final String modifiers;

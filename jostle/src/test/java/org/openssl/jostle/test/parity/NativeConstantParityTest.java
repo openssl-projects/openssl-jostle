@@ -196,22 +196,31 @@ public class NativeConstantParityTest
     /** A switch arm naming an error code: {@code case JO_X:}. */
     private static final Pattern JAVA_ARM = Pattern.compile("case\\s+(JO_[A-Z0-9_]+)\\s*:");
 
+    /** The family error handlers whose every arm must have a producer. */
+    private static final String[] HANDLERS = {
+            "jostle/src/main/java/org/openssl/jostle/jcajce/provider/mldsa/MLDSAServiceNI.java",
+            "jostle/src/main/java/org/openssl/jostle/jcajce/provider/slhdsa/SLHDSAServiceNI.java"};
+
     /**
-     * Every arm of the ML-DSA error handler names a code some C file in each tree produces, the header aside. An
-     * arm with no producer is a refusal no input can reach, and its message is never seen.
+     * Every arm of the ML-DSA and SLH-DSA error handlers names a code some C file in each tree produces, the header
+     * aside. An arm with no producer is a refusal no input can reach, and its message is never seen.
      */
     @Test
-    public void everyMlDsaHandlerArmHasAProducerInBothTrees() throws Exception
+    public void everyPqcSignatureHandlerArmHasAProducerInBothTrees() throws Exception
     {
-        String handler = read("jostle/src/main/java/org/openssl/jostle/jcajce/provider/mldsa/MLDSAServiceNI.java")
-                .replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
         Set<String> arms = new TreeSet<>();
-        Matcher m = JAVA_ARM.matcher(handler);
-        while (m.find())
+        for (String path : HANDLERS)
         {
-            arms.add(m.group(1));
+            String handler = read(path).replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
+            Set<String> own = new TreeSet<>();
+            Matcher m = JAVA_ARM.matcher(handler);
+            while (m.find())
+            {
+                own.add(m.group(1));
+            }
+            Assertions.assertTrue(own.size() >= 3, "read only " + own + " from " + path);
+            arms.addAll(own);
         }
-        Assertions.assertTrue(arms.size() >= 3, "read only " + arms + " from the ML-DSA handler");
 
         StringBuilder bad = new StringBuilder();
         for (String tree : new String[]{"interface/nonfips", "interface/fips"})
@@ -237,7 +246,7 @@ public class NativeConstantParityTest
                 }
             }
         }
-        Assertions.assertEquals(0, bad.length(), "ML-DSA handler arms with no C producer:" + bad);
+        Assertions.assertEquals(0, bad.length(), "ML-DSA / SLH-DSA handler arms with no C producer:" + bad);
     }
 
     /**

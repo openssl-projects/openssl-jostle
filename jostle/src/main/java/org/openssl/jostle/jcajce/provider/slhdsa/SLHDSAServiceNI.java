@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.slhdsa;
 
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthBound;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
@@ -37,7 +38,7 @@ public interface SLHDSAServiceNI extends DefaultServiceNI
 
     int ni_update(long ref, byte[] b, int off, int len);
 
-    long ni_sign(long ref, byte[] sig, int offset, RandSource randSource);
+    int ni_sign(long ref, byte[] sig, int offset, RandSource randSource);
 
     int ni_verify(long reference, byte[] sigBytes, int len);
 
@@ -91,6 +92,7 @@ public interface SLHDSAServiceNI extends DefaultServiceNI
         return r;
     }
 
+    /** A contextLen of -1 is the same as a 0-byte context for this family. */
     default int initVerify(long ref, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic)
     {
         return (int) handleErrors(ni_initVerify(ref, keyRef, context, contextLen, messageEncoding, deterministic));
@@ -101,16 +103,23 @@ public interface SLHDSAServiceNI extends DefaultServiceNI
         return (int) handleErrors(ni_update(ref, b, off, len));
     }
 
-    default long sign(long ref, byte[] sig, int offset, RandSource randSource)
+    default int sign(long ref, byte[] sig, int offset, RandSource randSource)
     {
-        return (long) handleErrors(ni_sign(ref, sig, offset, randSource));
+        return (int) handleErrors(ni_sign(ref, sig, offset, randSource));
     }
 
     default int verify(long reference, byte[] sigBytes, int len)
     {
-        return (int) handleErrors(ni_verify(reference, sigBytes, len));
+        int code = ni_verify(reference, sigBytes, len);
+        if (code == ErrorCode.JO_FAIL.getCode())
+        {
+            // Fail is a signature that does not verify.
+            return code;
+        }
+        return (int) handleErrors(code);
     }
 
+    /** A contextLen of -1 is the same as a 0-byte context for this family. */
     default int initSign(long reference, long keyRef, byte[] context, int contextLen, int messageEncoding, int deterministic, RandSource randSource)
     {
         return (int) handleErrors(ni_initSign(reference, keyRef, context, contextLen, messageEncoding, deterministic, randSource));
@@ -131,8 +140,6 @@ public interface SLHDSAServiceNI extends DefaultServiceNI
         ErrorCode errorCode = ErrorCode.forCode(code);
         switch (errorCode)
         {
-            case JO_FAIL:
-                return code;
             case JO_INCORRECT_KEY_TYPE:
                 throw new IllegalArgumentException("invalid key type for SLH-DSA");
             case JO_INVALID_SLH_DSA_MSG_ENCODING_PARAM:
@@ -156,9 +163,24 @@ public interface SLHDSAServiceNI extends DefaultServiceNI
         int len = lengthCache().get(type);
         if (len == NativeLengthCache.UNKNOWN)
         {
-            len = (int) sign(ref, null, 0, randSource);
+            len = sign(ref, null, 0, randSource);
             lengthCache().cache(type, len);
         }
         return len;
+    }
+
+    /** The parts of an SLH-DSA key whose encoded length the library reports. */
+    enum KeyPart
+    {
+        PUBLIC, PRIVATE
+    }
+
+    /** This implementation's memo of key encoding lengths, keyed by type and part. */
+    NativeLengthCache<String> keyLengthCache();
+
+    /** A key encoding length the library reported, bounded by the first answer for the type and part. */
+    default int boundedKeyLength(OSSLKeyType type, KeyPart part, long reported)
+    {
+        return NativeLengthBound.bounded(keyLengthCache(), type.name(), part.name(), reported);
     }
 }

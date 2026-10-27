@@ -256,7 +256,8 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                     // decoder as IllegalArgumentException / OpenSSLException; the
                     // KeyFactory contract requires InvalidKeySpecException (matches
                     // the PKCS#8 wrapper above).
-                    throw new InvalidKeySpecException("unable to decode SLH-DSA private key", e);
+                    throw new InvalidKeySpecException(
+                            "unable to decode a " + encoded.length + "-byte SLH-DSA private key", e);
                 }
                 finally
                 {
@@ -307,7 +308,7 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
                 throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
             }
         }
-        throw new InvalidKeySpecException("Invalid Key: " + key);
+        throw new InvalidKeySpecException("Invalid Key: " + (key == null ? "null" : key.getClass().getName()));
     }
 
     @Override
@@ -332,7 +333,39 @@ public class SLHDSAKeyFactorySpi extends KeyFactorySpi
             }
             return key;
         }
-        throw new InvalidKeyException("Invalid Key: " + key);
+        if (key == null)
+        {
+            throw new InvalidKeyException("Invalid Key: null");
+        }
+        // A foreign SLH-DSA key: re-encoded and decoded through this factory, so the native key is ours. The
+        // refusals name the class, never the key's contents.
+        byte[] encoded = null;
+        try
+        {
+            encoded = key.getEncoded();
+            if (encoded == null)
+            {
+                throw new InvalidKeyException(key.getClass().getName() + " has no encoded form");
+            }
+            if (key instanceof PrivateKey)
+            {
+                return engineGeneratePrivate(new PKCS8EncodedKeySpec(encoded));
+            }
+            return engineGeneratePublic(new X509EncodedKeySpec(encoded));
+        }
+        catch (InvalidKeySpecException e)
+        {
+            throw new InvalidKeyException("unable to translate " + key.getClass().getName() + " to an SLH-DSA key", e);
+        }
+        catch (RuntimeException e)
+        {
+            throw new InvalidKeyException("unable to translate " + key.getClass().getName() + " to an SLH-DSA key", e);
+        }
+        finally
+        {
+            // The local copy may carry private material.
+            Arrays.clear(encoded);
+        }
     }
 
 

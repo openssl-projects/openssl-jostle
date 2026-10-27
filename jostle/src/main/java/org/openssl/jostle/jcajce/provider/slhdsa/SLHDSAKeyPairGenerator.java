@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.slhdsa;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
@@ -23,9 +24,11 @@ import org.openssl.jostle.util.Strings;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.HashMap;
@@ -124,12 +127,15 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         {
             keyType = forcedType;
         }
+        else
+        {
+            // The umbrella generator without initialize() generates SLH-DSA-SHA2-128F, BouncyCastle's default;
+            // initialize() may re-latch it.
+            keyType = OSSLKeyType.SLH_DSA_SHA2_128f;
+        }
 
         // Pre-resolve a strength-appropriate default RandSource so a
         // typed instance works without an explicit initialize() call.
-        // For the umbrella "SLH-DSA" alias (NONE), fall back to the
-        // 128-bit category — generateKeyPair pre-init will fail at the
-        // native layer anyway.
         // A strength-targeted DRBG costs a SecureRandom.getInstance("DRBG",
         // DrbgParameters...) per instance; under a provider that supplies its
         // own entropy nothing reads it, so take the plain default there.
@@ -189,16 +195,10 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
 
         int strengthBits = strengthForKeyType(keyType);
 
-        // Fail fast if the caller supplied a SecureRandom that reports
-        // a strength below the algorithm's requirement (Java 9+ DRBG
-        // path). Sources that don't expose a strength claim
-        // (plain new SecureRandom(), Java 8, custom subclasses) return
-        // 0 here and are accepted — the C-side RAND gate is the safety
-        // net for those.
-        // Skipped under a provider that supplies its own entropy (the FIPS
-        // module): the caller's SecureRandom is never consulted there, so
-        // rejecting it would turn a caller away over a value nothing reads.
-        // See DefaultServiceNI.providerManagesEntropy.
+        // Refuse a SecureRandom that reports a strength below the requirement. This check is the only
+        // strength gate: a source reporting none (0) is accepted, as BouncyCastle accepts every source.
+        // Skipped under a provider that supplies its own entropy (the FIPS module), which never reads
+        // the caller's source. See DefaultServiceNI.providerManagesEntropy.
         if (!slhdsaServiceNI.providerManagesEntropy())
         {
             int suppliedStrength = DefaultRandSource.strengthOf(random);
@@ -225,23 +225,30 @@ public class SLHDSAKeyPairGenerator extends KeyPairGenerator
         return SLHDSAParameterSpec.getSpecForOSSLType(activeType).getRequiredStrengthBits();
     }
 
+    /**
+     * SLH-DSA is parameter-set based, so an integer key size is meaningless; the inherited no-op would drop both
+     * the size and the SecureRandom.
+     */
+    @Override
+    public void initialize(int keysize, SecureRandom random)
+    {
+        throw new InvalidParameterException(
+                "SLH-DSA is parameter-set based; use initialize(SLHDSAParameterSpec) "
+                        + "(e.g. SLHDSAParameterSpec.slh_dsa_sha2_128f)");
+    }
+
     public KeyPair generateKeyPair()
     {
-        if (keyType == null)
+        long res;
+        try
         {
-            // The umbrella "SLH-DSA" / "SLHDSA" generator has no parameter set
-            // until initialize(SLHDSAParameterSpec) supplies one. Without this
-            // the null deref below surfaced as a raw NullPointerException,
-            // which is the wrong failure mode for an SPI state-machine misuse
-            // (java-spi.md); callers expect a typed exception naming what is
-            // missing. Found by FIPSServedSurfaceSmokeTest's KeyPairGenerator
-            // tier; the same held on the base provider.
-            throw new IllegalStateException(
-                    "SLH-DSA is parameter-set based; call initialize(SLHDSAParameterSpec) "
-                            + "before generateKeyPair(), or use a typed generator "
-                            + "(e.g. KeyPairGenerator.getInstance(\"SLH-DSA-SHA2-128S\"))");
+            res = slhdsaServiceNI.generateKeyPair(keyType.getKsType(), randSource);
         }
-        long res = slhdsaServiceNI.generateKeyPair(keyType.getKsType(), randSource);
+        catch (OpenSSLException e)
+        {
+            // generateKeyPair declares no checked type; the library's failure travels as the cause.
+            throw new ProviderException("unable to generate an SLH-DSA key pair: " + e.getMessage(), e);
+        }
 
         PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType, providerInstance);
         return new KeyPair(new JOSLHDSAPublicKey(slhdsaServiceNI, asn1NI, spec),

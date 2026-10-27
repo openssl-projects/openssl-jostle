@@ -77,8 +77,9 @@ class JOSLHDSAPrivateKey extends AsymmetricKeyImpl implements SLHDSAPrivateKey, 
         //
         synchronized (this)
         {
-            long len = slhdsaServiceNI.getPrivateKey(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
+            int len = slhdsaServiceNI.boundedKeyLength(spec.getType(), SLHDSAServiceNI.KeyPart.PRIVATE,
+                    slhdsaServiceNI.getPrivateKey(spec.getReference(), null));
+            byte[] out = new byte[len];
             slhdsaServiceNI.getPrivateKey(spec.getReference(), out);
 
             return out;

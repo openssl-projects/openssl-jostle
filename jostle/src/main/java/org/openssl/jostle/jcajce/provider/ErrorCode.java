@@ -430,6 +430,8 @@ public enum ErrorCode
     JO_MLDSA_CTX_WRONG_KIND(-229),
     // A signing session asked of a key that holds only its public half.
     JO_KEY_HAS_NO_PRIVATE_HALF(-230),
+    // A handle passed as an SLH-DSA signer context that is not one.
+    JO_SLHDSA_CTX_WRONG_KIND(-231),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

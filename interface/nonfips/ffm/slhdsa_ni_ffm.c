@@ -76,31 +76,21 @@ key_spec *JoSLHDSA_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *
 }
 
 int32_t JoSLHDSA_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
-    int32_t ret_val = JO_FAIL;
-
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
 
-    ret_val = slh_dsa_get_public_encoded(kp, output, output_len);
-
-exit:
-    return ret_val;
+    return slh_dsa_get_public_encoded(kp, output, output_len);
 }
 
 int32_t JoSLHDSA_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
-    int32_t ret_val = JO_FAIL;
-
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
 
-    ret_val = slh_dsa_get_private_encoded(kp, output, output_len);
-
-exit:
-    return ret_val;
+    return slh_dsa_get_private_encoded(kp, output, output_len);
 }
 
 int32_t JoSLHDSA_decodePublicKey(key_spec *key_spec,
@@ -109,11 +99,9 @@ int32_t JoSLHDSA_decodePublicKey(key_spec *key_spec,
                                 size_t input_size,
                                 int32_t in_off,
                                 int32_t in_len) {
-    int32_t ret_val = JO_FAIL;
-
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
 
     if (input == NULL) {
@@ -135,8 +123,6 @@ int32_t JoSLHDSA_decodePublicKey(key_spec *key_spec,
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-
-    // key_spec->type = key_type;
 
     uint8_t *start = input + in_off;
     ret_val = slh_dsa_decode_public_key(key_spec, key_type, start, in_len);
@@ -149,11 +135,9 @@ exit:
 int32_t JoSLHDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input, size_t input_size,
                                  int32_t in_off,
                                  int32_t in_len) {
-    int32_t ret_val = JO_FAIL;
-
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
 
     if (input == NULL) {
@@ -176,8 +160,6 @@ int32_t JoSLHDSA_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t 
         goto exit;
     }
 
-    // key_spec->type = key_type;
-
     uint8_t *start = input + in_off;
     ret_val = slh_dsa_decode_private_key(key_spec, key_type, start, in_len);
 
@@ -187,9 +169,6 @@ exit:
 }
 
 void JoSLHDSA_disposeSigner(slh_dsa_ctx *ctx) {
-    if (ctx == NULL) {
-        return;
-    }
     slh_dsa_ctx_destroy(ctx);
 }
 
@@ -207,14 +186,13 @@ int32_t JoSLHDSA_initVerifier(slh_dsa_ctx *ctx,
                              int32_t message_encoding,
                              int32_t deterministic
 ) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = slh_dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
-    int32_t ret_val = JO_FAIL;
-
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
 
     if (context_len >= 0) {
@@ -245,19 +223,16 @@ int32_t JoSLHDSA_initSign(slh_dsa_ctx *ctx,
                          int32_t deterministic,
                          void *rand_src
 ) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = slh_dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
-
+    ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
+    }
     if (rand_src == NULL) {
         return JO_RAND_NO_RAND_UP_CALL;
-    }
-
-    int32_t ret_val = JO_FAIL;
-
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
-        goto exit;
     }
 
     if (context_len >= 0) {
@@ -281,10 +256,10 @@ exit:
 
 int32_t JoSLHDSA_update(slh_dsa_ctx *ctx, const uint8_t *input, const size_t input_size, const int32_t in_off,
                        const int32_t in_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_code = slh_dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-    int32_t ret_code = JO_FAIL;
 
     if (input == NULL) {
         ret_code = JO_INPUT_IS_NULL;
@@ -323,8 +298,9 @@ int32_t JoSLHDSA_sign(
     const size_t output_size,
     const int32_t out_off,
     void *rand_src) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = slh_dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
 
     if (rand_src == NULL) {
@@ -338,7 +314,6 @@ int32_t JoSLHDSA_sign(
         return slh_dsa_ctx_sign(ctx, NULL, 0, rand_src);
     }
 
-    int32_t ret_val = JO_FAIL;
     size_t out_len = 0;
 
 
@@ -367,11 +342,10 @@ int32_t JoSLHDSA_verify(
     const uint8_t *sig,
     const size_t sig_size,
     const int32_t sig_len) {
-    if (ctx == NULL) {
-        return JO_SIGNER_CTX_IS_NULL;
+    int32_t ret_val = slh_dsa_ctx_check(ctx);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
     }
-    int32_t ret_val = JO_FAIL;
-
 
     if (sig == NULL) {
         ret_val = JO_SIG_IS_NULL;

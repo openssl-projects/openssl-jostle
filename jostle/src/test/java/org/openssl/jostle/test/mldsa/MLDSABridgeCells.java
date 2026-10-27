@@ -17,6 +17,7 @@ import org.openssl.jostle.jcajce.provider.md.MDServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mldsa.MLDSASignatureSpi;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
@@ -51,22 +52,23 @@ public final class MLDSABridgeCells
     }
 
     /**
-     * A key spec, a digest context and an RSA signer context as the ML-DSA context are refused with a typed code
-     * at every session entry; an ML-DSA context as the key is refused at every key entry; a dispose of the wrong
-     * kind frees nothing.
+     * A key spec, a digest context, an RSA signer context and an SLH-DSA signer context as the ML-DSA context are
+     * refused with a typed code at every session entry; an ML-DSA context as the key is refused at every key entry;
+     * a dispose of the wrong kind frees nothing.
      */
     public static void wrongKindHandlesAreRefused(MLDSAServiceNI mldsa, SpecNI spec, RSAServiceNI rsa,
-                                                  MDServiceNI md)
+                                                  MDServiceNI md, SLHDSAServiceNI slhdsa)
     {
         int ctxWrong = code(ErrorCode.JO_MLDSA_CTX_WRONG_KIND);
         int specWrong = code(ErrorCode.JO_KEY_SPEC_WRONG_KIND);
         long keyRef = rsa.generateKeyPair(2048, PUB_EXP_F4, RND);
         long rsaSigRef = rsa.allocateSigner();
         long mdRef = md.allocateDigest("SHA256", 0);
+        long slhRef = slhdsa.allocateSigner();
         long ref = mldsa.allocateSigner();
         try
         {
-            for (long bad : new long[]{keyRef, rsaSigRef, mdRef})
+            for (long bad : new long[]{keyRef, rsaSigRef, mdRef, slhRef})
             {
                 Assertions.assertEquals(ctxWrong, mldsa.ni_initSign(bad, keyRef, NO_CONTEXT, 0, MU_INTERNAL, RND));
                 Assertions.assertEquals(ctxWrong, mldsa.ni_initVerify(bad, keyRef, NO_CONTEXT, 0, MU_INTERNAL));
@@ -97,13 +99,16 @@ public final class MLDSABridgeCells
             mldsa.disposeSigner(keyRef);
             mldsa.disposeSigner(rsaSigRef);
             mldsa.disposeSigner(mdRef);
+            mldsa.disposeSigner(slhRef);
             Assertions.assertEquals(32, md.ni_getDigestOutputLen(mdRef));
+            Assertions.assertEquals(code(ErrorCode.JO_SLHDSA_CTX_WRONG_KIND), slhdsa.ni_update(ref, new byte[8], 0, 8));
             Assertions.assertEquals(code(ErrorCode.JO_INCORRECT_KEY_TYPE),
                     mldsa.ni_initVerify(ref, keyRef, NO_CONTEXT, 0, MU_INTERNAL));
         }
         finally
         {
             mldsa.disposeSigner(ref);
+            slhdsa.disposeSigner(slhRef);
             md.dispose(mdRef);
             rsa.disposeSigner(rsaSigRef);
             spec.dispose(keyRef);

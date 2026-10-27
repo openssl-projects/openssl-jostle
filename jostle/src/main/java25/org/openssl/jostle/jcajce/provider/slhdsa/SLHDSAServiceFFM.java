@@ -26,6 +26,13 @@ import java.util.logging.Logger;
 public class SLHDSAServiceFFM implements SLHDSAServiceNI
 {
     private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
+    }
 
     @Override
     public NativeLengthCache<OSSLKeyType> lengthCache()
@@ -290,6 +297,15 @@ public class SLHDSAServiceFFM implements SLHDSAServiceNI
         }
     }
 
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
+    }
+
     @Override
     public long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource)
     {
@@ -297,38 +313,45 @@ public class SLHDSAServiceFFM implements SLHDSAServiceNI
         {
             MemorySegment retCodeRef = a.allocate(ValueLayout.JAVA_INT);
             MemorySegment seedRef = seed == null ? MemorySegment.NULL : a.allocate(seed.length);
-
-            MemorySegment getEntropySegment;
-            if (randSource == null)
+            try
             {
-                getEntropySegment = MemorySegment.NULL;
+                MemorySegment getEntropySegment;
+                if (randSource == null)
+                {
+                    getEntropySegment = MemorySegment.NULL;
+                }
+                else
+                {
+                    var gHandle = MethodHandles.lookup().findVirtual(
+                            RandSource.class,
+                            "getRandomSegment",
+                            entropyMt).bindTo(randSource);
+                    getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+                }
+
+                if (seed != null)
+                {
+                    seedRef.asByteBuffer().put(seed);
+                }
+
+                MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
+                        type,
+                        retCodeRef,
+                        seedRef,
+                        seedRef.byteSize(),
+                        seedLen,
+                        getEntropySegment
+                );
+
+                err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
+
+                return segment.address();
             }
-            else
+            finally
             {
-                var gHandle = MethodHandles.lookup().findVirtual(
-                        RandSource.class,
-                        "getRandomSegment",
-                        entropyMt).bindTo(randSource);
-                getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
+                // The arena's copy of the seed is cleared before the arena frees it.
+                zero(seedRef);
             }
-
-            if (seed != null)
-            {
-                seedRef.asByteBuffer().put(seed);
-            }
-
-            MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
-                    type,
-                    retCodeRef,
-                    seedRef,
-                    seedRef.byteSize(),
-                    seedLen,
-                    getEntropySegment
-            );
-
-            err[0] = retCodeRef.get(ValueLayout.JAVA_INT, 0);
-
-            return segment.address();
         }
         catch (Throwable t)
         {
@@ -475,7 +498,7 @@ public class SLHDSAServiceFFM implements SLHDSAServiceNI
     }
 
     @Override
-    public long ni_sign(long ref, byte[] output, int offset, RandSource randSource)
+    public int ni_sign(long ref, byte[] output, int offset, RandSource randSource)
     {
         try (Arena a = Arena.ofConfined())
         {

@@ -21,16 +21,24 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSASignatureSpi;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.SLHDSAProxyPrivateKey;
 
+import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
@@ -106,7 +114,7 @@ public class FIPSSLHDSAAgreementTest
     private static final SortedSet<String> NO_BC_JCE_NAME =
             // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             Collections.unmodifiableSortedSet(new TreeSet<String>(java.util.Arrays.asList(
-                    "SLH-DSA-NONE", "DET-SLH-DSA-PURE", "DET-SLH-DSA-NONE")));
+                    "DET-SLH-DSA-PURE")));
 
     /** Low deliberately: the twelve sets include six "S" variants that sign in seconds. */
     private static final int TRIALS = 2;
@@ -118,7 +126,7 @@ public class FIPSSLHDSAAgreementTest
     /**
      * BouncyCastle's raw (no message-encoding) SLH-DSA, which 1.86 exposes only
      * as protected members. The only independent witness for
-     * {@code SLH-DSA-NONE} and {@code DET-SLH-DSA-NONE}.
+     * the NI's message encoding 0.
      */
     static final class RawSlhDsaSigner extends SLHDSASigner
     {
@@ -503,9 +511,8 @@ public class FIPSSLHDSAAgreementTest
     }
 
     /**
-     * The two {@code -NONE} names sign with no message encoding, compared
-     * against BouncyCastle's raw signer in BOTH directions. A no-encoding
-     * signature must NOT satisfy BC's JCE verifier, which applies the pure
+     * The NI's message encoding 0 (the FIPS 205 internal form, no JCA name) compared against BouncyCastle's raw
+     * signer in both directions. A no-encoding signature must not satisfy BC's JCE verifier, which applies the pure
      * encoding.
      */
     @Test
@@ -525,20 +532,19 @@ public class FIPSSLHDSAAgreementTest
                 byte[] msg = new byte[1 + sr.nextInt(512)];
                 sr.nextBytes(msg);
 
-                byte[] hedged = sign(FIPS, "SLH-DSA-NONE", kp.getPrivate(), msg);
+                byte[] hedged = niSign(kp.getPrivate(), msg, false);
                 RawSlhDsaSigner rawVerify = new RawSlhDsaSigner();
                 rawVerify.init(false, bcPub);
                 Assertions.assertTrue(rawVerify.verifyRaw(msg, hedged),
-                        set + ": BouncyCastle's raw verifier rejected SLH-DSA-NONE");
-                Assertions.assertFalse(
-                        Arrays.areEqual(hedged, sign(FIPS, "SLH-DSA-NONE", kp.getPrivate(), msg)),
-                        set + ": SLH-DSA-NONE is deterministic — it should be hedged");
+                        set + ": BouncyCastle's raw verifier rejected the hedged no-encoding form");
+                Assertions.assertFalse(Arrays.areEqual(hedged, niSign(kp.getPrivate(), msg, false)),
+                        set + ": the hedged no-encoding form is deterministic");
 
-                byte[] det = sign(FIPS, "DET-SLH-DSA-NONE", kp.getPrivate(), msg);
+                byte[] det = niSign(kp.getPrivate(), msg, true);
                 RawSlhDsaSigner rawSign = new RawSlhDsaSigner();
                 rawSign.init(true, bcPriv);
                 Assertions.assertArrayEquals(rawSign.signRaw(msg, bcPriv.getPublicSeed()), det,
-                        set + ": DET-SLH-DSA-NONE differs from BouncyCastle's raw deterministic form");
+                        set + ": the deterministic no-encoding form differs from BouncyCastle's raw form");
 
                 Assertions.assertFalse(verify(BC, set, bcPublic(kp.getPublic()), msg, det),
                         set + ": BouncyCastle's pure verifier accepted a no-encoding signature — "
@@ -553,16 +559,73 @@ public class FIPSSLHDSAAgreementTest
                 RawSlhDsaSigner rawHedged = new RawSlhDsaSigner();
                 rawHedged.init(true, bcPriv);
                 byte[] bcRaw = rawHedged.signRaw(msg, optRand);
-                Assertions.assertTrue(verify(FIPS, "SLH-DSA-NONE", kp.getPublic(), msg, bcRaw),
-                        set + ": SLH-DSA-NONE rejected a BouncyCastle raw signature");
-                Assertions.assertTrue(verify(FIPS, "DET-SLH-DSA-NONE", kp.getPublic(), msg, bcRaw),
-                        set + ": DET-SLH-DSA-NONE rejected a BouncyCastle raw signature");
+                Assertions.assertTrue(niVerify(kp.getPublic(), msg, bcRaw, false),
+                        set + ": the hedged no-encoding verifier rejected a BouncyCastle raw signature");
+                Assertions.assertTrue(niVerify(kp.getPublic(), msg, bcRaw, true),
+                        set + ": the deterministic no-encoding verifier rejected a BouncyCastle raw signature");
 
                 byte[] tampered = Arrays.clone(msg);
                 tampered[sr.nextInt(tampered.length)] ^= (byte) (1 + sr.nextInt(255));
-                Assertions.assertFalse(verify(FIPS, "SLH-DSA-NONE", kp.getPublic(), tampered, bcRaw),
-                        set + ": SLH-DSA-NONE accepted a signature over a tampered message");
+                Assertions.assertFalse(niVerify(kp.getPublic(), tampered, bcRaw, false),
+                        set + ": the no-encoding verifier accepted a signature over a tampered message");
             }
+        }
+    }
+
+    /** JSLFIPS serves neither of the internal form's former names. */
+    @Test
+    public void theNoEncodingFormHasNoJcaName()
+    {
+        assumeSlhDsa();
+        for (String name : new String[]{"SLH-DSA-NONE", "DET-SLH-DSA-NONE"})
+        {
+            Assertions.assertThrows(NoSuchAlgorithmException.class, () -> Signature.getInstance(name, FIPS), name);
+        }
+    }
+
+    private static final int NO_ENCODING = SLHDSASignatureSpi.MessageEncoding.NONE.ordinal();
+
+    /** A signature in the internal form through the FIPS NI; the key stays reachable for the native session. */
+    private static byte[] niSign(PrivateKey key, byte[] msg, boolean deterministic)
+    {
+        SLHDSAServiceNI ni = FIPSNISelector.SLHDSAServiceNI;
+        long ref = ni.allocateSigner();
+        try
+        {
+            synchronized (key)
+            {
+                ni.initSign(ref, ((OSSLKey) key).getSpec().getReference(), new byte[0], 0, NO_ENCODING,
+                        deterministic ? 1 : 0, TestUtil.RNDSrc);
+                ni.update(ref, msg, 0, msg.length);
+                byte[] sig = new byte[ni.sign(ref, null, 0, TestUtil.RNDSrc)];
+                Assertions.assertEquals(sig.length, ni.sign(ref, sig, 0, TestUtil.RNDSrc));
+                return sig;
+            }
+        }
+        finally
+        {
+            ni.disposeSigner(ref);
+        }
+    }
+
+    /** A verification in the internal form through the FIPS NI. */
+    private static boolean niVerify(PublicKey key, byte[] msg, byte[] sig, boolean deterministic)
+    {
+        SLHDSAServiceNI ni = FIPSNISelector.SLHDSAServiceNI;
+        long ref = ni.allocateSigner();
+        try
+        {
+            synchronized (key)
+            {
+                ni.initVerify(ref, ((OSSLKey) key).getSpec().getReference(), new byte[0], 0, NO_ENCODING,
+                        deterministic ? 1 : 0);
+                ni.update(ref, msg, 0, msg.length);
+                return ni.verify(ref, sig, sig.length) == 0;
+            }
+        }
+        finally
+        {
+            ni.disposeSigner(ref);
         }
     }
 
@@ -710,5 +773,81 @@ public class FIPSSLHDSAAgreementTest
         }
         Assertions.assertTrue(missing.isEmpty(),
                 "the module serves SLH-DSA but JSLFIPS registers only part of it; missing: " + missing);
+    }
+
+    /** SLH-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    @Test
+    public void slhDsaIsServedPerModuleVersion() throws Exception
+    {
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        boolean registered = FIPSTestUtil.assumeFipsProvider().getService("Signature", "SLH-DSA-SHA2-128F") != null;
+        if (profile.isVersion312())
+        {
+            Assertions.assertFalse(registered);
+            return;
+        }
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertTrue(registered);
+        KeyPair kp = keyPair("SLH-DSA-SHA2-128F");
+        byte[] msg = {9, 8, 7};
+        byte[] sig = sign(FIPS, "SLH-DSA-SHA2-128F", kp.getPrivate(), msg);
+        Assertions.assertTrue(verify(BC, "SLH-DSA-SHA2-128F", bcPublic(kp.getPublic()), msg, sig));
+    }
+
+    /** BouncyCastle's own key objects sign and verify through the JSLFIPS Signature, translated by its KeyFactory. */
+    @Test
+    public void bouncyCastleKeysSignAndVerifyThroughTheFipsSignature() throws Exception
+    {
+        assumeSlhDsa();
+        for (String set : FAST_SETS)
+        {
+            KeyPair bcKp = KeyPairGenerator.getInstance(set, BC).generateKeyPair();
+            byte[] msg = {3, 1, 4};
+            byte[] ours = sign(FIPS, set, bcKp.getPrivate(), msg);
+            Assertions.assertTrue(verify(BC, set, bcKp.getPublic(), msg, ours), set);
+            Assertions.assertTrue(verify(FIPS, set, bcKp.getPublic(), msg, sign(BC, set, bcKp.getPrivate(), msg)), set);
+        }
+    }
+
+    /** A key holding only its public half is refused at the JSLFIPS signing init, BouncyCastle's half beside it. */
+    @Test
+    public void aPublicOnlyKeyIsRefusedAtSigningInitOnBothSides() throws Exception
+    {
+        assumeSlhDsa();
+        for (String set : new String[]{"SLH-DSA-SHA2-128F", "SLH-DSA-SHA2-192F", "SLH-DSA-SHA2-256F"})
+        {
+            PublicKey publicOnly = KeyFactory.getInstance(set, FIPS)
+                    .generatePublic(new X509EncodedKeySpec(keyPair(set).getPublic().getEncoded()));
+            PrivateKey proxy = new SLHDSAProxyPrivateKey(publicOnly);
+            InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> Signature.getInstance(set, FIPS).initSign(proxy));
+            Assertions.assertEquals("key has no private half", e.getMessage(), set);
+            e = Assertions.assertThrows(InvalidKeyException.class, () -> bcSignature(set).initSign(proxy));
+            Assertions.assertEquals("unknown private key passed to SLH-DSA", e.getMessage(), set);
+        }
+    }
+
+    /**
+     * The module draws its own randomness, so two alike-seeded SecureRandom sources give different hedged
+     * signatures under JSLFIPS: a property of the FIPS lib ctx, pinned on every module that serves the family.
+     */
+    @Test
+    public void theCallersSourceIsNotDrawnFromUnderJslFips() throws Exception
+    {
+        assumeSlhDsa();
+        String set = "SLH-DSA-SHA2-128F";
+        KeyPair kp = keyPair(set);
+        byte[] msg = {4, 5, 6};
+        byte[][] sigs = new byte[2][];
+        for (int i = 0; i < 2; i++)
+        {
+            SecureRandom alike = SecureRandom.getInstance("SHA1PRNG");
+            alike.setSeed(42L);
+            Signature s = Signature.getInstance(set, FIPS);
+            s.initSign(kp.getPrivate(), alike);
+            s.update(msg);
+            sigs[i] = s.sign();
+        }
+        Assertions.assertFalse(Arrays.areEqual(sigs[0], sigs[1]), "JSLFIPS drew its hedge from the caller's source");
     }
 }

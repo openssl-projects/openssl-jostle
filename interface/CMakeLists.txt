@@ -232,7 +232,7 @@ set(FIPS_FFM_GLUE_SOURCES
         fips/ffm/mldsa_ni_fips_ffm.c
         fips/ffm/mlkem_ni_fips_ffm.c
         fips/ffm/mlxkem_ni_fips_ffm.c
-        fips/ffm/slh_dsa_ni_fips_ffm.c
+        fips/ffm/slhdsa_ni_fips_ffm.c
 )
 
 
@@ -390,7 +390,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin" AND (${BC_ARCH} STREQUAL "arm64" OR $
             nonfips/ffm/mldsa_ni_ffm.c
             nonfips/ffm/mlkem_ni_ffm.c
             nonfips/ffm/mlxkem_ni_ffm.c
-            nonfips/ffm/slh_dsa_ni_ffm.c
+            nonfips/ffm/slhdsa_ni_ffm.c
             nonfips/ffm/asn1_ni_ffm.c
             nonfips/ffm/ks_ffm.c
             nonfips/util/jo_assert.h
@@ -673,7 +673,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND
             nonfips/ffm/ccm_ni_ffm.c
             nonfips/ffm/spec_ni_ffm.c
             nonfips/ffm/mldsa_ni_ffm.c
-            nonfips/ffm/slh_dsa_ni_ffm.c
+            nonfips/ffm/slhdsa_ni_ffm.c
             nonfips/ffm/mlkem_ni_ffm.c
             nonfips/ffm/mlxkem_ni_ffm.c
             nonfips/ffm/asn1_ni_ffm.c
@@ -937,7 +937,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
             nonfips/ffm/mldsa_ni_ffm.c
             nonfips/ffm/mlkem_ni_ffm.c
             nonfips/ffm/mlxkem_ni_ffm.c
-            nonfips/ffm/slh_dsa_ni_ffm.c
+            nonfips/ffm/slhdsa_ni_ffm.c
             nonfips/ffm/asn1_ni_ffm.c
             nonfips/ffm/md_ffm.c
             nonfips/ffm/rand_ffm.c

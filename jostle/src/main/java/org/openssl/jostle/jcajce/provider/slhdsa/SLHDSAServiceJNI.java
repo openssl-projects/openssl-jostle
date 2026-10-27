@@ -17,6 +17,13 @@ import org.openssl.jostle.rand.RandSource;
 public class SLHDSAServiceJNI implements SLHDSAServiceNI
 {
     private final NativeLengthCache<OSSLKeyType> lengthCache = new NativeLengthCache<OSSLKeyType>();
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
+    }
 
     @Override
     public NativeLengthCache<OSSLKeyType> lengthCache()
@@ -55,7 +62,7 @@ public class SLHDSAServiceJNI implements SLHDSAServiceNI
 
 
     @Override
-    public native long ni_sign(long ref, byte[] sig, int offset, RandSource randSource);
+    public native int ni_sign(long ref, byte[] sig, int offset, RandSource randSource);
 
     @Override
     public native int ni_verify(long reference, byte[] sigBytes, int len);

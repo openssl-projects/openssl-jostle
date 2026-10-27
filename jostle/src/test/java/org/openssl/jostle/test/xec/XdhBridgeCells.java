@@ -16,11 +16,9 @@ import org.junit.jupiter.api.Assertions;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.xec.XECServiceNI;
-import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
-import org.openssl.jostle.util.asn1.ASN1Encoder;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 
 import java.math.BigInteger;
@@ -86,21 +84,32 @@ public final class XdhBridgeCells
         return out;
     }
 
-    private PKEYKeySpec privateKey(byte[] raw)
+    // Keys are raw handles the caller disposes in a finally: no collected holder can free one during a call.
+    private long privateKey(byte[] raw)
     {
         byte[] p8 = cat(raw.length == 32 ? P8_X25519 : P8_X448, raw);
-        return ASN1Encoder.fromPrivateKeyInfo(asn1, spec, p8, 0, p8.length, null);
+        return asn1.fromPrivateKeyInfo(p8, 0, p8.length);
     }
 
-    private PKEYKeySpec publicKey(byte[] raw)
+    private long publicKey(byte[] raw)
     {
         byte[] enc = cat(raw.length == 32 ? SPKI_X25519 : SPKI_X448, raw);
-        return ASN1Encoder.fromSubjectPublicKeyInfo(asn1, spec, enc, 0, enc.length, null);
+        return asn1.fromPublicKeyInfo(enc, 0, enc.length);
     }
 
-    private byte[] rawPublic(PKEYKeySpec key)
+    private byte[] rawPublic(long key)
     {
-        byte[] enc = ASN1Encoder.asSubjectPublicKeyInfo(asn1, key);
+        long ref = asn1.allocate();
+        byte[] enc;
+        try
+        {
+            enc = new byte[(int) asn1.encodePublicKey(ref, key)];
+            asn1.getData(ref, enc);
+        }
+        finally
+        {
+            asn1.dispose(ref);
+        }
         int n = enc.length == SPKI_X25519.length + 32 ? 32 : 56;
         byte[] raw = new byte[n];
         System.arraycopy(enc, enc.length - n, raw, 0, n);
@@ -135,8 +144,17 @@ public final class XdhBridgeCells
     private byte[] scalarMult(byte[] k, byte[] u)
     {
         byte[] out = new byte[k.length];
-        int w = derive(privateKey(k).getReference(), publicKey(u).getReference(), out);
-        Assertions.assertEquals(k.length, w);
+        long priv = privateKey(k);
+        long pub = publicKey(u);
+        try
+        {
+            Assertions.assertEquals(k.length, derive(priv, pub, out));
+        }
+        finally
+        {
+            spec.dispose(pub);
+            spec.dispose(priv);
+        }
         return out;
     }
 
@@ -191,18 +209,19 @@ public final class XdhBridgeCells
         {
             for (byte[] raw : peers)
             {
-                PKEYKeySpec peer = publicKey(raw);
+                long peer = publicKey(raw);
                 long kex = ec.allocateKex();
                 try
                 {
                     Assertions.assertEquals(0, ec.ni_kexInit(kex, raw.length == 32 ? a25 : a448, RND));
-                    Assertions.assertEquals(0, ec.ni_kexSetPeer(kex, peer.getReference(), RND));
+                    Assertions.assertEquals(0, ec.ni_kexSetPeer(kex, peer, RND));
                     Assertions.assertEquals(code(ErrorCode.JO_OPENSSL_ERROR),
                             ec.ni_kexDerive(kex, new byte[raw.length], 0, RND), Hex.toHexString(raw));
                 }
                 finally
                 {
                     ec.disposeKex(kex);
+                    spec.dispose(peer);
                 }
             }
         }
@@ -285,18 +304,28 @@ public final class XdhBridgeCells
         }
         for (String[] v : Rfc7748Vectors.DIFFIE_HELLMAN)
         {
-            PKEYKeySpec alice = privateKey(Hex.decode(v[1]));
-            PKEYKeySpec bob = privateKey(Hex.decode(v[3]));
-            Assertions.assertEquals(v[2], Hex.toHexString(rawPublic(alice)), v[0] + " Alice public");
-            Assertions.assertEquals(v[4], Hex.toHexString(rawPublic(bob)), v[0] + " Bob public");
-            byte[] k1 = new byte[v[5].length() / 2];
-            byte[] k2 = new byte[k1.length];
-            PKEYKeySpec bobPublic = publicKey(Hex.decode(v[4]));
-            PKEYKeySpec alicePublic = publicKey(Hex.decode(v[2]));
-            Assertions.assertEquals(k1.length, derive(alice.getReference(), bobPublic.getReference(), k1));
-            Assertions.assertEquals(k2.length, derive(bob.getReference(), alicePublic.getReference(), k2));
-            Assertions.assertEquals(v[5], Hex.toHexString(k1), v[0] + " Alice shared");
-            Assertions.assertEquals(v[5], Hex.toHexString(k2), v[0] + " Bob shared");
+            long alice = privateKey(Hex.decode(v[1]));
+            long bob = privateKey(Hex.decode(v[3]));
+            long bobPublic = publicKey(Hex.decode(v[4]));
+            long alicePublic = publicKey(Hex.decode(v[2]));
+            try
+            {
+                Assertions.assertEquals(v[2], Hex.toHexString(rawPublic(alice)), v[0] + " Alice public");
+                Assertions.assertEquals(v[4], Hex.toHexString(rawPublic(bob)), v[0] + " Bob public");
+                byte[] k1 = new byte[v[5].length() / 2];
+                byte[] k2 = new byte[k1.length];
+                Assertions.assertEquals(k1.length, derive(alice, bobPublic, k1));
+                Assertions.assertEquals(k2.length, derive(bob, alicePublic, k2));
+                Assertions.assertEquals(v[5], Hex.toHexString(k1), v[0] + " Alice shared");
+                Assertions.assertEquals(v[5], Hex.toHexString(k2), v[0] + " Bob shared");
+            }
+            finally
+            {
+                spec.dispose(alicePublic);
+                spec.dispose(bobPublic);
+                spec.dispose(bob);
+                spec.dispose(alice);
+            }
         }
     }
 }

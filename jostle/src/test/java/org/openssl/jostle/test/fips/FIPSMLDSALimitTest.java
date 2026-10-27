@@ -754,7 +754,7 @@ public class FIPSMLDSALimitTest
     public void bridge_wrongKindHandlesAreRefused()
     {
         MLDSABridgeCells.wrongKindHandlesAreRefused(ni, specNI, FIPSNISelector.RSAServiceNI,
-                FIPSNISelector.MDServiceNI);
+                FIPSNISelector.MDServiceNI, FIPSNISelector.SLHDSAServiceNI);
     }
 
     @Test

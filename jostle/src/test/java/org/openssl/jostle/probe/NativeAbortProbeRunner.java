@@ -81,6 +81,7 @@ public final class NativeAbortProbeRunner
     // JO_MLDSA_CTX_WRONG_KIND.
     private static final int MLDSA_CTX_WRONG_KIND = -229;
     private static final int KS_MLDSA_44 = OSSLKeyType.ML_DSA_44.getKsType();
+    private static final int KS_SLHDSA_128F = OSSLKeyType.SLH_DSA_SHA2_128f.getKsType();
     private static final byte[] RSA_F4 = {0x01, 0x00, 0x01};
     private static final String[] DH_NULL_ERR_CELLS = {"dh-allocatekex-null-err", "dh-bygroup-null-err",
             "dh-paramgen-null-err", "dh-makeparams-null-err", "dh-generate-null-err", "dh-makeprivate-null-err",
@@ -239,8 +240,13 @@ public final class NativeAbortProbeRunner
         jniAbortFfmThrowsRow(rows, p + "mldsa-generate-null-err", "_err != NULL", jniDir + "mldsa_ni_jni.c");
         jniAbortFfmThrowsRow(rows, p + "mldsa-generate-seed-null-err", "_err != NULL", jniDir + "mldsa_ni_jni.c");
         controlRow(rows, p + "mldsa-control");
-        // The SLH-DSA context is untagged until its own row; a crash here is a finding, so it runs only here.
+        // Both families are tagged: the cross-family cells run in-suite, this row stays as a control.
         controlRow(rows, p + "mldsa-slhdsa-ctx-as-signer");
+
+        jniAbortFfmThrowsRow(rows, p + "slhdsa-allocate-null-err", "_err != NULL", jniDir + "slhdsa_ni_jni.c");
+        jniAbortFfmThrowsRow(rows, p + "slhdsa-generate-null-err", "_err != NULL", jniDir + "slhdsa_ni_jni.c");
+        jniAbortFfmThrowsRow(rows, p + "slhdsa-generate-seed-null-err", "_err != NULL", jniDir + "slhdsa_ni_jni.c");
+        controlRow(rows, p + "slhdsa-control");
 
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
@@ -618,6 +624,24 @@ public final class NativeAbortProbeRunner
             mldsa.ni_disposeSigner(slh);
             slhdsa.ni_disposeSigner(slh);
             report(ok, "mldsa entries on an SLH-DSA ctx rc=" + Arrays.toString(rc));
+        }
+        else if ("slhdsa-allocate-null-err".equals(c))
+        {
+            slhdsa.ni_allocateSigner(null);
+        }
+        else if ("slhdsa-generate-null-err".equals(c))
+        {
+            slhdsa.ni_generateKeyPair(KS_SLHDSA_128F, null, RND);
+        }
+        else if ("slhdsa-generate-seed-null-err".equals(c))
+        {
+            slhdsa.ni_generateKeyPair(KS_SLHDSA_128F, null, new byte[48], 48, RND);
+        }
+        else if ("slhdsa-control".equals(c))
+        {
+            int[] err = new int[1];
+            long ref = slhdsa.ni_allocateSigner(err);
+            report(ref != 0 && err[0] == 0, "slhdsa ref=" + (ref != 0) + " err=" + err[0]);
         }
         else if ("ks-null-err".equals(c))
         {

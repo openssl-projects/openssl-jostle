@@ -127,6 +127,8 @@ public interface DefaultServiceNI
                 throw new IllegalArgumentException("handle is not an RSA-PKCS1 cipher context");
             case JO_MLDSA_CTX_WRONG_KIND:
                 throw new IllegalArgumentException("handle is not an ML-DSA signer context");
+            case JO_SLHDSA_CTX_WRONG_KIND:
+                throw new IllegalArgumentException("handle is not an SLH-DSA signer context");
             case JO_KEY_HAS_NO_PRIVATE_HALF:
                 throw new IllegalArgumentException("key has no private half");
             case JO_EC_DIGEST_NOT_SUPPORTED:

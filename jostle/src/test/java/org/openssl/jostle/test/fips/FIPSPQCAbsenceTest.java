@@ -139,7 +139,7 @@ public class FIPSPQCAbsenceTest
                         {"KeyPairGenerator", "SLHDSA"}, {"KeyPairGenerator", "SLH-DSA-SHA2-128S"},
                         {"KeyFactory", "SLHDSA"}, {"KeyFactory", "SLH-DSA-SHA2-128S"},
                         {"Signature", "SLHDSA"}, {"Signature", "SLH-DSA-PURE"},
-                        {"Signature", "SLH-DSA-NONE"}, {"Signature", "SLH-DSA-SHA2-128S"},
+                        {"Signature", "DET-SLH-DSA-PURE"}, {"Signature", "SLH-DSA-SHA2-128S"},
                 });
     }
 

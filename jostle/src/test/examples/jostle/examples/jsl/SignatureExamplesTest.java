@@ -285,9 +285,8 @@ public class SignatureExamplesTest
     }
 
     /**
-     * The SLH-DSA variants: the generic `SLHDSA` and `SLH-DSA-PURE` names take a key of any set,
-     * `SLH-DSA-NONE` signs a message the caller has already reduced itself, and the `DET-` names sign
-     * deterministically (the same signature every time) rather than with fresh randomness.
+     * The SLH-DSA variants: the generic `SLHDSA` and `SLH-DSA-PURE` names take a key of any set, and the `DET-`
+     * name signs deterministically (the same signature every time) rather than with fresh randomness.
      */
     @Test
     public void slhDsaVariants()
@@ -295,8 +294,7 @@ public class SignatureExamplesTest
     {
         byte[] msg = "attack at dawn".getBytes(StandardCharsets.US_ASCII);
         KeyPair kp = KeyPairGenerator.getInstance("SLH-DSA-SHA2-128F", "JSL").generateKeyPair();
-        for (String name : new String[]{"SLHDSA", "SLH-DSA-PURE", "SLH-DSA-NONE", "DET-SLH-DSA-PURE",
-                "DET-SLH-DSA-NONE"})
+        for (String name : new String[]{"SLHDSA", "SLH-DSA-PURE", "DET-SLH-DSA-PURE"})
         {
             Signature s = Signature.getInstance(name, "JSL");
             s.initSign(kp.getPrivate());

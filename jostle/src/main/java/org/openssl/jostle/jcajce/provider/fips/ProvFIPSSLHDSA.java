@@ -21,6 +21,8 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * SLH-DSA registrations for the FIPS provider, mirroring ProvSLHDSA's surface
@@ -49,6 +51,7 @@ import java.util.Map;
  */
 class ProvFIPSSLHDSA
 {
+    private static final Logger LOG = Logger.getLogger(ProvFIPSSLHDSA.class.getName());
 
     /** A KeyPairGenerator bound to the FIPS interface library AND to {@code provider}. */
     private static SLHDSAKeyPairGenerator fipsKeyPairGenerator(JostleFIPSProvider provider, Object algorithm)
@@ -57,13 +60,31 @@ class ProvFIPSSLHDSA
                 FIPSNISelector.Asn1NI, algorithm, provider);
     }
 
+    /** A Signature bound to the FIPS interface library and, through its KeyFactory, to {@code provider}. */
+    private static SLHDSASignatureSpi fipsSignature(JostleFIPSProvider provider, OSSLKeyType forcedType,
+                                                   SLHDSASignatureSpi.MessageEncoding encoding,
+                                                   SLHDSASignatureSpi.Deterministic deterministic)
+    {
+        return new SLHDSASignatureSpi(FIPSNISelector.SLHDSAServiceNI, new SLHDSAKeyFactorySpi(
+                FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, FIPSNISelector.Asn1NI, OSSLKeyType.NONE,
+                provider), forcedType, encoding, deterministic);
+    }
+
     public void configure(final JostleFIPSProvider provider)
     {
         if (!FIPSCapabilities.canFetchKeyMgmt("SLH-DSA-SHA2-128S"))
         {
             return;
         }
-        configureSLHDSA(provider);
+        // Fail soft: a registration failure must not abort JostleFIPSProvider's static initialisation.
+        try
+        {
+            configureSLHDSA(provider);
+        }
+        catch (Throwable t)
+        {
+            LOG.log(Level.WARNING, "SLH-DSA provider registration failed; SLH-DSA algorithms will be unavailable", t);
+        }
     }
 
 
@@ -105,19 +126,28 @@ class ProvFIPSSLHDSA
 
         final Map<String, String> slhdsaSigAttr = new HashMap<String, String>();
 
-        provider.addAlgorithmImplementation("Signature", "SLHDSA", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, OSSLKeyType.NONE, SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC, provider));
+        provider.addAlgorithmImplementation("Signature", "SLHDSA", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr,
+                (arg) -> fipsSignature(provider, OSSLKeyType.NONE,
+                        SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
         provider.addAlias("Signature", "SLHDSA", "SLH-DSA");
 
-        provider.addAlgorithmImplementation("Signature", "SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, OSSLKeyType.NONE, SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC, provider));
-        provider.addAlgorithmImplementation("Signature", "SLH-DSA-NONE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, OSSLKeyType.NONE, SLHDSASignatureSpi.MessageEncoding.NONE, SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC, provider));
+        provider.addAlgorithmImplementation("Signature", "SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(),
+                slhdsaSigAttr,
+                (arg) -> fipsSignature(provider, OSSLKeyType.NONE,
+                        SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
 
-        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, OSSLKeyType.NONE, SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.DETERMINISTIC, provider));
-        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-NONE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, OSSLKeyType.NONE, SLHDSASignatureSpi.MessageEncoding.NONE, SLHDSASignatureSpi.Deterministic.DETERMINISTIC, provider));
+        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(),
+                slhdsaSigAttr,
+                (arg) -> fipsSignature(provider, OSSLKeyType.NONE,
+                        SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.DETERMINISTIC));
 
 
         for (String algName : algNames)
         {
-            provider.addAlgorithmImplementation("Signature", algName, SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> new SLHDSASignatureSpi(FIPSNISelector.SLHDSAServiceNI, FIPSNISelector.SpecNI, SLHDSAParameterSpec.fromName(algName).getKeyType(), SLHDSASignatureSpi.MessageEncoding.PURE, SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC, provider));
+            provider.addAlgorithmImplementation("Signature", algName, SLHDSASignatureSpi.class.getName(), slhdsaSigAttr,
+                    (arg) -> fipsSignature(provider, SLHDSAParameterSpec.fromName(algName).getKeyType(),
+                            SLHDSASignatureSpi.MessageEncoding.PURE,
+                            SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
         }
 
         // SPKI / signature-algorithm OID aliases (NIST CSOR id-slh-dsa-*, RFC 9814),

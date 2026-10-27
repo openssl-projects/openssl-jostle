@@ -21,21 +21,33 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
+import org.openssl.jostle.jcajce.interfaces.SLHDSAKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
+import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSASignatureSpi;
+import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
+import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.SLHDSAProxyPrivateKey;
 
+import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.Signature;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
@@ -64,7 +76,7 @@ import java.util.TreeSet;
  * <li>{@code DET-SLH-DSA-PURE} has no BC JCE name. BC's JCE signer is itself
  * DETERMINISTIC, so the reference is that same service and the comparison is
  * BYTE EQUALITY.</li>
- * <li>{@code SLH-DSA-NONE} and {@code DET-SLH-DSA-NONE} sign with no message
+ * <li>The NI's message encoding 0 (no JCA name) signs with no message
  * encoding — no domain separator, no context octet — which BC exposes only as
  * the protected {@code internalGenerateSignature} /
  * {@code internalVerifySignature} on its lightweight
@@ -144,6 +156,56 @@ public class SLHDSAAgreementTest
     /** Low deliberately: the twelve sets include six "S" variants that sign in seconds. */
     private static final int TRIALS = 3;
 
+    private static SLHDSAParameterSpec[] joSpec = new SLHDSAParameterSpec[]{
+            SLHDSAParameterSpec.slh_dsa_sha2_128f,
+            SLHDSAParameterSpec.slh_dsa_sha2_128s,
+            SLHDSAParameterSpec.slh_dsa_sha2_192f,
+            SLHDSAParameterSpec.slh_dsa_sha2_192s,
+            SLHDSAParameterSpec.slh_dsa_sha2_256f,
+            SLHDSAParameterSpec.slh_dsa_sha2_256s,
+
+            SLHDSAParameterSpec.slh_dsa_shake_128f,
+            SLHDSAParameterSpec.slh_dsa_shake_128s,
+            SLHDSAParameterSpec.slh_dsa_shake_192f,
+            SLHDSAParameterSpec.slh_dsa_shake_192s,
+            SLHDSAParameterSpec.slh_dsa_shake_256f,
+            SLHDSAParameterSpec.slh_dsa_shake_256s,
+
+    };
+
+    // SLHDSAParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
+    private static org.bouncycastle.jcajce.spec.SLHDSAParameterSpec[] bcSpec =
+            new org.bouncycastle.jcajce.spec.SLHDSAParameterSpec[]{
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_128f,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_128s,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_192f,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_192s,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_256f,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_sha2_256s,
+
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_shake_128f,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_shake_128s,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_shake_192f,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_shake_192s,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_shake_256f,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec.slh_dsa_shake_256s,
+    };
+
+    private static Map<org.bouncycastle.jcajce.spec.SLHDSAParameterSpec, SLHDSAParameterSpec> bcToJostle =
+            new HashMap<>();
+
+    private static Map<SLHDSAParameterSpec, org.bouncycastle.jcajce.spec.SLHDSAParameterSpec> jostleToBc =
+            new HashMap<>();
+
+    static
+    {
+        for (int i = 0; i < joSpec.length; i++)
+        {
+            bcToJostle.put(bcSpec[i], joSpec[i]);
+            jostleToBc.put(joSpec[i], bcSpec[i]);
+        }
+    }
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /** One keypair per parameter set, shared across cells; keygen is not the subject. */
@@ -152,7 +214,7 @@ public class SLHDSAAgreementTest
     /**
      * BouncyCastle's raw (no message-encoding) SLH-DSA, which 1.86 exposes only
      * as protected members. The only independent witness for
-     * {@code SLH-DSA-NONE} and {@code DET-SLH-DSA-NONE}.
+     * the NI's message encoding 0.
      */
     static final class RawSlhDsaSigner extends SLHDSASigner
     {
@@ -284,7 +346,7 @@ public class SLHDSAAgreementTest
     private static final SortedSet<String> NO_BC_JCE_NAME =
             // Arrays is qualified where the JDK's is meant: jostle's of that name is imported
             Collections.unmodifiableSortedSet(new TreeSet<String>(java.util.Arrays.asList(
-                    "SLH-DSA-NONE", "DET-SLH-DSA-PURE", "DET-SLH-DSA-NONE")));
+                    "DET-SLH-DSA-PURE")));
 
     private static byte[] sign(String alg, PrivateKey key, byte[] msg) throws Exception
     {
@@ -633,14 +695,11 @@ public class SLHDSAAgreementTest
     }
 
     /**
-     * The two {@code -NONE} names sign with no message encoding, which is the
-     * form BouncyCastle keeps behind protected members.
-     * <p>
-     * {@code DET-SLH-DSA-NONE} is compared BYTE FOR BYTE against BC's raw
-     * signer driven with {@code opt_rand} = PK.seed — FIPS 205 Algorithm 19
-     * line 2. {@code SLH-DSA-NONE} is hedged, so it is cross-verified instead.
-     * Both directions are driven. A {@code -NONE} signature must NOT satisfy
-     * BC's JCE verifier, which applies the pure message encoding.
+     * The NI's message encoding 0 signs with no message encoding, the FIPS 205 internal form BouncyCastle keeps
+     * behind protected members; no JCA name serves it. The deterministic form is compared byte for byte against
+     * BC's raw signer driven with {@code opt_rand} = PK.seed (FIPS 205 Algorithm 19 line 2); the hedged form is
+     * cross-verified. Both directions are driven. A no-encoding signature must not satisfy BC's JCE verifier, which
+     * applies the pure message encoding.
      */
     @Test
     public void theNoEncodingVariantsAgreeWithBouncyCastlesRawSigner() throws Exception
@@ -658,21 +717,21 @@ public class SLHDSAAgreementTest
                 byte[] msg = new byte[1 + sr.nextInt(512)];
                 sr.nextBytes(msg);
 
-                byte[] hedged = sign("SLH-DSA-NONE", kp.getPrivate(), msg);
+                byte[] hedged = niSign(kp.getPrivate(), msg, false);
                 RawSlhDsaSigner rawVerify = new RawSlhDsaSigner();
                 rawVerify.init(false, bcPub);
                 Assertions.assertTrue(rawVerify.verifyRaw(msg, hedged),
-                        set + ": BouncyCastle's raw verifier rejected SLH-DSA-NONE");
-                Assertions.assertFalse(Arrays.areEqual(hedged, sign("SLH-DSA-NONE", kp.getPrivate(), msg)),
-                        set + ": SLH-DSA-NONE is deterministic — it should be hedged");
+                        set + ": BouncyCastle's raw verifier rejected the hedged no-encoding form");
+                Assertions.assertFalse(Arrays.areEqual(hedged, niSign(kp.getPrivate(), msg, false)),
+                        set + ": the hedged no-encoding form is deterministic");
 
-                byte[] det = sign("DET-SLH-DSA-NONE", kp.getPrivate(), msg);
+                byte[] det = niSign(kp.getPrivate(), msg, true);
                 RawSlhDsaSigner rawSign = new RawSlhDsaSigner();
                 rawSign.init(true, bcPriv);
                 Assertions.assertArrayEquals(rawSign.signRaw(msg, bcPriv.getPublicSeed()), det,
-                        set + ": DET-SLH-DSA-NONE differs from BouncyCastle's raw deterministic form");
-                Assertions.assertArrayEquals(det, sign("DET-SLH-DSA-NONE", kp.getPrivate(), msg),
-                        set + ": DET-SLH-DSA-NONE is not deterministic");
+                        set + ": the deterministic no-encoding form differs from BouncyCastle's raw form");
+                Assertions.assertArrayEquals(det, niSign(kp.getPrivate(), msg, true),
+                        set + ": the deterministic no-encoding form is not deterministic");
 
                 // The message encoding is load-bearing: BC's JCE verifier
                 // applies it, so a no-encoding signature must NOT satisfy it.
@@ -689,10 +748,10 @@ public class SLHDSAAgreementTest
                 RawSlhDsaSigner rawHedged = new RawSlhDsaSigner();
                 rawHedged.init(true, bcPriv);
                 byte[] bcRaw = rawHedged.signRaw(msg, optRand);
-                Assertions.assertTrue(verify("SLH-DSA-NONE", kp.getPublic(), msg, bcRaw),
-                        set + ": SLH-DSA-NONE rejected a BouncyCastle raw signature");
-                Assertions.assertTrue(verify("DET-SLH-DSA-NONE", kp.getPublic(), msg, bcRaw),
-                        set + ": DET-SLH-DSA-NONE rejected a BouncyCastle raw signature");
+                Assertions.assertTrue(niVerify(kp.getPublic(), msg, bcRaw, false),
+                        set + ": the hedged no-encoding verifier rejected a BouncyCastle raw signature");
+                Assertions.assertTrue(niVerify(kp.getPublic(), msg, bcRaw, true),
+                        set + ": the deterministic no-encoding verifier rejected a BouncyCastle raw signature");
 
                 byte[] tampered = Arrays.clone(msg);
                 tampered[sr.nextInt(tampered.length)] ^= (byte) (1 + sr.nextInt(255));
@@ -700,9 +759,65 @@ public class SLHDSAAgreementTest
                 rawTampered.init(false, bcPub);
                 Assertions.assertFalse(rawTampered.verifyRaw(tampered, det),
                         set + ": BouncyCastle's raw verifier accepted a tampered message");
-                Assertions.assertFalse(verify("SLH-DSA-NONE", kp.getPublic(), tampered, bcRaw),
-                        set + ": SLH-DSA-NONE accepted a signature over a tampered message");
+                Assertions.assertFalse(niVerify(kp.getPublic(), tampered, bcRaw, false),
+                        set + ": the no-encoding verifier accepted a signature over a tampered message");
             }
+        }
+    }
+
+    /** The JCA serves neither of the internal form's former names. */
+    @Test
+    public void theNoEncodingFormHasNoJcaName()
+    {
+        for (String name : new String[]{"SLH-DSA-NONE", "DET-SLH-DSA-NONE"})
+        {
+            Assertions.assertThrows(NoSuchAlgorithmException.class, () -> Signature.getInstance(name, JSL), name);
+        }
+    }
+
+    private static final int NO_ENCODING = SLHDSASignatureSpi.MessageEncoding.NONE.ordinal();
+
+    /** A signature in the internal form through the NI; the key stays reachable for the native session. */
+    private static byte[] niSign(PrivateKey key, byte[] msg, boolean deterministic)
+    {
+        SLHDSAServiceNI ni = TestNISelector.getSLHDSANI();
+        long ref = ni.allocateSigner();
+        try
+        {
+            synchronized (key)
+            {
+                ni.initSign(ref, ((OSSLKey) key).getSpec().getReference(), new byte[0], 0, NO_ENCODING,
+                        deterministic ? 1 : 0, TestUtil.RNDSrc);
+                ni.update(ref, msg, 0, msg.length);
+                byte[] sig = new byte[ni.sign(ref, null, 0, TestUtil.RNDSrc)];
+                Assertions.assertEquals(sig.length, ni.sign(ref, sig, 0, TestUtil.RNDSrc));
+                return sig;
+            }
+        }
+        finally
+        {
+            ni.disposeSigner(ref);
+        }
+    }
+
+    /** A verification in the internal form through the NI. */
+    private static boolean niVerify(PublicKey key, byte[] msg, byte[] sig, boolean deterministic)
+    {
+        SLHDSAServiceNI ni = TestNISelector.getSLHDSANI();
+        long ref = ni.allocateSigner();
+        try
+        {
+            synchronized (key)
+            {
+                ni.initVerify(ref, ((OSSLKey) key).getSpec().getReference(), new byte[0], 0, NO_ENCODING,
+                        deterministic ? 1 : 0);
+                ni.update(ref, msg, 0, msg.length);
+                return ni.verify(ref, sig, sig.length) == 0;
+            }
+        }
+        finally
+        {
+            ni.disposeSigner(ref);
         }
     }
 
@@ -846,5 +961,542 @@ public class SLHDSAAgreementTest
             Assertions.assertTrue(bcVerify(set, bcPublic(kp.getPublic()), msg, sig),
                     set + ": a signature made under the OID alias did not verify at BouncyCastle");
         }
+    }
+
+    // -----------------------------------------------------------------
+    // Divergences and contracts, both halves pinned
+    // -----------------------------------------------------------------
+
+    /** Every parameter set, in its own SLH-DSA name and in the umbrella. */
+    private static final String[] ALL_SETS = {
+            "SLH-DSA-SHA2-128S", "SLH-DSA-SHA2-128F", "SLH-DSA-SHA2-192S", "SLH-DSA-SHA2-192F",
+            "SLH-DSA-SHA2-256S", "SLH-DSA-SHA2-256F", "SLH-DSA-SHAKE-128S", "SLH-DSA-SHAKE-128F",
+            "SLH-DSA-SHAKE-192S", "SLH-DSA-SHAKE-192F", "SLH-DSA-SHAKE-256S", "SLH-DSA-SHAKE-256F"};
+
+    /**
+     * BouncyCastle's own key objects sign and verify through our Signature: a foreign key is re-encoded and decoded
+     * through our KeyFactory. Every set, each signature checked by the other provider.
+     */
+    @Test
+    public void bouncyCastleKeysSignAndVerifyThroughOurSignature() throws Exception
+    {
+        SecureRandom sr = seededRandom("bouncyCastleKeysSignAndVerifyThroughOurSignature");
+        for (String set : ALL_SETS)
+        {
+            KeyPair bcKp = KeyPairGenerator.getInstance(set, BC).generateKeyPair();
+            byte[] msg = new byte[1 + sr.nextInt(64)];
+            sr.nextBytes(msg);
+            byte[] ours = sign(set, bcKp.getPrivate(), msg);
+            Assertions.assertTrue(bcVerify(set, bcKp.getPublic(), msg, ours), set + ": BC refused our signature");
+            Assertions.assertTrue(verify(set, bcKp.getPublic(), msg, bcSign(set, bcKp.getPrivate(), msg)),
+                    set + ": we refused BC's signature under BC's own public key");
+        }
+    }
+
+    /** A key with no encoding, and a key of another family, are refused at init naming the class, never the key. */
+    @Test
+    public void untranslatableKeysAreRefusedNamingTheirClass() throws Exception
+    {
+        PrivateKey noEncoding = new PrivateKey()
+        {
+            @Override
+            public String getAlgorithm()
+            {
+                return "SLH-DSA";
+            }
+
+            @Override
+            public String getFormat()
+            {
+                return null;
+            }
+
+            @Override
+            public byte[] getEncoded()
+            {
+                return null;
+            }
+        };
+        InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                () -> Signature.getInstance("SLH-DSA", JSL).initSign(noEncoding));
+        Assertions.assertEquals(noEncoding.getClass().getName() + " has no encoded form", e.getMessage());
+
+        PublicKey mldsa = KeyPairGenerator.getInstance("ML-DSA-44", JSL).generateKeyPair().getPublic();
+        e = Assertions.assertThrows(InvalidKeyException.class,
+                () -> Signature.getInstance("SLH-DSA", JSL).initVerify(mldsa));
+        Assertions.assertEquals("unable to translate " + mldsa.getClass().getName() + " to an SLH-DSA key",
+                e.getMessage());
+    }
+
+    /**
+     * A key holding only its public half signs nothing: refused at init on both providers, each in its own words,
+     * in every category size.
+     */
+    @Test
+    public void aPublicOnlyKeyIsRefusedAtSigningInitOnBothSides() throws Exception
+    {
+        for (String set : new String[]{"SLH-DSA-SHA2-128F", "SLH-DSA-SHA2-192F", "SLH-DSA-SHA2-256F"})
+        {
+            PublicKey publicOnly = KeyFactory.getInstance(set, JSL)
+                    .generatePublic(new X509EncodedKeySpec(keyPair(set).getPublic().getEncoded()));
+            PrivateKey proxy = new SLHDSAProxyPrivateKey(publicOnly);
+            InvalidKeyException e = Assertions.assertThrows(InvalidKeyException.class,
+                    () -> Signature.getInstance(set, JSL).initSign(proxy));
+            Assertions.assertEquals("key has no private half", e.getMessage(), set);
+            e = Assertions.assertThrows(InvalidKeyException.class, () -> bcSignature(set).initSign(proxy));
+            Assertions.assertEquals("unknown private key passed to SLH-DSA", e.getMessage(), set);
+        }
+    }
+
+    /**
+     * The umbrella generator without initialize() generates SLH-DSA-SHA2-128F on both providers, and the keys verify
+     * across them; initialize(int) is refused on both, each with its own message.
+     */
+    @Test
+    public void theUmbrellaGeneratorDefaultsTo128FAndRefusesAnIntegerSize() throws Exception
+    {
+        KeyPair ours = KeyPairGenerator.getInstance("SLH-DSA", JSL).generateKeyPair();
+        KeyPair theirs = KeyPairGenerator.getInstance("SLH-DSA", BC).generateKeyPair();
+        Assertions.assertEquals("SLH-DSA-SHA2-128F", ((SLHDSAKey) ours.getPublic()).getParameterSpec().getName());
+        // SLHDSAKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
+        Assertions.assertEquals("SLH-DSA-SHA2-128F", ((org.bouncycastle.jcajce.interfaces.SLHDSAKey) theirs.getPublic())
+                .getParameterSpec().getName());
+        byte[] msg = {1, 2, 3};
+        Assertions.assertTrue(bcVerify("SLH-DSA", bcPublic(ours.getPublic()), msg,
+                sign("SLH-DSA", ours.getPrivate(), msg)));
+        Assertions.assertTrue(verify("SLH-DSA", theirs.getPublic(), msg, bcSign("SLH-DSA", theirs.getPrivate(), msg)));
+
+        InvalidParameterException e = Assertions.assertThrows(InvalidParameterException.class,
+                () -> KeyPairGenerator.getInstance("SLH-DSA", JSL).initialize(128));
+        Assertions.assertEquals("SLH-DSA is parameter-set based; use initialize(SLHDSAParameterSpec) "
+                + "(e.g. SLHDSAParameterSpec.slh_dsa_sha2_128f)", e.getMessage());
+        e = Assertions.assertThrows(InvalidParameterException.class,
+                () -> KeyPairGenerator.getInstance("SLH-DSA", BC).initialize(128));
+        Assertions.assertEquals("use AlgorithmParameterSpec", e.getMessage());
+    }
+
+    /**
+     * With no SecureRandom set, BouncyCastle signs the generic names deterministically and we sign them hedged; the
+     * caller's SecureRandom is the one we draw from, so two alike-seeded sources give byte-equal signatures.
+     */
+    @Test
+    public void theGenericNamesAreHedgedHereFromTheCallersSourceAndDeterministicAtBouncyCastle() throws Exception
+    {
+        String set = "SLH-DSA-SHA2-128F";
+        KeyPair kp = keyPair(set);
+        PrivateKey bcPriv = bcPrivate(kp.getPrivate());
+        byte[] msg = {4, 5, 6};
+        Assertions.assertFalse(Arrays.areEqual(sign(set, kp.getPrivate(), msg), sign(set, kp.getPrivate(), msg)),
+                "JSL signs deterministically with no SecureRandom set");
+        Assertions.assertArrayEquals(bcSign(set, bcPriv, msg), bcSign(set, bcPriv, msg),
+                "BouncyCastle no longer signs deterministically with no SecureRandom set");
+
+        byte[][] sigs = new byte[2][];
+        for (int i = 0; i < 2; i++)
+        {
+            SecureRandom alike = SecureRandom.getInstance("SHA1PRNG");
+            alike.setSeed(42L);
+            Signature s = Signature.getInstance(set, JSL);
+            s.initSign(kp.getPrivate(), alike);
+            s.update(msg);
+            sigs[i] = s.sign();
+        }
+        Assertions.assertArrayEquals(sigs[0], sigs[1], "JSL did not draw its hedge from the caller's SecureRandom");
+    }
+
+    // Moved from SLHDSATest: cells that compare with BouncyCastle.
+
+    @Test
+    public void testSingleByteUpdateSign() throws Exception
+    {
+        SecureRandom sr = seededRandom("testSingleByteUpdateSign");
+
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] publicKey = keyPair.getPublic().getEncoded();
+        byte[] privateKey = keyPair.getPrivate().getEncoded();
+
+        KeyFactory factory = KeyFactory.getInstance("SLH-DSA", "BC");
+        PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
+        PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+        byte[] message = new byte[1025];
+        sr.nextBytes(message);
+
+        Signature signatureJo = Signature.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+        signatureJo.initSign(keyPair.getPrivate());
+        signatureJo.update(message);
+        byte[] signatureBytes = signatureJo.sign();
+
+
+        for (int i = 0; i < message.length; i++)
+        {
+            signatureJo.update(message[i]);
+        }
+
+        byte[] sigBytesSingleByteUpdate = signatureJo.sign();
+
+        // -- you cannot compare signatures directly..
+
+        //
+        // Verify both signature against BC
+        //
+        Signature verifierBc = Signature.getInstance("SLH-DSA", "BC");
+        verifierBc.initVerify(pubKeyBC);
+        verifierBc.update(message);
+        Assertions.assertTrue(verifierBc.verify(signatureBytes));
+
+        verifierBc.update(message);
+        Assertions.assertTrue(verifierBc.verify(sigBytesSingleByteUpdate));
+
+    }
+
+    @Test
+    public void testSingleByteUpdateVerify() throws Exception
+    {
+        SecureRandom sr = seededRandom("testSingleByteUpdateVerify");
+
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(SLHDSAParameterSpec.slh_dsa_sha2_128s);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+        byte[] publicKey = keyPair.getPublic().getEncoded();
+        byte[] privateKey = keyPair.getPrivate().getEncoded();
+
+        KeyFactory factory = KeyFactory.getInstance("SLH-DSA", "BC");
+        PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
+        PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+
+        byte[] message = new byte[1025];
+        sr.nextBytes(message);
+
+
+        Signature signatureBc = Signature.getInstance("SLH-DSA", "BC");
+        signatureBc.initSign(privKeyBC);
+        signatureBc.update(message);
+        byte[] signatureBytesBc = signatureBc.sign();
+
+
+        Signature verifierJo = Signature.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+        verifierJo.initVerify(keyPair.getPublic());
+
+        // whole message in one
+        verifierJo.update(message);
+        Assertions.assertTrue(verifierJo.verify(signatureBytesBc));
+
+        // Pass in each byte
+        for (int i = 0; i < message.length; i++)
+        {
+            verifierJo.update(message[i]);
+        }
+        Assertions.assertTrue(verifierJo.verify(signatureBytesBc));
+
+        // Damage message
+        message[0] ^= 1;
+
+        // Should fail verification
+        verifierJo.update(message);
+        Assertions.assertFalse(verifierJo.verify(signatureBytesBc));
+
+        for (int i = 0; i < message.length; i++)
+        {
+            verifierJo.update(message[i]);
+        }
+        Assertions.assertFalse(verifierJo.verify(signatureBytesBc));
+    }
+
+    @Test
+    public void testKeyGen() throws Exception
+    {
+        SecureRandom sr = seededRandom("testKeyGen");
+
+        for (SLHDSAParameterSpec spec : joSpec)
+        {
+
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] publicKey = keyPair.getPublic().getEncoded();
+            byte[] privateKey = keyPair.getPrivate().getEncoded();
+
+            //
+            // Verify encoded key can be handled by BC and is usable
+            //
+            KeyFactory factory = KeyFactory.getInstance("SLH-DSA", "BC");
+            PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
+            PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+            byte[] msg = new byte[65];
+
+            sr.nextBytes(msg);
+
+            Signature signatureBC = Signature.getInstance("SLH-DSA", "BC");
+            signatureBC.initSign(privKeyBC);
+            signatureBC.update(msg);
+            byte[] signature = signatureBC.sign();
+
+            Signature verifierBC = Signature.getInstance("SLH-DSA", "BC");
+            verifierBC.initVerify(pubKeyBC);
+            verifierBC.update(msg);
+
+            Assertions.assertTrue(verifierBC.verify(signature));
+        }
+    }
+
+    @Test
+    public void testKeyRecovery() throws Exception
+    {
+        SecureRandom sr = seededRandom("testKeyRecovery");
+        for (org.bouncycastle.jcajce.spec.SLHDSAParameterSpec spec : bcSpec)
+        {
+
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLH-DSA", "BC");
+            keyGen.initialize(spec);
+            KeyPair keyPair = keyGen.generateKeyPair();
+
+            byte[] publicKeyX509 = keyPair.getPublic().getEncoded();
+            byte[] privateKeyX509 = keyPair.getPrivate().getEncoded();
+
+
+            KeyFactory jostleFactory = KeyFactory.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+            PrivateKey privateKey = jostleFactory.generatePrivate(new PKCS8EncodedKeySpec(privateKeyX509));
+            PublicKey publicKey = jostleFactory.generatePublic(new X509EncodedKeySpec(publicKeyX509));
+
+
+            byte[] msg = new byte[65];
+            sr.nextBytes(msg);
+
+            Signature signature = Signature.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+            signature.initSign(privateKey);
+            signature.update(msg);
+            byte[] signatureBytes = signature.sign();
+
+            Signature verifier = Signature.getInstance("SLHDSA", JostleProvider.PROVIDER_NAME);
+            verifier.initVerify(publicKey);
+            verifier.update(msg);
+            Assertions.assertTrue(verifier.verify(signatureBytes));
+        }
+
+    }
+
+    private void crossProviderVerification(String algoName, SLHDSAParameterSpec specJostle,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec specBC, SecureRandom sr) throws Exception
+    {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLH-DSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(specJostle);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+
+        byte[] publicKey = keyPair.getPublic().getEncoded();
+        byte[] privateKey = keyPair.getPrivate().getEncoded();
+
+        KeyFactory factory = KeyFactory.getInstance("SLH-DSA", "BC");
+        PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
+        PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+        byte[] msg = new byte[2049];
+        sr.nextBytes(msg);
+
+        Signature bcSigner = Signature.getInstance(algoName, "BC");
+        bcSigner.initSign(privKeyBC);
+        bcSigner.update(msg);
+        byte[] bcSignature = bcSigner.sign();
+
+
+        Signature signatureJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
+        signatureJostle.initSign(keyPair.getPrivate());
+        signatureJostle.update(msg);
+        byte[] jostleSignature = signatureJostle.sign();
+
+
+        // BC verifies jostle
+        Signature bcVerifier = Signature.getInstance(algoName, "BC");
+        bcVerifier.initVerify(pubKeyBC);
+        bcVerifier.update(msg);
+        Assertions.assertTrue(bcVerifier.verify(jostleSignature));
+
+
+        byte[] vandalised = Arrays.clone(jostleSignature);
+        vandalised[1] ^= 1;
+        bcVerifier = Signature.getInstance(algoName, "BC");
+        bcVerifier.initVerify(pubKeyBC);
+        bcVerifier.update(msg);
+        Assertions.assertFalse(bcVerifier.verify(vandalised));
+
+
+        // Jostle verifies BC
+        Signature verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
+        verifierJostle.initVerify(keyPair.getPublic());
+        verifierJostle.update(msg);
+        Assertions.assertTrue(verifierJostle.verify(bcSignature));
+
+        vandalised = Arrays.clone(bcSignature);
+        vandalised[0] ^= 1;
+        verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
+        verifierJostle.initVerify(keyPair.getPublic());
+        verifierJostle.update(msg);
+        Assertions.assertFalse(verifierJostle.verify(vandalised));
+
+
+    }
+
+    private void crossProviderVerificationWithContext(String algoName, SLHDSAParameterSpec specJostle,
+            org.bouncycastle.jcajce.spec.SLHDSAParameterSpec specBC, byte[] ctx, SecureRandom sr) throws Exception
+    {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("SLH-DSA", JostleProvider.PROVIDER_NAME);
+        keyGen.initialize(specJostle);
+        KeyPair keyPair = keyGen.generateKeyPair();
+
+
+        byte[] publicKey = keyPair.getPublic().getEncoded();
+        byte[] privateKey = keyPair.getPrivate().getEncoded();
+
+        KeyFactory factory = KeyFactory.getInstance("SLH-DSA", "BC");
+        PrivateKey privKeyBC = factory.generatePrivate(new PKCS8EncodedKeySpec(privateKey));
+        PublicKey pubKeyBC = factory.generatePublic(new X509EncodedKeySpec(publicKey));
+
+
+        byte[] msg = new byte[2049];
+        sr.nextBytes(msg);
+
+        Signature bcSigner = Signature.getInstance(algoName, "BC");
+        bcSigner.initSign(privKeyBC);
+        // ContextParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
+        bcSigner.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(ctx));
+        bcSigner.update(msg);
+        byte[] bcSignature = bcSigner.sign();
+
+
+        Signature signatureJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
+        signatureJostle.initSign(keyPair.getPrivate());
+        signatureJostle.setParameter(new ContextParameterSpec(ctx));
+        signatureJostle.update(msg);
+        byte[] jostleSignature = signatureJostle.sign();
+
+
+        // BC verifies jostle
+        Signature bcVerifier = Signature.getInstance(algoName, "BC");
+        bcVerifier.initVerify(pubKeyBC);
+        bcVerifier.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(ctx));
+        bcVerifier.update(msg);
+        Assertions.assertTrue(bcVerifier.verify(jostleSignature));
+
+
+        // Vandalise context and check for verification failure.
+        byte[] vandalised = Arrays.clone(ctx);
+        if (vandalised.length == 0)
+        {
+            vandalised = new byte[]{1};
+        }
+        vandalised[0] ^= 1;
+
+
+        bcVerifier = Signature.getInstance(algoName, "BC");
+        bcVerifier.initVerify(pubKeyBC);
+        bcVerifier.setParameter(new org.bouncycastle.jcajce.spec.ContextParameterSpec(vandalised));
+        bcVerifier.update(msg);
+        Assertions.assertFalse(bcVerifier.verify(jostleSignature));
+
+
+        // Jostle verifies BC
+        Signature verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
+        verifierJostle.initVerify(keyPair.getPublic());
+        verifierJostle.setParameter(new ContextParameterSpec(ctx));
+        verifierJostle.update(msg);
+        Assertions.assertTrue(verifierJostle.verify(bcSignature));
+
+
+        // Vandalise context and check for verification failure
+        vandalised = Arrays.clone(ctx);
+        if (vandalised.length == 0)
+        {
+            vandalised = new byte[]{1};
+        } else
+        {
+            vandalised[0] ^= 1;
+        }
+        verifierJostle = Signature.getInstance(algoName, JostleProvider.PROVIDER_NAME);
+        verifierJostle.initVerify(keyPair.getPublic());
+        verifierJostle.setParameter(new ContextParameterSpec(vandalised));
+        verifierJostle.update(msg);
+        Assertions.assertFalse(verifierJostle.verify(bcSignature));
+    }
+
+    @Test
+    public void testSLHDSASignature() throws Exception
+    {
+        SecureRandom sr = seededRandom("testSLHDSASignature");
+
+        for (int t = 0; t < joSpec.length; t++)
+        {
+            crossProviderVerification("SLH-DSA", joSpec[t], bcSpec[t], sr);
+        }
+
+
+        for (int ctxLen : new int[]{0, 1, 255})
+        {
+            byte[] ctx = new byte[ctxLen];
+            sr.nextBytes(ctx);
+
+            for (int t = 0; t < joSpec.length; t++)
+            {
+                crossProviderVerificationWithContext("SLH-DSA", joSpec[t], bcSpec[t], ctx, sr);
+            }
+        }
+    }
+
+    @Test
+    public void keyFactoryByNameTest() throws Exception
+    {
+
+
+        String[] names = SLHDSAParameterSpec.getParameterNames().toArray(new String[0]);
+
+
+        for (int t = 0; t < names.length; t++)
+        {
+            String name = names[t];
+
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(name, BouncyCastleProvider.PROVIDER_NAME);
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+
+            {
+                KeyFactory keyFactory = KeyFactory.getInstance(name, JostleProvider.PROVIDER_NAME);
+                PublicKey pubK = keyFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
+                PrivateKey privK =
+                        keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
+
+                Assertions.assertTrue(name.equalsIgnoreCase(pubK.getAlgorithm()));
+                Assertions.assertTrue(name.equalsIgnoreCase(privK.getAlgorithm()));
+            }
+
+            //
+            // Check it will actually fail
+            //
+
+            {
+                String failingName = names[(t + 1) % names.length];
+
+                try
+                {
+                    KeyFactory keyFactory = KeyFactory.getInstance(failingName, JostleProvider.PROVIDER_NAME);
+                    keyFactory.generatePublic(new X509EncodedKeySpec(keyPair.getPublic().getEncoded()));
+                    keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyPair.getPrivate().getEncoded()));
+
+                    Assertions.fail();
+                } catch (InvalidKeySpecException ikse)
+                {
+                    Assertions.assertEquals("expected " + failingName + " but got " + name, ikse.getMessage());
+                }
+
+            }
+
+        }
+
+
     }
 }

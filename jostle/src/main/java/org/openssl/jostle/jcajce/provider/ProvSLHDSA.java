@@ -21,9 +21,12 @@ import org.openssl.jostle.util.asn1.oids.NISTObjectIdentifiers;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 class ProvSLHDSA
 {
+    private static final Logger LOG = Logger.getLogger(ProvSLHDSA.class.getName());
 
     public void configure(final JostleProvider provider)
     {
@@ -33,7 +36,15 @@ class ProvSLHDSA
             return;
         }
 
-        configureSLHDSA(provider);
+        // Fail soft: a registration failure must not abort JostleProvider's static initialisation.
+        try
+        {
+            configureSLHDSA(provider);
+        }
+        catch (Throwable t)
+        {
+            LOG.log(Level.WARNING, "SLH-DSA provider registration failed; SLH-DSA algorithms will be unavailable", t);
+        }
     }
 
 
@@ -81,15 +92,9 @@ class ProvSLHDSA
         provider.addAlgorithmImplementation("Signature", "SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
                         SLHDSASignatureSpi.MessageEncoding.PURE,
                         SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
-        provider.addAlgorithmImplementation("Signature", "SLH-DSA-NONE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
-                        SLHDSASignatureSpi.MessageEncoding.NONE,
-                        SLHDSASignatureSpi.Deterministic.NON_DETERMINISTIC));
 
         provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-PURE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
                         SLHDSASignatureSpi.MessageEncoding.PURE,
-                        SLHDSASignatureSpi.Deterministic.DETERMINISTIC));
-        provider.addAlgorithmImplementation("Signature", "DET-SLH-DSA-NONE", SLHDSASignatureSpi.class.getName(), slhdsaSigAttr, (arg) -> signature(provider, OSSLKeyType.NONE,
-                        SLHDSASignatureSpi.MessageEncoding.NONE,
                         SLHDSASignatureSpi.Deterministic.DETERMINISTIC));
 
 
@@ -143,8 +148,8 @@ class ProvSLHDSA
                                                 SLHDSASignatureSpi.MessageEncoding encoding,
                                                 SLHDSASignatureSpi.Deterministic deterministic)
     {
-        return new SLHDSASignatureSpi(NISelector.SLHDSAServiceNI, NISelector.SpecNI,
-                forcedType, encoding, deterministic, provider);
+        return new SLHDSASignatureSpi(NISelector.SLHDSAServiceNI, keyFactory(provider, OSSLKeyType.NONE),
+                forcedType, encoding, deterministic);
     }
 
     private static SLHDSAKeyPairGenerator keyPairGenerator(JostleProvider provider, Object algorithm)

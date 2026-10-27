@@ -121,6 +121,13 @@ public class NativeFactCacheStaticLintTest
             {
                 continue;
             }
+            // The bound takes the caller's own cache as a parameter and holds none.
+            if (name.equals("NativeLengthBound.java"))
+            {
+                Assertions.assertFalse(code.matches("(?s).*NativeLengthCache<[^>]*>\\s+\\w+\\s*[;=].*"),
+                        "NativeLengthBound must not hold a cache");
+                continue;
+            }
             if (code.matches("(?s).*\\binterface\\s+\\w+NI\\b.*"))
             {
                 continue;

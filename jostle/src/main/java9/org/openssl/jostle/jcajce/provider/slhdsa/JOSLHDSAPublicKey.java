@@ -95,8 +95,9 @@ class JOSLHDSAPublicKey extends AsymmetricKeyImpl implements SLHDSAPublicKey
         //
         try
         {
-            long len = slhdsaServiceNI.getPublicKey(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
+            int len = slhdsaServiceNI.boundedKeyLength(spec.getType(), SLHDSAServiceNI.KeyPart.PUBLIC,
+                    slhdsaServiceNI.getPublicKey(spec.getReference(), null));
+            byte[] out = new byte[len];
             slhdsaServiceNI.getPublicKey(spec.getReference(), out);
 
             return out;
