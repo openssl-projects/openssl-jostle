@@ -42,10 +42,10 @@ import java.util.Date;
  * CMS {@code EnvelopedData} ML-KEM {@code KEMRecipientInfo} (RFC 9629): stock
  * bcpkix's {@code JceKEMRecipientInfoGenerator}, pointed at JSL, builds BC's
  * own {@code KTSParameterSpec} internally; only Jostle spec types are
- * accepted, so it is refused typed — see
+ * accepted, so it is refused typed - see
  * {@link #stockBouncyCastleKemRecipientOnJslIsRefusedTyped}.
  */
-public class CMSKemEnvelopedTest
+public class CMSKemEnvelopedAgreementTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String JSL = JostleProvider.PROVIDER_NAME;

@@ -222,10 +222,10 @@ exit:
 /*
  * Class:     org_openssl_jostle_util_asn1_Asn1NiJNI
  * Method:    fromPrivateKeyInfo
- * Signature: ([BII)J
+ * Signature: ([BIILorg/openssl/jostle/rand/RandSource;)J
  */
 JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPrivateKeyInfo
-(JNIEnv *env, jobject jo, jbyteArray _input, jint in_off, jint in_len) {
+(JNIEnv *env, jobject jo, jbyteArray _input, jint in_off, jint in_len, jobject rnd_src) {
     UNUSED(jo);
     int32_t ret_code = JO_FAIL;
     key_spec *spec = NULL;
@@ -233,6 +233,11 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPriv
     // A private key: our copy is cleansed at release.
     java_secret_bytearray_ctx input;
     init_secret_bytearray_ctx(&input);
+
+    if (rnd_src == NULL) {
+        ret_code = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&input, env, _input)) {
         ret_code = JO_FAILED_ACCESS_INPUT;
@@ -265,7 +270,7 @@ JNIEXPORT jlong JNICALL Java_org_openssl_jostle_util_asn1_Asn1NiJNI_ni_1fromPriv
     uint8_t *data = input.bytearray + in_off;
 
 
-    spec = asn1_writer_decode_private_key(data, in_len, &ret_code);
+    spec = asn1_writer_decode_private_key_rand(data, in_len, rnd_src, &ret_code);
 
 
 exit:

@@ -277,7 +277,7 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
 
         long len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length,
                 null, 0, 0, randSource);
-        byte[] out = new byte[KemSizes.checkedSharedSecretLength(spec.getType(), len)];
+        byte[] out = new byte[KemSizes.checkedSharedSecretLength(spec, len)];
         byte[] key = null;
         try
         {
@@ -313,7 +313,7 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         {
             int encapsulationLen = spec.getSpecNI().encapsulationLength(spec.getReference(), spec.getType(),
                     secret.length, randSource);
-            byte[] wrappedKey = new byte[KemSizes.checkedCiphertextLength(spec.getType(), encapsulationLen)];
+            byte[] wrappedKey = new byte[KemSizes.checkedCiphertextLength(spec, encapsulationLen)];
             int len = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length,
                     wrappedKey, 0, wrappedKey.length, randSource);
             if (len != wrappedKey.length)

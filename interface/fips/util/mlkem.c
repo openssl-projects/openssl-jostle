@@ -284,9 +284,7 @@ int32_t mlkem_decode_private_key(key_spec *key_spec, int32_t typeId, uint8_t *sr
 
     jo_assert(key_spec != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     rand_set_java_srand_call(rnd_src);
 
@@ -358,9 +356,7 @@ int32_t mlkem_decode_public_key(key_spec *key_spec, int32_t typeId, uint8_t *src
 
     jo_assert(key_spec != NULL);
 
-    if (rnd_src == NULL) {
-        return JO_RAND_NO_RAND_UP_CALL;
-    }
+    jo_assert(rnd_src != NULL);
 
     rand_set_java_srand_call(rnd_src);
 

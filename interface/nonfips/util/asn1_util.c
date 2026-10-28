@@ -329,6 +329,15 @@ err:
     return NULL;
 }
 
+key_spec *asn1_writer_decode_private_key_rand(const uint8_t *src, size_t src_len, void *rnd_src,
+                                              int32_t *ret_code) {
+    jo_assert(rnd_src != NULL);
+    rand_set_java_srand_call(rnd_src);
+    key_spec *key = asn1_writer_decode_private_key(src, src_len, ret_code);
+    rand_clear_java_srand_call();
+    return key;
+}
+
 
 key_spec *asn1_writer_decode_public_key(const uint8_t *src, size_t src_len, int32_t *ret_code) {
     *ret_code = JO_FAIL;

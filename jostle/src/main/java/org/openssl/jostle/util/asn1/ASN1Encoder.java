@@ -11,8 +11,11 @@
 package org.openssl.jostle.util.asn1;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 import java.security.Provider;
 
 public class ASN1Encoder
@@ -150,8 +153,27 @@ public class ASN1Encoder
     public static PKEYKeySpec fromPrivateKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len,
                                                  Provider providerInstance)
     {
-        long ref = asn1NI.fromPrivateKeyInfo(data, start, len);
+        return fromPrivateKeyInfo(asn1NI, specNI, data, start, len, providerInstance,
+                DefaultRandSource.replaceWith(null, null, privateDecodeStrengthBits()));
+    }
+
+    /** As above, with randSource as the decode's entropy source (an expanded ML-KEM key's import draws). */
+    public static PKEYKeySpec fromPrivateKeyInfo(Asn1Ni asn1NI, SpecNI specNI, byte[] data, int start, int len,
+                                                 Provider providerInstance, RandSource randSource)
+    {
+        long ref = asn1NI.fromPrivateKeyInfo(data, start, len, randSource);
         return new PKEYKeySpec(specNI, ref, providerInstance);
+    }
+
+    /** The strength a decode without a caller's source draws at: the highest any private import needs. */
+    public static int privateDecodeStrengthBits()
+    {
+        int bits = 0;
+        for (MLKEMParameterSpec spec : MLKEMParameterSpec.getParameterSpecs())
+        {
+            bits = Math.max(bits, spec.getRequiredStrengthBits());
+        }
+        return bits;
     }
 
     public static PKEYKeySpec fromSubjectPublicKeyInfo(byte[] data, int start, int len)

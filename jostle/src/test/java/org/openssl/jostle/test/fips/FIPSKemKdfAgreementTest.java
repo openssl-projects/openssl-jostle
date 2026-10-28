@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.mlkem.KemKdfAgreementTest;
 import org.openssl.jostle.test.spec.KemKdfCases;
 
 import java.security.KeyPairGenerator;
@@ -75,7 +76,7 @@ public class FIPSKemKdfAgreementTest
         {
             for (int bits : new int[]{128, 256, 512})
             {
-                KemKdfCases.agreeWithBc(fips, bc, name, bits, KemKdfCases.KDF3_SHA256, null);
+                KemKdfAgreementTest.agreeWithBc(fips, bc, name, bits, KemKdfCases.KDF3_SHA256, null);
             }
         }
     }
@@ -86,7 +87,7 @@ public class FIPSKemKdfAgreementTest
         assumeMlKem();
         for (AlgorithmIdentifier kdf : KemKdfCases.KDFS)
         {
-            KemKdfCases.agreeWithBc(fips, bc, "ML-KEM-768", 256, kdf, new byte[]{1, 2, 3, 4});
+            KemKdfAgreementTest.agreeWithBc(fips, bc, "ML-KEM-768", 256, kdf, new byte[]{1, 2, 3, 4});
         }
     }
 
@@ -96,7 +97,7 @@ public class FIPSKemKdfAgreementTest
         assumeMlKem();
         for (int bits : new int[]{8, 128, 248, 256})
         {
-            KemKdfCases.agreeWithBc(fips, bc, "ML-KEM-768", bits, null, null);
+            KemKdfAgreementTest.agreeWithBc(fips, bc, "ML-KEM-768", bits, null, null);
         }
     }
 

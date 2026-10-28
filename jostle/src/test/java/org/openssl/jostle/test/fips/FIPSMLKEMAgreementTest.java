@@ -22,14 +22,17 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec;
+import org.openssl.jostle.test.mlkem.MLKEMTest;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.asn1.KeyInfoCanonicalizer;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -422,4 +425,42 @@ public class FIPSMLKEMAgreementTest
         }
     }
 
+
+    /**
+     * BC's expanded-only PKCS#8 decodes on JSLFIPS (the module draws its own entropy for the pairwise test), stays
+     * expanded and re-encodes byte-equal, as on JSL.
+     */
+    @Test
+    public void bouncyCastlesExpandedOnlyEncodingDecodesAndStaysExpanded() throws Exception
+    {
+        assumeMlKem();
+        for (String paramSet : PARAM_SETS)
+        {
+            KeyPair bcPair = KeyPairGenerator.getInstance(paramSet, BC).generateKeyPair();
+            // MLKEMPrivateKey is qualified where BouncyCastle's is meant: jostle's of that name is imported
+            byte[] expanded = ((org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey) bcPair.getPrivate())
+                    .getPrivateKey(false).getEncoded();
+            Assertions.assertEquals(0x04, KeyInfoCanonicalizer.privateKeyFirstByte(expanded), paramSet);
+
+            PrivateKey ours = KeyFactory.getInstance("ML-KEM", FIPS)
+                    .generatePrivate(new PKCS8EncodedKeySpec(expanded));
+            Assertions.assertNull(((MLKEMPrivateKey) ours).getSeed(), paramSet);
+            Assertions.assertArrayEquals(expanded, ours.getEncoded(), paramSet);
+        }
+    }
+
+    /** The JSLFIPS half of MLKEMTest's memo cell: the module's lengths, memoised by the FIPS NIs. */
+    @Test
+    public void keyAndKemLengthsEqualTheMemoPerSet() throws Exception
+    {
+        assumeMlKem();
+        MLKEMTest.assertLengthsEqualTheMemo(Security.getProvider(FIPS), FIPSNISelector.MLKEMServiceNI);
+    }
+
+    /** One registration cell per FIPS class, keyed on the module's version (the limit test holds the body). */
+    @Test
+    public void mlKemIsServedPerModuleVersion() throws Exception
+    {
+        FIPSMLKEMLimitTest.assertServedPerModuleVersion();
+    }
 }

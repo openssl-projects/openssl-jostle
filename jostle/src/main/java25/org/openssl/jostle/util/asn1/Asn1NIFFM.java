@@ -11,8 +11,12 @@
 
 package org.openssl.jostle.util.asn1;
 
+import org.openssl.jostle.rand.EntropyUpcall;
+import org.openssl.jostle.rand.RandSource;
+
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -110,8 +114,9 @@ public class Asn1NIFFM implements Asn1Ni
                         ValueLayout.JAVA_LONG, // input size
                         ValueLayout.JAVA_INT, // in_off
                         ValueLayout.JAVA_INT, // in_len
-                        ValueLayout.ADDRESS // receiver for return code
-                ), Linker.Option.critical(true));
+                        ValueLayout.ADDRESS, // receiver for return code
+                        ValueLayout.ADDRESS // entropy up-call
+                ));
 
 
         MemorySegment fromPublicKeyInfoFunc = lookup.find(symPrefix + "JoASN1_fromPublicKeyInfo").orElseThrow();
@@ -232,19 +237,42 @@ public class Asn1NIFFM implements Asn1Ni
     }
 
     @Override
-    public long ni_fromPrivateKeyInfo(byte[] data, int start, int len)
+    public long ni_fromPrivateKeyInfo(byte[] data, int start, int len, RandSource randSource)
     {
+        // Not critical: the decode may up-call for entropy, so the private key is copied into the arena.
+        MemorySegment inputSegment = MemorySegment.NULL;
         try (Arena a = Arena.ofConfined())
         {
-            MemorySegment inputSegment = data == null ? MemorySegment.NULL : MemorySegment.ofArray(data);
+            if (data != null)
+            {
+                inputSegment = a.allocate(data.length);
+                inputSegment.asByteBuffer().put(data);
+            }
             MemorySegment errorCodeRcvr = a.allocate(ValueLayout.JAVA_INT);
-            MemorySegment ptr = (MemorySegment) fromPrivateKeyInfoFuncHandle.invokeExact(
-                    inputSegment,
-                    inputSegment.byteSize(),
-                    start,
-                    len,
-                    errorCodeRcvr
-            );
+            MemorySegment entropy = MemorySegment.NULL;
+            if (randSource != null)
+            {
+                entropy = linker.upcallStub(MethodHandles.lookup().findVirtual(RandSource.class,
+                        "getRandomSegment", EntropyUpcall.METHOD_TYPE).bindTo(randSource),
+                        EntropyUpcall.DESCRIPTOR, a);
+            }
+            MemorySegment ptr;
+            try
+            {
+                ptr = (MemorySegment) fromPrivateKeyInfoFuncHandle.invokeExact(
+                        inputSegment,
+                        inputSegment.byteSize(),
+                        start,
+                        len,
+                        errorCodeRcvr,
+                        entropy
+                );
+            }
+            finally
+            {
+                // The arena's copy of the private key is cleared before the arena frees it.
+                zero(inputSegment);
+            }
 
             int errorCode = errorCodeRcvr.get(ValueLayout.JAVA_INT, 0);
             if (errorCode < 0)
@@ -264,6 +292,15 @@ public class Asn1NIFFM implements Asn1Ni
             throw new RuntimeException(t.getMessage(), t);
         }
 
+    }
+
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
     }
 
     @Override

@@ -23,12 +23,22 @@ public final class NativeLengthBound
 
     public static int bounded(NativeLengthCache<String> memo, String type, String part, long reported)
     {
-        String key = type + "/" + part;
+        return bounded(memo, type + "/" + part, type, part, reported);
+    }
+
+    /** As above, for a memo keyed by {@code key}; {@code type} and {@code part} only name the length in a refusal. */
+    public static <K> int bounded(NativeLengthCache<K> memo, K key, String type, String part, long reported)
+    {
         if (memo.get(key) == NativeLengthCache.UNKNOWN && reported > 0 && reported <= Integer.MAX_VALUE)
         {
             memo.cache(key, (int) reported);
         }
         int length = memo.get(key);
+        if (length == NativeLengthCache.UNKNOWN)
+        {
+            throw new IllegalStateException("the library reported a " + part + " length of " + reported + " for "
+                    + type + ", which is not a length");
+        }
         if (reported != length)
         {
             throw new IllegalStateException(

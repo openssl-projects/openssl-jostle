@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.util.asn1;
 
+import org.openssl.jostle.rand.RandSource;
 public class Asn1NiJNI implements Asn1Ni
 {
     public native void ni_dispose(long reference);
@@ -22,7 +23,7 @@ public class Asn1NiJNI implements Asn1Ni
 
     public native int ni_getData(long ref, byte[] out);
 
-    public native long ni_fromPrivateKeyInfo(byte[] data, int start, int len);
+    public native long ni_fromPrivateKeyInfo(byte[] data, int start, int len, RandSource randSource);
 
     public native long ni_fromPublicKeyInfo(byte[] data, int start, int len);
 

@@ -58,7 +58,7 @@ public class NativeFactCacheStaticLintTest
     private static final Pattern IS_INTERFACE = Pattern.compile("(?m)^\\s*(public\\s+)?interface\\s+\\w+");
 
     private static final Pattern ACCESSOR =
-            Pattern.compile("\\bNativeLengthCache\\s*<[^>]*>\\s+lengthCache\\s*\\(\\s*\\)\\s*\\{");
+            Pattern.compile("\\bNativeLengthCache\\s*<[^>]*>\\s+\\w*[lL]engthCache\\s*\\(\\s*\\)\\s*\\{");
 
     @Test
     public void theMatcherFiresOnAStaticAndStaysSilentOnProse()

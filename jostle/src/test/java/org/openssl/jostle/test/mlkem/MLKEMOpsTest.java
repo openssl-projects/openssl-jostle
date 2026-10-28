@@ -25,6 +25,8 @@ import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import java.security.KeyPairGenerator;
+import java.security.ProviderException;
 import java.security.Security;
 
 public class MLKEMOpsTest
@@ -112,7 +114,7 @@ public class MLKEMOpsTest
         Assumptions.assumeFalse(Loader.isFFM());
         try
         {
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:91
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:93
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.ordinal(), new byte[64], 64, TestUtil.RNDSrc);
             Assertions.fail();
@@ -167,7 +169,7 @@ public class MLKEMOpsTest
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:185
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:179
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.getPrivateKey(keyRef, new byte[4096]);
@@ -388,7 +390,7 @@ public class MLKEMOpsTest
             keyRef = mlkemServiceNI.generateKeyPair(OSSLKeyType.ML_KEM_512.getKsType(), TestUtil.RNDSrc);
             Assertions.assertTrue(keyRef > 0);
 
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:225
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:216
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.getSeed(keyRef, new byte[2048]);
@@ -477,7 +479,7 @@ public class MLKEMOpsTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:261
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:262
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.decode_publicKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024, TestUtil.RNDSrc);
@@ -527,7 +529,7 @@ public class MLKEMOpsTest
             {
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
-                // Exercises interface/nonfips/util/mlkem.c:402
+                // Exercises interface/nonfips/util/mlkem.c:398
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 mlkemServiceNI.decode_publicKey(keyRef, keyType, key, 0, key.length, TestUtil.RNDSrc);
                 Assertions.fail();
@@ -557,7 +559,7 @@ public class MLKEMOpsTest
         {
             keyRef = TestNISelector.getSpecNI().allocate();
             Assertions.assertTrue(keyRef > 0);
-            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:321
+            // Exercises interface/nonfips/jni/mlkem_ni_jni.c:323
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
 
             mlkemServiceNI.decode_privateKey(keyRef, OSSLKeyType.ML_KEM_512.getKsType(), new byte[1024], 0, 1024, TestUtil.RNDSrc);
@@ -613,7 +615,7 @@ public class MLKEMOpsTest
             {
                 keyRef = TestNISelector.getSpecNI().allocate();
                 Assertions.assertTrue(keyRef > 0);
-                // Exercises interface/nonfips/util/mlkem.c:335
+                // Exercises interface/nonfips/util/mlkem.c:333
                 operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
                 mlkemServiceNI.decode_privateKey(keyRef, keyType, key, 0, key.length, TestUtil.RNDSrc);
                 Assertions.fail();
@@ -665,4 +667,27 @@ public class MLKEMOpsTest
     //
 
 
+
+    @Test
+    public void generateKeyPair_nativeFailureIsAProviderException() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable());
+
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+        try
+        {
+            // Exercises interface/nonfips/util/mlkem.c:95
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
+            ProviderException e = Assertions.assertThrows(ProviderException.class, kpg::generateKeyPair);
+            Assertions.assertEquals("unable to generate an ML-KEM key pair: OpenSSL Error: null", e.getMessage());
+            Assertions.assertEquals(OpenSSLException.class, e.getCause().getClass());
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+        }
+
+        // Control: the same generator works once the flag is cleared.
+        Assertions.assertNotNull(kpg.generateKeyPair().getPrivate());
+    }
 }

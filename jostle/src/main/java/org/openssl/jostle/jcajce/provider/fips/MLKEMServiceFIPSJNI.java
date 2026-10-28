@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
@@ -24,6 +25,14 @@ import org.openssl.jostle.rand.RandSource;
  */
 class MLKEMServiceFIPSJNI implements MLKEMServiceNI
 {
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
+    }
+
     @Override
     public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 

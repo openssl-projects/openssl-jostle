@@ -14,6 +14,7 @@ import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.dh.DHServiceNI;
+import org.openssl.jostle.rand.RandSource;
 
 public interface Asn1Ni extends DefaultServiceNI
 {
@@ -28,7 +29,8 @@ public interface Asn1Ni extends DefaultServiceNI
 
     int ni_getData(long ref, byte[] out);
 
-    long ni_fromPrivateKeyInfo(byte[] data, int start, int len);
+    /** randSource is the entropy up-call for the decode; an expanded ML-KEM key's import draws from it. */
+    long ni_fromPrivateKeyInfo(byte[] data, int start, int len, RandSource randSource);
 
     long ni_fromPublicKeyInfo(byte[] data, int start, int len);
 
@@ -61,9 +63,9 @@ public interface Asn1Ni extends DefaultServiceNI
         return (int) handleErrors(ni_getData(ref, out));
     }
 
-    default long fromPrivateKeyInfo(byte[] data, int start, int len)
+    default long fromPrivateKeyInfo(byte[] data, int start, int len, RandSource randSource)
     {
-        return handleErrors(ni_fromPrivateKeyInfo(data, start, len));
+        return handleErrors(ni_fromPrivateKeyInfo(data, start, len, randSource));
     }
 
     default long fromPublicKeyInfo(byte[] data, int start, int len)

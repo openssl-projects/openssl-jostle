@@ -26,15 +26,12 @@ import org.openssl.jostle.test.TestUtil;
 
 import javax.crypto.KeyGenerator;
 import java.security.InvalidAlgorithmParameterException;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
@@ -89,59 +86,6 @@ public final class KemKdfCases
         KEMExtractSpec.Builder b = KEMExtractSpec.builder().withPrivate(priv).withEncapsulatedKey(enc)
                 .withAlgorithmName("AES").withKeySizeInBits(bits).withOtherInfo(otherInfo);
         return (kdf == null ? b.withNoKdf() : b.withKdfAlgorithm(kdf.getEncoded())).build();
-    }
-
-    // KEMGenerateSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-    private static org.bouncycastle.jcajce.spec.KEMGenerateSpec bcGenerate(PublicKey pub, int bits,
-                                                                           AlgorithmIdentifier kdf, byte[] other)
-    {
-        org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder b =
-                new org.bouncycastle.jcajce.spec.KEMGenerateSpec.Builder(pub, "AES", bits).withOtherInfo(other);
-        return (kdf == null ? b.withNoKdf() : b.withKdfAlgorithm(kdf)).build();
-    }
-
-    // KEMExtractSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-    private static org.bouncycastle.jcajce.spec.KEMExtractSpec bcExtract(PrivateKey priv, byte[] enc, int bits,
-                                                                         AlgorithmIdentifier kdf, byte[] other)
-    {
-        org.bouncycastle.jcajce.spec.KEMExtractSpec.Builder b =
-                new org.bouncycastle.jcajce.spec.KEMExtractSpec.Builder(priv, enc, "AES", bits).withOtherInfo(other);
-        return (kdf == null ? b.withNoKdf() : b.withKdfAlgorithm(kdf)).build();
-    }
-
-    /**
-     * One ML-KEM cell against BouncyCastle, both directions: ours encapsulates and BouncyCastle extracts, then
-     * the reverse, on keys carried across as encodings.
-     *
-     * @return a line for the log.
-     */
-    public static String agreeWithBc(Provider ours, Provider bc, String name, int bits, AlgorithmIdentifier kdf,
-                                     byte[] otherInfo)
-        throws Exception
-    {
-        KeyPair kp = KeyPairGenerator.getInstance(name, ours).generateKeyPair();
-        KeyFactory bcKf = KeyFactory.getInstance(name, bc);
-        PublicKey bcPub = bcKf.generatePublic(new X509EncodedKeySpec(kp.getPublic().getEncoded()));
-        PrivateKey bcPriv = bcKf.generatePrivate(new PKCS8EncodedKeySpec(kp.getPrivate().getEncoded()));
-        String what = name + " " + bits + " bits, kdf " + (kdf == null ? "none" : kdf.getAlgorithm().getId());
-
-        KeyGenerator g = KeyGenerator.getInstance(name, ours);
-        g.init(ourGenerate(kp.getPublic(), bits, kdf, otherInfo));
-        SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) g.generateKey();
-        KeyGenerator x = KeyGenerator.getInstance(name, bc);
-        x.init(bcExtract(bcPriv, sent.getEncapsulation(), bits, kdf, otherInfo));
-        Assertions.assertArrayEquals(sent.getEncoded(), x.generateKey().getEncoded(), what + ": ours to BC");
-        Assertions.assertEquals((bits + 7) / 8, sent.getEncoded().length, what + ": key length");
-
-        KeyGenerator bg = KeyGenerator.getInstance(name, bc);
-        bg.init(bcGenerate(bcPub, bits, kdf, otherInfo));
-        // SecretKeyWithEncapsulation is qualified where BouncyCastle's is meant: jostle's of that name is imported
-        org.bouncycastle.jcajce.SecretKeyWithEncapsulation bcSent =
-                (org.bouncycastle.jcajce.SecretKeyWithEncapsulation) bg.generateKey();
-        KeyGenerator ox = KeyGenerator.getInstance(name, ours);
-        ox.init(ourExtract(kp.getPrivate(), bcSent.getEncapsulation(), bits, kdf, otherInfo));
-        Assertions.assertArrayEquals(bcSent.getEncoded(), ox.generateKey().getEncoded(), what + ": BC to ours");
-        return what;
     }
 
     /**

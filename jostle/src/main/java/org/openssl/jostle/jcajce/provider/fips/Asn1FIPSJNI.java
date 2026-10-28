@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.asn1.Asn1Ni;
 
 /**
@@ -38,7 +39,7 @@ class Asn1FIPSJNI implements Asn1Ni
     public native int ni_getData(long ref, byte[] out);
 
     @Override
-    public native long ni_fromPrivateKeyInfo(byte[] data, int start, int len);
+    public native long ni_fromPrivateKeyInfo(byte[] data, int start, int len, RandSource randSource);
 
     @Override
     public native long ni_fromPublicKeyInfo(byte[] data, int start, int len);

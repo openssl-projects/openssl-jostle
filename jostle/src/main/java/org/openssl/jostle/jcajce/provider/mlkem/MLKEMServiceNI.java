@@ -11,7 +11,10 @@
 package org.openssl.jostle.jcajce.provider.mlkem;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthBound;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.rand.RandSource;
 
 import java.util.Objects;
@@ -121,5 +124,23 @@ public interface MLKEMServiceNI extends DefaultServiceNI
         }
         return baseErrorHandler(code);
 
+    }
+
+    /** The parts of an ML-KEM key whose encoded length the library reports. */
+    enum KeyPart
+    {
+        PUBLIC, PRIVATE, SEED
+    }
+
+    /** This implementation's memo of key encoding lengths, keyed by type and part. */
+    NativeLengthCache<String> keyLengthCache();
+
+    /**
+     * A key encoding length the library reported, checked before anything is allocated from it: the first
+     * answer for a type and part is memoised, and a later answer that disagrees is IllegalStateException.
+     */
+    default int boundedKeyLength(OSSLKeyType type, KeyPart part, long reported)
+    {
+        return NativeLengthBound.bounded(keyLengthCache(), type.name(), part.name(), reported);
     }
 }

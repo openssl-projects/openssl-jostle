@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.spec;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthBound;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.AccessException;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
@@ -127,8 +128,8 @@ public interface SpecNI extends DefaultServiceNI
         int len = lengthCache().get(type);
         if (len == NativeLengthCache.UNKNOWN)
         {
-            len = encap(keyRef, null, new byte[secretLen], 0, secretLen, null, 0, 0, randSource);
-            lengthCache().cache(type, len);
+            len = boundedEncapsulationLength(type, encap(keyRef, null, new byte[secretLen], 0, secretLen, null, 0, 0,
+                    randSource));
         }
         return len;
     }
@@ -142,9 +143,23 @@ public interface SpecNI extends DefaultServiceNI
         int len = secretLengthCache().get(type);
         if (len == NativeLengthCache.UNKNOWN)
         {
-            len = encapSecretLength(keyRef, null, randSource);
-            secretLengthCache().cache(type, len);
+            len = boundedSharedSecretLength(type, encapSecretLength(keyRef, null, randSource));
         }
         return len;
+    }
+
+    /**
+     * An encapsulation length this library reported, held to its memo for the type before anything is allocated
+     * from it: the first positive answer is memoised, and a later answer that disagrees is IllegalStateException.
+     */
+    default int boundedEncapsulationLength(OSSLKeyType type, long reported)
+    {
+        return NativeLengthBound.bounded(lengthCache(), type, type.name(), "ciphertext", reported);
+    }
+
+    /** As {@link #boundedEncapsulationLength}, for the shared secret. */
+    default int boundedSharedSecretLength(OSSLKeyType type, long reported)
+    {
+        return NativeLengthBound.bounded(secretLengthCache(), type, type.name(), "shared secret", reported);
     }
 }

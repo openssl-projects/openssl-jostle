@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.test.kts;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -19,7 +18,6 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 
 import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
@@ -34,13 +32,12 @@ import java.security.spec.RSAPublicKeySpec;
 /**
  * The KTS ciphers refuse a key-encryption key they cannot use at init, where the spec is fully known: a KEK size
  * AES key wrap does not take (128, 192 and 256 bits only), and, with no KDF, a KEK larger than the shared secret.
- * Both wrap and unwrap, both ciphers, both wrap kinds. BouncyCastle refuses the first case only when it wraps,
- * with IllegalBlockSizeException; that divergence is pinned against it live.
+ * Both wrap and unwrap, both ciphers, both wrap kinds. BouncyCastle refuses the first case only when it wraps;
+ * MLKEMKTSAgreementTest pins that divergence against it live.
  */
 public class KtsKekSizeInitTest
 {
     private static Provider jsl;
-    private static Provider bc;
 
     @BeforeAll
     public static void setUp()
@@ -50,7 +47,6 @@ public class KtsKekSizeInitTest
             Security.addProvider(new JostleProvider());
         }
         jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
-        bc = Security.getProvider("BC") != null ? Security.getProvider("BC") : new BouncyCastleProvider();
     }
 
     private static KTSParameterSpec spec(String wrap, int bits, boolean kdf)
@@ -129,28 +125,5 @@ public class KtsKekSizeInitTest
                 BigInteger.valueOf(65537)));
         refusedAtInit("RSA-KTS-KEM-KWS", Cipher.WRAP_MODE, pub, spec("AESWRAP", 256, false),
                 "KEK size 256 bits is larger than the 192-bit shared secret, and no KDF is set");
-    }
-
-    /**
-     * BouncyCastle accepts a KEK size AES key wrap cannot take at init and refuses it at wrap with
-     * IllegalBlockSizeException; ours refuses at init with InvalidAlgorithmParameterException, the exception init
-     * declares. Both halves measured here.
-     */
-    @Test
-    public void anUnsupportedKekSizeDivergesFromBouncyCastleOnPurpose() throws Exception
-    {
-        KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", bc).generateKeyPair();
-        Cipher w = Cipher.getInstance("ML-KEM", bc);
-        w.init(Cipher.WRAP_MODE, kp.getPublic(),
-                // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-                new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder("AESWRAP", 136).build());
-        IllegalBlockSizeException theirs = Assertions.assertThrows(IllegalBlockSizeException.class,
-                () -> w.wrap(new SecretKeySpec(new byte[16], "AES")));
-        Assertions.assertEquals("unable to generate KTS secret: Key length not 128/192/256 bits.",
-                theirs.getMessage());
-
-        KeyPair ours = KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
-        refusedAtInit("ML-KEM", Cipher.WRAP_MODE, ours.getPublic(), spec("AESWRAP", 136, true),
-                "unsupported AES-KW KEK size: 136 bits; AES key wrap takes 128, 192 or 256");
     }
 }

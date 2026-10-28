@@ -17,6 +17,7 @@
 #include "types.h"
 
 key_spec *JoMLKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
+    jo_assert(ret_val != NULL);
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -39,6 +40,7 @@ key_spec *JoMLKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src)
 
 key_spec *JoMLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *seed, size_t seed_size,
                                     int32_t seed_len, void *rand_src) {
+    jo_assert(ret_val != NULL);
     *ret_val = JO_FAIL;
 
     if (rand_src == NULL) {
@@ -75,10 +77,8 @@ key_spec *JoMLKEM_generateKeyPairSeed(int32_t type, int32_t *ret_val, uint8_t *s
 }
 
 int32_t JoMLKEM_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
-    int32_t ret_val = JO_FAIL;
-
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    int32_t ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -89,10 +89,8 @@ exit:
 }
 
 int32_t JoMLKEM_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
-    int32_t ret_val = JO_FAIL;
-
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    int32_t ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -103,10 +101,8 @@ exit:
 }
 
 int32_t JoMLKEM_getSeed(key_spec *kp, uint8_t *output, const size_t output_len) {
-    int32_t ret_val = JO_FAIL;
-
-    if (kp == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    int32_t ret_val = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_val)) {
         goto exit;
     }
 
@@ -124,15 +120,18 @@ int32_t JoMLKEM_decodePublicKey(key_spec *key_spec,
                               int32_t in_off,
                               int32_t in_len,
                               void *rand_src) {
-    int32_t ret_val = JO_FAIL;
+    int32_t ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        goto exit;
+    }
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    if (rand_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
         goto exit;
     }
 
     if (input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -150,8 +149,6 @@ int32_t JoMLKEM_decodePublicKey(key_spec *key_spec,
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-
-    //    key_spec->type = key_type;
 
     uint8_t *start = input + in_off;
     ret_val = mlkem_decode_public_key(key_spec, key_type, start, in_len, rand_src);
@@ -165,15 +162,18 @@ int32_t JoMLKEM_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *
                                int32_t in_off,
                                int32_t in_len,
                                void *rand_src) {
-    int32_t ret_val = JO_FAIL;
+    int32_t ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        goto exit;
+    }
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    if (rand_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
         goto exit;
     }
 
     if (input == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
@@ -191,8 +191,6 @@ int32_t JoMLKEM_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-
-    // key_spec->type = key_type;
 
     uint8_t *start = input + in_off;
     ret_val = mlkem_decode_private_key(key_spec, key_type, start, in_len, rand_src);

@@ -33,6 +33,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.lang.ref.Reference;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -164,13 +165,20 @@ public class MLKEMKTSCipherSpi
         throw new InvalidKeyException("ML-KEM KTS cipher requires a KTSParameterSpec");
     }
 
+    /**
+     * In WRAP_MODE: when the caller passed no SecureRandom, the JCE hands this method its process-wide default,
+     * which is recognised by identity and not drawn from; the provider's own DRBG at the key's variant strength is.
+     * Any other SecureRandom reporting a strength below the variant's requirement is refused with
+     * InvalidAlgorithmParameterException; one reporting none or enough is used. Skipped where the provider manages
+     * its own entropy.
+     */
     @Override
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
         throws InvalidKeyException, InvalidAlgorithmParameterException
     {
         if (opmode != Cipher.WRAP_MODE && opmode != Cipher.UNWRAP_MODE)
         {
-            throw new InvalidAlgorithmParameterException("ML-KEM KTS cipher only supports WRAP_MODE/UNWRAP_MODE");
+            throw new InvalidParameterException("ML-KEM KTS cipher only supports WRAP_MODE/UNWRAP_MODE");
         }
         if (!(key instanceof OSSLKey))
         {
@@ -240,22 +248,12 @@ public class MLKEMKTSCipherSpi
         RandSource resolvedRandSource;
         if (opmode == Cipher.WRAP_MODE)
         {
-            // ML-KEM encapsulation consumes entropy through the C-side RAND gate
-            // (GH #34): ML-KEM-768/1024 require 192/256-bit strength. The natural
-            // Cipher.init(spec) call has the JCE inject the platform default
-            // SecureRandom (e.g. Windows JDK 9+ hands us a 128-bit DRBG), which
-            // the caller never chose. So rather than reject a source whose
-            // reported strength is below the requirement, drop it and let
-            // replaceWith install a strength-appropriate DRBG for the key's
-            // parameter set. A reported 0 means "unknown" (plain SecureRandom)
-            // and is left as-is with the C gate as the safety net; a strong-enough
-            // source is honoured as-is. Matches MLKEMKeyGenerator, which also
-            // encapsulates.
+            // ML-KEM encapsulation draws entropy at the variant's strength (192/256 bits for 768/1024).
             int strengthBits = strengthForKeyType(spec.getType());
-            int suppliedStrength = DefaultRandSource.strengthOf(random);
-            if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+            if (!spec.getSpecNI().providerManagesEntropy())
             {
-                random = null;
+                random = InjectedRandom.resolve(random, keyFactory.ownProviderInstance(),
+                        MLKEMParameterSpec.getSpecForOSSLType(spec.getType()).getName(), strengthBits);
             }
             resolvedRandSource = DefaultRandSource.replaceWith(null, random, strengthBits);
         }
@@ -594,7 +592,7 @@ public class MLKEMKTSCipherSpi
      */
     private int encapsulationLength()
     {
-        return KemSizes.checkedCiphertextLength(keySpec.getType(),
+        return KemSizes.checkedCiphertextLength(keySpec,
                 keySpec.getSpecNI().encapsulationLength(keySpec.getReference(), keySpec.getType(),
                         SHARED_SECRET_LEN, randSource));
     }

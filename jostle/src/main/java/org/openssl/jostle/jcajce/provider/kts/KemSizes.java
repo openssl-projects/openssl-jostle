@@ -10,79 +10,50 @@
 
 package org.openssl.jostle.jcajce.provider.kts;
 
-import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.rand.RandSource;
 
-import java.security.ProviderException;
-
 /**
- * The encapsulation and shared-secret lengths of a KEM key, asked of its own library once per key type through
- * the spec NI's caches, and bounded before anything is allocated from them. No per-type value lives here: a
- * length the library reports above a ceiling is refused, naming both.
+ * The encapsulation and shared-secret lengths of a KEM key, asked of its own library once per key type and memoised
+ * on that library's spec NI. No per-type value lives here: a later answer that disagrees with the memo is refused
+ * before anything is allocated from it.
  */
 public final class KemSizes
 {
-    /** Largest FIPS 203 ciphertext (1568) plus the largest hybrid share, a SEC 1 uncompressed P-384 point (97). */
-    static final int CIPHERTEXT_CEILING = 1568 + 97;
-
-    /** Largest composed shared secret: ML-KEM (32) plus an X448 share (56). */
-    static final int SECRET_CEILING = 32 + 56;
-
     private KemSizes()
     {
     }
 
-    /**
-     * The shared-secret length of the key, from its library's cached query.
-     *
-     * @throws ProviderException when the reported length is outside the ceiling.
-     */
+    /** The shared-secret length of the key, from its library's memo. */
     public static int sharedSecretLength(PKEYKeySpec key, RandSource randSource)
     {
-        return checkedSharedSecretLength(key.getType(),
-                key.getSpecNI().sharedSecretLength(key.getReference(), key.getType(), randSource));
+        return key.getSpecNI().sharedSecretLength(key.getReference(), key.getType(), randSource);
     }
 
-    /**
-     * The encapsulation length of the key, from its library's cached query.
-     *
-     * @throws ProviderException when the reported length is outside the ceiling.
-     */
+    /** The encapsulation length of the key, from its library's memo. */
     public static int ciphertextLength(PKEYKeySpec key, RandSource randSource)
     {
         int secret = sharedSecretLength(key, randSource);
-        return checkedCiphertextLength(key.getType(),
-                key.getSpecNI().encapsulationLength(key.getReference(), key.getType(), secret, randSource));
+        return key.getSpecNI().encapsulationLength(key.getReference(), key.getType(), secret, randSource);
     }
 
     /**
-     * The queried encapsulation length, when it is within the ceiling.
+     * An encapsulation length the key's library reported, when it agrees with that library's memo.
      *
-     * @throws ProviderException when it is not.
+     * @throws IllegalStateException when it does not.
      */
-    public static int checkedCiphertextLength(OSSLKeyType type, long queried)
+    public static int checkedCiphertextLength(PKEYKeySpec key, long reported)
     {
-        return checked("encapsulation", type, queried, CIPHERTEXT_CEILING);
+        return key.getSpecNI().boundedEncapsulationLength(key.getType(), reported);
     }
 
     /**
-     * The queried shared-secret length, when it is within the ceiling.
+     * A shared-secret length the key's library reported, when it agrees with that library's memo.
      *
-     * @throws ProviderException when it is not.
+     * @throws IllegalStateException when it does not.
      */
-    public static int checkedSharedSecretLength(OSSLKeyType type, long queried)
+    public static int checkedSharedSecretLength(PKEYKeySpec key, long reported)
     {
-        return checked("shared secret", type, queried, SECRET_CEILING);
-    }
-
-    private static int checked(String what, OSSLKeyType type, long queried, int ceiling)
-    {
-        if (queried < 1 || queried > ceiling)
-        {
-            throw new ProviderException(type + " " + what + " length reported as " + queried
-                    + ", outside the ceiling of " + ceiling);
-        }
-        return (int) queried;
+        return key.getSpecNI().boundedSharedSecretLength(key.getType(), reported);
     }
 }

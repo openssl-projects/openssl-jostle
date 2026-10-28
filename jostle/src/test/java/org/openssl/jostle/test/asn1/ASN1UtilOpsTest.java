@@ -74,7 +74,7 @@ public class ASN1UtilOpsTest
 
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:333
+            // Exercises interface/nonfips/util/asn1_util.c:351
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[10], 0, 10);
 
@@ -104,7 +104,7 @@ public class ASN1UtilOpsTest
         {
             // Exercises interface/nonfips/util/asn1_util.c:278
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
-            keyRef = asn1NI.fromPrivateKeyInfo(new byte[10], 0, 10);
+            keyRef = asn1NI.fromPrivateKeyInfo(new byte[10], 0, 10, TestUtil.RNDSrc);
             Assertions.fail();
         } catch (OverflowException e)
         {
@@ -233,7 +233,12 @@ public class ASN1UtilOpsTest
         {
             // Exercises interface/nonfips/jni/asn1_ni_jni.c:135
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            long len = TestNISelector.Asn1NI.encodePrivateKey(asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue());
+            long len;
+            synchronized (privateKey)
+            {
+                len = TestNISelector.Asn1NI.encodePrivateKey(
+                        asn1Ref, privateKey.getSpec().getReference(), PrivateKeyOptions.DEFAULT.getValue());
+            }
             byte[] out = new byte[(int) len];
            TestNISelector.Asn1NI.getData(asn1Ref, out);
             Assertions.fail("Should have thrown exception");
@@ -410,9 +415,9 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:237
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:242
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
-            keyRef = asn1NI.fromPrivateKeyInfo(new byte[100], 0, 100);
+            keyRef = asn1NI.fromPrivateKeyInfo(new byte[100], 0, 100, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (AccessException e)
@@ -435,7 +440,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/jni/asn1_ni_jni.c:295
+            // Exercises interface/nonfips/jni/asn1_ni_jni.c:300
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             keyRef = asn1NI.fromPublicKeyInfo(new byte[100], 0, 100);
             Assertions.fail();
@@ -470,7 +475,7 @@ public class ASN1UtilOpsTest
         {
             // Exercises interface/nonfips/util/asn1_util.c:298
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
-            keyRef = asn1NI.fromPrivateKeyInfo(pkcs8, 0, pkcs8.length);
+            keyRef = asn1NI.fromPrivateKeyInfo(pkcs8, 0, pkcs8.length, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (UnexpectedPointerChangeException e)
@@ -502,7 +507,7 @@ public class ASN1UtilOpsTest
         long keyRef = 0;
         try
         {
-            // Exercises interface/nonfips/util/asn1_util.c:353
+            // Exercises interface/nonfips/util/asn1_util.c:371
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_POINTER_CHANGE);
             keyRef = asn1NI.fromPublicKeyInfo(x509, 0, x509.length);
             Assertions.fail();
@@ -601,7 +606,7 @@ public class ASN1UtilOpsTest
             int len = asn1NI.encodePrivateKey(asn1Ref, keyRef, PrivateKeyOptions.DEFAULT.getValue());
             byte[] der = new byte[len];
             asn1NI.getData(asn1Ref, der);
-            decoded = asn1NI.fromPrivateKeyInfo(der, 0, len);
+            decoded = asn1NI.fromPrivateKeyInfo(der, 0, len, TestUtil.RNDSrc);
             Assertions.assertTrue(decoded > 0);
 
             int expected = Loader.isFFM() ? 0 : 2;

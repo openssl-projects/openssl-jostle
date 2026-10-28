@@ -22,7 +22,6 @@ import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.Key;
@@ -130,7 +129,7 @@ public class KtsStreamingRefusalTest
     {
         KeyPair kp = mlKemPair();
         assertNoStreamingSurface("ML-KEM", kp);
-        assertEncryptModeRefused("ML-KEM", kp, InvalidAlgorithmParameterException.class,
+        assertEncryptModeRefused("ML-KEM", kp, InvalidParameterException.class,
                 "ML-KEM KTS cipher only supports WRAP_MODE/UNWRAP_MODE");
         assertNoParamsInitRefused("ML-KEM");
     }

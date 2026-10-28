@@ -26,6 +26,7 @@ import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -117,9 +118,17 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(SecureRandom random)
     {
-        throw new UnsupportedOperationException();
+        throw new InvalidParameterException(
+                "ML-KEM needs a KEMGenerateSpec or KEMExtractSpec; use init(AlgorithmParameterSpec)");
     }
 
+    /**
+     * On the encapsulate side: when the caller passed no SecureRandom, the JCE hands this method its process-wide
+     * default, which is recognised by identity and not drawn from; the provider's own DRBG at the variant's strength
+     * is. Any other SecureRandom reporting a strength below the variant's requirement is refused with
+     * InvalidAlgorithmParameterException; one reporting none or enough is used. Skipped where the provider manages
+     * its own entropy.
+     */
     @Override
     protected void engineInit(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException
     {
@@ -227,19 +236,10 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
                     int strengthBits = strengthForKeyType(kem.getSpec().getType());
 
-                    // The natural KeyGenerator.init(spec) call has the JCE inject
-                    // the platform default SecureRandom (e.g. Windows JDK 9+ hands
-                    // us a 128-bit DRBG), which the caller never chose. So rather
-                    // than reject a source whose reported strength is below the
-                    // algorithm's requirement, drop it and let replaceWith install
-                    // a strength-appropriate DRBG (GH #34). A reported 0 means
-                    // "unknown" (plain SecureRandom) and is left as-is with the
-                    // C-side RAND gate as the safety net; a strong-enough source
-                    // is honoured as-is. Only relevant on the encap path.
-                    int suppliedStrength = DefaultRandSource.strengthOf(random);
-                    if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+                    if (!kem.getSpec().getSpecNI().providerManagesEntropy())
                     {
-                        random = null;
+                        random = InjectedRandom.resolve(random, providerInstance,
+                                MLKEMParameterSpec.getSpecForOSSLType(kem.getSpec().getType()).getName(), strengthBits);
                     }
 
                     derivation = planned;
@@ -262,7 +262,14 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(int keysize, SecureRandom random)
     {
-        throw new UnsupportedOperationException();
+        if (InjectedRandom.probing())
+        {
+            // The capture probe: this is the JCE's injected default, recorded for recognition.
+            InjectedRandom.record(random);
+            return;
+        }
+        throw new InvalidParameterException(
+                "ML-KEM needs a KEMGenerateSpec or KEMExtractSpec; use init(AlgorithmParameterSpec)");
     }
 
     private static void checkKeySize(int keySizeInBits)
@@ -298,7 +305,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             }
             long len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length, null, 0, 0, randSource);
 
-            byte[] out = new byte[KemSizes.checkedSharedSecretLength(spec.getType(), len)];
+            byte[] out = new byte[KemSizes.checkedSharedSecretLength(spec, len)];
             byte[] key = null;
             try
             {
@@ -338,7 +345,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             {
                 int encapsulationLen = spec.getSpecNI().encapsulationLength(spec.getReference(), spec.getType(),
                         secret.length, randSource);
-                byte[] wrappedKey = new byte[KemSizes.checkedCiphertextLength(spec.getType(), encapsulationLen)];
+                byte[] wrappedKey = new byte[KemSizes.checkedCiphertextLength(spec, encapsulationLen)];
                 int len = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length, wrappedKey, 0, wrappedKey.length, randSource);
 
                 if (len != wrappedKey.length)

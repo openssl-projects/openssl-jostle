@@ -49,13 +49,13 @@ import java.io.IOException;
 
 /**
  * Regression for CMS_FOREIGN_KEY_KEM_EC_GAP.md: the ML-KEM KTS cipher and the
- * EC/XDH {@code KeyAgreement} SPIs must accept foreign keys — the
+ * EC/XDH {@code KeyAgreement} SPIs must accept foreign keys - the
  * {@code sun.security.*} instances returned by
- * {@code X509Certificate.getPublicKey()} and the JDK's default KeyFactories —
+ * {@code X509Certificate.getPublicKey()} and the JDK's default KeyFactories -
  * by translating them to JSL keys, as the RSA cipher SPIs already do via
  * {@code RSAKeyImport}.
  */
-public class ForeignKeyKemEcXdhTest
+public class ForeignKeyKemEcXdhAgreementTest
 {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String JSL = JostleProvider.PROVIDER_NAME;
@@ -88,7 +88,7 @@ public class ForeignKeyKemEcXdhTest
                 dn, subjectPub);
         ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA")
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME).build(signerKp.getPrivate());
-        // No provider on the converter → the JDK default CertificateFactory,
+        // No provider on the converter -> the JDK default CertificateFactory,
         // whose getPublicKey() returns sun.security.* key objects.
         return new JcaX509CertificateConverter().getCertificate(builder.build(signer));
     }

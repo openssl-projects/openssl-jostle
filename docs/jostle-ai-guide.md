@@ -874,7 +874,8 @@ Assertions.assertEquals(16, aes.generateKey().getEncoded().length);
 
 ML-KEM key encapsulation. The sender initialises the generator with the recipient's public key and gets
 an AES key plus the encapsulation to send; the recipient extracts the same key from the encapsulation with
-its private key. Pass no SecureRandom: JSL picks a DRBG strong enough for the parameter set.
+its private key. Pass no SecureRandom: JSL picks a DRBG strong enough for the parameter set. A SecureRandom
+passed in that reports less strength than the parameter set needs is refused.
 
 ```java
 KeyPair recipient = KeyPairGenerator.getInstance("ML-KEM-768", "JSL").generateKeyPair();

@@ -88,7 +88,7 @@ public final class XdhBridgeCells
     private long privateKey(byte[] raw)
     {
         byte[] p8 = cat(raw.length == 32 ? P8_X25519 : P8_X448, raw);
-        return asn1.fromPrivateKeyInfo(p8, 0, p8.length);
+        return asn1.fromPrivateKeyInfo(p8, 0, p8.length, TestUtil.RNDSrc);
     }
 
     private long publicKey(byte[] raw)

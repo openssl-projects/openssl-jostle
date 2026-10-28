@@ -101,7 +101,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
                 return null;
             }
             mlkemServiceNI.handleErrors(len);
-            byte[] out = new byte[len];
+            byte[] out = new byte[mlkemServiceNI.boundedKeyLength(spec.getType(), MLKEMServiceNI.KeyPart.SEED, len)];
             mlkemServiceNI.handleErrors(mlkemServiceNI.ni_getSeed(spec.getReference(), out));
 
             return out;
@@ -147,7 +147,7 @@ class JOMLKEMPrivateKey extends AsymmetricKeyImpl implements MLKEMPrivateKey
         synchronized (this)
         {
             long len = mlkemServiceNI.getPrivateKey(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
+            byte[] out = new byte[mlkemServiceNI.boundedKeyLength(spec.getType(), MLKEMServiceNI.KeyPart.PRIVATE, len)];
             mlkemServiceNI.getPrivateKey(spec.getReference(), out);
 
             return out;

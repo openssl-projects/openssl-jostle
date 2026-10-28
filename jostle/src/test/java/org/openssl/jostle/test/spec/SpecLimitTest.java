@@ -22,7 +22,6 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
-import org.openssl.jostle.jcajce.provider.kts.KemSizes;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
@@ -1356,9 +1355,9 @@ public class SpecLimitTest
     {
         int ct = specCiphertextLength(type);
         int ss = specSharedSecretLength(type);
-        Assertions.assertEquals(ss, KemSizes.checkedSharedSecretLength(type, ni.sharedSecretLength(key, type, rnd)),
+        Assertions.assertEquals(ss, ni.boundedSharedSecretLength(type, ni.sharedSecretLength(key, type, rnd)),
                 type + " cached secret");
-        Assertions.assertEquals(ct, KemSizes.checkedCiphertextLength(type, ni.encapsulationLength(key, type, ss, rnd)),
+        Assertions.assertEquals(ct, ni.boundedEncapsulationLength(type, ni.encapsulationLength(key, type, ss, rnd)),
                 type + " cached encapsulation");
         Assertions.assertEquals(ct, ni.encap(key, op, new byte[ss], 0, ss, null, 0, 0, rnd), type + " encap");
         Assertions.assertEquals(ss, ni.encapSecretLength(key, op, rnd), type + " secret");

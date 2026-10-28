@@ -10,6 +10,7 @@
 
 #include "bytearrays.h"
 #include "byte_array_critical.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
@@ -68,8 +69,9 @@ Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPai
 
     key_spec *key_spec = NULL;
 
-    java_bytearray_ctx seed; // Non critical access
-    init_bytearray_ctx(&seed);
+    // The seed is the private key: cleansed before release.
+    java_secret_bytearray_ctx seed;
+    init_secret_bytearray_ctx(&seed);
 
     int32_t ret_code = JO_FAIL;
 
@@ -88,7 +90,7 @@ Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPai
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&seed, env, _seed)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&seed, env, _seed)) {
         ret_code = JO_FAILED_ACCESS_SEED;
         goto exit;
     }
@@ -110,7 +112,7 @@ Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServiceJNI_ni_1generateKeyPai
     }
 
 exit:
-    release_bytearray_ctx(&seed);
+    release_secret_bytearray_ctx(&seed);
     (*env)->SetIntArrayRegion(env, _err_out, 0, 1, &ret_code);
     return (jlong) key_spec;
 }
@@ -126,15 +128,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServic
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    if (key_spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
 
     java_bytearray_ctx output; // Non critical access
     init_bytearray_ctx(&output);
-
-    int32_t ret_code = JO_FAIL;
 
     if (_output == NULL) {
         ret_code = mlkem_get_public_encoded(key_spec,NULL, 0);
@@ -164,33 +164,29 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServic
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    java_bytearray_ctx output; // Non critical access
-    init_bytearray_ctx(&output);
-
-    int32_t ret_code = JO_FAIL;
-
-
-    if (key_spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
 
     if (_output == NULL) {
-        ret_code = mlkem_get_private_encoded(key_spec,NULL, 0);
-        goto exit;
+        return mlkem_get_private_encoded(key_spec, NULL, 0);
     }
 
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
-        goto exit;
+    // The private key goes through the secret helper: cleansed, and written back only on success.
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&output, env, _output)) {
+        discard_secret_bytearray_ctx(&output);
+        return JO_FAILED_ACCESS_OUTPUT;
     }
 
     ret_code = mlkem_get_private_encoded(key_spec, output.bytearray, output.size);
-
-exit:
-    release_bytearray_ctx(&output);
+    if (SUCCESSFUL(ret_code)) {
+        release_secret_bytearray_ctx(&output);
+    } else {
+        discard_secret_bytearray_ctx(&output);
+    }
     return ret_code;
 }
 
@@ -205,32 +201,29 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServic
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-
-    java_bytearray_ctx output; // Non critical access
-    init_bytearray_ctx(&output);
-
-    int32_t ret_code = JO_FAIL;
-
-    if (key_spec == NULL) {
-        ret_code = JO_KEY_SPEC_IS_NULL;
-        goto exit;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
 
     if (_output == NULL) {
-        ret_code = mlkem_get_private_seed(key_spec,NULL, 0);
-        goto exit;
+        return mlkem_get_private_seed(key_spec, NULL, 0);
     }
 
-
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&output, env, _output)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
-        goto exit;
+    // The seed is the private key: cleansed, and written back only on success.
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
+    if (OPS_FAILED_ACCESS_1 !load_secret_output_ctx(&output, env, _output)) {
+        discard_secret_bytearray_ctx(&output);
+        return JO_FAILED_ACCESS_OUTPUT;
     }
 
     ret_code = mlkem_get_private_seed(key_spec, output.bytearray, output.size);
-
-exit:
-    release_bytearray_ctx(&output);
+    if (SUCCESSFUL(ret_code)) {
+        release_secret_bytearray_ctx(&output);
+    } else {
+        discard_secret_bytearray_ctx(&output);
+    }
     return ret_code;
 }
 
@@ -248,23 +241,26 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServic
 
     key_spec *key_spec = (void *) ref;
 
+    jint ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
+    }
 
-    jint ret_val = JO_FAIL;
     java_bytearray_ctx input; // Non critical access
     init_bytearray_ctx(&input);
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
+    if (_input == NULL) {
+        ret_val = JO_INPUT_IS_NULL;
         goto exit;
     }
 
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
         ret_val = JO_FAILED_ACCESS_INPUT;
-        goto exit;
-    }
-
-    if (input.array == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
         goto exit;
     }
 
@@ -282,8 +278,6 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServic
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-
-    // key_spec->type = key_type;
 
     uint8_t *start = input.bytearray + in_off;
     ret_val = mlkem_decode_public_key(key_spec, key_type, start, in_len, rnd_src);
@@ -307,24 +301,27 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServic
 
     key_spec *key_spec = (void *) ref;
 
+    jint ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
+    }
 
-    jint ret_val = JO_FAIL;
-    java_bytearray_ctx input; // Non critical access
-    init_bytearray_ctx(&input);
+    // The private key goes through the secret helper: cleansed before release.
+    java_secret_bytearray_ctx input;
+    init_secret_bytearray_ctx(&input);
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    if (rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
         goto exit;
     }
 
+    if (_input == NULL) {
+        ret_val = JO_INPUT_IS_NULL;
+        goto exit;
+    }
 
-    if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
+    if (OPS_FAILED_ACCESS_1 !load_secret_input_ctx(&input, env, _input)) {
         ret_val = JO_FAILED_ACCESS_INPUT;
-        goto exit;
-    }
-
-    if (input.array == NULL) {
-        ret_val = JO_INPUT_IS_NULL;;
         goto exit;
     }
 
@@ -338,18 +335,16 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlkem_MLKEMServic
         goto exit;
     }
 
-    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+    if (!check_secret_in_range(&input, in_off, in_len)) {
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
-
-    // key_spec->type = key_type;
 
     uint8_t *start = input.bytearray + in_off;
     ret_val = mlkem_decode_private_key(key_spec, key_type, start, in_len, rnd_src);
 
 
 exit:
-    release_bytearray_ctx(&input);
+    release_secret_bytearray_ctx(&input);
     return ret_val;
 }

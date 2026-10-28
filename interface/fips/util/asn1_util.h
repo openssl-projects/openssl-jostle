@@ -69,6 +69,13 @@ int32_t asn1_writer_encode_private_key(asn1_ctx *ctx, key_spec *key_spec, size_t
 key_spec *asn1_writer_decode_private_key(const uint8_t *src, size_t src_len, int32_t *ret_code);
 
 /**
+ * As asn1_writer_decode_private_key, with rnd_src as the entropy up-call for the decode: importing an expanded
+ * ML-KEM key runs a pairwise test that draws randomness. rnd_src is bridge-validated and must not be NULL.
+ */
+key_spec *asn1_writer_decode_private_key_rand(const uint8_t *src, size_t src_len, void *rnd_src,
+                                              int32_t *ret_code);
+
+/**
  * Decodes an encoded PublicKeyInfo structure
  * @param src the source
  * @param src_len  the length

@@ -347,7 +347,7 @@ public class FIPSAsn1LimitTest
     @Test
     public void fromPrivateKeyInfo_inIsNull()
     {
-        assertNPE("input is null", () -> asn1.fromPrivateKeyInfo(null, 0, 0));
+        assertNPE("input is null", () -> asn1.fromPrivateKeyInfo(null, 0, 0, TestUtil.RNDSrc));
     }
 
     @Test
@@ -355,7 +355,7 @@ public class FIPSAsn1LimitTest
     {
         for (int off : new int[]{-1, Integer.MIN_VALUE})
         {
-            assertIAE("input offset is negative", () -> asn1.fromPrivateKeyInfo(new byte[0], off, 0));
+            assertIAE("input offset is negative", () -> asn1.fromPrivateKeyInfo(new byte[0], off, 0, TestUtil.RNDSrc));
         }
     }
 
@@ -364,7 +364,7 @@ public class FIPSAsn1LimitTest
     {
         for (int len : new int[]{-1, Integer.MIN_VALUE})
         {
-            assertIAE("input len is negative", () -> asn1.fromPrivateKeyInfo(new byte[0], 0, len));
+            assertIAE("input len is negative", () -> asn1.fromPrivateKeyInfo(new byte[0], 0, len, TestUtil.RNDSrc));
         }
     }
 
@@ -372,15 +372,17 @@ public class FIPSAsn1LimitTest
     public void fromPrivateKeyInfo_inOutOfRange()
     {
         // Boundary + 1: 1 + 16 > 16, and 0 + 17 > 16.
-        assertIAE("input offset + length is out of range", () -> asn1.fromPrivateKeyInfo(new byte[16], 1, 16));
-        assertIAE("input offset + length is out of range", () -> asn1.fromPrivateKeyInfo(new byte[16], 0, 17));
+        assertIAE("input offset + length is out of range",
+                () -> asn1.fromPrivateKeyInfo(new byte[16], 1, 16, TestUtil.RNDSrc));
+        assertIAE("input offset + length is out of range",
+                () -> asn1.fromPrivateKeyInfo(new byte[16], 0, 17, TestUtil.RNDSrc));
 
         // Positive companion: a valid PrivateKeyInfo decodes at offset 0 and at
         // a non-zero offset.
-        specNI.dispose(asn1.fromPrivateKeyInfo(privDer, 0, privDer.length));
+        specNI.dispose(asn1.fromPrivateKeyInfo(privDer, 0, privDer.length, TestUtil.RNDSrc));
         byte[] shifted = new byte[privDer.length + 1];
         System.arraycopy(privDer, 0, shifted, 1, privDer.length);
-        specNI.dispose(asn1.fromPrivateKeyInfo(shifted, 1, privDer.length));
+        specNI.dispose(asn1.fromPrivateKeyInfo(shifted, 1, privDer.length, TestUtil.RNDSrc));
     }
 
     @Test
@@ -389,7 +391,7 @@ public class FIPSAsn1LimitTest
         byte[] bad = privDer.clone();
         bad[0] ^= 1;
         OpenSSLException ex = Assertions.assertThrows(OpenSSLException.class,
-                () -> asn1.fromPrivateKeyInfo(bad, 0, bad.length));
+                () -> asn1.fromPrivateKeyInfo(bad, 0, bad.length, TestUtil.RNDSrc));
         Assertions.assertTrue(ex.getMessage().startsWith("OpenSSL Error:"),
                 "unexpected message: " + ex.getMessage());
     }
@@ -399,7 +401,7 @@ public class FIPSAsn1LimitTest
     {
         // Valid data in the array but the declared length is too short.
         OpenSSLException ex = Assertions.assertThrows(OpenSSLException.class,
-                () -> asn1.fromPrivateKeyInfo(privDer, 0, privDer.length - 10));
+                () -> asn1.fromPrivateKeyInfo(privDer, 0, privDer.length - 10, TestUtil.RNDSrc));
         Assertions.assertTrue(ex.getMessage().startsWith("OpenSSL Error:"),
                 "unexpected message: " + ex.getMessage());
     }
@@ -473,13 +475,13 @@ public class FIPSAsn1LimitTest
     {
         // Positive control: the unmodified encoding decodes cleanly — the
         // rejection boundary is exactly consumed == len (boundary + 1 rule).
-        specNI.dispose(asn1.fromPrivateKeyInfo(privDer, 0, privDer.length));
+        specNI.dispose(asn1.fromPrivateKeyInfo(privDer, 0, privDer.length, TestUtil.RNDSrc));
 
         // One junk byte (boundary + 1), then several.
         for (int junkLen : new int[]{1, 7})
         {
             byte[] withJunk = withTrailingJunk(privDer, junkLen);
-            assertTrailingData(() -> asn1.fromPrivateKeyInfo(withJunk, 0, withJunk.length));
+            assertTrailingData(() -> asn1.fromPrivateKeyInfo(withJunk, 0, withJunk.length, TestUtil.RNDSrc));
         }
     }
 
@@ -493,7 +495,7 @@ public class FIPSAsn1LimitTest
         RANDOM.nextBytes(padded);
         System.arraycopy(privDer, 0, padded, 0, privDer.length);
 
-        specNI.dispose(asn1.fromPrivateKeyInfo(padded, 0, privDer.length));
+        specNI.dispose(asn1.fromPrivateKeyInfo(padded, 0, privDer.length, TestUtil.RNDSrc));
     }
 
     @Test
@@ -642,9 +644,11 @@ public class FIPSAsn1LimitTest
     public void fromKeyInfo_zeroLengthArray_sameCodeOnBothDecodes()
     {
         // A zero-length array is not a null one: both decodes reach the decoder and refuse there.
-        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), asn1.ni_fromPrivateKeyInfo(new byte[0], 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(),
+                asn1.ni_fromPrivateKeyInfo(new byte[0], 0, 0, TestUtil.RNDSrc));
         Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(), asn1.ni_fromPublicKeyInfo(new byte[0], 0, 0));
-        Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(), asn1.ni_fromPrivateKeyInfo(null, 0, 0));
+        Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(),
+                asn1.ni_fromPrivateKeyInfo(null, 0, 0, TestUtil.RNDSrc));
         Assertions.assertEquals(ErrorCode.JO_INPUT_IS_NULL.getCode(), asn1.ni_fromPublicKeyInfo(null, 0, 0));
     }
 
@@ -663,7 +667,7 @@ public class FIPSAsn1LimitTest
             Assertions.assertEquals(len, asn1.getData(a, second));
             Assertions.assertArrayEquals(first, second);
             Assertions.assertArrayEquals(privDer, first, "the class key encodes to the same bytes again");
-            specNI.dispose(asn1.fromPrivateKeyInfo(second, 0, len));
+            specNI.dispose(asn1.fromPrivateKeyInfo(second, 0, len, TestUtil.RNDSrc));
         }
         finally
         {
@@ -671,4 +675,17 @@ public class FIPSAsn1LimitTest
         }
     }
 
+
+    /** The private decode checks its entropy source before the input, and refuses a null one typed. */
+    @Test
+    public void fromPrivateKeyInfo_nullRandSource_refusedBeforeTheInput()
+    {
+        Assertions.assertEquals(ErrorCode.JO_RAND_NO_RAND_UP_CALL.getCode(),
+                asn1.ni_fromPrivateKeyInfo(null, 0, 0, null));
+        Assertions.assertEquals(ErrorCode.JO_RAND_NO_RAND_UP_CALL.getCode(),
+                asn1.ni_fromPrivateKeyInfo(new byte[16], -1, 0, null));
+        IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> asn1.fromPrivateKeyInfo(new byte[16], 0, 16, null));
+        Assertions.assertEquals("supplied random source was null", e.getMessage());
+    }
 }

@@ -857,5 +857,20 @@ public class MLKEMLimitTest
         }
     }
 
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        MLKEMBridgeCells.wrongKindHandlesAreRefused(mlkemServiceNI, TestNISelector.getMLDSANI(),
+                TestNISelector.getSLHDSANI(),
+                TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_theSpecThenTheRandSourceThenTheInputAreChecked()
+    {
+        MLKEMBridgeCells.theSpecThenTheRandSourceThenTheInputAreChecked(mlkemServiceNI, specNI,
+                TestNISelector.getMDNI());
+    }
 }
 

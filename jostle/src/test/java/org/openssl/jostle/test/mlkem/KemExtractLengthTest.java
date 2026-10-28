@@ -11,7 +11,6 @@
 
 package org.openssl.jostle.test.mlkem;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -24,13 +23,12 @@ import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import javax.crypto.KeyGenerator;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.Provider;
 import java.security.Security;
 import java.util.Arrays;
 
 /**
- * An encapsulation of the wrong length is refused before the native call, with the exception type BouncyCastle's
- * extractor throws for the same input.
+ * An encapsulation of the wrong length is refused before the native call. MLKEMAgreementTest pins the ML-KEM cell
+ * against the type BouncyCastle throws for the same input.
  */
 public class KemExtractLengthTest
 {
@@ -42,44 +40,6 @@ public class KemExtractLengthTest
         if (Security.getProvider(JSL) == null)
         {
             Security.addProvider(new JostleProvider());
-        }
-    }
-
-    @Test
-    public void mlKem_wrongLengthEncapsulation_refusedAsBouncyCastleDoes() throws Exception
-    {
-        Provider bc = new BouncyCastleProvider();
-        for (String name : new String[]{"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
-        {
-            KeyPair ours = KeyPairGenerator.getInstance(name, JSL).generateKeyPair();
-            byte[] enc = encapsulation(name, JSL, ours);
-
-            KeyPair theirs = KeyPairGenerator.getInstance(name, bc).generateKeyPair();
-            KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", bc);
-            // KEMGenerateSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-            bcGen.init(new org.bouncycastle.jcajce.spec.KEMGenerateSpec(theirs.getPublic(), "AES", 256));
-            // SecretKeyWithEncapsulation is qualified where BouncyCastle's is meant: jostle's of that name is imported
-            byte[] bcEnc = ((org.bouncycastle.jcajce.SecretKeyWithEncapsulation) bcGen.generateKey())
-                    .getEncapsulation();
-
-            for (int delta : new int[]{-1, 1, -enc.length})
-            {
-                IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
-                        () -> extract(name, JSL, ours, Arrays.copyOf(enc, enc.length + delta), 256),
-                        name + " delta " + delta);
-                Assertions.assertEquals("encapsulation wrong length: " + (enc.length + delta) + " bytes, "
-                        + name.replace('-', '_') + " takes " + enc.length, e.getMessage());
-
-                // BouncyCastle's half, measured live.
-                KeyGenerator x = KeyGenerator.getInstance("ML-KEM", bc);
-                // KEMExtractSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-                x.init(new org.bouncycastle.jcajce.spec.KEMExtractSpec(theirs.getPrivate(),
-                        Arrays.copyOf(bcEnc, bcEnc.length + delta), "AES", 256));
-                Assertions.assertThrows(IllegalArgumentException.class, x::generateKey, "BC " + name);
-            }
-
-            // Control: the whole encapsulation extracts.
-            Assertions.assertNotNull(extract(name, JSL, ours, enc, 256));
         }
     }
 

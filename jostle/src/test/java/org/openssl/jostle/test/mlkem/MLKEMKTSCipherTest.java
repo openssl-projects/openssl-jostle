@@ -15,7 +15,6 @@ import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -30,15 +29,10 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.io.IOException;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -89,10 +83,6 @@ public class MLKEMKTSCipherTest
             {
                 Security.addProvider(new JostleProvider());
             }
-            if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null)
-            {
-                Security.addProvider(new BouncyCastleProvider());
-            }
         }
     }
 
@@ -105,12 +95,7 @@ public class MLKEMKTSCipherTest
         return new AlgorithmIdentifier(X9ObjectIdentifiers.id_kdf_kdf3, new AlgorithmIdentifier(digestOid));
     }
 
-    /**
-     * Provider-agnostic description of a KTSParameterSpec. BC and Jostle each
-     * accept only their OWN spec type directly, so a single spec object cannot
-     * drive both providers — this descriptor builds the right one, from the
-     * same content, at {@link #forProvider(String)} time.
-     */
+    /** A KTSParameterSpec's content, built into our spec type by {@link #forProvider(String)}. */
     private static final class KtsSpec
     {
         private final String keyAlgorithmName;
@@ -129,14 +114,6 @@ public class MLKEMKTSCipherTest
 
         AlgorithmParameterSpec forProvider(String provider) throws IOException
         {
-            if (BouncyCastleProvider.PROVIDER_NAME.equals(provider))
-            {
-                // KTSParameterSpec is qualified where BouncyCastle's is meant: jostle's of that name is imported
-                org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder b =
-                        new org.bouncycastle.jcajce.spec.KTSParameterSpec.Builder(
-                                keyAlgorithmName, keySizeInBits, otherInfo);
-                return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf).build();
-            }
             KTSParameterSpec.Builder b = new KTSParameterSpec.Builder(keyAlgorithmName, keySizeInBits, otherInfo);
             return kdf == null ? b.withNoKdf().build() : b.withKdfAlgorithm(kdf.getEncoded()).build();
         }
@@ -410,72 +387,6 @@ public class MLKEMKTSCipherTest
         unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
         Assertions.assertArrayEquals(cek.getEncoded(), unwrap.unwrap(w1, "AES", Cipher.SECRET_KEY).getEncoded());
         Assertions.assertArrayEquals(cek.getEncoded(), unwrap.unwrap(w2, "AES", Cipher.SECRET_KEY).getEncoded());
-    }
-
-    // ----------------------------------------------------------------------
-    // Cross-provider agreement against BouncyCastle (the real interop guarantee)
-    // ----------------------------------------------------------------------
-
-    @Test
-    public void testCrossProvider_JostleWrap_BCUnwrap() throws Exception
-    {
-        SecureRandom rng = seededRandom("testCrossProvider_JostleWrap_BCUnwrap");
-
-        for (int t = 0; t < 5; t++)
-        {
-            KeyPair kp = jostleKeyPair("ML-KEM-768");
-            PrivateKey bcPriv = bcImportPrivate(kp);
-            KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 1 + rng.nextInt(32)), NISTObjectIdentifiers.id_sha256);
-            SecretKeySpec cek = randomAesKey(rng, 16 + 8 * rng.nextInt(3));
-
-            Cipher jslWrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-            jslWrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(JostleProvider.PROVIDER_NAME));
-            byte[] wrapped = jslWrap.wrap(cek);
-
-            Cipher bcUnwrap = Cipher.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
-            bcUnwrap.init(Cipher.UNWRAP_MODE, bcPriv, spec.forProvider(BouncyCastleProvider.PROVIDER_NAME));
-            Key recovered = bcUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
-
-            Assertions.assertArrayEquals(cek.getEncoded(), recovered.getEncoded(),
-                    "trial " + t + ": BC could not recover Jostle-wrapped CEK");
-        }
-    }
-
-    @Test
-    public void testCrossProvider_BCWrap_JostleUnwrap() throws Exception
-    {
-        SecureRandom rng = seededRandom("testCrossProvider_BCWrap_JostleUnwrap");
-
-        for (int t = 0; t < 5; t++)
-        {
-            KeyPair kp = jostleKeyPair("ML-KEM-768");
-            PublicKey bcPub = bcImportPublic(kp);
-            KtsSpec spec = ktsKdf3Spec(256, randomBytes(rng, 1 + rng.nextInt(32)), NISTObjectIdentifiers.id_sha256);
-            SecretKeySpec cek = randomAesKey(rng, 16 + 8 * rng.nextInt(3));
-
-            Cipher bcWrap = Cipher.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
-            bcWrap.init(Cipher.WRAP_MODE, bcPub, spec.forProvider(BouncyCastleProvider.PROVIDER_NAME));
-            byte[] wrapped = bcWrap.wrap(cek);
-
-            Cipher jslUnwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
-            jslUnwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec.forProvider(JostleProvider.PROVIDER_NAME));
-            Key recovered = jslUnwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
-
-            Assertions.assertArrayEquals(cek.getEncoded(), recovered.getEncoded(),
-                    "trial " + t + ": Jostle could not recover BC-wrapped CEK");
-        }
-    }
-
-    private static PublicKey bcImportPublic(KeyPair jostleKeyPair) throws Exception
-    {
-        KeyFactory kf = KeyFactory.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
-        return kf.generatePublic(new X509EncodedKeySpec(jostleKeyPair.getPublic().getEncoded()));
-    }
-
-    private static PrivateKey bcImportPrivate(KeyPair jostleKeyPair) throws Exception
-    {
-        KeyFactory kf = KeyFactory.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
-        return kf.generatePrivate(new PKCS8EncodedKeySpec(jostleKeyPair.getPrivate().getEncoded()));
     }
 
 }

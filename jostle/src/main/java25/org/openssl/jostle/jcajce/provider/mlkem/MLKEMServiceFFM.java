@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -23,6 +24,14 @@ import java.util.logging.Logger;
 
 public class MLKEMServiceFFM implements MLKEMServiceNI
 {
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
+    }
+
 
 
     private static final Logger L = Logger.getLogger("MLKEM_NI_FFM");
@@ -199,6 +208,15 @@ public class MLKEMServiceFFM implements MLKEMServiceNI
         }
     }
 
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
+    }
+
     @Override
     public long ni_generateKeyPair(int type, int[] err, byte[] seed, int seedLen, RandSource randSource)
     {
@@ -225,14 +243,23 @@ public class MLKEMServiceFFM implements MLKEMServiceNI
                 seedRef.asByteBuffer().put(seed);
             }
 
-            MemorySegment segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
-                    type,
-                    retCodeRef,
-                    seedRef,
-                    seedRef.byteSize(),
-                    seedLen,
-                    getEntropySegment
-            );
+            MemorySegment segment;
+            try
+            {
+                segment = (MemorySegment) generateKeyPairWithSeedFuncHandle.invokeExact(
+                        type,
+                        retCodeRef,
+                        seedRef,
+                        seedRef.byteSize(),
+                        seedLen,
+                        getEntropySegment
+                );
+            }
+            finally
+            {
+                // The arena's copy of the seed is cleared before the arena frees it.
+                zero(seedRef);
+            }
 
             int retCode = retCodeRef.get(ValueLayout.JAVA_INT, 0);
             err[0] = retCode;
@@ -366,7 +393,16 @@ public class MLKEMServiceFFM implements MLKEMServiceNI
                 getEntropySegment = linker.upcallStub(gHandle, entropyFd, a);
             }
 
-            return (int) decodePrivateKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(), inputOffset, inputLen, getEntropySegment);
+            try
+            {
+                return (int) decodePrivateKeyFuncHandle.invokeExact(keySpec, keyType, inputRef, inputRef.byteSize(),
+                        inputOffset, inputLen, getEntropySegment);
+            }
+            finally
+            {
+                // The arena's copy of the private key is cleared before the arena frees it.
+                zero(inputRef);
+            }
         }
         catch (Throwable t)
         {

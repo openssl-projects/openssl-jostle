@@ -15,13 +15,22 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
+import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
+import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.mlkem.MLKEMBridgeCells;
+
+import javax.crypto.KeyGenerator;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Provider;
 
 /**
  * Input validation at the ML-KEM NI surface of the FIPS interface library
@@ -450,5 +459,53 @@ public class FIPSMLKEMLimitTest
                                     Executable call)
     {
         Assertions.assertEquals(message, Assertions.assertThrows(type, call).getMessage());
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        MLKEMBridgeCells.wrongKindHandlesAreRefused(ni, FIPSNISelector.MLDSAServiceNI, FIPSNISelector.SLHDSAServiceNI,
+                FIPSNISelector.MDServiceNI);
+    }
+
+    @Test
+    public void bridge_theSpecThenTheRandSourceThenTheInputAreChecked()
+    {
+        MLKEMBridgeCells.theSpecThenTheRandSourceThenTheInputAreChecked(ni, specNI, FIPSNISelector.MDServiceNI);
+    }
+
+    /**
+     * ML-KEM is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 registers it and
+     * encapsulates. An unknown module fails in FipsModuleProfile.get(). Shared with FIPSMLKEMAgreementTest.
+     */
+    public static void assertServedPerModuleVersion() throws Exception
+    {
+        FipsModuleProfile profile = FipsModuleProfile.get();
+        Provider fips = FIPSTestUtil.assumeFipsProvider();
+        boolean registered = fips.getService("KeyPairGenerator", "ML-KEM-768") != null;
+        if (profile.isVersion312())
+        {
+            Assertions.assertFalse(registered);
+            Assertions.assertFalse(moduleServesMlKem());
+            return;
+        }
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertTrue(registered);
+        KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", fips).generateKeyPair();
+        KeyGenerator sender = KeyGenerator.getInstance("ML-KEM", fips);
+        sender.init(KEMGenerateSpec.builder().withPublicKey(kp.getPublic()).withAlgorithmName("AES")
+                .withKeySizeInBits(256).withNoKdf().build());
+        SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) sender.generateKey();
+        KeyGenerator receiver = KeyGenerator.getInstance("ML-KEM", fips);
+        receiver.init(KEMExtractSpec.builder().withPrivate(kp.getPrivate())
+                .withEncapsulatedKey(sent.getEncapsulation()).withAlgorithmName("AES").withKeySizeInBits(256)
+                .withNoKdf().build());
+        Assertions.assertArrayEquals(sent.getEncoded(), receiver.generateKey().getEncoded());
+    }
+
+    @Test
+    public void mlKemIsServedPerModuleVersion() throws Exception
+    {
+        assertServedPerModuleVersion();
     }
 }

@@ -91,7 +91,7 @@ class JOMLKEMPublicKey extends AsymmetricKeyImpl implements MLKEMPublicKey
         synchronized (this)
         {
             long len = mlkemServiceNI.getPublicKey(spec.getReference(), null);
-            byte[] out = new byte[(int) len];
+            byte[] out = new byte[mlkemServiceNI.boundedKeyLength(spec.getType(), MLKEMServiceNI.KeyPart.PUBLIC, len)];
             mlkemServiceNI.getPublicKey(spec.getReference(), out);
 
             return out;

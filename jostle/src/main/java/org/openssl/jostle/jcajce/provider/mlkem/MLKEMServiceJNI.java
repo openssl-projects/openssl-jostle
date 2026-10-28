@@ -10,10 +10,19 @@
 
 package org.openssl.jostle.jcajce.provider.mlkem;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.RandSource;
 
 public class MLKEMServiceJNI implements MLKEMServiceNI
 {
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
+    }
+
     @Override
     public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 

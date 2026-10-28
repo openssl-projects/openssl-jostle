@@ -195,7 +195,12 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
 
             try
             {
-                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length, providerInstance);
+                // An expanded key's import runs a pairwise test that draws; the type is known only when fixed.
+                int strengthBits = fixedType != OSSLKeyType.NONE
+                        ? MLKEMParameterSpec.getSpecForOSSLType(fixedType).getRequiredStrengthBits()
+                        : ASN1Encoder.privateDecodeStrengthBits();
+                PKEYKeySpec pkeySpec = ASN1Encoder.fromPrivateKeyInfo(asn1NI, specNI, encoded, 0, encoded.length,
+                        providerInstance, DefaultRandSource.replaceWith(null, null, strengthBits));
 
                 if (fixedType != OSSLKeyType.NONE && fixedType != pkeySpec.getType())
                 {
@@ -212,7 +217,14 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                         throw new InvalidKeySpecException("expected ML-KEM key but got " + pkeySpec.getType().getAlgorithmName());
                 }
 
-                return new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, pkeySpec);
+                // The encoding follows the input: a seed-only key re-encodes seed-only.
+                int form = KeyInfoCanonicalizer.privateKeyFirstByte(encoded);
+                if (form != KeyInfoCanonicalizer.FORM_SEED && form != KeyInfoCanonicalizer.FORM_EXPANDED
+                        && form != KeyInfoCanonicalizer.FORM_BOTH)
+                {
+                    throw new InvalidKeySpecException("unrecognised ML-KEM private key form");
+                }
+                return new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, pkeySpec, form == KeyInfoCanonicalizer.FORM_SEED);
             }
             catch (RuntimeException e)
             {

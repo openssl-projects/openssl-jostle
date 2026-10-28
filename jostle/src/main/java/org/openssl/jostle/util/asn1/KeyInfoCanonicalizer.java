@@ -99,10 +99,19 @@ public final class KeyInfoCanonicalizer
         }
     }
 
+    /** The ML-DSA and ML-KEM private key CHOICE, by the first byte of the privateKey content: the seed only. */
+    public static final int FORM_SEED = 0x80;
+
+    /** As {@link #FORM_SEED}: the expanded key only. */
+    public static final int FORM_EXPANDED = 0x04;
+
+    /** As {@link #FORM_SEED}: both the seed and the expanded key. */
+    public static final int FORM_BOTH = 0x30;
+
     /**
      * The first content byte of the privateKey OCTET STRING of a
      * {@code PrivateKeyInfo}, or -1 when the structure cannot be read. For
-     * ML-DSA it names the private key CHOICE the encoding carries.
+     * ML-DSA and ML-KEM it names the private key CHOICE the encoding carries.
      */
     public static int privateKeyFirstByte(byte[] pki)
     {

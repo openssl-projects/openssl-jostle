@@ -134,10 +134,16 @@ key_spec *JoASN1_fromPrivateKeyInfo(
     size_t input_len_size,
     int32_t in_off,
     int32_t in_len,
-    int32_t *ret_code) {
+    int32_t *ret_code,
+    void *rnd_src) {
     *ret_code = JO_FAIL;
 
     key_spec *key_spec = NULL;
+
+    if (rnd_src == NULL) {
+        *ret_code = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     if (input == NULL) {
         *ret_code = JO_INPUT_IS_NULL;
@@ -162,7 +168,7 @@ key_spec *JoASN1_fromPrivateKeyInfo(
     // in_off is non-negative by this point (checked above)
     const uint8_t *data = input + in_off;
 
-    key_spec = asn1_writer_decode_private_key(data, in_len, ret_code);
+    key_spec = asn1_writer_decode_private_key_rand(data, in_len, rnd_src, ret_code);
 
 exit:
     return key_spec;
