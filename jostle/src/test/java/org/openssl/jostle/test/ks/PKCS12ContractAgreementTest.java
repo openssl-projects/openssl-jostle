@@ -198,7 +198,7 @@ public class PKCS12ContractAgreementTest
      * RC2 certificate safe, which this build cannot read; the properties make
      * it write what later JDKs write by default, and change nothing there.
      */
-    private static byte[] storePbes2(KeyStore ks, char[] password) throws Exception
+    static byte[] storePbes2(KeyStore ks, char[] password) throws Exception
     {
         String[][] props = {
                 {"keystore.pkcs12.certProtectionAlgorithm", "PBEWithHmacSHA256AndAES_256"},

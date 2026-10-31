@@ -76,7 +76,7 @@ JNIEXPORT void JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
 }
 
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1load
-(JNIEnv *env, jobject self, jlong ref, jbyteArray _input, jbyteArray _password) {
+(JNIEnv *env, jobject self, jlong ref, jbyteArray _input, jbyteArray _password, jobject _randSource) {
     UNUSED(self);
 
     ks_ctx *ctx = (ks_ctx *) ref;
@@ -95,6 +95,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         return JO_KS_CTX_WRONG_KIND;
     }
 
+    if (_randSource == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+
     if (OPS_FAILED_ACCESS_1 !load_bytearray_ctx(&input, env, _input)) {
         ret = JO_FAILED_ACCESS_INPUT;
         goto exit;
@@ -105,7 +109,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         goto exit;
     }
 
-    ret = ks_load(ctx, input.bytearray, input.size, password.bytearray, password.size);
+    ret = ks_load(ctx, input.bytearray, input.size, password.bytearray, password.size, _randSource);
 
 exit:
     release_bytearray_ctx(&input);
@@ -193,7 +197,8 @@ exit:
 }
 
 JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1getKey
-(JNIEnv *env, jobject self, jlong ref, jstring _alias, jbyteArray _password, jintArray _err) {
+(JNIEnv *env, jobject self, jlong ref, jstring _alias, jbyteArray _password, jintArray _err,
+ jobject _randSource) {
     UNUSED(self);
 
     ks_ctx *ctx = (ks_ctx *) ref;
@@ -240,13 +245,18 @@ JNIEXPORT jbyteArray JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServic
         goto exit;
     }
 
+    if (_randSource == NULL) {
+        *err = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
+
     if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&password, env, _password)) {
         *err = JO_FAILED_ACCESS_KEY;
         goto exit;
     }
 
     *err = ks_get_key(ctx, alias, &out, &out_len,
-            password.bytearray, password.size);
+            password.bytearray, password.size, _randSource);
     if (UNSUCCESSFUL(*err) || out == NULL) {
         goto exit;
     }
@@ -276,7 +286,8 @@ exit:
 }
 
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_ni_1setKey
-(JNIEnv *env, jobject self, jlong ref, jstring _alias, jbyteArray _key, jbyteArray _password) {
+(JNIEnv *env, jobject self, jlong ref, jstring _alias, jbyteArray _key, jbyteArray _password,
+ jobject _randSource) {
     UNUSED(self);
 
     ks_ctx *ctx = (ks_ctx *) ref;
@@ -309,6 +320,10 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
         ret = JO_KS_NAME_HAS_NUL;
         goto exit;
     }
+    if (_randSource == NULL) {
+        ret = JO_RAND_NO_RAND_UP_CALL;
+        goto exit;
+    }
 
     if (_key == NULL) {
         ret = JO_KS_KEY_IS_NULL;
@@ -325,7 +340,7 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ks_KSServiceJNI_n
     }
 
     ret = ks_set_key(ctx, alias, key.bytearray, key.size,
-            password.bytearray, password.size);
+            password.bytearray, password.size, _randSource);
 
 exit:
     if (alias != NULL) {

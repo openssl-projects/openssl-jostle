@@ -462,7 +462,7 @@ static int32_t defer_secret_bag(ks_ctx *ctx, const char *alias, const unsigned c
 }
 
 static int32_t load_key_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
-                            const char *password, int password_len, int deferred) {
+                            const char *password, int password_len, int deferred, void *rnd_src) {
     PKCS8_PRIV_KEY_INFO *p8 = NULL;
     const PKCS8_PRIV_KEY_INFO *p8_const = NULL;
 
@@ -501,8 +501,11 @@ static int32_t load_key_bag(ks_ctx *ctx, const char *alias, PKCS12_SAFEBAG *bag,
         return JO_KS_LOAD_FAILED;
     }
 
+    /* An expanded ML-KEM key's import runs a pairwise test that draws. */
+    rand_set_java_srand_call(rnd_src);
     EVP_PKEY *pkey = EVP_PKCS82PKEY_ex(p8_const,
             get_global_jostle_ossl_lib_ctx(), NULL);
+    rand_clear_java_srand_call();
     PKCS8_PRIV_KEY_INFO_free(p8);
     if (pkey == NULL) {
         return JO_KS_LOAD_FAILED;
@@ -765,7 +768,7 @@ static int32_t place_loose_certs(ks_ctx *ctx, STACK_OF(X509) *loose, STACK_OF(OP
  * association order-independent across bags and safes.
  */
 static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
-                                   const char *password, int password_len, int deferred) {
+                                   const char *password, int password_len, int deferred, void *rnd_src) {
     if (bags == NULL) {
         return JO_KS_LOAD_FAILED;
     }
@@ -787,7 +790,7 @@ static int32_t load_collected_bags(ks_ctx *ctx, STACK_OF(PKCS12_SAFEBAG) *bags,
 
         int32_t ret = bag_nid == NID_secretBag
                 ? load_secret_bag(ctx, alias, bag, password, password_len, deferred)
-                : load_key_bag(ctx, alias, bag, password, password_len, deferred);
+                : load_key_bag(ctx, alias, bag, password, password_len, deferred, rnd_src);
         if (ret == JO_SUCCESS) {
             ks_entry *entry = find_entry(ctx, alias);
             const unsigned char *id;
@@ -936,10 +939,11 @@ int32_t ks_free(ks_ctx *ctx) {
 }
 
 int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
-                const uint8_t *password, size_t password_len) {
+                const uint8_t *password, size_t password_len, void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(input != NULL || input_len == 0);
     jo_assert(password != NULL || password_len == 0);
+    jo_assert(rnd_src != NULL);
 
     if (input == NULL) {
         clear_entries(ctx);
@@ -1113,7 +1117,7 @@ int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
     }
 
     if (ret == JO_SUCCESS) {
-        ret = load_collected_bags(&loaded, all_bags, pass, pass_len, no_password);
+        ret = load_collected_bags(&loaded, all_bags, pass, pass_len, no_password, rnd_src);
     }
     if (ret == JO_SUCCESS) {
         replace_entries(ctx, &loaded);
@@ -1466,7 +1470,7 @@ end:
  * and an empty password, so an empty one is tried both ways, as ks_load does.
  */
 static int32_t decrypt_pending_key(const ks_entry *entry, const uint8_t *password, size_t password_len,
-                                   EVP_PKEY **out) {
+                                   EVP_PKEY **out, void *rnd_src) {
     const unsigned char *p = entry->pending_key;
     X509_SIG *sig = d2i_X509_SIG(NULL, &p, (long) entry->pending_key_len);
     if (sig == NULL) {
@@ -1492,7 +1496,10 @@ static int32_t decrypt_pending_key(const ks_entry *entry, const uint8_t *passwor
             ret = JO_KS_ALGORITHM_UNSUPPORTED;
         }
     } else {
+        /* An expanded ML-KEM key's import runs a pairwise test that draws. */
+        rand_set_java_srand_call(rnd_src);
         *out = EVP_PKCS82PKEY_ex(p8, get_global_jostle_ossl_lib_ctx(), NULL);
+        rand_clear_java_srand_call();
         ret = *out != NULL ? JO_SUCCESS : JO_KS_DECODE_KEY_FAILED;
     }
     PKCS8_PRIV_KEY_INFO_free(p8);
@@ -1502,12 +1509,13 @@ static int32_t decrypt_pending_key(const ks_entry *entry, const uint8_t *passwor
 }
 
 int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len,
-                   const uint8_t *password, size_t password_len) {
+                   const uint8_t *password, size_t password_len, void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(alias != NULL);
     jo_assert(out != NULL);
     jo_assert(out_len != NULL);
     jo_assert(password != NULL || password_len == 0);
+    jo_assert(rnd_src != NULL);
 
     *out = NULL;
     *out_len = 0;
@@ -1520,7 +1528,7 @@ int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_le
     }
     EVP_PKEY *pending = NULL;
     if (entry->key == NULL) {
-        int32_t dret = decrypt_pending_key(entry, password, password_len, &pending);
+        int32_t dret = decrypt_pending_key(entry, password, password_len, &pending, rnd_src);
         if (dret != JO_SUCCESS) {
             return dret;
         }
@@ -1564,11 +1572,12 @@ int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_le
 }
 
 int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t key_len,
-                   const uint8_t *password, size_t password_len) {
+                   const uint8_t *password, size_t password_len, void *rnd_src) {
     jo_assert(ctx != NULL);
     jo_assert(alias != NULL);
     jo_assert(key != NULL);
     jo_assert(password != NULL || password_len == 0);
+    jo_assert(rnd_src != NULL);
 
     clear_pending_store(ctx);
     ERR_clear_error();
@@ -1588,7 +1597,7 @@ int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t ke
     }
 
     int32_t ret = JO_OPENSSL_ERROR;
-    key_spec *spec = asn1_writer_decode_private_key(key, key_len, &ret);
+    key_spec *spec = asn1_writer_decode_private_key_rand(key, key_len, rnd_src, &ret);
     if (spec == NULL) {
         OPENSSL_clear_free(password_copy, password_len);
         return ret == JO_OPENSSL_ERROR ? JO_KS_DECODE_KEY_FAILED : ret;

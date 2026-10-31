@@ -48,12 +48,16 @@ void JoKS_Dispose(ks_ctx *ctx) {
     jo_assert(rc == JO_SUCCESS);
 }
 
-int32_t JoKS_Load(ks_ctx *ctx, uint8_t *input, size_t input_size, uint8_t *password, size_t password_size) {
+int32_t JoKS_Load(ks_ctx *ctx, uint8_t *input, size_t input_size, uint8_t *password, size_t password_size,
+                  void *rnd_src) {
     if (ctx == NULL) {
         return JO_KS_CTX_IS_NULL;
     }
     if (ks_ctx_check(ctx) != JO_SUCCESS) {
         return JO_KS_CTX_WRONG_KIND;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
     if (input == NULL && input_size != 0) {
         return JO_FAILED_ACCESS_INPUT;
@@ -62,7 +66,7 @@ int32_t JoKS_Load(ks_ctx *ctx, uint8_t *input, size_t input_size, uint8_t *passw
         return JO_FAILED_ACCESS_KEY;
     }
 
-    return ks_load(ctx, input, input_size, password, password_size);
+    return ks_load(ctx, input, input_size, password, password_size, rnd_src);
 }
 
 int32_t JoKS_StoreLen(ks_ctx *ctx, uint8_t *password, size_t password_size,
@@ -198,7 +202,7 @@ exit:
 }
 
 int32_t JoKS_GetKeyLen(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *password, size_t password_size,
-                       int32_t *err, int32_t err_len) {
+                       void *rnd_src, int32_t *err, int32_t err_len) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t result = 0;
@@ -223,12 +227,16 @@ int32_t JoKS_GetKeyLen(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t
         *err = JO_KS_NAME_HAS_NUL;
         return 0;
     }
+    if (rnd_src == NULL) {
+        *err = JO_RAND_NO_RAND_UP_CALL;
+        return 0;
+    }
     if (password == NULL && password_size != 0) {
         *err = JO_FAILED_ACCESS_KEY;
         return 0;
     }
 
-    *err = ks_get_key(ctx, alias, &out, &out_len, password, password_size);
+    *err = ks_get_key(ctx, alias, &out, &out_len, password, password_size, rnd_src);
     if (UNSUCCESSFUL(*err) || out == NULL) {
         goto exit;
     }
@@ -244,7 +252,7 @@ exit:
 }
 
 int32_t JoKS_GetKey(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *password, size_t password_size,
-                    uint8_t *output, size_t output_size) {
+                    void *rnd_src, uint8_t *output, size_t output_size) {
     uint8_t *out = NULL;
     size_t out_len = 0;
     int32_t ret;
@@ -262,6 +270,9 @@ int32_t JoKS_GetKey(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *p
     if (has_nul(alias, alias_len)) {
         return JO_KS_NAME_HAS_NUL;
     }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
     if (password == NULL && password_size != 0) {
         return JO_FAILED_ACCESS_KEY;
     }
@@ -269,7 +280,7 @@ int32_t JoKS_GetKey(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *p
         return JO_OUTPUT_IS_NULL;
     }
 
-    ret = ks_get_key(ctx, alias, &out, &out_len, password, password_size);
+    ret = ks_get_key(ctx, alias, &out, &out_len, password, password_size, rnd_src);
     if (UNSUCCESSFUL(ret) || out == NULL) {
         goto exit;
     }
@@ -368,7 +379,7 @@ exit:
 }
 
 int32_t JoKS_SetKey(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *key, size_t key_size,
-                    uint8_t *password, size_t password_size) {
+                    uint8_t *password, size_t password_size, void *rnd_src) {
     if (ctx == NULL) {
         return JO_KS_CTX_IS_NULL;
     }
@@ -381,6 +392,9 @@ int32_t JoKS_SetKey(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *k
     if (has_nul(alias, alias_len)) {
         return JO_KS_NAME_HAS_NUL;
     }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
     if (key == NULL) {
         return JO_KS_KEY_IS_NULL;
     }
@@ -388,7 +402,7 @@ int32_t JoKS_SetKey(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *k
         return JO_FAILED_ACCESS_KEY;
     }
 
-    return ks_set_key(ctx, alias, key, key_size, password, password_size);
+    return ks_set_key(ctx, alias, key, key_size, password, password_size, rnd_src);
 }
 
 int32_t JoKS_SetSecret(ks_ctx *ctx, const char *alias, size_t alias_len, uint8_t *key, size_t key_size,

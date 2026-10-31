@@ -37,15 +37,15 @@ public interface KSServiceNI
 
     void ni_dispose(long ref);
 
-    int ni_load(long ref, byte[] input, byte[] password);
+    int ni_load(long ref, byte[] input, byte[] password, RandSource randSource);
 
     byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
                     int macDigest, int pbeIter, int macIter, int secretForm, int[] err,
                     RandSource randSource);
 
-    byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);
+    byte[] ni_getKey(long ref, String alias, byte[] password, int[] err, RandSource randSource);
 
-    int ni_setKey(long ref, String alias, byte[] key, byte[] password);
+    int ni_setKey(long ref, String alias, byte[] key, byte[] password, RandSource randSource);
 
     int ni_setSecretKey(long ref, String alias, byte[] key, String rfcOid, String sunOid, byte[] password);
 
@@ -89,10 +89,10 @@ public interface KSServiceNI
         ni_dispose(ref);
     }
 
-    default void load(long ref, byte[] input, byte[] password)
+    default void load(long ref, byte[] input, byte[] password, RandSource randSource)
         throws IOException
     {
-        int code = ni_load(ref, input, password);
+        int code = ni_load(ref, input, password, randSource);
         refuseUnsupportedAlgorithm(code);
         if (ErrorCode.forCode(code) == ErrorCode.JO_KS_MAC_VERIFY_FAILED)
         {
@@ -121,11 +121,11 @@ public interface KSServiceNI
         return out;
     }
 
-    default byte[] getKey(long ref, String alias, byte[] password)
+    default byte[] getKey(long ref, String alias, byte[] password, RandSource randSource)
         throws KeyStoreException
     {
         int[] err = new int[1];
-        byte[] key = ni_getKey(ref, alias, password, err);
+        byte[] key = ni_getKey(ref, alias, password, err, randSource);
         if (namesNoEntry(err[0]))
         {
             return null;
@@ -134,10 +134,10 @@ public interface KSServiceNI
         return key;
     }
 
-    default void setKey(long ref, String alias, byte[] key, byte[] password)
+    default void setKey(long ref, String alias, byte[] key, byte[] password, RandSource randSource)
         throws KeyStoreException
     {
-        handleKeyStoreErrors(ni_setKey(ref, alias, key, password));
+        handleKeyStoreErrors(ni_setKey(ref, alias, key, password, randSource));
     }
 
     default void setSecretKey(long ref, String alias, byte[] key, String rfcOid, String sunOid,

@@ -84,7 +84,8 @@ public class KSServiceFFM
                 Linker.Option.critical(true));
         this.loadH = linker.downcallHandle(
                 lookup.find("JoKS_Load").orElseThrow(),
-                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+                FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
         this.storeLenH = linker.downcallHandle(
                 lookup.find("JoKS_StoreLen").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
@@ -95,24 +96,26 @@ public class KSServiceFFM
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
                         ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        // Not critical: a deferred key's import can up-call for entropy (see ni_getKey).
         this.getKeyLenH = linker.downcallHandle(
                 lookup.find("JoKS_GetKeyLen").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
-                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT),
-                Linker.Option.critical(true));
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT));
         this.getKeyH = linker.downcallHandle(
                 lookup.find("JoKS_GetKey").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
-                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-                Linker.Option.critical(true));
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG));
+        // Not critical: the key's import can up-call for entropy (see ni_setKey).
         this.setKeyH = linker.downcallHandle(
                 lookup.find("JoKS_SetKey").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
-                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG),
-                Linker.Option.critical(true));
+                        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS));
         this.setSecretH = linker.downcallHandle(
                 lookup.find("JoKS_SetSecret").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
@@ -210,6 +213,7 @@ public class KSServiceFFM
     // thousands of iterations) per shrouded key bag plus MAC verification, so a
     // critical downcall would suppress GC for that whole multi-second span.
     // Buffers are copied off-heap from a confined arena in ni_load instead.
+    // loadH also passes the entropy upcall stub last: a key bag's import can draw.
     // storeLenH / storeH are deliberately NOT critical: ks_store generates
     // PKCS#12 salts via the Jostle lib ctx, which up-calls Java for entropy --
     // forbidden from a critical downcall. Buffers are passed off-heap (see
@@ -217,6 +221,33 @@ public class KSServiceFFM
     // upcall stub.
     private static final FunctionDescriptor entropyFd = EntropyUpcall.DESCRIPTOR;
     private static final MethodType entropyMt = EntropyUpcall.METHOD_TYPE;
+
+    /** The entropy up-call stub for randSource in the arena; NULL for null, for C to refuse. */
+    private static MemorySegment upcall(Arena a, RandSource randSource) throws ReflectiveOperationException
+    {
+        if (randSource == null)
+        {
+            return MemorySegment.NULL;
+        }
+        var gHandle = MethodHandles.lookup().findVirtual(
+                RandSource.class, "getRandomSegment", entropyMt).bindTo(randSource);
+        return linker.upcallStub(gHandle, entropyFd, a);
+    }
+
+    /** An arena copy of data: NULL for null, a one-byte segment for an empty array. */
+    private static MemorySegment copyOf(Arena a, byte[] data)
+    {
+        if (data == null)
+        {
+            return MemorySegment.NULL;
+        }
+        MemorySegment seg = a.allocate(data.length == 0 ? 1L : (long) data.length);
+        if (data.length > 0)
+        {
+            seg.asByteBuffer().put(data);
+        }
+        return seg;
+    }
 
     @Override
     public long ni_allocateKeyStore(String type, int[] err)
@@ -251,7 +282,7 @@ public class KSServiceFFM
     }
 
     @Override
-    public int ni_load(long ref, byte[] input, byte[] password)
+    public int ni_load(long ref, byte[] input, byte[] password, RandSource randSource)
     {
         // Non-critical downcall (see loadH), so every buffer is passed off-heap
         // from a confined arena rather than as a pinned heap segment.
@@ -292,7 +323,7 @@ public class KSServiceFFM
                     passwordSeg.asByteBuffer().put(password);
                 }
                 return (int) loadH.invokeExact(MemorySegment.ofAddress(ref),
-                        inputSeg, inputSize, passwordSeg, passwordSize);
+                        inputSeg, inputSize, passwordSeg, passwordSize, upcall(a, randSource));
             }
             finally
             {
@@ -399,26 +430,52 @@ public class KSServiceFFM
     }
 
     @Override
-    public byte[] ni_getKey(long ref, String alias, byte[] password, int[] err)
+    public byte[] ni_getKey(long ref, String alias, byte[] password, int[] err, RandSource randSource)
     {
-        try (Arena arena = Arena.ofConfined())
+        // Non-critical downcalls (see getKeyH): every buffer is an arena copy.
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
-            MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
-            MemorySegment errSeg = errSegment(err);
-            MemorySegment ctx = MemorySegment.ofAddress(ref);
-            int len = (int) getKeyLenH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
-                    passwordSeg, passwordSeg.byteSize(), errSeg, errLen(err));
-            if (err[0] != 0 || len == 0)
+            MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : a.allocateFrom(alias);
+            MemorySegment passwordSeg = copyOf(a, password);
+            long passwordSize = password == null ? 0L : password.length;
+            MemorySegment keySeg = MemorySegment.NULL;
+            try
             {
-                return null;
-            }
+                // err is jostle's own; its null-ness and length travel down so C asserts them.
+                MemorySegment errSeg = err == null ? MemorySegment.NULL : a.allocate(ValueLayout.JAVA_INT);
+                MemorySegment randSeg = upcall(a, randSource);
+                MemorySegment ctx = MemorySegment.ofAddress(ref);
+                int len = (int) getKeyLenH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
+                        passwordSeg, passwordSize, randSeg, errSeg, errLen(err));
+                err[0] = errSeg.get(ValueLayout.JAVA_INT, 0);
+                if (err[0] != 0 || len == 0)
+                {
+                    return null;
+                }
 
-            byte[] key = new byte[len];
-            MemorySegment keySeg = MemorySegment.ofArray(key);
-            err[0] = (int) getKeyH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
-                    passwordSeg, passwordSeg.byteSize(), keySeg, keySeg.byteSize());
-            return err[0] == 0 ? key : null;
+                keySeg = a.allocate(len);
+                err[0] = (int) getKeyH.invokeExact(ctx, aliasSeg, FFM.cStringLength(aliasSeg),
+                        passwordSeg, passwordSize, randSeg, keySeg, keySeg.byteSize());
+                if (err[0] != 0)
+                {
+                    return null;
+                }
+                byte[] key = new byte[len];
+                keySeg.asByteBuffer().get(key);
+                return key;
+            }
+            finally
+            {
+                // Arena.close() frees but does not cleanse: scrub the password and key copies.
+                if (passwordSeg.byteSize() > 0)
+                {
+                    passwordSeg.fill((byte) 0);
+                }
+                if (keySeg.byteSize() > 0)
+                {
+                    keySeg.fill((byte) 0);
+                }
+            }
         }
         catch (Throwable t)
         {
@@ -428,16 +485,34 @@ public class KSServiceFFM
     }
 
     @Override
-    public int ni_setKey(long ref, String alias, byte[] key, byte[] password)
+    public int ni_setKey(long ref, String alias, byte[] key, byte[] password, RandSource randSource)
     {
-        try (Arena arena = Arena.ofConfined())
+        // Non-critical downcall (see setKeyH): every buffer is an arena copy. An empty array
+        // gets a one-byte segment and its true length of 0, so it stays distinct from null.
+        try (Arena a = Arena.ofConfined())
         {
-            MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : arena.allocateFrom(alias);
-            MemorySegment keySeg = key == null ? MemorySegment.NULL : MemorySegment.ofArray(key);
-            MemorySegment passwordSeg = password == null ? MemorySegment.NULL : MemorySegment.ofArray(password);
-            return (int) setKeyH.invokeExact(MemorySegment.ofAddress(ref),
-                    aliasSeg, FFM.cStringLength(aliasSeg), keySeg, keySeg.byteSize(),
-                    passwordSeg, passwordSeg.byteSize());
+            MemorySegment aliasSeg = alias == null ? MemorySegment.NULL : a.allocateFrom(alias);
+            MemorySegment keySeg = copyOf(a, key);
+            MemorySegment passwordSeg = copyOf(a, password);
+            try
+            {
+                MemorySegment randSeg = upcall(a, randSource);
+                return (int) setKeyH.invokeExact(MemorySegment.ofAddress(ref),
+                        aliasSeg, FFM.cStringLength(aliasSeg), keySeg, key == null ? 0L : (long) key.length,
+                        passwordSeg, password == null ? 0L : (long) password.length, randSeg);
+            }
+            finally
+            {
+                // Arena.close() frees but does not cleanse: scrub the key and password copies.
+                if (keySeg.byteSize() > 0)
+                {
+                    keySeg.fill((byte) 0);
+                }
+                if (passwordSeg.byteSize() > 0)
+                {
+                    passwordSeg.fill((byte) 0);
+                }
+            }
         }
         catch (Throwable t)
         {

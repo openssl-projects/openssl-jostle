@@ -350,6 +350,13 @@ public class BcFKSAgreementTest
                         + "):\n  " + String.join("\n  ", failures));
     }
 
+    /** An expanded-only ML-KEM key's import draws; it stores, reads back and opens BouncyCastle's encapsulation. */
+    @Test
+    public void mlKemKeyEntriesStoreAndReadBackInBothForms() throws Exception
+    {
+        BcFKSMLKEMEntries.storeAndOpen(jsl, certificate);
+    }
+
     @Test
     public void everySignatureCheckAlgorithmRoundTrips() throws Exception
     {

@@ -110,8 +110,13 @@ public class KSServiceSPI
 
     // KeyStore SPIs receive no SecureRandom from the JCE API, so the store path
     // sources entropy from a cached default RandSource (PKCS#12 salts need no
-    // special strength; load/verify consume no entropy at all).
+    // special strength).
     private final RandSource randSource = DefaultRandSource.replaceWith(null, null, 128);
+
+    // A private key import at set, load or getKey can draw (an expanded ML-KEM key's pairwise
+    // test); the type is unknown before the decode, so this is at the highest strength any needs.
+    private final RandSource keyImportRandSource = DefaultRandSource.replaceWith(null, null,
+            ASN1Encoder.privateDecodeStrengthBits());
 
     /**
      * Which provider this SPI belongs to — instance when registered, name in
@@ -297,7 +302,7 @@ public class KSServiceSPI
             try
             {
                 encoded = ksServiceNI.getKey(ref.getReference(), alias,
-                        encodedPassword);
+                        encodedPassword, keyImportRandSource);
             }
             finally
             {
@@ -437,7 +442,7 @@ public class KSServiceSPI
             try
             {
                 ksServiceNI.setKey(ref.getReference(), alias, encoded,
-                        encodedPassword);
+                        encodedPassword, keyImportRandSource);
                 ksServiceNI.setCertificateChain(ref.getReference(), alias, encodedChain);
             }
             finally
@@ -497,7 +502,7 @@ public class KSServiceSPI
 
         try
         {
-            ksServiceNI.setKey(ref.getReference(), alias, key, null);
+            ksServiceNI.setKey(ref.getReference(), alias, key, null, keyImportRandSource);
             ksServiceNI.setCertificateChain(ref.getReference(), alias, encodedChain);
         }
         finally
@@ -782,7 +787,7 @@ public class KSServiceSPI
             byte[] encodedPassword = encodePassword(password);
             try
             {
-                ksServiceNI.load(ref.getReference(), input, encodedPassword);
+                ksServiceNI.load(ref.getReference(), input, encodedPassword, keyImportRandSource);
                 try
                 {
                     normaliseSecretEntries(encodedPassword);

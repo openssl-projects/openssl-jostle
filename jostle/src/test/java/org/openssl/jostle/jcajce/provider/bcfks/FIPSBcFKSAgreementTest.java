@@ -18,7 +18,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.BCFKSLoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.provider.fips.OpenSSLFIPSNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 
@@ -278,6 +280,26 @@ public class FIPSBcFKSAgreementTest
         Assertions.assertTrue(failures.isEmpty(),
                 "entry types that did not round-trip on JSLFIPS (" + failures.size() + " of "
                         + types.size() + "):\n  " + String.join("\n  ", failures));
+    }
+
+    /**
+     * Where the module implements ML-KEM, an expanded-only key and the both-form control store, read back and open
+     * BouncyCastle's encapsulation; where it does not, JSLFIPS registers no ML-KEM KeyFactory or KeyGenerator.
+     */
+    @Test
+    public void mlKemKeyEntriesStoreAndReadBackWhereServed() throws Exception
+    {
+        bcName();
+        Provider fips = fips();
+        boolean implemented = FIPSNISelector.OpenSSLFIPSNI.canFetch(OpenSSLFIPSNI.OP_KEYMGMT, "ML-KEM-768") != 0;
+        Assertions.assertEquals(implemented, fips.getService("KeyFactory", "ML-KEM") != null,
+                "JSLFIPS KeyFactory.ML-KEM registration disagrees with the loaded module");
+        Assertions.assertEquals(implemented, fips.getService("KeyGenerator", "ML-KEM") != null,
+                "JSLFIPS KeyGenerator.ML-KEM registration disagrees with the loaded module");
+        if (implemented)
+        {
+            BcFKSMLKEMEntries.storeAndOpen(fips, certificate());
+        }
     }
 
     // ---- A store crossing between the two providers ------------------------

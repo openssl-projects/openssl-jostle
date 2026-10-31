@@ -455,7 +455,7 @@ public class KSServiceTest
         {
             source = serviceNI.allocateKeyStore("PKCS12");
             serviceNI.setKey(source, "key", keyPair.getPrivate().getEncoded(),
-                    password);
+                    password, TestUtil.RNDSrc);
             serviceNI.setCertificateChain(source, "key",
                     encodeCertificateChain(keyCertificate));
             serviceNI.setCertificateEntry(source, "trusted",
@@ -468,7 +468,7 @@ public class KSServiceTest
             Assertions.assertTrue(encoded.length > 0);
 
             loaded = serviceNI.allocateKeyStore("PKCS12");
-            serviceNI.load(loaded, encoded, password);
+            serviceNI.load(loaded, encoded, password, TestUtil.RNDSrc);
 
             Assertions.assertEquals(2, serviceNI.size(loaded));
             Assertions.assertEquals(aliasSet("key", "trusted"),
@@ -477,11 +477,11 @@ public class KSServiceTest
             Assertions.assertTrue(serviceNI.isCertificateEntry(loaded,
                     "trusted"));
             Assertions.assertArrayEquals(keyPair.getPrivate().getEncoded(),
-                    serviceNI.getKey(loaded, "key", password));
+                    serviceNI.getKey(loaded, "key", password, TestUtil.RNDSrc));
             final long loadedRef = loaded;
             Assertions.assertThrows(KeyStoreException.class,
                     () -> serviceNI.getKey(loadedRef, "key",
-                            "wrongpass".getBytes(StandardCharsets.UTF_8)));
+                            "wrongpass".getBytes(StandardCharsets.UTF_8), TestUtil.RNDSrc));
             Assertions.assertArrayEquals(encodeCertificateChain(keyCertificate),
                     serviceNI.getCertificateChain(loaded, "key"));
             Assertions.assertArrayEquals(
@@ -531,7 +531,7 @@ public class KSServiceTest
             Assertions.assertTrue(encoded.length > 0);
 
             loaded = serviceNI.allocateKeyStore("PKCS12");
-            serviceNI.load(loaded, encoded, password);
+            serviceNI.load(loaded, encoded, password, TestUtil.RNDSrc);
 
             Assertions.assertEquals(0, serviceNI.size(loaded));
             Assertions.assertEquals(aliasSet(),

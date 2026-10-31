@@ -131,33 +131,35 @@ public class UserRandStrengthValidationTest
     }
 
     @Test
-    public void mlkem768_userSuppliedWeakDrbg_engineInit_encap_upgrades() throws Exception
+    public void mlkem768_userSuppliedWeakDrbg_engineInit_encap_rejectsAtInit() throws Exception
     {
-        // The encap path in MLKEMKeyGenerator (the exact GH issue #34 entry
-        // point) cannot distinguish a deliberately weak user SecureRandom from
-        // the platform default the JCE injects into the final KeyGenerator
-        // init(spec) (a 128-bit DRBG on Windows JDK 9+). Rather than reject the
-        // natural call, it drops an under-strength source and upgrades to a
-        // strength-appropriate DRBG, so init + encap succeed. (KeyPairGenerator,
-        // whose init(spec) passes null, can still reject a deliberately weak
-        // DRBG at its two-arg initialize — see the keyPairGen tests above.)
+        // A caller's weak DRBG is refused at init; only the JCE's injected default is replaced.
         SecureRandom weakDrbg = newDrbg(128);
         assumeDrbgAvailable(weakDrbg);
         KeyPair kp = generateKeyPair(MLKEMParameterSpec.ml_kem_768);
-        KeyGenerator kg = KeyGenerator.getInstance("ML-KEM-768",
-                JostleProvider.PROVIDER_NAME);
         KEMGenerateSpec spec = KEMGenerateSpec.builder()
                 .withPublicKey(kp.getPublic())
                 .withAlgorithmName("AES")
                 .withKeySizeInBits(256)
                 .build();
-        kg.init(spec, weakDrbg);
-        SecretKey encapKey = kg.generateKey();
-        Assertions.assertNotNull(encapKey);
+        KeyGenerator kg = KeyGenerator.getInstance("ML-KEM-768",
+                JostleProvider.PROVIDER_NAME);
+        InvalidAlgorithmParameterException ex = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
+                () -> kg.init(spec, weakDrbg));
+        Assertions.assertTrue(ex.getMessage().contains("128"),
+                "message should report supplied strength: " + ex.getMessage());
+        Assertions.assertTrue(ex.getMessage().contains("192"),
+                "message should report required strength: " + ex.getMessage());
+
+        KeyGenerator fresh = KeyGenerator.getInstance("ML-KEM-768",
+                JostleProvider.PROVIDER_NAME);
+        fresh.init(spec);
+        SecretKey encapKey = fresh.generateKey();
         byte[] encapsulation =
                 ((SecretKeyWithEncapsulation) encapKey).getEncapsulation();
         Assertions.assertTrue(encapsulation.length > 0,
-                "encap with an upgraded weak DRBG must still produce an encapsulation");
+                "encap with the injected default must produce an encapsulation");
     }
 
     @Test

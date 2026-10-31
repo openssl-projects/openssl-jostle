@@ -136,7 +136,7 @@ int32_t ks_free(ks_ctx *ctx);
  * zero-length password is a password, tried as both PKCS#12 empty forms.
  */
 int32_t ks_load(ks_ctx *ctx, const uint8_t *input, size_t input_len,
-                const uint8_t *password, size_t password_len);
+                const uint8_t *password, size_t password_len, void *rnd_src);
 
 int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
                  const uint8_t *password, size_t password_len,
@@ -145,10 +145,10 @@ int32_t ks_store(ks_ctx *ctx, uint8_t **out, size_t *out_len,
                  int32_t secret_form, void *rnd_src);
 
 int32_t ks_get_key(ks_ctx *ctx, const char *alias, uint8_t **out, size_t *out_len,
-                   const uint8_t *password, size_t password_len);
+                   const uint8_t *password, size_t password_len, void *rnd_src);
 
 int32_t ks_set_key(ks_ctx *ctx, const char *alias, const uint8_t *key, size_t key_len,
-                   const uint8_t *password, size_t password_len);
+                   const uint8_t *password, size_t password_len, void *rnd_src);
 
 /*
  * Secret-key entries. ks_set_secret takes the key and its OID under each bag

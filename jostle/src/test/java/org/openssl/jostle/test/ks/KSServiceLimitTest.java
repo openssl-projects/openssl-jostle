@@ -260,13 +260,13 @@ public class KSServiceLimitTest
             int[] e = new int[18];
             int[] err = new int[1];
             int i = 0;
-            e[i++] = ni.ni_load(md, new byte[]{1}, PASSWORD);
+            e[i++] = ni.ni_load(md, new byte[]{1}, PASSWORD, TestUtil.RNDSrc);
             ni.ni_store(md, PASSWORD, KEY_PBE, CERT_PBE, MAC_SCHEME, MAC_DIGEST, PBE_ITER, MAC_ITER,
                     KSServiceNI.SECRET_FORM_RFC7292, err, TestUtil.RNDSrc);
             e[i++] = err[0];
-            ni.ni_getKey(md, "a", PASSWORD, err);
+            ni.ni_getKey(md, "a", PASSWORD, err, TestUtil.RNDSrc);
             e[i++] = err[0];
-            e[i++] = ni.ni_setKey(md, "a", DUMMY_KEY, PASSWORD);
+            e[i++] = ni.ni_setKey(md, "a", DUMMY_KEY, PASSWORD, TestUtil.RNDSrc);
             e[i++] = ni.ni_setSecretKey(md, "a", DUMMY_KEY, "2.16.840.1.101.3.4.1.42", "2.16.840.1.101.3.4.1.42",
                     PASSWORD);
             e[i++] = ni.ni_setSecretKeyOids(md, "a", "2.16.840.1.101.3.4.1.42", "2.16.840.1.101.3.4.1.42");
@@ -292,7 +292,7 @@ public class KSServiceLimitTest
             Assertions.assertArrayEquals(want, e, "JO_KS_CTX_WRONG_KIND from all 18 entry points");
 
             KeyStoreException ks = Assertions.assertThrows(KeyStoreException.class,
-                    () -> ni.getKey(md, "a", PASSWORD));
+                    () -> ni.getKey(md, "a", PASSWORD, TestUtil.RNDSrc));
             Assertions.assertEquals("handle is not a key store context", ks.getMessage());
             IllegalArgumentException iae = Assertions.assertThrows(IllegalArgumentException.class,
                     () -> ni.size(md));
@@ -328,7 +328,7 @@ public class KSServiceLimitTest
     {
         try
         {
-            ni.load(0L, new byte[] {0x01}, PASSWORD);
+            ni.load(0L, new byte[] {0x01}, PASSWORD, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (IOException e)
@@ -346,7 +346,7 @@ public class KSServiceLimitTest
     {
         try
         {
-            ni.getKey(0L, "alias", PASSWORD);
+            ni.getKey(0L, "alias", PASSWORD, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (KeyStoreException e)
@@ -360,7 +360,7 @@ public class KSServiceLimitTest
     {
         try
         {
-            ni.getKey(validRef, null, PASSWORD);
+            ni.getKey(validRef, null, PASSWORD, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (KeyStoreException e)
@@ -378,7 +378,7 @@ public class KSServiceLimitTest
     {
         try
         {
-            ni.setKey(0L, "alias", DUMMY_KEY, PASSWORD);
+            ni.setKey(0L, "alias", DUMMY_KEY, PASSWORD, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (KeyStoreException e)
@@ -392,7 +392,7 @@ public class KSServiceLimitTest
     {
         try
         {
-            ni.setKey(validRef, null, DUMMY_KEY, PASSWORD);
+            ni.setKey(validRef, null, DUMMY_KEY, PASSWORD, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (KeyStoreException e)
@@ -406,13 +406,50 @@ public class KSServiceLimitTest
     {
         try
         {
-            ni.setKey(validRef, "alias", null, PASSWORD);
+            ni.setKey(validRef, "alias", null, PASSWORD, TestUtil.RNDSrc);
             Assertions.fail();
         }
         catch (KeyStoreException e)
         {
             Assertions.assertEquals("key store key is null", e.getMessage());
         }
+    }
+
+    /** A key bag's import can draw, so a null RandSource is refused typed, and the store keeps its entries. */
+    @Test
+    public void load_nullRandSource()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        IOException e = Assertions.assertThrows(IOException.class,
+                () -> ni.load(validRef, new byte[] {0x01}, PASSWORD, null));
+        Assertions.assertEquals("supplied random source was null", e.getMessage());
+        Assertions.assertTrue(ni.isSecretKeyEntry(validRef, "s"), "a refused load replaced the entries");
+    }
+
+    /** A deferred key's import can draw, so a null RandSource is refused typed before any lookup. */
+    @Test
+    public void getKey_nullRandSource()
+        throws Exception
+    {
+        ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.getKey(validRef, "s", PASSWORD, null));
+        Assertions.assertEquals("supplied random source was null", e.getMessage());
+        Assertions.assertEquals(IllegalArgumentException.class, e.getCause().getClass());
+        Assertions.assertTrue(ni.isSecretKeyEntry(validRef, "s"), "a refused getKey changed the entry");
+    }
+
+    /** The key's import can draw, so a null RandSource is refused typed, and nothing is stored. */
+    @Test
+    public void setKey_nullRandSource()
+        throws Exception
+    {
+        KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
+                () -> ni.setKey(validRef, "alias", DUMMY_KEY, PASSWORD, null));
+        Assertions.assertEquals("supplied random source was null", e.getMessage());
+        Assertions.assertEquals(IllegalArgumentException.class, e.getCause().getClass());
+        Assertions.assertFalse(ni.containsAlias(validRef, "alias"), "a refused set left an entry");
     }
 
     // -----------------------------------------------------------------
@@ -871,7 +908,7 @@ public class KSServiceLimitTest
         long loaded = ni.allocateKeyStore("PKCS12");
         try
         {
-            ni.load(loaded, p12, PASSWORD);
+            ni.load(loaded, p12, PASSWORD, TestUtil.RNDSrc);
             Assertions.assertTrue(ni.isSecretKeyEntry(loaded, "s"));
             for (byte[] pw : new byte[][]{PASSWORD, "wrong".getBytes(StandardCharsets.UTF_8), null})
             {
@@ -899,7 +936,7 @@ public class KSServiceLimitTest
         long loaded = ni.allocateKeyStore("PKCS12");
         try
         {
-            ni.load(loaded, p12, PASSWORD);
+            ni.load(loaded, p12, PASSWORD, TestUtil.RNDSrc);
             Object[] got = decode(ni.getSecretKey(loaded, "s", PASSWORD));
             Assertions.assertEquals(SUN_AES, got[0]);
             Assertions.assertArrayEquals(SECRET, (byte[]) got[1]);
@@ -928,7 +965,7 @@ public class KSServiceLimitTest
         long loaded = ni.allocateKeyStore("PKCS12");
         try
         {
-            ni.load(loaded, p12, PASSWORD);
+            ni.load(loaded, p12, PASSWORD, TestUtil.RNDSrc);
             Assertions.assertTrue(ni.isSecretKeyEntry(loaded, "s"));
             Assertions.assertNotNull(ni.getSecretKey(loaded, "s", entryPassword));
             KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
@@ -979,7 +1016,7 @@ public class KSServiceLimitTest
         long loaded = ni.allocateKeyStore("PKCS12");
         try
         {
-            ni.load(loaded, p12, PASSWORD);
+            ni.load(loaded, p12, PASSWORD, TestUtil.RNDSrc);
             Assertions.assertEquals("1.2.3.4.5.6.7", decode(ni.getSecretKey(loaded, "s", PASSWORD))[0]);
             IOException e = Assertions.assertThrows(IOException.class,
                     () -> storeWith(loaded, PASSWORD, CERT_PBE, KSServiceNI.SECRET_FORM_RFC7292));
@@ -1026,7 +1063,7 @@ public class KSServiceLimitTest
                 JostleProvider.PROVIDER_NAME);
         kpg.initialize(2048);
         KeyPair pair = kpg.generateKeyPair();
-        ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD);
+        ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD, TestUtil.RNDSrc);
         assertSetOidsRefused(validRef, "k", RFC_AES128, SUN_AES, NOT_SECRET);
 
         X500Name name = new X500Name("CN=Jostle KS Limit");
@@ -1060,7 +1097,7 @@ public class KSServiceLimitTest
                 .build(new JcaContentSignerBuilder("SHA256withRSA").build(pair.getPrivate())).getEncoded();
 
         ni.setSecretKey(validRef, "s", SECRET, RFC_AES128, SUN_AES, PASSWORD);
-        ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD);
+        ni.setKey(validRef, "k", pair.getPrivate().getEncoded(), PASSWORD, TestUtil.RNDSrc);
         Assertions.assertEquals(-212, ni.ni_setCertificateEntry(validRef, "s", cert), "JO_KS_ALIAS_HOLDS_KEY");
         Assertions.assertEquals(-212, ni.ni_setCertificateEntry(validRef, "k", cert), "JO_KS_ALIAS_HOLDS_KEY");
         KeyStoreException e = Assertions.assertThrows(KeyStoreException.class,
@@ -1112,7 +1149,7 @@ public class KSServiceLimitTest
         long loaded = ni.allocateKeyStore("PKCS12");
         try
         {
-            ni.load(loaded, p12, PASSWORD);
+            ni.load(loaded, p12, PASSWORD, TestUtil.RNDSrc);
             byte[] wrong = "wrong".getBytes(StandardCharsets.UTF_8);
             Assertions.assertArrayEquals(SECRET, (byte[]) decode(ni.getSecretKey(loaded, "s", wrong))[1]);
             ni.setSecretKeyOids(loaded, "s", RFC_AES256, SUN_AES);

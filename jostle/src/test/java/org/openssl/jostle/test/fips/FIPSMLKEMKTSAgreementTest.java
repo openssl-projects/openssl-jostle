@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 
 import javax.crypto.Cipher;
@@ -31,8 +32,8 @@ import java.security.Security;
 
 /**
  * The JSLFIPS ML-KEM KTS cipher against BouncyCastle, each divergence held in both halves: the opmode refusal type,
- * and a KEK size AES key wrap cannot take, refused here at init and by BouncyCastle at wrap. Needs a module that
- * serves ML-KEM; 3.1.2 has none.
+ * and a KEK size AES key wrap cannot take, refused here at init and by BouncyCastle at wrap. Those cells need a
+ * module that serves ML-KEM (3.1.2 has none); the registration cell runs on every module.
  */
 public class FIPSMLKEMKTSAgreementTest
 {
@@ -54,6 +55,23 @@ public class FIPSMLKEMKTSAgreementTest
     {
         Assumptions.assumeTrue(FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768"),
                 "the loaded FIPS module implements no ML-KEM (3.1.2)");
+    }
+
+    /**
+     * JSLFIPS registers the ML-KEM KTS cipher if and only if the loaded module implements ML-KEM, asked of the
+     * module itself; where it does not, the cipher still resolves through JSL. Runs on every module.
+     */
+    @Test
+    public void mlKemKtsServedIffModuleImplementsIt() throws Exception
+    {
+        boolean implemented = FIPSTestUtil.moduleServesKeyMgmt("ML-KEM-768");
+        Assertions.assertEquals(implemented, fips.getService("Cipher", "ML-KEM") != null,
+                "JSLFIPS Cipher.ML-KEM registration disagrees with the loaded module");
+        if (!implemented)
+        {
+            Assertions.assertNotNull(Cipher.getInstance("ML-KEM", new JostleProvider()),
+                    "ML-KEM must still resolve through JSL");
+        }
     }
 
     /** ENCRYPT_MODE and DECRYPT_MODE: InvalidParameterException on both, each with its own message. */

@@ -14,6 +14,9 @@ import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
+import org.bouncycastle.jcajce.SecretKeyWithEncapsulation;
+import org.bouncycastle.jcajce.interfaces.MLKEMPrivateKey;
+import org.bouncycastle.jcajce.spec.KEMGenerateSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.OutputEncryptor;
@@ -32,6 +35,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.openssl.jostle.jcajce.PKCS12LoadStoreParameter;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -60,6 +64,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -1053,6 +1058,107 @@ public class KSServiceAgreementTest
     {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance(algorithm, JostleProvider.PROVIDER_NAME);
         return kpg.generateKeyPair();
+    }
+
+    /**
+     * BouncyCastle's expanded-only ML-KEM private key, and the both-form control, set into a jostle PKCS12
+     * keystore with a chain, stored and loaded back: the key read back opens a BouncyCastle encapsulation to
+     * BouncyCastle's secret. Importing the expanded key runs the library's pairwise test, which draws entropy.
+     */
+    @Test
+    public void mlKemKeyEntriesStoreAndReadBackInBothForms()
+        throws Exception
+    {
+        PrivateKey ca = jostleRsaKeyPair().getPrivate();
+        for (String name : new String[] {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+        {
+            KeyPair bc = KeyPairGenerator.getInstance(name, BouncyCastleProvider.PROVIDER_NAME).generateKeyPair();
+            PrivateKey expanded = ((MLKEMPrivateKey) bc.getPrivate()).getPrivateKey(false);
+            X509Certificate cert = caSignedCertificate("CN=Jostle KS " + name, bc.getPublic(), ca);
+            assertStoresAndOpens(name + ": both forms", bc, bc.getPrivate(), cert);
+            assertStoresAndOpens(name + ": expanded only", bc, expanded, cert);
+        }
+    }
+
+    /**
+     * A JDK-written PKCS12 holding BouncyCastle's ML-KEM key under its own password, not the store's: ours loads
+     * it with the store password, keeps the key encrypted, and decodes it at getKey with the key password. The
+     * expanded-only key's import there draws; the both-form key is the control.
+     */
+    @Test
+    public void mlKemKeyUnderItsOwnPasswordInAJdkStoreReadsBack()
+        throws Exception
+    {
+        PrivateKey ca = jostleRsaKeyPair().getPrivate();
+        for (String name : new String[] {"ML-KEM-512", "ML-KEM-768", "ML-KEM-1024"})
+        {
+            KeyPair bc = KeyPairGenerator.getInstance(name, BouncyCastleProvider.PROVIDER_NAME).generateKeyPair();
+            PrivateKey expanded = ((MLKEMPrivateKey) bc.getPrivate()).getPrivateKey(false);
+            X509Certificate cert = caSignedCertificate("CN=JDK KS " + name, bc.getPublic(), ca);
+            assertJdkStoreReadsBack(name + ": both forms", bc, bc.getPrivate(), cert);
+            assertJdkStoreReadsBack(name + ": expanded only", bc, expanded, cert);
+        }
+    }
+
+    private static void assertJdkStoreReadsBack(String label, KeyPair bc, PrivateKey key, X509Certificate cert)
+        throws Exception
+    {
+        char[] storePassword = randomStorePassword();
+        char[] keyPassword = randomStorePassword();
+        KeyStore jdk = KeyStore.getInstance("PKCS12", jdkPkcs12Provider());
+        jdk.load(null, null);
+        jdk.setKeyEntry("k", key, keyPassword, new Certificate[] {cert});
+        KeyStore loaded = jostlePkcs12();
+        // JDK 8's default certificate safe is 40-bit RC2, which this build cannot read.
+        loaded.load(new ByteArrayInputStream(PKCS12ContractAgreementTest.storePbes2(jdk, storePassword)),
+                storePassword);
+        Assertions.assertThrows(UnrecoverableKeyException.class, () -> loaded.getKey("k", storePassword), label);
+        assertOpens(label, bc, (PrivateKey) loaded.getKey("k", keyPassword));
+    }
+
+    /**
+     * The JDK's own PKCS12 (SUN on 9 and later, SunJSSE on 8): the first installed provider offering it that is
+     * neither jostle's nor BouncyCastle's. Never the default lookup, which finds ours when JSL is first.
+     */
+    private static Provider jdkPkcs12Provider()
+    {
+        Provider[] offering = Security.getProviders("KeyStore.PKCS12");
+        Assertions.assertNotNull(offering, "no provider offers KeyStore.PKCS12");
+        for (Provider p : offering)
+        {
+            String cls = p.getClass().getName();
+            if (!cls.startsWith("org.openssl.jostle.") && !cls.startsWith("org.bouncycastle."))
+            {
+                return p;
+            }
+        }
+        return Assertions.fail("no JDK provider offers KeyStore.PKCS12");
+    }
+
+    private static void assertOpens(String label, KeyPair bc, PrivateKey readBack)
+        throws Exception
+    {
+        Assertions.assertNotNull(readBack, label);
+        KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", BouncyCastleProvider.PROVIDER_NAME);
+        bcGen.init(new KEMGenerateSpec.Builder(bc.getPublic(), "AES", 256).withKdfAlgorithm(null).build());
+        SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) bcGen.generateKey();
+        KeyGenerator joGen = KeyGenerator.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+        joGen.init(KEMExtractSpec.builder().withPrivate(readBack).withEncapsulatedKey(sent.getEncapsulation())
+                .withAlgorithmName("AES").withKeySizeInBits(256).withNoKdf().build());
+        Assertions.assertArrayEquals(sent.getEncoded(), joGen.generateKey().getEncoded(), label);
+    }
+
+    private static void assertStoresAndOpens(String label, KeyPair bc, PrivateKey key, X509Certificate cert)
+        throws Exception
+    {
+        char[] password = randomStorePassword();
+        KeyStore jostle = emptyJostlePkcs12();
+        jostle.setKeyEntry("k", key, password, new Certificate[] {cert});
+        KeyStore loaded = jostlePkcs12();
+        loaded.load(new ByteArrayInputStream(storedBytes(jostle, password)), password);
+        PrivateKey readBack = (PrivateKey) loaded.getKey("k", password);
+        Assertions.assertArrayEquals(cert.getEncoded(), loaded.getCertificateChain("k")[0].getEncoded(), label);
+        assertOpens(label, bc, readBack);
     }
 
     private static KeyStore jostlePkcs12()

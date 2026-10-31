@@ -22,7 +22,7 @@ public class KSServiceJNI
     public native void ni_dispose(long ref);
 
     @Override
-    public native int ni_load(long ref, byte[] input, byte[] password);
+    public native int ni_load(long ref, byte[] input, byte[] password, RandSource randSource);
 
     @Override
     public native byte[] ni_store(long ref, byte[] password, int keyPbe, int certPbe, int macScheme,
@@ -30,10 +30,12 @@ public class KSServiceJNI
                                   RandSource randSource);
 
     @Override
-    public native byte[] ni_getKey(long ref, String alias, byte[] password, int[] err);
+    public native byte[] ni_getKey(long ref, String alias, byte[] password, int[] err,
+                                   RandSource randSource);
 
     @Override
-    public native int ni_setKey(long ref, String alias, byte[] key, byte[] password);
+    public native int ni_setKey(long ref, String alias, byte[] key, byte[] password,
+                                RandSource randSource);
 
     @Override
     public native int ni_setSecretKey(long ref, String alias, byte[] key, String rfcOid, String sunOid,

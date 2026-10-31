@@ -142,7 +142,7 @@ public class PKCS12LoadContractTest
         long ref = ni.allocateKeyStore("PKCS12");
         try
         {
-            ni.load(ref, aStore(PW), new String(PW).getBytes(StandardCharsets.UTF_8));
+            ni.load(ref, aStore(PW), new String(PW).getBytes(StandardCharsets.UTF_8), TestUtil.RNDSrc);
             for (int keyPbe : new int[]{4, 5})
             {
                 IOException e = Assertions.assertThrows(IOException.class, () -> ni.store(ref,
@@ -173,16 +173,17 @@ public class PKCS12LoadContractTest
         long ref = ni.allocateKeyStore("PKCS12");
         try
         {
-            ni.load(ref, file, new byte[0]);
-            Assertions.assertNotNull(ni.getKey(ref, "key", new byte[0]), "empty: decrypted at load");
+            ni.load(ref, file, new byte[0], TestUtil.RNDSrc);
+            Assertions.assertNotNull(ni.getKey(ref, "key", new byte[0], TestUtil.RNDSrc), "empty: decrypted at load");
 
             byte[] other = aStore(PW);
-            ni.load(ref, other, null);
+            ni.load(ref, other, null, TestUtil.RNDSrc);
             Assertions.assertTrue(ni.isKeyEntry(ref, "key"), "null: the key entry is listed");
-            Assertions.assertNotNull(ni.getKey(ref, "key", new String(PW).getBytes(StandardCharsets.UTF_8)),
+            Assertions.assertNotNull(
+                    ni.getKey(ref, "key", new String(PW).getBytes(StandardCharsets.UTF_8), TestUtil.RNDSrc),
                     "null: decrypted at getKey with its password");
             IOException wrongMac = Assertions.assertThrows(IOException.class,
-                    () -> ni.load(ref, other, new byte[0]), "empty is a password, and the wrong one");
+                    () -> ni.load(ref, other, new byte[0], TestUtil.RNDSrc), "empty is a password, and the wrong one");
             Assertions.assertEquals("PKCS12 keystore integrity check failed", wrongMac.getMessage());
         }
         finally
