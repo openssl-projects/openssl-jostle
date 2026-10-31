@@ -58,7 +58,7 @@ int32_t mlxkem_get_private_encoded(key_spec *spec, uint8_t *out, size_t out_len)
 /* Rebuild a public-only key from its wire share. */
 int32_t mlxkem_decode_public_key(key_spec *spec, int32_t type, uint8_t *src, size_t src_len);
 
-/* Rebuild a keypair from the raw private half. */
-int32_t mlxkem_decode_private_key(key_spec *spec, int32_t type, uint8_t *src, size_t src_len);
+/* Rebuild a keypair from the raw private half. rnd_src is bridge-validated: the import draws entropy. */
+int32_t mlxkem_decode_private_key(key_spec *spec, int32_t type, uint8_t *src, size_t src_len, void *rnd_src);
 
 #endif //MLXKEM_H

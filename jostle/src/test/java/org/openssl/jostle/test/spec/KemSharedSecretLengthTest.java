@@ -14,9 +14,11 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.test.TestUtil;
 
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 
 /**
@@ -42,5 +44,15 @@ public class KemSharedSecretLengthTest
         Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
         String table = KemSharedSecretLengths.check(jsl, KemSharedSecretLengths.ALL, TestUtil.RNDSrc);
         System.out.println("[kem-secret-length] JSL\n  " + table);
+    }
+
+    /** Every hybrid group's lengths are HybridRef's, and a reference encapsulation opens to the reference secret. */
+    @Test
+    public void everyHybridAgreesWithTheReference() throws Exception
+    {
+        Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
+        String table = KemSharedSecretLengths.checkHybridsAgainstReference(jsl, MLXKEMParameterSpec.all(),
+                TestUtil.RNDSrc, new SecureRandom());
+        System.out.println("[kem-secret-length-reference] JSL\n  " + table);
     }
 }

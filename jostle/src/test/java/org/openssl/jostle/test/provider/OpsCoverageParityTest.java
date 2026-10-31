@@ -99,7 +99,7 @@ public class OpsCoverageParityTest
     private static final int MIN_PAIRS = 400;
     private static final int MIN_ANNOTATED_FILES = 50;
 
-    static final int BASELINE_SIZE = 39;
+    static final int BASELINE_SIZE = 13;
 
     private static final Set<String> BASELINE = baseline();
 
@@ -114,9 +114,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_INT32_OVERFLOW_2");
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_RAND_UP_CALL_NULL");
         add(s, "interface/fips/ffm/rand_upcall_ffm.c", "OPS_SHORT_SIZE_1");
-        add(s, "interface/fips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_1");
-        add(s, "interface/fips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_2");
-        add(s, "interface/fips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_3");
         add(s, "interface/fips/jni/rand_upcall_jni.c", "OPS_FAILED_ACCESS_2");
         add(s, "interface/fips/jni/rand_upcall_jni.c", "OPS_FAILED_CREATE_1");
         add(s, "interface/fips/jni/rand_upcall_jni.c", "OPS_INT32_OVERFLOW_1");
@@ -126,29 +123,6 @@ public class OpsCoverageParityTest
         add(s, "interface/fips/jni/rand_upcall_jni.c", "OPS_THREAD_ATTACH_1");
         add(s, "interface/fips/util/mac.c", "OPS_ALTERNATE_3");
         add(s, "interface/fips/util/mac.c", "OPS_OPENSSL_ERROR_7");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_INT32_OVERFLOW_1");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_1");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_2");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_3");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_4");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_5");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_6");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_7");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_8");
-        add(s, "interface/fips/util/mlxkem.c", "OPS_OPENSSL_ERROR_9");
-        add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_1");
-        add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_2");
-        add(s, "interface/nonfips/jni/mlxkem_ni_jni.c", "OPS_FAILED_ACCESS_3");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_INT32_OVERFLOW_1");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_1");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_2");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_3");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_4");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_5");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_6");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_7");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_8");
-        add(s, "interface/nonfips/util/mlxkem.c", "OPS_OPENSSL_ERROR_9");
         return Collections.unmodifiableSet(s);
     }
 

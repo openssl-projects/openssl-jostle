@@ -15,6 +15,8 @@ import org.openssl.jostle.jcajce.interfaces.MLXKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.kts.InjectedRandom;
 import org.openssl.jostle.jcajce.provider.kts.KemKeyDerivation;
 import org.openssl.jostle.jcajce.provider.kts.KemSizes;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
@@ -31,6 +33,7 @@ import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidParameterException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -96,13 +99,15 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
     @Override
     protected void engineInit(SecureRandom random)
     {
-        throw new UnsupportedOperationException();
+        throw new InvalidParameterException(
+                "a hybrid KEM needs a KEMGenerateSpec or KEMExtractSpec; use init(AlgorithmParameterSpec)");
     }
 
     @Override
     protected void engineInit(int keysize, SecureRandom random)
     {
-        throw new UnsupportedOperationException();
+        throw new InvalidParameterException(
+                "a hybrid KEM needs a KEMGenerateSpec or KEMExtractSpec; use init(AlgorithmParameterSpec)");
     }
 
     @Override
@@ -210,15 +215,10 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
 
         int strengthBits = parameterSpec.getRequiredStrengthBits();
 
-        // The natural KeyGenerator.init(spec) call has the JCE inject the
-        // platform default SecureRandom, which the caller never chose - drop a
-        // too-weak one rather than rejecting the caller (GH #34). A reported 0
-        // means "unknown" and is left as-is, with the C-side RAND gate as the
-        // safety net.
-        int suppliedStrength = DefaultRandSource.strengthOf(random);
-        if (suppliedStrength > 0 && suppliedStrength < strengthBits)
+        // The JCE's injected default means no source was supplied; a weaker caller source is refused.
+        if (!pubSpec.getSpecNI().providerManagesEntropy())
         {
-            random = null;
+            random = InjectedRandom.resolve(random, providerInstance, parameterSpec.getName(), strengthBits);
         }
 
         extract = false;
@@ -281,8 +281,16 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         byte[] key = null;
         try
         {
-            len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length,
-                    out, 0, out.length, randSource);
+            try
+            {
+                len = spec.getSpecNI().decap(spec.getReference(), null, wrappedKey, 0, wrappedKey.length,
+                        out, 0, out.length, randSource);
+            }
+            catch (OpenSSLException e)
+            {
+                // The library refuses the ciphertext's classical share; it depends on the ciphertext alone.
+                throw new IllegalArgumentException("invalid encapsulation for " + parameterSpec.getName(), e);
+            }
             if (len != out.length)
             {
                 throw new IllegalStateException("shared secret length mismatch");
@@ -314,8 +322,17 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
             int encapsulationLen = spec.getSpecNI().encapsulationLength(spec.getReference(), spec.getType(),
                     secret.length, randSource);
             byte[] wrappedKey = new byte[KemSizes.checkedCiphertextLength(spec, encapsulationLen)];
-            int len = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length,
-                    wrappedKey, 0, wrappedKey.length, randSource);
+            int len;
+            try
+            {
+                len = spec.getSpecNI().encap(spec.getReference(), null, secret, 0, secret.length,
+                        wrappedKey, 0, wrappedKey.length, randSource);
+            }
+            catch (OpenSSLException e)
+            {
+                // The library refuses the peer's public share (an all-zero X25519 or X448 share lands here).
+                throw new IllegalArgumentException("invalid public key for " + parameterSpec.getName(), e);
+            }
             if (len != wrappedKey.length)
             {
                 throw new IllegalStateException("encapsulation length mismatch");

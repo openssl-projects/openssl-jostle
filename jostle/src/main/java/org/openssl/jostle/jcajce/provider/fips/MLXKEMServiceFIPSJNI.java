@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.fips;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.rand.RandSource;
 
@@ -24,6 +25,14 @@ import org.openssl.jostle.rand.RandSource;
  */
 class MLXKEMServiceFIPSJNI implements MLXKEMServiceNI
 {
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
+    }
+
     @Override
     public native long ni_generateKeyPair(int type, int[] err, RandSource randSource);
 
@@ -37,7 +46,8 @@ class MLXKEMServiceFIPSJNI implements MLXKEMServiceNI
     public native int ni_decode_publicKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
 
     @Override
-    public native int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen);
+    public native int ni_decode_privateKey(long spec_ref, int keyType, byte[] input, int inputOffset, int inputLen,
+                                           RandSource randSource);
 
     /**
      * This NI is bound to the FIPS interface library, so the operations it

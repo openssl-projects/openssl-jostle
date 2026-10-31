@@ -18,9 +18,12 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The loaded FIPS module as the refusal pins need it: its version and the options its fipsinstall wrote into the
@@ -154,5 +157,15 @@ final class FipsModuleProfile
     boolean rsaSmallKeySigningRefused()
     {
         return securityChecks();
+    }
+
+    /** The TLS hybrid KEM groups the module serves, a property of its version: 3.1.2 none, 3.5.8 all but X448. */
+    Set<String> hybridKemGroups()
+    {
+        if (isVersion312())
+        {
+            return Collections.<String>emptySet();
+        }
+        return new TreeSet<String>(Arrays.asList("SecP256r1MLKEM768", "SecP384r1MLKEM1024", "X25519MLKEM768"));
     }
 }

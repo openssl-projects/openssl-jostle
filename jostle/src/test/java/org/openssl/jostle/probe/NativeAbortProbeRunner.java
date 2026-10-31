@@ -32,6 +32,7 @@ import org.openssl.jostle.jcajce.provider.mldsa.MLDSAServiceNI;
 import org.openssl.jostle.jcajce.provider.rand.RandServiceNI;
 import org.openssl.jostle.jcajce.provider.rsa.RSAServiceNI;
 import org.openssl.jostle.jcajce.provider.mlkem.MLKEMServiceNI;
+import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.provider.slhdsa.SLHDSAServiceNI;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.rand.RandSource;
@@ -86,6 +87,7 @@ public final class NativeAbortProbeRunner
     private static final int KS_MLDSA_44 = OSSLKeyType.ML_DSA_44.getKsType();
     private static final int KS_SLHDSA_128F = OSSLKeyType.SLH_DSA_SHA2_128f.getKsType();
     private static final int KS_MLKEM_768 = OSSLKeyType.ML_KEM_768.getKsType();
+    private static final int KS_X25519_MLKEM_768 = OSSLKeyType.X25519MLKEM768.getKsType();
     private static final byte[] RSA_F4 = {0x01, 0x00, 0x01};
     private static final String[] DH_NULL_ERR_CELLS = {"dh-allocatekex-null-err", "dh-bygroup-null-err",
             "dh-paramgen-null-err", "dh-makeparams-null-err", "dh-generate-null-err", "dh-makeprivate-null-err",
@@ -256,6 +258,9 @@ public final class NativeAbortProbeRunner
         jniAbortFfmThrowsRow(rows, p + "mlkem-generate-seed-null-err", "_err_out != NULL", jniDir + "mlkem_ni_jni.c");
         controlRow(rows, p + "mlkem-control");
 
+        jniAbortFfmThrowsRow(rows, p + "mlxkem-generate-null-err", "err_out != NULL", jniDir + "mlxkem_ni_jni.c");
+        controlRow(rows, p + "mlxkem-control");
+
         // The keystore and certification-path families have no FIPS twin under
         // interface/fips, so they contribute base rows only. Their absence from
         // the FIPS block is a fact about the tree, not an omission.
@@ -398,6 +403,7 @@ public final class NativeAbortProbeRunner
         MLDSAServiceNI mldsa;
         SLHDSAServiceNI slhdsa;
         MLKEMServiceNI mlkem;
+        MLXKEMServiceNI mlxkem;
         if (fips)
         {
             new JostleProvider();
@@ -413,6 +419,7 @@ public final class NativeAbortProbeRunner
             mldsa = FIPSNISelector.MLDSAServiceNI;
             slhdsa = FIPSNISelector.SLHDSAServiceNI;
             mlkem = FIPSNISelector.MLKEMServiceNI;
+            mlxkem = FIPSNISelector.MLXKEMServiceNI;
         }
         else
         {
@@ -428,6 +435,7 @@ public final class NativeAbortProbeRunner
             mldsa = NISelector.MLDSAServiceNI;
             slhdsa = NISelector.SLHDSAServiceNI;
             mlkem = NISelector.MLKEMServiceNI;
+            mlxkem = NISelector.MLXKEMServiceNI;
         }
         KSServiceNI ks = NISelector.KSServiceNI;
 
@@ -667,6 +675,16 @@ public final class NativeAbortProbeRunner
             // Module-independent: the bridge answers a zero handle typed on every module.
             int r = mlkem.ni_getPublicKey(0, null);
             report(r == KEY_SPEC_IS_NULL, "mlkem getPublicKey(0) rc=" + r);
+        }
+        else if ("mlxkem-generate-null-err".equals(c))
+        {
+            mlxkem.ni_generateKeyPair(KS_X25519_MLKEM_768, null, RND);
+        }
+        else if ("mlxkem-control".equals(c))
+        {
+            // Module-independent: the bridge answers a zero handle typed on every module.
+            int r = mlxkem.ni_getPublicKey(0, null);
+            report(r == KEY_SPEC_IS_NULL, "mlxkem getPublicKey(0) rc=" + r);
         }
         else if ("ks-null-err".equals(c))
         {

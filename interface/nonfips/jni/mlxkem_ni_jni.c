@@ -6,6 +6,7 @@
 //  https://github.com/openssl-projects/openssl-jostle/blob/main/LICENSE
 
 #include "bytearrays.h"
+#include "secret_bytearrays.h"
 #include "org_openssl_jostle_jcajce_provider_mlxkem_MLXKEMServiceJNI.h"
 #include "types.h"
 #include "../util/bc_err_codes.h"
@@ -56,14 +57,13 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlxkem_MLXKEMServ
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    if (key_spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
 
     java_bytearray_ctx output; // Non critical access
     init_bytearray_ctx(&output);
-
-    int32_t ret_code;
 
     if (_output == NULL) {
         ret_code = mlxkem_get_public_encoded(key_spec, NULL, 0);
@@ -92,63 +92,61 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlxkem_MLXKEMServ
     UNUSED(o);
     key_spec *key_spec = (void *) ref;
 
-    if (key_spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
-
-    java_bytearray_ctx output; // Non critical access
-    init_bytearray_ctx(&output);
-
-    int32_t ret_code;
 
     if (_output == NULL) {
-        ret_code = mlxkem_get_private_encoded(key_spec, NULL, 0);
-        goto exit;
+        return mlxkem_get_private_encoded(key_spec, NULL, 0);
     }
 
-    if (OPS_FAILED_ACCESS_2 !load_bytearray_ctx(&output, env, _output)) {
-        ret_code = JO_FAILED_ACCESS_OUTPUT;
-        goto exit;
+    // The private half goes through the secret helper: cleansed, and written back only on success.
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
+    if (OPS_FAILED_ACCESS_2 !load_secret_output_ctx(&output, env, _output)) {
+        discard_secret_bytearray_ctx(&output);
+        return JO_FAILED_ACCESS_OUTPUT;
     }
 
     ret_code = mlxkem_get_private_encoded(key_spec, output.bytearray, output.size);
-
-exit:
-    release_bytearray_ctx(&output);
+    if (SUCCESSFUL(ret_code)) {
+        release_secret_bytearray_ctx(&output);
+    } else {
+        discard_secret_bytearray_ctx(&output);
+    }
     return ret_code;
 }
 
 /*
- * Shared body for the two decode entry points. Same validation set as every
- * other bridge: null spec, null input array, negative offset and length, and
- * the offset+length range check against the array.
- *
- * The null-array check is explicit and NOT covered by the range check:
- * load_bytearray_ctx reports SUCCESS for a null Java array (bytearray == NULL,
- * size == 0), and check_bytearray_in_range(ctx, 0, 0) passes, so a null input
- * with off == len == 0 would otherwise reach a util jo_assert and abort the
- * JVM. See the bridge-validation rules in native-code.md.
+ * Shared body for the two decode entry points: the spec, then (private only) the RandSource, then the input,
+ * tested before it is loaded. The input goes through the secret helper on both paths; on the private path it is
+ * the private half. A null array with off == len == 0 passes the range check, so the explicit null test matters.
  */
 static jint mlxkem_decode_bridge(JNIEnv *env, jlong ref, jint key_type, jbyteArray _input,
-                                 jint in_off, jint in_len, int is_private) {
+                                 jint in_off, jint in_len, jobject rnd_src, int is_private) {
     key_spec *key_spec = (void *) ref;
 
-    jint ret_val = JO_FAIL;
-    java_bytearray_ctx input; // Non critical access
-    init_bytearray_ctx(&input);
+    jint ret_val = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_val)) {
+        return ret_val;
+    }
 
-    if (key_spec == NULL) {
-        ret_val = JO_KEY_SPEC_IS_NULL;
+    java_secret_bytearray_ctx input;
+    init_secret_bytearray_ctx(&input);
+
+    if (is_private && rnd_src == NULL) {
+        ret_val = JO_RAND_NO_RAND_UP_CALL;
         goto exit;
     }
 
-    if (OPS_FAILED_ACCESS_3 !load_bytearray_ctx(&input, env, _input)) {
-        ret_val = JO_FAILED_ACCESS_INPUT;
-        goto exit;
-    }
-
-    if (input.bytearray == NULL) {
+    if (_input == NULL) {
         ret_val = JO_INPUT_IS_NULL;
+        goto exit;
+    }
+
+    if (OPS_FAILED_ACCESS_3 !load_secret_input_ctx(&input, env, _input)) {
+        ret_val = JO_FAILED_ACCESS_INPUT;
         goto exit;
     }
 
@@ -162,18 +160,18 @@ static jint mlxkem_decode_bridge(JNIEnv *env, jlong ref, jint key_type, jbyteArr
         goto exit;
     }
 
-    if (!check_bytearray_in_range(&input, in_off, in_len)) {
+    if (!check_secret_in_range(&input, in_off, in_len)) {
         ret_val = JO_INPUT_OUT_OF_RANGE;
         goto exit;
     }
 
     uint8_t *start = input.bytearray + in_off;
     ret_val = is_private
-                  ? mlxkem_decode_private_key(key_spec, key_type, start, (size_t) in_len)
+                  ? mlxkem_decode_private_key(key_spec, key_type, start, (size_t) in_len, rnd_src)
                   : mlxkem_decode_public_key(key_spec, key_type, start, (size_t) in_len);
 
 exit:
-    release_bytearray_ctx(&input);
+    release_secret_bytearray_ctx(&input);
     return ret_val;
 }
 
@@ -185,16 +183,17 @@ exit:
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlxkem_MLXKEMServiceJNI_ni_1decode_1publicKey
 (JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len) {
     UNUSED(jo);
-    return mlxkem_decode_bridge(env, ref, key_type, _input, in_off, in_len, 0);
+    return mlxkem_decode_bridge(env, ref, key_type, _input, in_off, in_len, NULL, 0);
 }
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_mlxkem_MLXKEMServiceJNI
  * Method:    ni_decode_privateKey
- * Signature: (JI[BII)I
+ * Signature: (JI[BIILorg/openssl/jostle/rand/RandSource;)I
  */
 JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_mlxkem_MLXKEMServiceJNI_ni_1decode_1privateKey
-(JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len) {
+(JNIEnv *env, jobject jo, jlong ref, jint key_type, jbyteArray _input, jint in_off, jint in_len,
+ jobject rnd_src) {
     UNUSED(jo);
-    return mlxkem_decode_bridge(env, ref, key_type, _input, in_off, in_len, 1);
+    return mlxkem_decode_bridge(env, ref, key_type, _input, in_off, in_len, rnd_src, 1);
 }

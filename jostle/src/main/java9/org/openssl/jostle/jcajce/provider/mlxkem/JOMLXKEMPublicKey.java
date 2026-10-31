@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.AsymmetricKeyImpl;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
+import org.openssl.jostle.util.Arrays;
 
 import java.lang.ref.Reference;
 
@@ -39,7 +40,8 @@ class JOMLXKEMPublicKey extends AsymmetricKeyImpl implements MLXKEMPublicKey
     @Override
     public String getAlgorithm()
     {
-        return getType().getAlgorithmName();
+        // The group's own spelling: the key type's algorithm name upper-cases the SecP groups.
+        return getParameterSpec().getName();
     }
 
     /**
@@ -86,8 +88,9 @@ class JOMLXKEMPublicKey extends AsymmetricKeyImpl implements MLXKEMPublicKey
     {
         try
         {
-            int len = mlxkemServiceNI.getPublicKey(spec.getReference(), null);
-            byte[] out = new byte[len];
+            long len = mlxkemServiceNI.getPublicKey(spec.getReference(), null);
+            byte[] out = new byte[mlxkemServiceNI.boundedKeyLength(spec.getType(), MLXKEMServiceNI.KeyPart.PUBLIC,
+                    len)];
             mlxkemServiceNI.getPublicKey(spec.getReference(), out);
 
             return out;
@@ -96,5 +99,28 @@ class JOMLXKEMPublicKey extends AsymmetricKeyImpl implements MLXKEMPublicKey
         {
             Reference.reachabilityFence(this);
         }
+    }
+
+    /** Equal to another hybrid public key of the same group carrying the same wire share. */
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+        {
+            return true;
+        }
+        if (!(o instanceof JOMLXKEMPublicKey))
+        {
+            return false;
+        }
+        JOMLXKEMPublicKey other = (JOMLXKEMPublicKey) o;
+        return spec.getType() == other.spec.getType()
+                && Arrays.constantTimeAreEqual(getPublicData(), other.getPublicData());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return 31 * spec.getType().hashCode() + Arrays.hashCode(getPublicData());
     }
 }

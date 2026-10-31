@@ -11,6 +11,7 @@
 
 package org.openssl.jostle.jcajce.provider.mlxkem;
 
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
 import org.openssl.jostle.rand.EntropyUpcall;
 import org.openssl.jostle.rand.RandSource;
 
@@ -53,6 +54,14 @@ public class MLXKEMServiceFFM implements MLXKEMServiceNI
 
     private final FunctionDescriptor entropyFd;
     private final MethodType entropyMt;
+
+    private final NativeLengthCache<String> keyLengthCache = new NativeLengthCache<String>();
+
+    @Override
+    public NativeLengthCache<String> keyLengthCache()
+    {
+        return keyLengthCache;
+    }
 
     public MLXKEMServiceFFM()
     {
@@ -103,9 +112,8 @@ public class MLXKEMServiceFFM implements MLXKEMServiceNI
                         ValueLayout.JAVA_LONG
                 ), Linker.Option.critical(true));
 
-        // The decode entry points take NO RandSource — a hybrid import is
-        // pure fromdata with no entropy draw — so critical marshalling is
-        // safe here where it would not be on an upcall-bearing entry point.
+        // The public decode draws no entropy, so it stays critical; the private decode runs the ML-KEM half's
+        // pairwise test, which up-calls for entropy, so it is not critical.
         decodePublicKeyFunc = lookup.find(symPrefix + "JoMLXKEM_decodePublicKey").orElseThrow();
         decodePublicKeyFuncHandle = linker.downcallHandle(decodePublicKeyFunc,
                 FunctionDescriptor.of(
@@ -127,8 +135,9 @@ public class MLXKEMServiceFFM implements MLXKEMServiceNI
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_LONG,
                         ValueLayout.JAVA_INT,
-                        ValueLayout.JAVA_INT
-                ), Linker.Option.critical(true));
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS // entropy up-call
+                ));
 
         entropyFd = EntropyUpcall.DESCRIPTOR;
         entropyMt = EntropyUpcall.METHOD_TYPE;
@@ -211,10 +220,48 @@ public class MLXKEMServiceFFM implements MLXKEMServiceNI
     }
 
     @Override
-    public int ni_decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen)
+    public int ni_decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen,
+                                    RandSource randSource)
     {
-        return decode(decodePrivateKeyFuncHandle, "JoMLXKEM_decodePrivateKey",
-                specRef, keyType, input, inputOffset, inputLen);
+        // Not critical: the arena holds a copy of the private half, cleared before the arena frees it.
+        MemorySegment refInput = MemorySegment.NULL;
+        try (Arena a = Arena.ofConfined())
+        {
+            if (input != null)
+            {
+                refInput = a.allocate(input.length);
+                refInput.asByteBuffer().put(input);
+            }
+            MemorySegment entropy = MemorySegment.NULL;
+            if (randSource != null)
+            {
+                entropy = linker.upcallStub(MethodHandles.lookup().findVirtual(RandSource.class,
+                        "getRandomSegment", entropyMt).bindTo(randSource), entropyFd, a);
+            }
+            try
+            {
+                return (int) decodePrivateKeyFuncHandle.invokeExact(MemorySegment.ofAddress(specRef), keyType,
+                        refInput, refInput.byteSize(), inputOffset, inputLen, entropy);
+            }
+            finally
+            {
+                zero(refInput);
+            }
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM JoMLXKEM_decodePrivateKey", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    /** Fills a non-NULL segment with zero. */
+    private static void zero(MemorySegment seg)
+    {
+        if (seg.address() != 0)
+        {
+            seg.fill((byte) 0);
+        }
     }
 
     private int decode(MethodHandle handle, String name, long specRef, int keyType,

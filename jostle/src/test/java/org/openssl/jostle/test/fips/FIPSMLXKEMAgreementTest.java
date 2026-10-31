@@ -24,6 +24,7 @@ import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLXKEMPublicKeySpec;
 import org.openssl.jostle.test.mlxkem.HybridRef;
+import org.openssl.jostle.test.mlxkem.MLXKEMRefusalCells;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
 
@@ -39,6 +40,8 @@ import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Cross-implementation agreement for the hybrid KEM groups served by JSLFIPS:
@@ -196,56 +199,72 @@ public class FIPSMLXKEMAgreementTest
 
 
     /**
-     * Negative path, per half, through the FIPS library.
-     *
-     * <p>Not redundant with the base {@code MLXKEMAgreementTest} twin: the two
-     * halves fail differently (ML-KEM implicitly rejects a damaged ciphertext
-     * to a DIFFERENT secret, a damaged EC point is usually refused outright)
-     * and both paths run inside {@code libinterface_fips_*} against the FIPS
-     * lib ctx here. A single "flip any byte" check would pass against a
-     * decapsulator that ignored one component entirely.
+     * The served groups are a property of the module version: 3.5.8 serves X25519MLKEM768, SecP256r1MLKEM768 and
+     * SecP384r1MLKEM1024 and not X448MLKEM1024; 3.1.2 serves none. An unmeasured module fails in the profile.
      */
     @Test
-    public void tamperingEitherHalfChangesTheSecret() throws Exception
+    public void theServedGroupsArePinnedPerModuleVersion()
     {
-        SecureRandom random = seededRandom("tamperingEitherHalfChangesTheSecret[FIPS]");
-
+        Set<String> served = new TreeSet<String>();
         for (MLXKEMParameterSpec spec : served())
         {
-            KeyPair kp = KeyPairGenerator.getInstance(spec.getName(), JSLFIPS).generateKeyPair();
-            byte[] share = ((MLXKEMPublicKey) kp.getPublic()).getPublicData();
-            byte[][] made = HybridRef.encapsulate(spec, share, random);
+            served.add(spec.getName());
+        }
+        Assertions.assertEquals(FipsModuleProfile.get().hybridKemGroups(), served);
+    }
 
-            byte[] good = decapsulate(JSLFIPS, spec, kp.getPrivate(), made[0]).getEncoded();
-            Assertions.assertTrue(Arrays.areEqual(made[1], good), spec.getName() + ": control");
+    /**
+     * Through the FIPS library: a public key equals another of its group carrying the same share and hashes alike, a
+     * private key only a key over the same native key, and both halves answer the group's own name.
+     */
+    @Test
+    public void keysCompareByShareAndAnswerTheGroupName() throws Exception
+    {
+        for (MLXKEMParameterSpec spec : served())
+        {
+            String name = spec.getName();
+            KeyPair kp = KeyPairGenerator.getInstance(name, JSLFIPS).generateKeyPair();
+            KeyPair other = KeyPairGenerator.getInstance(name, JSLFIPS).generateKeyPair();
+            PublicKey decoded = KeyFactory.getInstance(name, JSLFIPS).generatePublic(
+                    new MLXKEMPublicKeySpec(spec, ((MLXKEMPublicKey) kp.getPublic()).getPublicData()));
 
-            int ecdhLen = HybridRef.ecdhPublicLength(spec, random);
-            int mlkemStart = HybridRef.mlkemFirst(spec) ? 0 : ecdhLen;
-            int ecdhStart = HybridRef.mlkemFirst(spec) ? made[0].length - ecdhLen : 0;
+            Assertions.assertEquals(kp.getPublic(), decoded, name);
+            Assertions.assertEquals(decoded, kp.getPublic(), name);
+            Assertions.assertEquals(kp.getPublic().hashCode(), decoded.hashCode(), name);
+            Assertions.assertNotEquals(kp.getPublic(), other.getPublic(), name);
+            Assertions.assertEquals(kp.getPrivate(), kp.getPrivate(), name);
+            Assertions.assertNotEquals(kp.getPrivate(), other.getPrivate(), name);
 
-            assertDiverges(spec, kp.getPrivate(), made[0], mlkemStart, good, "ML-KEM half");
-            assertDiverges(spec, kp.getPrivate(), made[0], ecdhStart, good, "ECDH half");
+            Assertions.assertEquals(name, kp.getPublic().getAlgorithm());
+            Assertions.assertEquals(name, kp.getPrivate().getAlgorithm());
+            Assertions.assertEquals(name, decoded.getAlgorithm());
         }
     }
 
-    private void assertDiverges(MLXKEMParameterSpec spec, PrivateKey priv, byte[] encapsulation,
-                                int offset, byte[] good, String what) throws Exception
+    /**
+     * Negative path, per half, through the FIPS library: where the classical half refuses, the refusal is typed and
+     * names the group; a damaged ML-KEM half, and a damaged X point, decapsulate to a different secret. HybridRef
+     * beside on the same damage.
+     */
+    @Test
+    public void refusedDecapsulationsAreTypedAndNameTheGroup() throws Exception
     {
-        byte[] bad = Arrays.clone(encapsulation);
-        bad[offset] ^= (byte) 0x01;
+        SecureRandom random = seededRandom("refusedDecapsulationsAreTypedAndNameTheGroup[FIPS]");
+        for (MLXKEMParameterSpec spec : served())
+        {
+            MLXKEMRefusalCells.refusedDecapsulations(JSLFIPS, spec, random);
+        }
+    }
 
-        boolean diverged;
-        try
+    /** An all-zero share: SecP refuses it at the KeyFactory, X at encapsulation; HybridRef beside. */
+    @Test
+    public void anAllZeroShareIsRefusedWhereItsGroupRefusesIt() throws Exception
+    {
+        SecureRandom random = seededRandom("anAllZeroShareIsRefusedWhereItsGroupRefusesIt[FIPS]");
+        for (MLXKEMParameterSpec spec : served())
         {
-            diverged = !Arrays.areEqual(good,
-                    decapsulate(JSLFIPS, spec, priv, bad).getEncoded());
+            MLXKEMRefusalCells.allZeroShare(JSLFIPS, spec, random);
         }
-        catch (RuntimeException e)
-        {
-            diverged = true;
-        }
-        Assertions.assertTrue(diverged, spec.getName() + ": tampering the " + what
-                + " must not yield the original secret");
     }
 
     /**

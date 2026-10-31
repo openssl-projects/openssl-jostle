@@ -17,6 +17,7 @@ import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.kts.KemKeyDerivation;
 import org.openssl.jostle.jcajce.provider.kts.KemSizes;
+import org.openssl.jostle.jcajce.provider.kts.InjectedRandom;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
 import org.openssl.jostle.rand.RandSource;

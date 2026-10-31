@@ -12,6 +12,9 @@ package org.openssl.jostle.jcajce.provider.mlxkem;
 
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthBound;
+import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.rand.RandSource;
 
 /**
@@ -47,7 +50,9 @@ public interface MLXKEMServiceNI extends DefaultServiceNI
 
     int ni_decode_publicKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen);
 
-    int ni_decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen);
+    /** randSource is the entropy up-call: the private import runs the ML-KEM half's pairwise test. */
+    int ni_decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen,
+                             RandSource randSource);
 
     /**
      * Generate a hybrid keypair.
@@ -96,9 +101,10 @@ public interface MLXKEMServiceNI extends DefaultServiceNI
         return (int) handleErrors(ni_decode_publicKey(specRef, keyType, input, inputOffset, inputLen));
     }
 
-    default int decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen)
+    default int decode_privateKey(long specRef, int keyType, byte[] input, int inputOffset, int inputLen,
+                                  RandSource randSource)
     {
-        return (int) handleErrors(ni_decode_privateKey(specRef, keyType, input, inputOffset, inputLen));
+        return (int) handleErrors(ni_decode_privateKey(specRef, keyType, input, inputOffset, inputLen, randSource));
     }
 
     default long handleErrors(long code)
@@ -123,5 +129,23 @@ public interface MLXKEMServiceNI extends DefaultServiceNI
                     "this hybrid variant does not expose its private key material");
         }
         return baseErrorHandler(code);
+    }
+
+    /** The parts of a hybrid key whose length the library reports; only the wire share leaves the provider. */
+    enum KeyPart
+    {
+        PUBLIC
+    }
+
+    /** This implementation's memo of key lengths, keyed by type and part. */
+    NativeLengthCache<String> keyLengthCache();
+
+    /**
+     * A key length the library reported, checked before anything is allocated from it: the first answer for a
+     * type and part is memoised, and a later answer that disagrees is IllegalStateException.
+     */
+    default int boundedKeyLength(OSSLKeyType type, KeyPart part, long reported)
+    {
+        return NativeLengthBound.bounded(keyLengthCache(), type.name(), part.name(), reported);
     }
 }

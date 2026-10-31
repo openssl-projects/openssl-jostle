@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.mlxkem;
 
 import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.OSSLKeyType;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
@@ -25,6 +26,7 @@ import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.ProviderException;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -159,7 +161,17 @@ public class MLXKEMKeyPairGenerator extends KeyPairGenerator
     public KeyPair generateKeyPair()
     {
         OSSLKeyType keyType = parameterSpec.getKeyType();
-        long res = mlxkemServiceNI.generateKeyPair(keyType.getKsType(), randSource);
+        long res;
+        try
+        {
+            res = mlxkemServiceNI.generateKeyPair(keyType.getKsType(), randSource);
+        }
+        catch (OpenSSLException e)
+        {
+            // generateKeyPair declares no checked type; the library's failure travels as the cause.
+            throw new ProviderException("unable to generate a " + parameterSpec.getName() + " key pair: "
+                    + e.getMessage(), e);
+        }
 
         PKEYKeySpec spec = new PKEYKeySpec(specNI, res, keyType, providerInstance);
         return new KeyPair(new JOMLXKEMPublicKey(mlxkemServiceNI, spec),

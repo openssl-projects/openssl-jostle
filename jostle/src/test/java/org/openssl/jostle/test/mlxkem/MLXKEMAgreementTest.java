@@ -160,38 +160,27 @@ public class MLXKEMAgreementTest
     }
 
     /**
-     * Negative path, per half. Damaging the ML-KEM half and damaging the ECDH
-     * half exercise different code inside the provider, and a decapsulation
-     * that ignored one of them entirely would still pass a single
-     * "flip any byte" check.
-     *
-     * <p>ML-KEM is designed to decapsulate a damaged ciphertext to a
-     * DIFFERENT secret rather than fail, so this asserts divergence and
-     * tolerates an exception; a damaged EC point is usually rejected outright.
+     * Negative path, per half: where the classical half refuses, the refusal is typed and names the group; a damaged
+     * ML-KEM half, and a damaged X point, decapsulate to a different secret. HybridRef beside on the same damage.
      */
     @Test
-    public void tamperingEitherHalfChangesTheSecret() throws Exception
+    public void refusedDecapsulationsAreTypedAndNameTheGroup() throws Exception
     {
-        SecureRandom random = seededRandom("tamperingEitherHalfChangesTheSecret");
-
+        SecureRandom random = seededRandom("refusedDecapsulationsAreTypedAndNameTheGroup");
         for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
         {
-            KeyPair kp = KeyPairGenerator.getInstance(spec.getName(), JSL).generateKeyPair();
-            byte[] share = ((MLXKEMPublicKey) kp.getPublic()).getPublicData();
-            byte[][] made = HybridRef.encapsulate(spec, share, random);
-            byte[] good = decapsulate(spec, kp.getPrivate(), made[0]).getEncoded();
+            MLXKEMRefusalCells.refusedDecapsulations(JSL, spec, random);
+        }
+    }
 
-            Assertions.assertTrue(Arrays.areEqual(made[1], good), spec.getName() + ": control");
-
-            // Offsets from the reference's own split. The ECDH half's length
-            // is measured from a freshly generated key, so this stays right if
-            // a curve's encoding ever changed.
-            int ecdhLen = HybridRef.ecdhPublicLength(spec, random);
-            int mlkemStart = HybridRef.mlkemFirst(spec) ? 0 : ecdhLen;
-            int ecdhStart = HybridRef.mlkemFirst(spec) ? made[0].length - ecdhLen : 0;
-
-            assertDiverges(spec, kp, made[0], mlkemStart, good, "ML-KEM half");
-            assertDiverges(spec, kp, made[0], ecdhStart, good, "ECDH half");
+    /** An all-zero share: SecP refuses it at the KeyFactory, X at encapsulation; HybridRef beside. */
+    @Test
+    public void anAllZeroShareIsRefusedWhereItsGroupRefusesIt() throws Exception
+    {
+        SecureRandom random = seededRandom("anAllZeroShareIsRefusedWhereItsGroupRefusesIt");
+        for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
+        {
+            MLXKEMRefusalCells.allZeroShare(JSL, spec, random);
         }
     }
 
@@ -241,25 +230,6 @@ public class MLXKEMAgreementTest
     }
 
     // -----------------------------------------------------------------
-
-    private void assertDiverges(MLXKEMParameterSpec spec, KeyPair kp, byte[] encapsulation,
-                                int offset, byte[] good, String what) throws Exception
-    {
-        byte[] bad = Arrays.clone(encapsulation);
-        bad[offset] ^= (byte) 0x01;
-
-        boolean diverged;
-        try
-        {
-            diverged = !Arrays.areEqual(good, decapsulate(spec, kp.getPrivate(), bad).getEncoded());
-        }
-        catch (RuntimeException e)
-        {
-            diverged = true;
-        }
-        Assertions.assertTrue(diverged, spec.getName() + ": tampering the " + what
-                + " must not yield the original secret");
-    }
 
     private static SecretKeyWithEncapsulation encapsulate(MLXKEMParameterSpec spec, PublicKey pub)
             throws Exception

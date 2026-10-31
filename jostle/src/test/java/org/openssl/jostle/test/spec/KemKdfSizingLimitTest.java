@@ -21,6 +21,7 @@ import org.openssl.jostle.jcajce.provider.JostleProvider;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,6 +63,19 @@ public class KemKdfSizingLimitTest
             }
         }
         System.out.println("[kem-sizing] JSL\n" + String.join("\n", table));
+    }
+
+    /** Every hybrid's sizing rule with HybridRef beside: the held size, the prefix, one bit over, the KDF. */
+    @Test
+    public void everyHybridSizesAgainstTheReference() throws Exception
+    {
+        SecureRandom random = new SecureRandom();
+        List<String> table = new ArrayList<String>();
+        for (String name : KemKdfCases.HYBRIDS)
+        {
+            table.add(KemKdfCases.hybridSizingAgainstReference(jsl, name, random));
+        }
+        System.out.println("[kem-sizing-reference] JSL\n  " + String.join("\n  ", table));
     }
 
     @Test

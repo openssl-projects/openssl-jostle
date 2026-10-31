@@ -190,7 +190,7 @@ int32_t mlxkem_get_private_encoded(key_spec *spec, uint8_t *out, size_t out_len)
  * the probe measured; it is not a typo.
  */
 static int32_t mlxkem_decode(key_spec *spec, int32_t type, const char *param, int selection,
-                             uint8_t *src, size_t src_len) {
+                             uint8_t *src, size_t src_len, void *rnd_src) {
     jo_assert(spec != NULL);
     jo_assert(src != NULL);
 
@@ -225,7 +225,15 @@ static int32_t mlxkem_decode(key_spec *spec, int32_t type, const char *param, in
         goto exit;
     }
 
-    if (OPS_OPENSSL_ERROR_9 EVP_PKEY_fromdata(ctx, &decoded, selection, params) <= 0) {
+    // A private import runs the ML-KEM half's pairwise test, which draws entropy from the up-call.
+    if (rnd_src != NULL) {
+        rand_set_java_srand_call(rnd_src);
+    }
+    int fromdata_rc = EVP_PKEY_fromdata(ctx, &decoded, selection, params);
+    if (rnd_src != NULL) {
+        rand_clear_java_srand_call();
+    }
+    if (OPS_OPENSSL_ERROR_9 fromdata_rc <= 0) {
         ret_code = JO_INVALID_KEY_TYPE;
         goto exit;
     }
@@ -251,9 +259,10 @@ exit:
 }
 
 int32_t mlxkem_decode_public_key(key_spec *spec, int32_t type, uint8_t *src, size_t src_len) {
-    return mlxkem_decode(spec, type, OSSL_PKEY_PARAM_PUB_KEY, EVP_PKEY_PUBLIC_KEY, src, src_len);
+    return mlxkem_decode(spec, type, OSSL_PKEY_PARAM_PUB_KEY, EVP_PKEY_PUBLIC_KEY, src, src_len, NULL);
 }
 
-int32_t mlxkem_decode_private_key(key_spec *spec, int32_t type, uint8_t *src, size_t src_len) {
-    return mlxkem_decode(spec, type, OSSL_PKEY_PARAM_PRIV_KEY, EVP_PKEY_KEYPAIR, src, src_len);
+int32_t mlxkem_decode_private_key(key_spec *spec, int32_t type, uint8_t *src, size_t src_len, void *rnd_src) {
+    jo_assert(rnd_src != NULL);
+    return mlxkem_decode(spec, type, OSSL_PKEY_PARAM_PRIV_KEY, EVP_PKEY_KEYPAIR, src, src_len, rnd_src);
 }

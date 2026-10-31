@@ -16,10 +16,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.spec.KemSharedSecretLengths;
 
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The JSLFIPS twin of {@code KemSharedSecretLengthTest}: the module's encapsulation-side shared-secret length
@@ -60,5 +64,24 @@ public class FIPSKemSharedSecretLengthTest
                 "the loaded FIPS module implements no ML-KEM (3.1.2)");
         String table = KemSharedSecretLengths.check(fips, KemSharedSecretLengths.ALL, TestUtil.RNDSrc);
         System.out.println("[kem-secret-length] JSLFIPS\n  " + table);
+    }
+
+    /** Every hybrid the module serves agrees with HybridRef on both lengths and the secret; 3.1.2 serves none. */
+    @Test
+    public void everyServedHybridAgreesWithTheReference() throws Exception
+    {
+        List<MLXKEMParameterSpec> served = new ArrayList<MLXKEMParameterSpec>();
+        for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
+        {
+            boolean inProfile = FipsModuleProfile.get().hybridKemGroups().contains(spec.getName());
+            Assertions.assertEquals(inProfile, fips.getService("KeyGenerator", spec.getName()) != null, spec.getName());
+            if (inProfile)
+            {
+                served.add(spec);
+            }
+        }
+        String table = KemSharedSecretLengths.checkHybridsAgainstReference(fips, served, TestUtil.RNDSrc,
+                new SecureRandom());
+        System.out.println("[kem-secret-length-reference] JSLFIPS\n  " + table);
     }
 }

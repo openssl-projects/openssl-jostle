@@ -23,6 +23,9 @@ import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.KeyPairGenerator;
+import java.util.ArrayList;
+import java.util.List;
 import java.security.Security;
 
 /**
@@ -74,7 +77,7 @@ public class MLXKEMLimitTest
         assertTyped(IllegalArgumentException.class, "key spec is null",
                 () -> ni.decode_publicKey(0, KS_TYPE, new byte[16], 0, 16));
         assertTyped(IllegalArgumentException.class, "key spec is null",
-                () -> ni.decode_privateKey(0, KS_TYPE, new byte[16], 0, 16));
+                () -> ni.decode_privateKey(0, KS_TYPE, new byte[16], 0, 16, TestUtil.RNDSrc));
     }
 
     /**
@@ -106,7 +109,7 @@ public class MLXKEMLimitTest
             assertTyped(IllegalArgumentException.class, "invalid key type for a hybrid ML-KEM",
                     () -> ni.decode_publicKey(spec, mlkem768, new byte[16], 0, 16));
             assertTyped(IllegalArgumentException.class, "invalid key type for a hybrid ML-KEM",
-                    () -> ni.decode_privateKey(spec, mlkem768, new byte[16], 0, 16));
+                    () -> ni.decode_privateKey(spec, mlkem768, new byte[16], 0, 16, TestUtil.RNDSrc));
         }
         finally
         {
@@ -134,7 +137,7 @@ public class MLXKEMLimitTest
             assertTyped(NullPointerException.class, "input is null",
                     () -> ni.decode_publicKey(spec, KS_TYPE, null, 0, 0));
             assertTyped(NullPointerException.class, "input is null",
-                    () -> ni.decode_privateKey(spec, KS_TYPE, null, 0, 0));
+                    () -> ni.decode_privateKey(spec, KS_TYPE, null, 0, 0, TestUtil.RNDSrc));
         }
         finally
         {
@@ -168,9 +171,9 @@ public class MLXKEMLimitTest
                     () -> ni.decode_publicKey(spec, KS_TYPE, in, -1, -1));
 
             assertTyped(IllegalArgumentException.class, "input offset is negative",
-                    () -> ni.decode_privateKey(spec, KS_TYPE, in, -1, 16));
+                    () -> ni.decode_privateKey(spec, KS_TYPE, in, -1, 16, TestUtil.RNDSrc));
             assertTyped(IllegalArgumentException.class, "input len is negative",
-                    () -> ni.decode_privateKey(spec, KS_TYPE, in, 0, -1));
+                    () -> ni.decode_privateKey(spec, KS_TYPE, in, 0, -1, TestUtil.RNDSrc));
         }
         finally
         {
@@ -202,9 +205,9 @@ public class MLXKEMLimitTest
                     () -> ni.decode_publicKey(spec, KS_TYPE, in, 17, 0));
 
             assertTyped(IllegalArgumentException.class, "input offset + length is out of range",
-                    () -> ni.decode_privateKey(spec, KS_TYPE, in, 1, 16));
+                    () -> ni.decode_privateKey(spec, KS_TYPE, in, 1, 16, TestUtil.RNDSrc));
             assertTyped(IllegalArgumentException.class, "input offset + length is out of range",
-                    () -> ni.decode_privateKey(spec, KS_TYPE, in, 0, 17));
+                    () -> ni.decode_privateKey(spec, KS_TYPE, in, 0, 17, TestUtil.RNDSrc));
         }
         finally
         {
@@ -315,5 +318,42 @@ public class MLXKEMLimitTest
                                     Executable call)
     {
         Assertions.assertEquals(message, Assertions.assertThrows(type, call).getMessage());
+    }
+
+    @Test
+    public void bridge_wrongKindHandlesAreRefused()
+    {
+        MLXKEMBridgeCells.wrongKindHandlesAreRefused(ni, TestNISelector.getMLDSANI(), TestNISelector.getMDNI());
+    }
+
+    @Test
+    public void bridge_aKeyOfAnotherAlgorithmIsRefusedAndKept() throws Exception
+    {
+        String jsl = JostleProvider.PROVIDER_NAME;
+        MLXKEMBridgeCells.aKeyOfAnotherAlgorithmIsRefusedAndKept(ni, MLXKEMParameterSpec.x25519_mlkem768,
+                KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair().getPublic(),
+                KeyPairGenerator.getInstance("EC", jsl).generateKeyPair().getPublic());
+    }
+
+    @Test
+    public void bridge_theSpecThenTheRandSourceThenTheInputAreChecked()
+    {
+        MLXKEMBridgeCells.theSpecThenTheRandSourceThenTheInputAreChecked(ni, specNI, TestNISelector.getMDNI());
+    }
+
+    /** Both X groups' exported private halves re-import, keep the share and open the original's encapsulation. */
+    @Test
+    public void theExportedXPrivateHalfReimports()
+    {
+        List<MLXKEMParameterSpec> xGroups = new ArrayList<MLXKEMParameterSpec>();
+        for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
+        {
+            if (!spec.getName().startsWith("SecP"))
+            {
+                xGroups.add(spec);
+            }
+        }
+        Assertions.assertEquals(2, xGroups.size());
+        MLXKEMBridgeCells.theExportedPrivateHalfReimports(ni, specNI, xGroups);
     }
 }

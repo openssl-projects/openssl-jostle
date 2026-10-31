@@ -18,11 +18,14 @@ import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
 import org.junit.jupiter.api.Assertions;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
+import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.test.TestUtil;
+import org.openssl.jostle.test.mlxkem.HybridRef;
 
 import javax.crypto.KeyGenerator;
 import java.security.InvalidAlgorithmParameterException;
@@ -32,6 +35,7 @@ import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
@@ -251,5 +255,47 @@ public final class KemKdfCases
                 ((OSSLKey) kp.getPublic()).getSpec();
         return spec.getSpecNI().encapSecretLength(spec.getReference(), null, TestUtil.RNDSrc)
                 * 8;
+    }
+
+    /**
+     * A hybrid's sizing rule against HybridRef: the held size is the reference secret's; extracting a HybridRef
+     * encapsulation with no KDF gives its secret's prefix up to the full secret; one bit over is refused at init;
+     * and the default KDF over the reference secret is what our receiver derives.
+     *
+     * @return one line, for the log.
+     */
+    public static String hybridSizingAgainstReference(Provider ours, String name, SecureRandom random)
+        throws Exception
+    {
+        MLXKEMParameterSpec spec = null;
+        for (MLXKEMParameterSpec s : MLXKEMParameterSpec.all())
+        {
+            if (s.getName().equals(name))
+            {
+                spec = s;
+            }
+        }
+        Assertions.assertNotNull(spec, name);
+        KeyPair kp = KeyPairGenerator.getInstance(name, ours).generateKeyPair();
+        byte[][] made = HybridRef.encapsulate(spec, ((MLXKEMPublicKey) kp.getPublic()).getPublicData(), random);
+        int held = secretBits(ours, name);
+        Assertions.assertEquals(made[1].length * 8, held, name + ": held size");
+
+        for (int bits : new int[]{held, held - 1, held - 8, 8})
+        {
+            KeyGenerator x = KeyGenerator.getInstance(name, ours);
+            x.init(ourExtract(kp.getPrivate(), made[0], bits, null, null));
+            Assertions.assertArrayEquals(Arrays.copyOf(made[1], (bits + 7) / 8), x.generateKey().getEncoded(),
+                    name + " " + bits + " bits: not the reference secret's prefix");
+        }
+        refusedAtInit(ours, name, kp, held + 1, null, "KEM key size " + (held + 1) + " bits is larger than the "
+                + held + "-bit shared secret, and no KDF is set");
+
+        int over = held + 8;
+        KeyGenerator k = KeyGenerator.getInstance(name, ours);
+        k.init(ourExtract(kp.getPrivate(), made[0], over, KDF3_SHA256, null));
+        Assertions.assertArrayEquals(kdf3Sha256(made[1], null, over / 8), k.generateKey().getEncoded(),
+                name + " " + over + " bits: not KDF3 over the reference secret");
+        return name + ": held " + held + " bits, the reference's prefix and KDF3 agree";
     }
 }

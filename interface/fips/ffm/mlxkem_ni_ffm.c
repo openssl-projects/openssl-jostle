@@ -15,6 +15,7 @@
 #include "types.h"
 
 key_spec *JoMLXKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src) {
+    jo_assert(ret_val != NULL);
     *ret_val = JO_FAIL;
 
     if (rnd_src == NULL) {
@@ -35,15 +36,17 @@ key_spec *JoMLXKEM_generateKeyPair(int32_t type, int32_t *ret_val, void *rnd_src
 }
 
 int32_t JoMLXKEM_getPublicKey(key_spec *kp, uint8_t *output, const size_t output_len) {
-    if (kp == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ret_code = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     return mlxkem_get_public_encoded(kp, output, output_len);
 }
 
 int32_t JoMLXKEM_getPrivateKey(key_spec *kp, uint8_t *output, const size_t output_len) {
-    if (kp == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+    int32_t ret_code = key_spec_check(kp);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
     }
     return mlxkem_get_private_encoded(kp, output, output_len);
 }
@@ -58,9 +61,14 @@ int32_t JoMLXKEM_getPrivateKey(key_spec *kp, uint8_t *output, const size_t outpu
  */
 static int32_t mlxkem_decode_ffm(key_spec *key_spec, int32_t key_type, uint8_t *input,
                                  size_t input_size, int32_t in_off, int32_t in_len,
-                                 int is_private) {
-    if (key_spec == NULL) {
-        return JO_KEY_SPEC_IS_NULL;
+                                 void *rnd_src, int is_private) {
+    int32_t ret_code = key_spec_check(key_spec);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+
+    if (is_private && rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
     }
 
     if (input == NULL) {
@@ -81,16 +89,16 @@ static int32_t mlxkem_decode_ffm(key_spec *key_spec, int32_t key_type, uint8_t *
 
     uint8_t *start = input + in_off;
     return is_private
-               ? mlxkem_decode_private_key(key_spec, key_type, start, (size_t) in_len)
+               ? mlxkem_decode_private_key(key_spec, key_type, start, (size_t) in_len, rnd_src)
                : mlxkem_decode_public_key(key_spec, key_type, start, (size_t) in_len);
 }
 
 int32_t JoMLXKEM_decodePublicKey(key_spec *key_spec, int32_t key_type, uint8_t *input,
                                  size_t input_size, int32_t in_off, int32_t in_len) {
-    return mlxkem_decode_ffm(key_spec, key_type, input, input_size, in_off, in_len, 0);
+    return mlxkem_decode_ffm(key_spec, key_type, input, input_size, in_off, in_len, NULL, 0);
 }
 
 int32_t JoMLXKEM_decodePrivateKey(key_spec *key_spec, int32_t key_type, uint8_t *input,
-                                  size_t input_size, int32_t in_off, int32_t in_len) {
-    return mlxkem_decode_ffm(key_spec, key_type, input, input_size, in_off, in_len, 1);
+                                  size_t input_size, int32_t in_off, int32_t in_len, void *rnd_src) {
+    return mlxkem_decode_ffm(key_spec, key_type, input, input_size, in_off, in_len, rnd_src, 1);
 }

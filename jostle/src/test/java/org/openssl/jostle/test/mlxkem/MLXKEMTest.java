@@ -18,6 +18,8 @@ import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.provider.mlxkem.MLXKEMServiceNI;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
@@ -34,6 +36,7 @@ import java.security.InvalidParameterException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
@@ -140,27 +143,67 @@ public class MLXKEMTest
     }
 
     /**
-     * With no encoding there is nothing to compare, so equality falls back to
-     * identity — {@code AsymmetricKeyImpl.equals} returns false when either
-     * encoding is null rather than calling two unavailable encodings equal.
-     * Pinned because it differs from every other Jostle key family, where two
-     * instances of the same key DO compare equal.
+     * A public key equals another of its group carrying the same wire share, and hashes alike: the key's own
+     * wrapper, the private key's view and a KeyFactory decode of the share all agree. Another share does not. A
+     * private key equals only a key over the same native key: there is no material to compare it by.
      */
     @Test
-    public void equalityIsIdentityBecauseThereIsNoEncodingToCompare() throws Exception
+    public void equalityFollowsTheGroupAndTheShare() throws Exception
     {
         for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
         {
             KeyPair kp = keyPair(spec);
+            KeyPair other = keyPair(spec);
             MLXKEMPublicKey a = (MLXKEMPublicKey) kp.getPublic();
-            MLXKEMPublicKey b = (MLXKEMPublicKey) ((MLXKEMPrivateKey) kp.getPrivate()).getPublicKey();
+            MLXKEMPublicKey b = ((MLXKEMPrivateKey) kp.getPrivate()).getPublicKey();
+            PublicKey c = KeyFactory.getInstance(spec.getName(), JSL)
+                    .generatePublic(new MLXKEMPublicKeySpec(spec, a.getPublicData()));
 
-            Assertions.assertEquals(a, a, spec.getName() + ": a key equals itself");
-            // Same underlying PKEY, different wrapper: not equal, because
-            // there are no encodings to compare.
-            Assertions.assertNotEquals(a, b, spec.getName() + ": distinct wrappers are not equal");
-            Assertions.assertTrue(Arrays.areEqual(a.getPublicData(), b.getPublicData()),
-                    spec.getName() + ": ...even though they hold the same public share");
+            for (Object same : new Object[]{b, c})
+            {
+                Assertions.assertEquals(a, same, spec.getName());
+                Assertions.assertEquals(same, a, spec.getName());
+                Assertions.assertEquals(a.hashCode(), same.hashCode(), spec.getName());
+            }
+            Assertions.assertNotEquals(a, other.getPublic(), spec.getName());
+            Assertions.assertNotEquals(a, kp.getPrivate(), spec.getName());
+
+            Assertions.assertEquals(kp.getPrivate(), kp.getPrivate(), spec.getName());
+            Assertions.assertNotEquals(kp.getPrivate(), other.getPrivate(), spec.getName());
+            Assertions.assertNotEquals(kp.getPrivate(), a, spec.getName());
+        }
+    }
+
+    /** Both halves, and a decoded share, answer the group's own name, the SecP groups included. */
+    @Test
+    public void getAlgorithmIsTheGroupName() throws Exception
+    {
+        for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
+        {
+            KeyPair kp = keyPair(spec);
+            PublicKey decoded = KeyFactory.getInstance(spec.getName(), JSL).generatePublic(
+                    new MLXKEMPublicKeySpec(spec, ((MLXKEMPublicKey) kp.getPublic()).getPublicData()));
+            Assertions.assertEquals(spec.getName(), kp.getPublic().getAlgorithm());
+            Assertions.assertEquals(spec.getName(), kp.getPrivate().getAlgorithm());
+            Assertions.assertEquals(spec.getName(), decoded.getAlgorithm());
+        }
+    }
+
+    /**
+     * The wire share is the length HybridRef composes for the group, and the length the library reported first for
+     * that group, which bounds every later answer.
+     */
+    @Test
+    public void shareLengthEqualsTheMemoPerGroup() throws Exception
+    {
+        MLXKEMServiceNI ni = NISelector.MLXKEMServiceNI;
+        for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
+        {
+            byte[] share = ((MLXKEMPublicKey) keyPair(spec).getPublic()).getPublicData();
+            Assertions.assertEquals(HybridRef.Party.generate(spec, RANDOM).share.length, share.length,
+                    spec.getName());
+            Assertions.assertEquals(share.length, ni.keyLengthCache().get(spec.getKeyType().name() + "/PUBLIC"),
+                    spec.getName());
         }
     }
 
@@ -381,6 +424,23 @@ public class MLXKEMTest
                             .build()),
                     spec.getName());
             Assertions.assertEquals("KEMExtractSpec has no encapsulation", n.getMessage());
+        }
+    }
+
+    /** The KeyGenerator takes a spec only: the random-only and size forms are refused typed, naming the spec form. */
+    @Test
+    public void keyGeneratorRefusesTheFormsWithoutASpec() throws Exception
+    {
+        String message = "a hybrid KEM needs a KEMGenerateSpec or KEMExtractSpec; use init(AlgorithmParameterSpec)";
+        for (MLXKEMParameterSpec spec : MLXKEMParameterSpec.all())
+        {
+            KeyGenerator kg = KeyGenerator.getInstance(spec.getName(), JSL);
+            Assertions.assertEquals(message, Assertions.assertThrows(InvalidParameterException.class,
+                    () -> kg.init(RANDOM), spec.getName()).getMessage());
+            Assertions.assertEquals(message, Assertions.assertThrows(InvalidParameterException.class,
+                    () -> kg.init(256), spec.getName()).getMessage());
+            Assertions.assertEquals(message, Assertions.assertThrows(InvalidParameterException.class,
+                    () -> kg.init(256, RANDOM), spec.getName()).getMessage());
         }
     }
 

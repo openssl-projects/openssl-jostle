@@ -23,6 +23,7 @@ import org.openssl.jostle.test.spec.KemKdfCases;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -82,6 +83,24 @@ public class FIPSKemKdfSizingLimitTest
             }
         }
         System.out.println("[kem-sizing] JSLFIPS\n" + String.join("\n", table));
+    }
+
+    /**
+     * Every hybrid the module serves sizes against HybridRef: the held size, the prefix, one bit over, the KDF. The
+     * served set is the module version's; 3.1.2 serves none.
+     */
+    @Test
+    public void everyServedHybridSizesAgainstTheReference() throws Exception
+    {
+        SecureRandom random = new SecureRandom();
+        List<String> table = new ArrayList<String>();
+        for (String name : KemKdfCases.HYBRIDS)
+        {
+            boolean served = FipsModuleProfile.get().hybridKemGroups().contains(name);
+            Assertions.assertEquals(served, fips.getService("KeyGenerator", name) != null, name);
+            table.add(served ? KemKdfCases.hybridSizingAgainstReference(fips, name, random) : name + ": not served");
+        }
+        System.out.println("[kem-sizing-reference] JSLFIPS\n  " + String.join("\n  ", table));
     }
 
     @Test

@@ -38,7 +38,8 @@ class JOMLXKEMPrivateKey extends AsymmetricKeyImpl implements MLXKEMPrivateKey
     @Override
     public String getAlgorithm()
     {
-        return getType().getAlgorithmName();
+        // The group's own spelling: the key type's algorithm name upper-cases the SecP groups.
+        return getParameterSpec().getName();
     }
 
     /**
@@ -82,5 +83,27 @@ class JOMLXKEMPrivateKey extends AsymmetricKeyImpl implements MLXKEMPrivateKey
             throw new IllegalArgumentException("unknown parameter type: " + spec.getType().name());
         }
         return parameterSpec;
+    }
+
+    /** Equal only to a hybrid private key over the same native key: the private material never leaves it. */
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o)
+        {
+            return true;
+        }
+        if (!(o instanceof JOMLXKEMPrivateKey))
+        {
+            return false;
+        }
+        JOMLXKEMPrivateKey other = (JOMLXKEMPrivateKey) o;
+        return spec.getType() == other.spec.getType() && spec == other.spec;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return System.identityHashCode(spec);
     }
 }

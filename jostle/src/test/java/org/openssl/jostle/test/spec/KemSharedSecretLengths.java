@@ -11,14 +11,18 @@
 package org.openssl.jostle.test.spec;
 
 import org.junit.jupiter.api.Assertions;
+import org.openssl.jostle.jcajce.interfaces.MLXKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
+import org.openssl.jostle.test.mlxkem.HybridRef;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Provider;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -90,6 +94,38 @@ public final class KemSharedSecretLengths
             checked++;
         }
         Assertions.assertTrue(checked > 0, provider.getName() + " serves none of the KEMs");
+        return String.join("\n  ", rows);
+    }
+
+    /**
+     * For each hybrid group in {@code served}, HybridRef beside: the provider's secret and encapsulation lengths are
+     * the reference's, and the provider decapsulates a reference encapsulation to the reference secret.
+     *
+     * @return one line per group, for the log.
+     */
+    public static String checkHybridsAgainstReference(Provider provider, Iterable<MLXKEMParameterSpec> served,
+                                                      RandSource rnd, SecureRandom random) throws Exception
+    {
+        List<String> rows = new ArrayList<String>();
+        for (MLXKEMParameterSpec spec : served)
+        {
+            String name = spec.getName();
+            KeyPair kp = KeyPairGenerator.getInstance(name, provider).generateKeyPair();
+            PKEYKeySpec pub = ((OSSLKey) kp.getPublic()).getSpec();
+            PKEYKeySpec priv = ((OSSLKey) kp.getPrivate()).getSpec();
+            SpecNI ni = pub.getSpecNI();
+            byte[][] made = HybridRef.encapsulate(spec, ((MLXKEMPublicKey) kp.getPublic()).getPublicData(), random);
+
+            int queried = ni.encapSecretLength(pub.getReference(), null, rnd);
+            Assertions.assertEquals(made[1].length, queried, name + ": secret length");
+            Assertions.assertEquals(made[0].length,
+                    ni.encapsulationLength(pub.getReference(), pub.getType(), queried, rnd), name + ": encapsulation");
+            byte[] recovered = new byte[queried];
+            ni.decap(priv.getReference(), null, made[0], 0, made[0].length, recovered, 0, queried, rnd);
+            Assertions.assertArrayEquals(made[1], recovered, name + ": the reference secret");
+            rows.add(name + ": secret " + queried + " bytes, encapsulation " + made[0].length
+                    + " bytes, as the reference");
+        }
         return String.join("\n  ", rows);
     }
 }
