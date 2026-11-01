@@ -84,10 +84,11 @@ public class FIPSPQCUmbrellaKeyPairGeneratorLimitTest
     }
 
     @Test
-    public void bareSlhDsaGeneratorStillRefusesTyped() throws Exception
+    public void bareSlhDsaGeneratorsGenerateSlhDsaSha2128f() throws Exception
     {
         assumeRegistered("SLH-DSA");
-        PQCUmbrellaKeyPairGeneratorLimitTest.assertSlhDsaRefuses(FIPS);
+        PQCUmbrellaKeyPairGeneratorLimitTest.assertBareDefault(FIPS, "SLH-DSA", "SLH-DSA-SHA2-128F");
+        PQCUmbrellaKeyPairGeneratorLimitTest.assertBareDefault(FIPS, "SLHDSA", "SLH-DSA-SHA2-128F");
     }
 
     private static void assertRegisteredIffImplemented(String generic, String keyMgmt)

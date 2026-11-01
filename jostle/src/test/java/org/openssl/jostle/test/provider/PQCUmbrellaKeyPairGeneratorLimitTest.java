@@ -13,6 +13,7 @@ package org.openssl.jostle.test.provider;
 
 import org.bouncycastle.jcajce.interfaces.MLDSAKey;
 import org.bouncycastle.jcajce.interfaces.MLKEMKey;
+import org.bouncycastle.jcajce.interfaces.SLHDSAKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -31,10 +32,9 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
 /**
- * The generic ML-DSA and ML-KEM KeyPairGenerators, and their MLDSA and MLKEM aliases, used without initialize()
- * generate ML-DSA-87 and ML-KEM-768, BouncyCastle's defaults. The parameter set is read back by BouncyCastle from
- * the encodings, so a key that merely reports the right name cannot pass. The generic SLH-DSA generator has no
- * default and still refuses typed.
+ * The generic ML-DSA, ML-KEM and SLH-DSA KeyPairGenerators, and their MLDSA, MLKEM and SLHDSA aliases, used
+ * without initialize() generate ML-DSA-87, ML-KEM-768 and SLH-DSA-SHA2-128F, BouncyCastle's defaults. The parameter
+ * set is read back by BouncyCastle from the encodings, so a key that merely reports the right name cannot pass.
  */
 public class PQCUmbrellaKeyPairGeneratorLimitTest
 {
@@ -82,9 +82,10 @@ public class PQCUmbrellaKeyPairGeneratorLimitTest
     }
 
     @Test
-    public void bareSlhDsaGeneratorStillRefusesTyped() throws Exception
+    public void bareSlhDsaGeneratorsGenerateSlhDsaSha2128f() throws Exception
     {
-        assertSlhDsaRefuses(JSL);
+        assertBareDefault(JSL, "SLH-DSA", "SLH-DSA-SHA2-128F");
+        assertBareDefault(JSL, "SLHDSA", "SLH-DSA-SHA2-128F");
     }
 
     /**
@@ -111,29 +112,25 @@ public class PQCUmbrellaKeyPairGeneratorLimitTest
         assertBcReads(expected, kpg.generateKeyPair(), umbrella);
     }
 
-    public static void assertSlhDsaRefuses(String provider) throws Exception
-    {
-        for (String name : new String[]{"SLH-DSA", "SLHDSA"})
-        {
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance(name, provider);
-            IllegalStateException e = Assertions.assertThrows(IllegalStateException.class, kpg::generateKeyPair,
-                    name);
-            Assertions.assertEquals("SLH-DSA is parameter-set based; call initialize(SLHDSAParameterSpec) "
-                    + "before generateKeyPair(), or use a typed generator "
-                    + "(e.g. KeyPairGenerator.getInstance(\"SLH-DSA-SHA2-128S\"))", e.getMessage(), name);
-        }
-    }
-
     /**
      * The parameter set BouncyCastle reads from the public and private encodings of {@code pair}.
      */
     static void assertBcReads(String expected, KeyPair pair, String label) throws Exception
     {
-        KeyFactory kf = KeyFactory.getInstance(expected.startsWith("ML-DSA") ? "ML-DSA" : "ML-KEM", BC);
+        KeyFactory kf = KeyFactory.getInstance(family(expected), BC);
         Key pub = kf.generatePublic(new X509EncodedKeySpec(pair.getPublic().getEncoded()));
         Key priv = kf.generatePrivate(new PKCS8EncodedKeySpec(pair.getPrivate().getEncoded()));
         Assertions.assertEquals(expected, bcParameterSet(pub), label + " public");
         Assertions.assertEquals(expected, bcParameterSet(priv), label + " private");
+    }
+
+    private static String family(String parameterSet)
+    {
+        if (parameterSet.startsWith("SLH-DSA"))
+        {
+            return "SLH-DSA";
+        }
+        return parameterSet.startsWith("ML-DSA") ? "ML-DSA" : "ML-KEM";
     }
 
     static String bcParameterSet(Key key)
@@ -141,6 +138,10 @@ public class PQCUmbrellaKeyPairGeneratorLimitTest
         if (key instanceof MLDSAKey)
         {
             return ((MLDSAKey) key).getParameterSpec().getName();
+        }
+        if (key instanceof SLHDSAKey)
+        {
+            return ((SLHDSAKey) key).getParameterSpec().getName();
         }
         return ((MLKEMKey) key).getParameterSpec().getName();
     }

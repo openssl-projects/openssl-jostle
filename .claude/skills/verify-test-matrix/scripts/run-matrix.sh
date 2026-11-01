@@ -66,9 +66,18 @@ fi
 REQUIRE_OPS=""
 [ -n "${JOSTLE_REQUIRE_OPS:-}" ] && REQUIRE_OPS="--require-ops"
 
+# Every task runs whatever an earlier one answered: under set -e a bare failing task ended the script, so the
+# later legs never ran and nothing was snapshotted. Each rc is recorded, and the script fails at the end.
+FAILED=()
 for t in "${TASKS[@]}"; do
   echo "=== :jostle:$t --rerun ==="
-  ./gradlew ":jostle:$t" --rerun
+  if ./gradlew ":jostle:$t" --rerun; then
+    echo "TASK_RC $t 0"
+  else
+    _rc=$?
+    echo "TASK_RC $t $_rc"
+    FAILED+=("task:$t")
+  fi
 done
 
 # MT-64: keep this cycle's result XML somewhere the NEXT cycle cannot overwrite.
@@ -211,8 +220,20 @@ else
   echo "abort probe table: $_probe_out"
   if ! grep -q '^probe_exit: 0$' "$_probe_out"; then
     echo "abort probe FAILED - see $_probe_out" >&2
-    exit 1
+    FAILED+=("abort-probe")
   fi
 fi
 
-python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS $REQUIRE_OPS "${VERIFY_TASKS[@]}"
+if python3 "$SCRIPT_DIR/verify-results.py" $REQUIRE_FIPS $REQUIRE_OPS "${VERIFY_TASKS[@]}"; then
+  echo "VERIFY_RC 0"
+else
+  _rc=$?
+  echo "VERIFY_RC $_rc"
+  FAILED+=("verify:$_rc")
+fi
+
+if [ "${#FAILED[@]}" -gt 0 ]; then
+  echo "RUN_MATRIX FAILED: ${FAILED[*]}" >&2
+  exit 1
+fi
+echo "RUN_MATRIX OK"
