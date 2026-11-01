@@ -775,7 +775,7 @@ public class FIPSSLHDSAAgreementTest
                 "the module serves SLH-DSA but JSLFIPS registers only part of it; missing: " + missing);
     }
 
-    /** SLH-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    /** SLH-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.9 signs. */
     @Test
     public void slhDsaIsServedPerModuleVersion() throws Exception
     {
@@ -786,7 +786,7 @@ public class FIPSSLHDSAAgreementTest
             Assertions.assertFalse(registered);
             return;
         }
-        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_9, profile.version());
         Assertions.assertTrue(registered);
         KeyPair kp = keyPair("SLH-DSA-SHA2-128F");
         byte[] msg = {9, 8, 7};

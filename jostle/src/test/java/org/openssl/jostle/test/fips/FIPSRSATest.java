@@ -1145,7 +1145,7 @@ public class FIPSRSATest
     /**
      * The PSS salt is bounded by the key at init on both modules: past 222 (2048 bits, SHA-256) it is refused with
      * SunRsaSign's type and message shape. Within the key's bound a salt above hLen (32) is refused at sign as a
-     * SignatureException where 3.5.8 is installed with rsa-pss-saltlen-check, and signed everywhere else.
+     * SignatureException where 3.5.9 is installed with rsa-pss-saltlen-check, and signed everywhere else.
      */
     @Test
     public void pssSaltIsBoundedByTheKeyAtInit() throws Exception

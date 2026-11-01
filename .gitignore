@@ -31,6 +31,5 @@ build
 
 # Native libraries copied into resources at build time (bundled into the jar)
 /jostle/src/main/resources/native/
-/fips-c-review/
 /reviews/
 __pycache__/

@@ -57,7 +57,7 @@ final class CertPathParams
             {
                 // OpenSSL DOES apply an anchor certificate's own name
                 // constraints (x509_vfy.c check_name_constraints, 3.1.2 :646,
-                // 3.5.8 :776), so only the separate-BYTES form is refused —
+                // 3.5.9 :776), so only the separate-BYTES form is refused -
                 // that one has no X509_VERIFY_PARAM setter.
                 throw new InvalidAlgorithmParameterException(
                         "a TrustAnchor carrying name-constraint bytes beside its certificate is "

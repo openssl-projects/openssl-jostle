@@ -522,7 +522,7 @@ public class ECAgreementTest
                 // floors below are FAIL-CLOSED, not a safety net: a build
                 // without binary fields serves ~34 prime curves, which is under
                 // the 500-check floor, so it would fail. That is deliberate —
-                // the supported builds (3.5.8, 3.1.2) serve all 82, and a build
+                // the supported builds (3.5.9, 3.1.2) serve all 82, and a build
                 // that does not is a configuration this sweep cannot vouch for.
                 continue;
             }

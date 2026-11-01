@@ -777,7 +777,7 @@ public class FIPSMLDSALimitTest
         MLDSABridgeCells.aMuVerifiesThroughTheCalculateMode(ni, specNI);
     }
 
-    /** ML-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    /** ML-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.9 signs. */
     @Test
     public void mlDsaIsServedPerModuleVersion() throws Exception
     {
@@ -790,7 +790,7 @@ public class FIPSMLDSALimitTest
             Assertions.assertFalse(moduleServesMlDsa());
             return;
         }
-        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_9, profile.version());
         Assertions.assertTrue(registered);
         KeyPair kp = KeyPairGenerator.getInstance("ML-DSA-65", fips).generateKeyPair();
         byte[] msg = new byte[33];

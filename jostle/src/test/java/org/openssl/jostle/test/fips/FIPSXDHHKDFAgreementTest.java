@@ -41,7 +41,7 @@ import java.security.spec.X509EncodedKeySpec;
  * and the module's own {@code OSSL_LIB_CTX}.
  *
  * <p><b>Module-dependent by design.</b> The two supported modules disagree
- * about XDH itself — 3.1.2 serves it, 3.5.8 does not — so
+ * about XDH itself - 3.1.2 serves it, 3.5.9 does not - so
  * {@code ProvFIPSXDH} registers the whole family behind one fetch gate and
  * these schemes follow it. The gate is asserted rather than assumed: the cells
  * skip only when JSLFIPS genuinely does not register X25519, and

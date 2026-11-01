@@ -427,7 +427,7 @@ public class FIPSKeyIsolationTest
         }
 
         // ---- TLS hybrid KEMs ----
-        // Gated per VARIANT, not per family: 3.5.8 serves three of the four
+        // Gated per VARIANT, not per family: 3.5.9 serves three of the four
         // (see ProvFIPSMLXKEM). The base provider serves all four, so the
         // JSL side of each crossing is always available.
         //

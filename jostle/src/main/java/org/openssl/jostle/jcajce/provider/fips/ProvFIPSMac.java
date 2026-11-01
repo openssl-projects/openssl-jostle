@@ -59,11 +59,12 @@ class ProvFIPSMac
         // AES GMAC -- registered UNCONDITIONALLY, unlike the gated families:
         // EVP_MAC_fetch("GMAC") succeeds under fips=yes on BOTH supported
         // modules, and 3.1.2, 3.5.8 and mainline produce byte-identical tags
-        // for identical inputs (fips-c-review/probes/gmac_probe.c Q1).
+        // for identical inputs (fips-c-review/probes/gmac_probe.c Q1); 3.5.9 agrees
+        // with BouncyCastle in FIPSMacAgreementTest.
         //
         // The one place the two modules DISAGREE is Mac.clone(): 3.1.2 refuses
         // EVP_MAC_CTX_dup for GMAC ("not able to copy ctx") while serving the
-        // MAC itself perfectly, and 3.5.8 allows it. The refusal is
+        // MAC itself perfectly, and 3.5.8 allows it (3.5.9 too, by FIPSMacAgreementTest). The refusal is
         // GMAC-specific -- HMAC and CMAC dup fine on both. MacServiceSPI.clone
         // already reports a native copy failure as CloneNotSupportedException,
         // which is the JCE-correct answer, so nothing is gated here; see

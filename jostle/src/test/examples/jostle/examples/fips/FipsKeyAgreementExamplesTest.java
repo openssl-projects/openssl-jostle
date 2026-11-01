@@ -28,7 +28,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.ECGenParameterSpec;
 
 /**
- * Key agreement in the FIPS module: ECDH and finite-field DH, plain and with a KDF. The 3.5.8 module serves no
+ * Key agreement in the FIPS module: ECDH and finite-field DH, plain and with a KDF. The 3.5.9 module serves no
  * X25519 or X448. Each party initialises its own `KeyAgreement` with its private key, passes the peer's public
  * key to `doPhase`, and reads the shared secret with `generateSecret`.
  */

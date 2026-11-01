@@ -65,7 +65,7 @@ import java.security.spec.RSAPublicKeySpec;
  * <h2>The measured table (MT-66), for reference</h2>
  *
  * <pre>
- *   bits   default: gen imp sign ver   FIPS 3.1.2 == 3.5.8: gen imp sign ver
+ *   bits   default: gen imp sign ver   FIPS 3.1.2 == 3.5.8: gen imp sign ver  (3.5.9: FIPSRSAKeySizePinTest)
  *     64            -   A    -    -                          -   A   -    -
  *    511            -   A    -    -                          -   A   -    -
  *    512            A   A    A    A                          x   A   x    x

@@ -763,7 +763,7 @@ public class FIPSSLHDSALimitTest
         SLHDSABridgeCells.signAndVerifyConsumeTheSession(ni, specNI);
     }
 
-    /** SLH-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    /** SLH-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.9 signs. */
     @Test
     public void slhDsaIsServedPerModuleVersion() throws Exception
     {
@@ -776,7 +776,7 @@ public class FIPSSLHDSALimitTest
             Assertions.assertFalse(moduleServesSlhDsa());
             return;
         }
-        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_9, profile.version());
         Assertions.assertTrue(registered);
         KeyPair kp = KeyPairGenerator.getInstance("SLH-DSA-SHA2-128F", fips).generateKeyPair();
         byte[] msg = new byte[33];

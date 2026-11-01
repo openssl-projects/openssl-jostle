@@ -29,15 +29,16 @@ import java.util.logging.Logger;
  * ({@code fips-c-review/probes/hybrid_kem_probe.c}):
  *
  * <pre>
- *                        3.1.2    3.5.8
+ *                        3.1.2    3.5.8/3.5.9
  *   X25519MLKEM768       no       yes
  *   X448MLKEM1024        no       NO
  *   SecP256r1MLKEM768    no       yes
  *   SecP384r1MLKEM1024   no       yes
  * </pre>
+ * The 3.5.9 column is {@code FIPSServedSurfaceSnapshotTest.hybridMembershipMatchesThePinnedTable}.
  *
  * <p>Those two are the supported modules: 3.1.2 is the CMVP-validated one
- * (cert #4985) and 3.5.8 is the OpenSSL LTS. A 3.5.7 install, measured while
+ * (cert #4985) and 3.5.9 is the OpenSSL LTS. A 3.5.7 install, measured while
  * it was still a supported target, served all four - which is the evidence
  * that the property is per variant rather than per family, and the reason the
  * gate is written this way even though no supported module currently serves
@@ -52,9 +53,9 @@ import java.util.logging.Logger;
  * looks like the anomaly. No NIST rationale is quotable from the tree; treat
  * the reason as unknown until the 3.5.x security policy publishes.
  *
- * <p>A family-level gate keyed on any one name is therefore wrong on 3.5.8 in
+ * <p>A family-level gate keyed on any one name is therefore wrong on 3.5.9 in
  * one direction or the other. The keymgmt fetch is a COMPLETE answer for a
- * given group: on 3.5.8, X448MLKEM1024 answers no to the KEM fetch, the
+ * given group: on 3.5.8 (the probe), X448MLKEM1024 answers no to the KEM fetch, the
  * keymgmt fetch, keygen init and keygen alike - it is wholly absent rather
  * than present-but-refusing, so no failure classifier is needed.
  *

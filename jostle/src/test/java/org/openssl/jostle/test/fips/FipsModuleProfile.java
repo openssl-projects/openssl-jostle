@@ -28,10 +28,10 @@ import java.util.TreeSet;
 /**
  * The loaded FIPS module as the refusal pins need it: its version and the options its fipsinstall wrote into the
  * {@code fipsmodule.cnf} beside the module {@link TestUtil#fipsLibPath()} names. Most refusals are options, not
- * properties of the version: the same 3.5.8 module installed with {@code -pedantic} refuses SHA-1 signing, DSA
+ * properties of the version: the same 3.5.9 module installed with {@code -pedantic} refuses SHA-1 signing, DSA
  * signing and long PSS salts, and installed at the defaults serves all three.
  * <p>
- * Each rule below was measured on three installs: 3.5.8 pedantic, 3.5.8 at the fipsinstall defaults, and 3.1.2. A
+ * Each rule below was measured on three installs: 3.5.9 pedantic, 3.5.9 at the fipsinstall defaults, and 3.1.2. A
  * module of any other version, or an option a rule reads missing from the file, fails the cell. All three installs
  * have security-checks = 1, so the rules that read it fail the cell when it is 0 rather than guess an answer no
  * install measured.
@@ -39,7 +39,7 @@ import java.util.TreeSet;
 final class FipsModuleProfile
 {
     static final String MODULE_3_1_2 = "OpenSSL FIPS Provider 3.1.2";
-    static final String MODULE_3_5_8 = "OpenSSL FIPS Provider 3.5.8";
+    static final String MODULE_3_5_9 = "OpenSSL FIPS Provider 3.5.9";
 
     private static final String SECTION = "[fips_sect]";
 
@@ -62,7 +62,7 @@ final class FipsModuleProfile
         if (loaded == null)
         {
             String v = FIPSNISelector.OpenSSLFIPSNI.moduleVersion();
-            Assertions.assertTrue(MODULE_3_1_2.equals(v) || MODULE_3_5_8.equals(v), "unmeasured module: " + v);
+            Assertions.assertTrue(MODULE_3_1_2.equals(v) || MODULE_3_5_9.equals(v), "unmeasured module: " + v);
             File cnf = new File(new File(TestUtil.fipsLibPath()).getParentFile(), "fipsmodule.cnf");
             loaded = new FipsModuleProfile(v, read(cnf), cnf.getPath());
         }
@@ -126,27 +126,27 @@ final class FipsModuleProfile
         return true;
     }
 
-    /** SHA-1 signature generation (RSA, DSA, ECDSA): 3.1.2 refuses under security-checks (0 fails the cell), 3.5.8
+    /** SHA-1 signature generation (RSA, DSA, ECDSA): 3.1.2 refuses under security-checks (0 fails the cell), 3.5.9
      * under signature-digest-check. */
     boolean sha1SigningRefused()
     {
         return isVersion312() ? securityChecks() : option("signature-digest-check");
     }
 
-    /** Every DSA signature and every DSA key and parameter generation: 3.5.8 under dsa-sign-disabled; 3.1.2 never. */
+    /** Every DSA signature and every DSA key and parameter generation: 3.5.9 under dsa-sign-disabled; 3.1.2 never. */
     boolean dsaSigningDisabled()
     {
         return !isVersion312() && option("dsa-sign-disabled");
     }
 
-    /** Signing with a 1024-bit DSA key: 3.1.2 under security-checks (0 fails the cell); 3.5.8 signs it at the
+    /** Signing with a 1024-bit DSA key: 3.1.2 under security-checks (0 fails the cell); 3.5.9 signs it at the
      * defaults. */
     boolean dsaSmallKeySigningRefused()
     {
         return isVersion312() && securityChecks();
     }
 
-    /** A PSS salt longer than the digest (2048-bit key, SHA-256): 3.5.8 under rsa-pss-saltlen-check; 3.1.2 never. */
+    /** A PSS salt longer than the digest (2048-bit key, SHA-256): 3.5.9 under rsa-pss-saltlen-check; 3.1.2 never. */
     boolean pssSaltLengthChecked()
     {
         return !isVersion312() && option("rsa-pss-saltlen-check");
@@ -159,7 +159,7 @@ final class FipsModuleProfile
         return securityChecks();
     }
 
-    /** The TLS hybrid KEM groups the module serves, a property of its version: 3.1.2 none, 3.5.8 all but X448. */
+    /** The TLS hybrid KEM groups the module serves, a property of its version: 3.1.2 none, 3.5.9 all but X448. */
     Set<String> hybridKemGroups()
     {
         if (isVersion312())

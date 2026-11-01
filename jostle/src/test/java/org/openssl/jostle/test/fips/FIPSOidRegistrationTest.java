@@ -34,7 +34,7 @@ import java.security.SecureRandom;
  * same algorithms worked by NAME — so this was purely a missing registration.
  *
  * <p>Runs against whichever module {@code TEST_FIPS_LIB} names; every algorithm
- * asserted here is served by both 3.1.2 and 3.5.8, so no per-module gating is
+ * asserted here is served by both 3.1.2 and 3.5.9, so no per-module gating is
  * needed. {@link FIPSOidCrossProviderParityTest} is the guard that would have
  * caught the original omission; this is the behavioural half.
  */

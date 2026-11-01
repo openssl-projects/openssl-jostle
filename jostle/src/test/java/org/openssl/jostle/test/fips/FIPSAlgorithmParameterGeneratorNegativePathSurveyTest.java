@@ -142,7 +142,7 @@ public class FIPSAlgorithmParameterGeneratorNegativePathSurveyTest
      * with that set, on the {@code ProvFIPSRSA} precedent, and the refusal
      * happens at {@code init} rather than inside the module at generate.
      *
-     * <p>The 3.5.8 module gates DSA generation entirely, so no size is
+     * <p>The 3.5.9 module gates DSA generation entirely, so no size is
      * observable there and the refusal arrives as
      * {@code ProviderCapabilityException} before any size matters. The branch
      * below is chosen by PROBING the module ({@code fipsDsaCanGenerate}, which

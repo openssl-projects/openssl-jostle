@@ -66,7 +66,8 @@ import java.security.Key;
  *       the module answers, never against one module's answer.</li>
  *   <li><b>Will it ENCRYPT?</b> A fipsinstall CONFIG difference, invisible to
  *       any fetch: {@code tdes-encrypt-disabled} is off at defaults and on
- *       under {@code -pedantic}, so the SAME 3.5.8 module answers both ways.
+ *       under {@code -pedantic}, so the SAME 3.5.8 module answers both ways, and
+ *       3.5.9 in this test's runs on both configs.
  *       The refusal lands at {@code Cipher.init} and raises nothing on its own
  *       error queue, so it is classified in C
  *       ({@code classify_tdes_encrypt_init_failure}) and surfaces as

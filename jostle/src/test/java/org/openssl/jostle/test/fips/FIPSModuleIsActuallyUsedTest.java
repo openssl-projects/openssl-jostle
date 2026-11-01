@@ -160,7 +160,7 @@ public class FIPSModuleIsActuallyUsedTest
      * no behavioural difference can tell module from mainline.
      * <p>
      * Both branches are asserted PER VARIANT, which matters more here than
-     * anywhere else in this file: 3.5.8 serves three of the four, so a
+     * anywhere else in this file: 3.5.9 serves three of the four, so a
      * family-level check would either miss the one that is absent or demand
      * the three that are present. The unregistered branch is what catches a
      * gate that dropped a group the module still serves.
@@ -264,7 +264,8 @@ public class FIPSModuleIsActuallyUsedTest
      * <p>
      * That blind spot matters most for GMAC, where mainline 3.6.2, FIPS 3.1.2
      * and FIPS 3.5.8 produce byte-identical tags for identical inputs
-     * (measured, {@code fips-c-review/probes/gmac_probe.c}), so no agreement,
+     * (measured, {@code fips-c-review/probes/gmac_probe.c}; FIPS 3.5.9 agrees with
+     * BouncyCastle in {@code FIPSMacAgreementTest}), so no agreement,
      * negative or chunking test can tell the module from mainline. Asking which
      * provider implements it is the only check that can.
      */

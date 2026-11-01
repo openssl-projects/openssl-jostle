@@ -36,7 +36,7 @@ import java.security.spec.ECGenParameterSpec;
  * agreed. Refusing them at mint would turn away that one legitimate use — the
  * over-refusal the ruling in the batch note rejected.
  *
- * <p>Only MINTING differs between the modules (3.1.2 mints, 3.5.8 refuses), so
+ * <p>Only MINTING differs between the modules (3.1.2 mints, 3.5.9 refuses), so
  * every cell but one is unconditional. That one branches on the mint call's own
  * outcome: {@code OpenSSLFIPSNI.moduleVersion} is diagnostics-only by contract,
  * and a {@code TEST_FIPS_LIB} path is a label rather than a measurement.
@@ -128,7 +128,7 @@ public class FIPSWeakCurveVerifyOnlyTest
     }
 
     /**
-     * The single module-dependent fact. 3.1.2 mints these curves; 3.5.8 refuses
+     * The single module-dependent fact. 3.1.2 mints these curves; 3.5.9 refuses
      * at mint. Branched on what the operation itself answered, and each answer
      * pins exactly one shape — neither arm can pass vacuously.
      *

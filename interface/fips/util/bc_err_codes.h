@@ -517,9 +517,11 @@
  *
  * OpenSSL routes the two forms to different keymgmts, "DH" and "DHX", and
  * EVP_PKEY_derive_set_peer refuses a peer whose keymgmt differs from the
- * private key's EVEN WHEN p AND g ARE IDENTICAL. Measured 2026-08-28 on
- * mainline 3.5.8 and on the FIPS 3.1.2 / 3.5.8-pedantic / 3.5.8-default
- * modules alike - identical in all four: fips-c-review/probes/dhx_probe.c.
+ * private key's EVEN WHEN p AND g ARE IDENTICAL. On mainline 3.5.9 both
+ * directions reach set_peer and both are refused. On the FIPS 3.1.2 and 3.5.9
+ * modules a private key without q is refused first, at derive_init (the
+ * module requires q), and the direction that reaches set_peer is refused
+ * there: probes/dhx_probe.c.
  *
  * The raw error is "operation not supported for this keytype", which names
  * neither the condition nor the remedy, and the SPI's previous generic text

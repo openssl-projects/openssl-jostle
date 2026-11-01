@@ -17,7 +17,7 @@ Building requires Java 25; the resulting jar runs on Java 8 → Java 25 via a mu
 Two stages: native interface, then jar. **Both `OPENSSL_PREFIX` and `JAVA_HOME` (Java 25) must be set.**
 
 ```bash
-# Stage 0 (one-off): build mainline OpenSSL 3.5.8 with --prefix pointing
+# Stage 0 (one-off): build mainline OpenSSL 3.5.9 with --prefix pointing
 # somewhere accessible, then export OPENSSL_PREFIX=<that prefix>.
 
 # Stage 1: generate JNI headers from current Java sources.
@@ -32,7 +32,7 @@ JOSTLE_OPS_TEST=1 ./interface/build.sh
 ./gradlew clean build
 ```
 
-`build_osx.sh` automates all three stages and does two passes (with and without `JOSTLE_OPS_TEST`). It is a local, untracked convenience script, not part of the repo. It expects `OPENSSL_PREFIX` to point at `../../openssls/<version>` relative to the repo — a sibling of the checkout's PARENT, not of the checkout, and named by version (`osx_3_5_8`) with no per-arch subdirectory. On this machine that resolves to `/Users/meganwoods/openssl/openssls/osx_3_5_8`.
+`build_osx.sh` automates all three stages and does two passes (with and without `JOSTLE_OPS_TEST`). It is a local, untracked convenience script, not part of the repo. It expects `OPENSSL_PREFIX` to point at `../../openssls/<version>` relative to the repo - a sibling of the checkout's PARENT, not of the checkout, and named by version (`osx_3_5_9`) with no per-arch subdirectory. On this machine that resolves to `/Users/meganwoods/openssl/openssls/osx_3_5_9`.
 
 ## Test
 

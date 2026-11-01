@@ -475,7 +475,7 @@ public class FIPSMLKEMLimitTest
     }
 
     /**
-     * ML-KEM is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 registers it and
+     * ML-KEM is a capability of the module version, not an install option: 3.1.2 has none, 3.5.9 registers it and
      * encapsulates. An unknown module fails in FipsModuleProfile.get(). Shared with FIPSMLKEMAgreementTest.
      */
     public static void assertServedPerModuleVersion() throws Exception
@@ -489,7 +489,7 @@ public class FIPSMLKEMLimitTest
             Assertions.assertFalse(moduleServesMlKem());
             return;
         }
-        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_9, profile.version());
         Assertions.assertTrue(registered);
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", fips).generateKeyPair();
         KeyGenerator sender = KeyGenerator.getInstance("ML-KEM", fips);

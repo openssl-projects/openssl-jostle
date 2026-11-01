@@ -55,7 +55,7 @@ import java.util.TreeSet;
  *
  * <p>Every test iterates only the variants the loaded module actually serves.
  * The registered set differs across supported modules — 3.1.2 serves none,
- * 3.5.7 all four, 3.5.8 all but X448MLKEM1024 — so pinning any one module's
+ * 3.5.7 all four, 3.5.8 and 3.5.9 all but X448MLKEM1024, so pinning any one module's
  * answer would be wrong against the others.
  * {@code FIPSServedSurfaceSnapshotTest} is what proves an absence is the
  * module's doing rather than ours.
@@ -199,7 +199,7 @@ public class FIPSMLXKEMAgreementTest
 
 
     /**
-     * The served groups are a property of the module version: 3.5.8 serves X25519MLKEM768, SecP256r1MLKEM768 and
+     * The served groups are a property of the module version: 3.5.9 serves X25519MLKEM768, SecP256r1MLKEM768 and
      * SecP384r1MLKEM1024 and not X448MLKEM1024; 3.1.2 serves none. An unmeasured module fails in the profile.
      */
     @Test

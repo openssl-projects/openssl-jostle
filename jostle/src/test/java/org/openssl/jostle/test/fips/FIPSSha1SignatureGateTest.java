@@ -97,7 +97,7 @@ public class FIPSSha1SignatureGateTest
      * works and produces a signature that verifies.
      * <p>
      * Whether it is refused is a deployment configuration, not a module property: {@code signature-digest-check}
-     * (3.5.8) and {@code security-checks} (3.1.2) are fipsinstall options, so the expected answer comes from
+     * (3.5.9) and {@code security-checks} (3.1.2) are fipsinstall options, so the expected answer comes from
      * {@link FipsModuleProfile}, and each answer is pinned for the configuration that gives it.
      * <p>
      * A refusal must name the DIGEST (the SHA-256 control in each caller rules out a key or provider problem),
@@ -129,7 +129,7 @@ public class FIPSSha1SignatureGateTest
                 Assertions.assertTrue(openssl instanceof ProviderCapabilityException, sigAlg + ": " + openssl);
                 return;
             }
-            // The module's wording is a version property: 3.1.2 "securitycheck: digest not allowed", 3.5.8
+            // The module's wording is a version property: 3.1.2 "securitycheck: digest not allowed", 3.5.9
             // "ossl_fips_ind_digest_sign_check: invalid digest".
             String wording = profile.isVersion312() ? "digest not allowed" : "invalid digest";
             String m = String.valueOf(openssl.getMessage());

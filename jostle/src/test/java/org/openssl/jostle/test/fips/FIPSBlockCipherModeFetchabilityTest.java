@@ -32,7 +32,7 @@ import java.security.Security;
 
 /**
  * A name JSLFIPS registers must be usable. AES-OCB is the
- * measured registered-but-unfetchable name (on both 3.1.2 and 3.5.8): OpenSSL
+ * measured registered-but-unfetchable name (on both 3.1.2 and 3.5.9): OpenSSL
  * refuses {@code EVP_CIPHER_fetch("AES-*-OCB")} in the FIPS lib ctx while GCM
  * fetches fine at the same key sizes. {@code BlockCipherSpi.engineSetMode}
  * now probes fetchability at {@code Cipher.getInstance} time and refuses OCB

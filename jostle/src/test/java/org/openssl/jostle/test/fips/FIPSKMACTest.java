@@ -34,7 +34,7 @@ import java.security.InvalidAlgorithmParameterException;
  * KMAC is served unconditionally by both supported modules — {@code EVP_MAC_fetch}
  * succeeds under {@code fips=yes} on 3.1.2 and 3.5.8 alike, and all four
  * measured builds produce byte-identical tags matching the SP 800-185 samples
- * ({@code fips-c-review/probes/kmac_probe.c}). So there is no registration gate
+ * ({@code fips-c-review/probes/kmac_probe.c}); 3.5.9 by this test. So there is no registration gate
  * to test, unlike the Ed family.
  * <p>
  * What the two modules DO disagree about is what they will <b>accept</b>, and

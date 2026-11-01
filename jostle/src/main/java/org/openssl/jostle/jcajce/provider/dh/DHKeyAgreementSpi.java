@@ -59,9 +59,10 @@ import java.security.spec.AlgorithmParameterSpec;
  * OpenSSL routes PKCS#3 ({@code dhKeyAgreement}) to the {@code DH} keymgmt and
  * X9.42 ({@code dhpublicnumber}) to {@code DHX}, and
  * {@code EVP_PKEY_derive_set_peer} refuses a peer whose keymgmt differs from
- * the private key's <b>even when p and g are identical</b>. Measured on
- * mainline 3.5.8 and on the FIPS 3.1.2 / 3.5.8 modules alike
- * ({@code fips-c-review/probes/dhx_probe.c}).
+ * the private key's <b>even when p and g are identical</b>. On mainline 3.5.9
+ * both directions reach set_peer and both are refused. The FIPS 3.1.2 and
+ * 3.5.9 modules refuse a private key without q first, at derive_init, and
+ * refuse the direction that reaches set_peer there ({@code probes/dhx_probe.c}).
  *
  * <p>BouncyCastle agrees on p, g and x alone, so it pairs the two forms
  * happily. A caller migrating from BC that holds one key of each form will

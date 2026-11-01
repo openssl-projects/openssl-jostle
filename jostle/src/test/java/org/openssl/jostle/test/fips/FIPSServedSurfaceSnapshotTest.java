@@ -384,7 +384,7 @@ public class FIPSServedSurfaceSnapshotTest
      * when the module genuinely refuses, and only for the whole group at once.
      * <p>
      * XDH (X25519 / X448), measured through the keymgmt fetch under
-     * {@code fips=yes}: 3.1.2 resolves it and JSLFIPS registers; 3.5.8 answers
+     * {@code fips=yes}: 3.1.2 resolves it and JSLFIPS registers; 3.5.9 answers
      * {@code inner_evp_generic_fetch: unsupported ... Non-default} and
      * ProvFIPSXDH registers nothing. See {@code FIPSCapabilities} for the
      * scoping rule and {@code FIPSXDHKDFTest} for the operation-level lock.
@@ -416,14 +416,14 @@ public class FIPSServedSurfaceSnapshotTest
      * EdDSA, the third capability-gated group — and the one that runs the
      * OPPOSITE way to {@link #XDH_GATED}: 3.1.2 refuses the whole family
      * ({@code EVP_PKEY_CTX_new_from_name("ED25519")} → "unsupported", and every
-     * {@code EVP_SIGNATURE} name refused), while 3.5.8 serves it. A reader
+     * {@code EVP_SIGNATURE} name refused), while 3.5.8 and 3.5.9 serve it. A reader
      * looking for "newer module, fewer algorithms" will not find that pattern
-     * here. Measured by {@code fips-c-review/probes/ed_gate_probe.c}; ProvFIPSED
-     * gates the family on the keymgmt fetch.
+     * here. Measured on 3.5.8 by {@code fips-c-review/probes/ed_gate_probe.c}, on 3.5.9 by
+     * this class; ProvFIPSED gates the family on the keymgmt fetch.
      * <p>
      * {@code Signature.ED25519CTX} is deliberately NOT in this array — see
      * {@link #ED_CTX_GATED}. Putting it here would break the all-or-nothing
-     * check on 3.5.8, which serves everything else in the family.
+     * check on 3.5.8 and 3.5.9, which serve everything else in the family.
      */
     private static final String[] ED_GATED = {
             "KeyFactory.ED",
@@ -609,11 +609,11 @@ public class FIPSServedSurfaceSnapshotTest
         assertGatedAbsenceIsJustified("SLH-DSA", pqcSubset("SLH-DSA", "SLHDSA"), OpenSSLFIPSNI.OP_KEYMGMT, "SLH-DSA-SHA2-128S", removed);
         assertGatedAbsenceIsJustified("EdDSA", ED_GATED, OpenSSLFIPSNI.OP_KEYMGMT, "ED25519", removed);
         // Per-NAME, and probed as a SIGNATURE: the family's keymgmt resolves on
-        // 3.5.8 while this one instance does not.
+        // 3.5.9 while this one instance does not.
         assertGatedAbsenceIsJustified("Ed25519ctx", ED_CTX_GATED, OpenSSLFIPSNI.OP_SIGNATURE, "ED25519CTX", removed);
         // Probed as a CIPHER: the family has no keymgmt of its own.
         assertGatedAbsenceIsJustified("Triple-DES", TDES_GATED, OpenSSLFIPSNI.OP_CIPHER, "DES-EDE3-CBC", removed);
-        // Per VARIANT, not per family: 3.5.8 serves three of the four hybrid
+        // Per VARIANT, not per family: 3.5.9 serves three of the four hybrid
         // groups, so one probe for the set would be wrong in one direction or
         // the other. The name is spelled as OpenSSL spells it, which is what
         // the registrar gates on.
@@ -662,15 +662,16 @@ public class FIPSServedSurfaceSnapshotTest
      * ({@code fips-c-review/probes/hybrid_kem_probe.c}):
      *
      * <pre>
-     *                        3.1.2    3.5.8
+     *                        3.1.2    3.5.8/3.5.9
      *   X25519MLKEM768       no       yes
      *   X448MLKEM1024        no       NO
      *   SecP256r1MLKEM768    no       yes
      *   SecP384r1MLKEM1024   no       yes
      * </pre>
+     * The 3.5.9 column is {@link #hybridMembershipMatchesThePinnedTable}.
      *
      * <p>So a single family-level group keyed on any one name would be wrong
-     * on 3.5.8: it would either accept the absence of all four when only one
+     * on 3.5.9: it would either accept the absence of all four when only one
      * is missing, or demand all four on a module that serves three.
      * {@code ProvFIPSMLXKEM} gates each variant on its own keymgmt fetch, and
      * each variant is checked here against that same probe.
@@ -727,9 +728,9 @@ public class FIPSServedSurfaceSnapshotTest
      *
      * <p><b>An unrecognised module version FAILS.</b> That is deliberate, and
      * it is what makes the supported set enforceable rather than aspirational:
-     * JSLFIPS supports 3.1.2 (the CMVP-validated module, cert #4985) and 3.5.8
-     * (the LTS). Running against any other module — including 3.5.7, which was
-     * a supported target until 2026-08-27 — stops here with an instruction to
+     * JSLFIPS supports 3.1.2 (the CMVP-validated module, cert #4985) and 3.5.9
+     * (the LTS). Running against any other module, including 3.5.7 and 3.5.8,
+     * which were earlier supported targets, stops here with an instruction to
      * decide and update the table, rather than quietly reporting a surface
      * nobody has reviewed.
      *
@@ -745,7 +746,7 @@ public class FIPSServedSurfaceSnapshotTest
     {
         Map<String, SortedSet<String>> m = new LinkedHashMap<>();
         m.put("OpenSSL FIPS Provider 3.1.2", new TreeSet<>());
-        m.put("OpenSSL FIPS Provider 3.5.8", new TreeSet<>(Arrays.asList(
+        m.put("OpenSSL FIPS Provider 3.5.9", new TreeSet<>(Arrays.asList(
                 "SECP256R1MLKEM768", "SECP384R1MLKEM1024", "X25519MLKEM768")));
         return Collections.unmodifiableMap(m);
     }
@@ -769,7 +770,7 @@ public class FIPSServedSurfaceSnapshotTest
         SortedSet<String> expected = HYBRIDS_BY_MODULE_VERSION.get(version);
         Assertions.assertNotNull(expected,
                 "unrecognised FIPS module \"" + version + "\".\n"
-                        + "JSLFIPS supports 3.1.2 (CMVP cert #4985) and 3.5.8 (LTS). Decide whether "
+                        + "JSLFIPS supports 3.1.2 (CMVP cert #4985) and 3.5.9 (LTS). Decide whether "
                         + "this module is supported and add its expected hybrid set to "
                         + "HYBRIDS_BY_MODULE_VERSION, or test against a supported module.\n"
                         + "Known: " + HYBRIDS_BY_MODULE_VERSION.keySet());

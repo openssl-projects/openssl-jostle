@@ -28,7 +28,7 @@ import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
 
 /**
- * Key-pair generators in the FIPS module. RSA keys are at least 2048 bits. The 3.5.8 module generates EC,
+ * Key-pair generators in the FIPS module. RSA keys are at least 2048 bits. The 3.5.9 module generates EC,
  * finite-field DH on named groups, Ed25519 and Ed448, ML-DSA, ML-KEM, SLH-DSA and three hybrid groups, and serves
  * no X25519 or X448. Whether it generates DSA keys depends on fipsinstall configuration; as installed here, it
  * does not.

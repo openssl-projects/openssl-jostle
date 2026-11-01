@@ -39,8 +39,8 @@ public class FIPSOidSpellingParityTest
     private static final int MIN_OIDS = 100;
 
     /**
-     * Measured 25 on 3.5.8 (16 Cipher, 9 AlgorithmParameters) and 24 on 3.1.2 (15 Cipher): the services whose primary
-     * name is itself an OID.
+     * Measured 25 on 3.5.8 (16 Cipher, 9 AlgorithmParameters) and 24 on 3.1.2 (15 Cipher), and 25 on 3.5.9 in the
+     * services list generated against it: the services whose primary name is itself an OID.
      */
     private static final int MIN_OID_PRIMARIES = 22;
 

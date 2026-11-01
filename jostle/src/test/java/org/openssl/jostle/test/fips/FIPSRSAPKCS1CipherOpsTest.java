@@ -224,12 +224,12 @@ public class FIPSRSAPKCS1CipherOpsTest
     /** Implicit rejection is a version property: the parameter entered OpenSSL in 3.2, after the 3.1.2 module. */
     private static boolean implicitRejectionAvailable()
     {
-        return FipsModuleProfile.MODULE_3_5_8.equals(FipsModuleProfile.get().version());
+        return FipsModuleProfile.MODULE_3_5_9.equals(FipsModuleProfile.get().version());
     }
 
     /**
      * The implicit-rejection capability probe under its flag refuses a decrypt init with the raw -135 on both
-     * modules and leaves encrypt untouched. The control without the flag is per module: 3.5.8 has the parameter
+     * modules and leaves encrypt untouched. The control without the flag is per module: 3.5.9 has the parameter
      * and initialises, 3.1.2 lacks it and refuses the same way.
      */
     @Test
@@ -262,7 +262,7 @@ public class FIPSRSAPKCS1CipherOpsTest
     }
 
     /**
-     * The implicit-rejection set_params under its flag: -2113 on 3.5.8, where the probe passes and the site is
+     * The implicit-rejection set_params under its flag: -2113 on 3.5.9, where the probe passes and the site is
      * reached; 3.1.2 refuses at the probe first with the raw -135. Encrypt never reaches the site.
      */
     @Test

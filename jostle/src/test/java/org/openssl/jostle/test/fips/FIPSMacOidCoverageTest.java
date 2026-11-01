@@ -30,7 +30,7 @@ import java.security.SecureRandom;
  * reference, RFC 8018 Appendix B.1.1, reused from the base test so the two
  * lists cannot drift apart.
  *
- * <p>All seven digests are served by JSLFIPS on both 3.1.2 and 3.5.8, so no
+ * <p>All seven digests are served by JSLFIPS on both 3.1.2 and 3.5.9, so no
  * per-module gating is needed.
  */
 public class FIPSMacOidCoverageTest

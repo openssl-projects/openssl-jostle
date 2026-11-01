@@ -53,7 +53,7 @@ public class FIPSSLHDSARandStrengthTest
             Assertions.assertNull(fips.getService("KeyPairGenerator", "SLH-DSA-SHA2-128F"));
             return;
         }
-        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_9, profile.version());
         for (SLHDSAParameterSpec spec : SPECS)
         {
             for (int strength : new int[]{128, 192, 256})

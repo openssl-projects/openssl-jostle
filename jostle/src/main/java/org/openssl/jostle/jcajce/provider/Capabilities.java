@@ -28,9 +28,10 @@ package org.openssl.jostle.jcajce.provider;
  *
  * <p>Currently: ML-KEM, ML-DSA, SLH-DSA and the four TLS hybrid groups.
  * Measured 2026-08-28 by {@code fips-c-review/probes/base_pqc_gate_probe.c} —
- * every one of those names fetches on the project's build target (3.5.8) and
- * on 3.6.2, so on either the gate is all-true and its absent arm does not
- * execute. It exists for the older libcrypto a distributor may link, and no
+ * every one of those names fetches on 3.5.8 and on 3.6.2, and on 3.5.9, the
+ * build target, by {@code BaseCapabilityGateTest}; so on each the gate is
+ * all-true and its absent arm does not execute. It exists for the older
+ * libcrypto a distributor may link, and no
  * available configuration exercises it; see {@code BaseCapabilityGateTest},
  * which says so rather than leaving it to be discovered.
  */

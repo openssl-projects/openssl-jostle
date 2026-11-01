@@ -96,7 +96,7 @@ public class RSAKeyFactorySpi extends KeyFactorySpi
      * MT-66 (Megan, 2026-09-05): jostle supports what OpenSSL supports, for
      * every module type. Measured, OpenSSL imports a 64-bit RSA key through
      * EVP_PKEY_fromdata on the default provider AND on both FIPS modules
-     * (3.1.2 and 3.5.8), so a jostle-side floor refused keys the library
+     * (3.1.2 and 3.5.8; 3.5.9 by FIPSRSAKeySizePinTest), so a jostle-side floor refused keys the library
      * accepts. The module is the only authority on size, and it enforces
      * different floors per operation - keygen 2048, sign 2048, verify 1024,
      * import none - which no single number here could express.

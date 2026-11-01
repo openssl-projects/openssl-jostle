@@ -35,9 +35,10 @@ import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
  *
  * <pre>
  *   3.1.2               : EVP_CIPHER_fetch = 0  -&gt; nothing registered
- *   3.5.8 default       : fetch = 1, provider=fips, encrypt AND decrypt run
- *   3.5.8 -pedantic     : fetch = 1, provider=fips, decrypt runs, ENCRYPT refused
+ *   3.5.8/3.5.9 default   : fetch = 1, provider=fips, encrypt AND decrypt run
+ *   3.5.8/3.5.9 -pedantic : fetch = 1, provider=fips, decrypt runs, ENCRYPT refused
  * </pre>
+ * The 3.5.9 rows are {@code FIPSDESedeAgreementTest}.
  *
  * <p><b>The gate is registration-only, and deliberately so.</b> The fetch
  * answers "does this module implement Triple-DES at all", which is the

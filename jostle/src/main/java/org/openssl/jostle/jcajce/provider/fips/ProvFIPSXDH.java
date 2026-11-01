@@ -33,7 +33,7 @@ import org.openssl.jostle.util.asn1.oids.PKCSObjectIdentifiers;
  *
  * <pre>
  *   3.1.2 : fetch X25519 = 1  -> keygen and agreement both work; registered
- *   3.5.8 : fetch X25519 = 0  -> inner_evp_generic_fetch: unsupported
+ *   3.5.9 : fetch X25519 = 0  -> inner_evp_generic_fetch: unsupported
  *                                "Non-default"; nothing registered
  * </pre>
  *

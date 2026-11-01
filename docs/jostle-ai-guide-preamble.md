@@ -36,7 +36,7 @@ The string can also be passed to `configure(String)`, set as a static registrati
 property. Initialisation is once per JVM: constructing a second provider with the same configuration does
 nothing, and a different configuration throws `IllegalStateException`.
 
-The JSLFIPS examples describe the 3.5.8 module. What a module serves depends on its version, and some of its
+The JSLFIPS examples describe the 3.5.9 module. What a module serves depends on its version, and some of its
 strictness depends on how it was installed (`openssl fipsinstall`); the examples say which is which.
 
 ## Running

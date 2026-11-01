@@ -39,7 +39,7 @@ import java.security.spec.MGF1ParameterSpec;
 
 /**
  * Ciphers in the FIPS module: AES in its modes and key wraps, Triple-DES for existing data, RSA-OAEP and key
- * transport. The 3.5.8 module serves no ARIA, Camellia, SM4 or ChaCha20, and JSLFIPS registers no RFC 3211 wrap
+ * transport. The 3.5.9 module serves no ARIA, Camellia, SM4 or ChaCha20, and JSLFIPS registers no RFC 3211 wrap
  * and no PKCS#1 v1.5 encryption. Generate a fresh key and a fresh IV or nonce for every message; the fixed IVs
  * below only keep the examples short.
  */

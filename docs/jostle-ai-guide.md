@@ -36,7 +36,7 @@ The string can also be passed to `configure(String)`, set as a static registrati
 property. Initialisation is once per JVM: constructing a second provider with the same configuration does
 nothing, and a different configuration throws `IllegalStateException`.
 
-The JSLFIPS examples describe the 3.5.8 module. What a module serves depends on its version, and some of its
+The JSLFIPS examples describe the 3.5.9 module. What a module serves depends on its version, and some of its
 strictness depends on how it was installed (`openssl fipsinstall`); the examples say which is which.
 
 ## Running
@@ -2150,7 +2150,7 @@ Assertions.assertEquals(0, e.getIndex());
 # Worked examples: JSLFIPS
 
 JSLFIPS backs its services with an externally supplied OpenSSL FIPS module, loaded and self-tested by
-OpenSSL itself; until it is configured it registers nothing. These examples describe the 3.5.8 module. The
+OpenSSL itself; until it is configured it registers nothing. These examples describe the 3.5.9 module. The
 configuration names the module file, here from an environment variable (`env:`; `file:`, `prop:` and
 `str:` also work, and `fips_config` can name the fipsinstall configuration if it is not next to the module).
 Initialisation is once per JVM, so reuse a registered JSLFIPS. JSL is registered too, for the examples that
@@ -2174,7 +2174,7 @@ if (Security.getProvider("JSL") == null)
 
 ## MessageDigest
 
-Message digests in the FIPS module: SHA-1, SHA-2, SHA-3 and SHAKE. The 3.5.8 module serves no MD5, RIPEMD,
+Message digests in the FIPS module: SHA-1, SHA-2, SHA-3 and SHAKE. The 3.5.9 module serves no MD5, RIPEMD,
 SM3 or BLAKE2, and JSLFIPS registers none.
 
 Imports used in this section:
@@ -2353,7 +2353,7 @@ for (String name : new String[]{"KMAC128", "KMAC256"})
 ## SecretKeyFactory
 
 Key derivation functions in the FIPS module, served as `SecretKeyFactory`: PBKDF2, HKDF, the SP 800-108 and
-SP 800-56C KDFs and the SSH KDF. The 3.5.8 module serves no scrypt or Argon2. Whether it refuses key inputs
+SP 800-56C KDFs and the SSH KDF. The 3.5.9 module serves no scrypt or Argon2. Whether it refuses key inputs
 shorter than 112 bits depends on fipsinstall configuration.
 
 Imports used in this section:
@@ -2547,7 +2547,7 @@ for (String name : names)
 ## Cipher
 
 Ciphers in the FIPS module: AES in its modes and key wraps, Triple-DES for existing data, RSA-OAEP and key
-transport. The 3.5.8 module serves no ARIA, Camellia, SM4 or ChaCha20, and JSLFIPS registers no RFC 3211 wrap
+transport. The 3.5.9 module serves no ARIA, Camellia, SM4 or ChaCha20, and JSLFIPS registers no RFC 3211 wrap
 and no PKCS#1 v1.5 encryption. Generate a fresh key and a fresh IV or nonce for every message; the fixed IVs
 below only keep the examples short.
 
@@ -3015,7 +3015,7 @@ catch (ProviderException e)
 
 ## KeyPairGenerator
 
-Key-pair generators in the FIPS module. RSA keys are at least 2048 bits. The 3.5.8 module generates EC,
+Key-pair generators in the FIPS module. RSA keys are at least 2048 bits. The 3.5.9 module generates EC,
 finite-field DH on named groups, Ed25519 and Ed448, ML-DSA, ML-KEM, SLH-DSA and three hybrid groups, and serves
 no X25519 or X448. Whether it generates DSA keys depends on fipsinstall configuration; as installed here, it
 does not.
@@ -3270,7 +3270,7 @@ for (String name : new String[]{"X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r
 
 ## Signature
 
-Signatures in the FIPS module. The 3.5.8 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones.
+Signatures in the FIPS module. The 3.5.9 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones.
 Whether it also signs with SHA-1 depends on fipsinstall configuration; as installed here, it does not.
 Whether it makes DSA signatures depends on fipsinstall configuration; as installed here, it only verifies
 them. It verifies signatures on curves below 112 bits of strength and does not make them. Each example
@@ -3600,7 +3600,7 @@ for (String name : new String[]{"SLHDSA", "SLH-DSA-PURE", "DET-SLH-DSA-PURE"})
 
 ## KeyAgreement
 
-Key agreement in the FIPS module: ECDH and finite-field DH, plain and with a KDF. The 3.5.8 module serves no
+Key agreement in the FIPS module: ECDH and finite-field DH, plain and with a KDF. The 3.5.9 module serves no
 X25519 or X448. Each party initialises its own `KeyAgreement` with its private key, passes the peer's public
 key to `doPhase`, and reads the shared secret with `generateSecret`.
 

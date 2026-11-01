@@ -41,7 +41,7 @@ import java.security.spec.ECPublicKeySpec;
  * {@link FIPSTestUtil#assumeFipsProvider()} runs FIRST (idempotent — returns
  * the existing instance if already registered) and its result is the ONLY
  * provider re-installed into the emptied registry. Curves are asserted per
- * the module's own served set rather than assumed, since 3.1.2 and 3.5.8
+ * the module's own served set rather than assumed, since 3.1.2 and 3.5.9
  * differ (CLAUDE.md / testing.md).
  */
 public class FIPSECKeyFactoryWithoutJdkProvidersRegressionTest

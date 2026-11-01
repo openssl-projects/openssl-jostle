@@ -45,7 +45,7 @@ public class FIPSDisposalReconciliationIntegrationTest
         return Security.getProvider(JostleFIPSProvider.PROVIDER_NAME);
     }
 
-    /** Measured: 12 families on the 3.1.2 module, 14 on 3.5.8. */
+    /** Measured: 12 families on the 3.1.2 module, 14 on 3.5.9. */
     @Override
     protected int minimumFamiliesReached()
     {

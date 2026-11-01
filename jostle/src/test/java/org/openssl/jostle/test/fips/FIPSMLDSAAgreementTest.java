@@ -708,7 +708,7 @@ public class FIPSMLDSAAgreementTest
                 "the module serves ML-DSA but JSLFIPS registers only part of it; missing: " + missing);
     }
 
-    /** ML-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.8 signs. */
+    /** ML-DSA is a capability of the module version, not an install option: 3.1.2 has none, 3.5.9 signs. */
     @Test
     public void mlDsaIsServedPerModuleVersion() throws Exception
     {
@@ -719,7 +719,7 @@ public class FIPSMLDSAAgreementTest
             Assertions.assertFalse(registered);
             return;
         }
-        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_9, profile.version());
         Assertions.assertTrue(registered);
         KeyPair kp = keyPair(DEFAULT_SET);
         byte[] msg = new byte[40];

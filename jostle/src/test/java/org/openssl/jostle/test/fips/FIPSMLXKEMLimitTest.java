@@ -266,7 +266,7 @@ public class FIPSMLXKEMLimitTest
 
     /**
      * The served X groups' exported private halves re-import, keep the share and open the original's
-     * encapsulation: X25519MLKEM768 on 3.5.8, none on 3.1.2.
+     * encapsulation: X25519MLKEM768 on 3.5.9, none on 3.1.2.
      */
     @Test
     public void theExportedXPrivateHalfReimports()

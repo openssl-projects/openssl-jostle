@@ -36,7 +36,7 @@ import java.security.spec.RSAPublicKeySpec;
  * drives the validated module through the FIPS library, and the two disagree by
  * design.
  *
- * <p><b>Not a single golden list.</b> 3.1.2 and 3.5.8 were measured identical
+ * <p><b>Not a single golden list.</b> 3.1.2 and 3.5.9 were measured identical
  * for RSA sizes, but the point of MT-66 was that they need not be, so the
  * assertions are written per capability and self-arm on what the loaded module
  * actually does rather than on a version string.
@@ -75,7 +75,7 @@ public class FIPSRSAKeySizePinTest
         Security.addProvider(jsl);
     }
 
-    /** Below the module's keygen floor: measured REFUSE on 3.1.2 and 3.5.8. */
+    /** Below the module's keygen floor: measured REFUSE on 3.1.2 and 3.5.9. */
     private static final int[] BELOW_KEYGEN_FLOOR = {512, 1024, 1536, 2047};
 
     /** At and above it: measured ACCEPT on both. */
@@ -86,7 +86,7 @@ public class FIPSRSAKeySizePinTest
 
     /**
      * The module imports anything. Measured: a 64-bit modulus is accepted by
-     * both 3.1.2 and 3.5.8 through EVP_PKEY_fromdata. So a refusal here is a
+     * both 3.1.2 and 3.5.9 through EVP_PKEY_fromdata. So a refusal here is a
      * jostle-side import floor having reappeared - the thing MT-66 removed.
      */
     @Test
@@ -126,7 +126,7 @@ public class FIPSRSAKeySizePinTest
             }
             Assertions.assertTrue(refused,
                     "FIPS RSA keygen at " + bits + " must be refused (measured on "
-                            + "3.1.2 and 3.5.8); acceptance means the module's floor moved");
+                            + "3.1.2 and 3.5.9); acceptance means the module's floor moved");
         }
         for (int bits : AT_OR_ABOVE_KEYGEN_FLOOR)
         {
@@ -204,7 +204,7 @@ public class FIPSRSAKeySizePinTest
         v.update(msg);
         Assertions.assertTrue(v.verify(sig),
                 "the FIPS module verifies at 1024 (SP 800-131A legacy verification, "
-                        + "measured on 3.1.2 and 3.5.8) even though it will not sign there");
+                        + "measured on 3.1.2 and 3.5.9) even though it will not sign there");
     }
 
     /** Vacuity guard: the tables must not be empty and RSA must be served. */

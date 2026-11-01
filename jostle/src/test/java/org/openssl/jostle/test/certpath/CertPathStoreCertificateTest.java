@@ -48,7 +48,7 @@ import java.util.List;
  * <p>With revocation on they are handed to OpenSSL so an indirect CRL issuer
  * can be resolved, and they are marshalled AFTER the path's intermediates
  * because OpenSSL takes the FIRST time-valid issuer in untrusted-stack order
- * ({@code get0_best_issuer_sk}, x509_vfy.c 3.5.8 :391-421) — a store copy
+ * ({@code get0_best_issuer_sk}, x509_vfy.c 3.5.9 :391-421) - a store copy
  * placed earlier would outrank the path's own certificate and fail a path the
  * JDK validates. PKITS has no same-subject same-key pair, so the fixture is
  * minted here: a root, an intermediate, an end entity, and a re-issued

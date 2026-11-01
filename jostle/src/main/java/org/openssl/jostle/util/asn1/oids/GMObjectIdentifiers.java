@@ -35,22 +35,22 @@ public interface GMObjectIdentifiers
     ASN1ObjectIdentifier sms4_cbc = sm_scheme.branch("104.2").intern();
 
     /**
-     * 1.2.156.10197.1.104.8 -- SM4-GCM, OpenSSL objects.txt sm-scheme 104 8, 3.5.8 only
+     * 1.2.156.10197.1.104.8 -- SM4-GCM, OpenSSL objects.txt sm-scheme 104 8, 3.5.9 only
      */
     ASN1ObjectIdentifier sms4_gcm = sm_scheme.branch("104.8").intern();
 
     /**
-     * 1.2.156.10197.1.104.9 -- SM4-CCM, OpenSSL objects.txt sm-scheme 104 9, 3.5.8 only
+     * 1.2.156.10197.1.104.9 -- SM4-CCM, OpenSSL objects.txt sm-scheme 104 9, 3.5.9 only
      */
     ASN1ObjectIdentifier sms4_ccm = sm_scheme.branch("104.9").intern();
 
     /**
-     * 1.2.156.10197.1.104.11 -- SM4 key wrap, BouncyCastle only; absent from OpenSSL 3.1.2 and 3.5.8
+     * 1.2.156.10197.1.104.11 -- SM4 key wrap, BouncyCastle only; absent from OpenSSL 3.1.2 and 3.5.9
      */
     ASN1ObjectIdentifier sms4_wrap = sm_scheme.branch("104.11").intern();
 
     /**
-     * 1.2.156.10197.1.104.12 -- SM4 key wrap with padding, BouncyCastle only; absent from OpenSSL 3.1.2 and 3.5.8
+     * 1.2.156.10197.1.104.12 -- SM4 key wrap with padding, BouncyCastle only; absent from OpenSSL 3.1.2 and 3.5.9
      */
     ASN1ObjectIdentifier sms4_wrap_pad = sm_scheme.branch("104.12").intern();
 }

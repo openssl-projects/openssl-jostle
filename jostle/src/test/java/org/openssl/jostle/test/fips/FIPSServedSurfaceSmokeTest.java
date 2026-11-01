@@ -493,7 +493,7 @@ public class FIPSServedSurfaceSmokeTest
     }
 
     /**
-     * The DH parameter generator is registered and refuses typed on both measured modules (3.1.2 and 3.5.8),
+     * The DH parameter generator is registered and refuses typed on both measured modules (3.1.2 and 3.5.9),
      * by size and by DHGenParameterSpec alike: the module substitutes a named group or refuses, never generates.
      * An unmeasured module fails the cell.
      */
@@ -517,7 +517,7 @@ public class FIPSServedSurfaceSmokeTest
 
     /**
      * Every DSA service stays registered, and each refusal is typed and pinned by the installed options. Under
-     * dsa-sign-disabled (3.5.8) generation and signing are refused, naming the key size, and verification works;
+     * dsa-sign-disabled (3.5.9) generation and signing are refused, naming the key size, and verification works;
      * otherwise the module generates, signs under every name (SHA-1 refused naming the digest where SHA-1 signing
      * is refused) and verifies. An unmeasured module fails the cell.
      */

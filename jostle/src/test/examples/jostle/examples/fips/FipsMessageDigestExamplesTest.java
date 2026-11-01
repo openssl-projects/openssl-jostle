@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
- * Message digests in the FIPS module: SHA-1, SHA-2, SHA-3 and SHAKE. The 3.5.8 module serves no MD5, RIPEMD,
+ * Message digests in the FIPS module: SHA-1, SHA-2, SHA-3 and SHAKE. The 3.5.9 module serves no MD5, RIPEMD,
  * SM3 or BLAKE2, and JSLFIPS registers none.
  */
 public class FipsMessageDigestExamplesTest

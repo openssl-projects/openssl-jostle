@@ -55,7 +55,7 @@ import java.util.Date;
  * The reason is the design it post-dates — {@code getPublicKey()} rebuilds the
  * key through the OWNING PROVIDER's KeyFactory, so the refusal comes from
  * JSLFIPS having no Ed25519 KeyFactory (measured: 0 Ed25519 services on 3.1.2,
- * 4 on 3.5.8) and not from which library parsed the bytes. Once the key stopped
+ * 4 on 3.5.9) and not from which library parsed the bytes. Once the key stopped
  * coming from the NI, no key-shaped assertion could see the NI.
  *
  * <p>The wiring is guarded by two other things, both falsified against exactly
@@ -66,7 +66,7 @@ import java.util.Date;
  * worth having on its own terms — it is simply not the wiring guard.
  *
  * <p>The discriminator is Ed25519, whose availability DIFFERS between the two
- * supported modules (measured: absent on 3.1.2, present on 3.5.8). So the
+ * supported modules (measured: absent on 3.1.2, present on 3.5.9). So the
  * assertion is written against the module's actual capability rather than
  * against one module's answer — the standing rule for anything the two modules
  * disagree about.
@@ -170,7 +170,7 @@ public class FIPSX509LibraryBindingTest
 
         if (moduleServesEd25519())
         {
-            // 3.5.8: the module serves it, so the key must actually build.
+            // 3.5.9: the module serves it, so the key must actually build.
             PublicKey fipsKey = viaFips.getPublicKey();
             Assertions.assertNotNull(fipsKey);
             Assertions.assertEquals(jslKey.getAlgorithm(), fipsKey.getAlgorithm());

@@ -60,13 +60,13 @@ public class PkitsRevocationDivergenceAgreementTest
      * than a flag we could set.
      *
      * <p><b>Mechanism, measured with a verify callback</b> (not inferred):
-     * {@code check_crl_path} (x509_vfy.c, 3.1.2 :1319, 3.5.8 :1476) verifies
+     * {@code check_crl_path} (x509_vfy.c, 3.1.2 :1319, 3.5.9 :1476) verifies
      * the CRL ISSUER's own certificate in a child context and copies the
      * parameters across, flags included. So {@code CRL_CHECK_ALL} applies
      * inside that child verification, which then needs a CRL for the
      * cRLIssuer certificate; that CRL is the SAME indirect CRL, which would
      * need {@code check_crl_path} again, and recursion is refused by
-     * {@code if (ctx->parent != NULL)} (3.1.2 :1325, 3.5.8 :1482). This is
+     * {@code if (ctx->parent != NULL)} (3.1.2 :1325, 3.5.9 :1482). This is
      * the only case in the corpus with that shape: both the end entity AND
      * the certificate issued to the CRL issuer are covered by the indirect
      * CRL the CRL issuer issued.
@@ -79,7 +79,7 @@ public class PkitsRevocationDivergenceAgreementTest
      * unsafe by kind, and wrong for JCA, where {@code revocationEnabled}
      * means the whole path.
      *
-     * <p>Identical on 3.1.2 and 3.5.8. If a future OpenSSL relaxes the
+     * <p>Identical on 3.1.2 and 3.5.9. If a future OpenSSL relaxes the
      * recursion guard this pin fails loudly, which is the point.
      *
      * <p>The reference is the JDK, measured: BouncyCastle fails 4.14.30 too,
@@ -162,7 +162,7 @@ public class PkitsRevocationDivergenceAgreementTest
      * is revoked ONLY in the delta and the base does not list it at all.
      * Without {@code X509_V_FLAG_USE_DELTAS} the delta is carried in the store
      * and never paired with its base — {@code get_delta_sk} returns early
-     * (x509_vfy.c, 3.1.2 :1177, 3.5.8 :1326) — so nothing lists the certificate
+     * (x509_vfy.c, 3.1.2 :1177, 3.5.9 :1326) - so nothing lists the certificate
      * and the path is accepted. PKITS calls it invalid; we agree, the JDK
      * does not. Note this is NOT 4.15.5's shape: no hold is involved here.
      */

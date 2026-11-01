@@ -637,7 +637,7 @@ public class FIPSDSASignatureTest
 
     /**
      * The refusal names the key's size rather than claiming the module does not sign DSA. Installed options decide
-     * it: dsa-sign-disabled (3.5.8) refuses every key; security-checks on 3.1.2 refuses a 1024-bit key and SHA-1,
+     * it: dsa-sign-disabled (3.5.9) refuses every key; security-checks on 3.1.2 refuses a 1024-bit key and SHA-1,
      * naming the digest; otherwise the module signs every size with SHA-256 and with SHA-1.
      */
     @Test
@@ -676,13 +676,13 @@ public class FIPSDSASignatureTest
 
     /**
      * Key generation that the module refuses is a ProviderException on both modules, with the library's failure as
-     * the cause: 3.5.8 refuses 1024-bit generation typed under every installed option set measured, 3.1.2 refuses
+     * the cause: 3.5.9 refuses 1024-bit generation typed under every installed option set measured, 3.1.2 refuses
      * 1024-bit parameters itself. A version property, not an option.
      */
     @Test
     public void refusedKeyGenerationIsAProviderException() throws Exception
     {
-        boolean capability = FipsModuleProfile.MODULE_3_5_8.equals(FipsModuleProfile.get().version());
+        boolean capability = FipsModuleProfile.MODULE_3_5_9.equals(FipsModuleProfile.get().version());
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("DSA", FIPS);
         kpg.initialize(1024);
         ProviderException e = Assertions.assertThrows(ProviderException.class, kpg::generateKeyPair);

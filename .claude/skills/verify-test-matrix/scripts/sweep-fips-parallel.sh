@@ -55,8 +55,8 @@ OPENSSLS="${JOSTLE_OPENSSLS_DIR:-$HOME/openssl/openssls}"
 # name|module file|cnf file   -- cnf empty means "use the install's own"
 CONFIGS=(
   "3.1.2|$OPENSSLS/osx_3_1_2/lib/ossl-modules/fips.dylib|$OPENSSLS/osx_3_1_2/lib/ossl-modules/fipsmodule.cnf"
-  "3.5.8-pedantic|$OPENSSLS/osx_3_5_8/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_8_pedantic.cnf"
-  "3.5.8-default|$OPENSSLS/osx_3_5_8/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_8_default.cnf"
+  "3.5.9-pedantic|$OPENSSLS/osx_3_5_9/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_9_pedantic.cnf"
+  "3.5.9-default|$OPENSSLS/osx_3_5_9/lib/ossl-modules/fips.dylib|/tmp/cnf_3_5_9_default.cnf"
 )
 
 IFS=$'\n' read -r -d '' -a TASKS < <(jostle_tasks fipssweep && printf '\0')

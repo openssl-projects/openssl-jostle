@@ -34,7 +34,7 @@ import java.security.spec.PSSParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 
 /**
- * Signatures in the FIPS module. The 3.5.8 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones.
+ * Signatures in the FIPS module. The 3.5.9 module signs with SHA-2 and SHA-3 digests and verifies SHA-1 ones.
  * Whether it also signs with SHA-1 depends on fipsinstall configuration; as installed here, it does not.
  * Whether it makes DSA signatures depends on fipsinstall configuration; as installed here, it only verifies
  * them. It verifies signatures on curves below 112 bits of strength and does not make them. Each example

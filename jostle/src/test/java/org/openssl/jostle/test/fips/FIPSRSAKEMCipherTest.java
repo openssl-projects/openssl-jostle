@@ -39,7 +39,7 @@ import java.security.Security;
  * mainline defaults to RSASVE, so every test there passes either way. The
  * CMVP-validated 3.1.2 module does NOT default - it refuses
  * {@code EVP_PKEY_encapsulate}'s size query outright, and refuses it mutely
- * (measured: {@code fips-c-review/probes/rsakem_probe.c}). So running this
+ * (measured: {@code probes/rsakem_probe.c}). So running this
  * inherited suite against 3.1.2 is what proves the pin is present and correct;
  * remove it and the inherited cells that wrap fail while the base class stays
  * green ({@link FIPSRSAKEMAgreementTest} holds the BouncyCastle comparisons).

@@ -50,7 +50,7 @@ import java.security.PublicKey;
  * both directions:</b>
  * <pre>
  *   3.1.2 : encrypt WORKS   / decrypt-init refused (no implicit rejection)
- *   3.5.8 : encrypt REFUSED / decrypt-init works   (implicit rejection present)
+ *   3.5.9 : encrypt REFUSED / decrypt-init works   (implicit rejection present)
  * </pre>
  * <b>Decrypt.</b> {@code OSSL_ASYM_CIPHER_PARAM_IMPLICIT_REJECTION} (the
  * Bleichenbacher mitigation) entered OpenSSL 3.2, and

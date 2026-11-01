@@ -38,7 +38,7 @@ import java.security.spec.KeySpec;
  * A key the FIPS module refuses as too short surfaces through the checked type the JCA method declares:
  * InvalidKeyException from Mac.init for HMAC, InvalidKeySpecException from SecretKeyFactory.generateSecret for
  * HKDF, KBKDF, SSKDF and SSHKDF. Whether the module refuses depends on fipsinstall configuration (the hmac, hkdf,
- * kbkdf, sskdf and sshkdf key checks, 112 bits); as installed here, 3.5.8 refuses and 3.1.2 accepts. So every cell
+ * kbkdf, sskdf and sshkdf key checks, 112 bits); as installed here, 3.5.9 refuses and 3.1.2 accepts. So every cell
  * is both-branch: the raw module refusal is measured first at the native interface, where it is the unchecked
  * OpenSSLException the provider must translate, and the JCA call is then required to refuse with the checked type
  * exactly when the module refused, or else to agree with JSL. A key at the 14-byte floor works everywhere.

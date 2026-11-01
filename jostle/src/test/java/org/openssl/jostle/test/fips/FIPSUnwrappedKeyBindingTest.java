@@ -255,7 +255,7 @@ public class FIPSUnwrappedKeyBindingTest
      *
      * <p>The family is DISCOVERED, not named. Naming one was tried and broke:
      * this test pinned Ed25519, which JSLFIPS genuinely lacks on the 3.1.2
-     * module but SERVES on 3.5.8 — {@code ProvFIPSED} gates registration on
+     * module but SERVES on 3.5.9 - {@code ProvFIPSED} gates registration on
      * what the loaded module implements. The vacuity guard fired correctly on
      * the first sweep that ran a 3.5.x module, which is the point of having
      * one, but a pinned name cannot be right for both supported modules. The

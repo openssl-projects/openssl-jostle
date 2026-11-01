@@ -916,7 +916,7 @@ public class FIPSDHLimitTest
         DHBridgeCells.keyValuesAreRangeChecked(dh, FIPSNISelector.SpecNI);
     }
 
-    /** Measured the same on 3.1.2 and 3.5.8: a q-less key imports, and its x is bounded as in the base tree. */
+    /** Measured the same on 3.1.2 and 3.5.9: a q-less key imports, and its x is bounded as in the base tree. */
     @Test
     public void bridge_qLessPrivateValueRangeIsChecked()
     {

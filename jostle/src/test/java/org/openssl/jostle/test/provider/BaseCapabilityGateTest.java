@@ -39,7 +39,7 @@ import javax.crypto.KeyGenerator;
  * actually serve them (they need OpenSSL 3.5 or later).
  *
  * <p><b>Coverage limit, stated rather than left to be discovered.</b> Both
- * mainline installs on hand (3.5.8, the build target, and 3.6.2) serve every
+ * mainline installs on hand (3.5.9, the build target, and 3.6.2) serve every
  * gated name, so the gate's ABSENT arm does not execute and no available
  * configuration makes it.
  * What these tests can and do establish is that the probe discriminates, that

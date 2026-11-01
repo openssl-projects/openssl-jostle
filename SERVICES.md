@@ -481,14 +481,14 @@ Neither applies to JSLFIPS, which registers no `CertPathValidator` or
 > re-check its counts and gating claims against both modules.
 
 The Jostle FIPS (`JSLFIPS`) provider registers the services listed below, by JCA service type, fewer against the
-3.1.2 module than against 3.5.8: what the OpenSSL FIPS module serves, not a subset filtered against its security
+3.1.2 module than against 3.5.9: what the OpenSSL FIPS module serves, not a subset filtered against its security
 policy. The module decides what is available: its implementations carry a `fips=yes`/`fips=no` property and the lib
 ctx's `fips=yes` default query excludes the latter, so ChaCha20 and OCB (for instance) are simply not fetchable, and
-on the 3.1.2 module Triple-DES too, though 3.5.8 does serve it.
+on the 3.1.2 module Triple-DES too, though 3.5.9 does serve it.
 
-**Two modules are supported, and the list below is the 3.5.8 one.**
+**Two modules are supported, and the list below is the 3.5.9 one.**
 JSLFIPS ships one build that serves both: **3.1.2**, the CMVP-validated module
-(cert #4985), and **3.5.8**, the current OpenSSL LTS. They disagree about what
+(cert #4985), and **3.5.9**, the current OpenSSL LTS. They disagree about what
 they implement, in more than one direction. Where a difference is cheaply
 detectable at startup the provider asks the loaded module and registers
 accordingly:
@@ -496,19 +496,19 @@ accordingly:
 - **X25519 / X448** (`KeyAgreement`, `KeyFactory`, `KeyPairGenerator`, and the
   `XDH` names, including every `X25519WITH…`, `X448WITH…` and `XDHWITH…`
   CKDF / HKDF `KeyAgreement`) are registered only when the module resolves the
-  keymgmt fetch. 3.1.2 does; 3.5.8 does not, and against it these services are absent
+  keymgmt fetch. 3.1.2 does; 3.5.9 does not, and against it these services are absent
   and `getInstance` throws `NoSuchAlgorithmException` so a caller can fall
   through to another provider. They are therefore NOT in the list below.
-- **ML-KEM, ML-DSA and SLH-DSA** go the other way: 3.5.8 implements all three
+- **ML-KEM, ML-DSA and SLH-DSA** go the other way: 3.5.9 implements all three
   and 3.1.2 implements none, so the 70 PQC services below appear only against
-  3.5.8. Gated the same way, on the keymgmt fetch — which is a complete answer
+  3.5.9. Gated the same way, on the keymgmt fetch - which is a complete answer
   here, because unlike DSA signing no `fipsinstall` switch affects them
   (verified with real operations under both the `-pedantic` and the default
   config).
 - **The TLS hybrid KEM groups** (`X25519MLKEM768`, `SecP256r1MLKEM768`,
   `SecP384r1MLKEM1024`, each with a `KeyFactory`, `KeyGenerator` and
   `KeyPairGenerator`) are the one family gated **per variant** rather than as a
-  unit. 3.1.2 serves none; 3.5.8 serves those three and **not**
+  unit. 3.1.2 serves none; 3.5.9 serves those three and **not**
   `X448MLKEM1024`, which its `providers/fips/fipsprov.c` marks
   `FIPS_UNAPPROVED_PROPERTIES` while the other three carry
   `FIPS_DEFAULT_PROPERTIES`. Jostle registers `X448MLKEM1024` under the base
@@ -518,7 +518,7 @@ accordingly:
   neither half of a keypair has an encoded form — the raw TLS key share is the
   only way in and out.
 - **Ed25519 / Ed448** run the same way as PQC — refused outright by 3.1.2,
-  served by 3.5.8 — and are gated **per name** as well: 3.5.8 registers
+  served by 3.5.9 - and are gated **per name** as well: 3.5.9 registers
   `ED25519`, `ED25519PH`, `ED448` and `ED448PH` as signature algorithms but
   **not** `ED25519CTX`, so that one Signature is absent below even though the
   rest of the family is present. A registration would resolve and then fail at
@@ -526,14 +526,14 @@ accordingly:
   for that name.
 - **Triple-DES** (`Cipher.DESede` with its `TripleDES` alias and the
   `1.2.840.113549.3.7` OID, plus `KeyGenerator.DESede`) also flips with the
-  module: 3.1.2 refuses every `DES-EDE3` fetch, 3.5.8 serves them, so the three
-  services below appear only against 3.5.8. Gated on the cipher fetch, which
+  module: 3.1.2 refuses every `DES-EDE3` fetch, 3.5.9 serves them, so the three
+  services below appear only against 3.5.9. Gated on the cipher fetch, which
   answers registration completely — but NOT usability, for which see the
   encryption note below.
 
 One difference is narrower than a whole registration and is left to surface at
 the point of use: **`Mac.AESGMAC` is served by both modules and produces
-identical tags on both, but `Mac.clone()` over it works only on 3.5.8.** The
+identical tags on both, but `Mac.clone()` over it works only on 3.5.9.** The
 3.1.2 module refuses `EVP_MAC_CTX_dup` for GMAC specifically — HMAC and CMAC
 clone fine on both — so a clone attempt there raises
 `CloneNotSupportedException`, which is the JCE-declared answer for exactly this
@@ -559,7 +559,7 @@ module it did not match — so both surface as the module's own typed refusal at
 **`KeyStore.BCFKS` is served unconditionally by both modules, and scrypt-KDF'd
 stores are refused typed rather than routed into the base library.** PBKDF2,
 HMAC, AES-CCM/KWP, X.509 decode and KeyFactory rebuild are all baseline module
-capabilities present on both 3.1.2 and 3.5.8, so the registration itself does
+capabilities present on both 3.1.2 and 3.5.9, so the registration itself does
 not gate on a module fetch. Neither module serves scrypt at all, so a store
 using it fails `load` with a typed `IOException` naming the reason, never a
 silent fall-through to the base provider's KDF.

@@ -37,7 +37,7 @@ import java.security.spec.X509EncodedKeySpec;
  * (measured directly against the OpenSSL FIPS provider: {@code
  * EVP_PKEY_sign_init} + {@code EVP_PKEY_CTX_set_rsa_padding(RSA_PKCS1_PADDING)}
  * with no digest set, then {@code EVP_PKEY_sign}, succeeds and round-trips on
- * both 3.1.2 and 3.5.8), so JSLFIPS serves it — approval is the operator's
+ * both 3.1.2 and 3.5.9), so JSLFIPS serves it - approval is the operator's
  * determination, not this provider's to simulate by feeding a digest name
  * ("NONE") the module was never going to fetch. {@code ProvFIPSRSA} registers
  * {@code NoneWithRSA} through {@code RSASignatureSpi.None} exactly as

@@ -264,7 +264,7 @@ public class FIPSXDHCKDFAgreementTest
      *
      * <p>Gated on the MODULE, not on the provider: asking the provider whether
      * it registered XDH and then checking it registered XDH compares the
-     * registration with itself. 3.1.2 serves the family and 3.5.8 does not, and
+     * registration with itself. 3.1.2 serves the family and 3.5.9 does not, and
      * on the module that does not the assertion is that the WHOLE surface is
      * absent — a skip would pass equally against a registrar that had silently
      * dropped a family the module can serve. The all-or-nothing half across the

@@ -140,7 +140,7 @@ acquire_lock () {
 }
 acquire_lock || exit 2
 
-# MT-37: name the FIPS module in the record. Both 3.1.2 and 3.5.8 are supported
+# MT-37: name the FIPS module in the record. Both 3.1.2 and 3.5.9 are supported
 # and the gate runs once per module, so a green must say which module it is.
 # Read from the binary, not the path, so a wrongly-named directory cannot lie.
 if [ -n "${TEST_FIPS_LIB:-}" ]; then

@@ -63,7 +63,7 @@ public class FIPSDisposalLedgerOpsTest extends DisposalLedgerOpsTest
         return FIPSNISelector.OperationsTestNI;
     }
 
-    /** Measured: 15 types on the 3.1.2 module, 17 on 3.5.8. */
+    /** Measured: 15 types on the 3.1.2 module, 18 on 3.5.9. */
     @Override
     protected int minimumTypesExpected()
     {

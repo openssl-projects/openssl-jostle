@@ -123,9 +123,9 @@ After copying the source url, download the source tarball onto a suitable machin
 For the current LTS release you can use the following commands.
 
 ```
-    wget https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz
+    wget https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz
     
-    tar -zxvf openssl-3.5.8.tar.gz    
+    tar -zxvf openssl-3.5.9.tar.gz    
 ```
 
 In order to build OpenSSL 3.5 you will need to have also installed the appropriate build tools for the OS that you are building on.
@@ -136,9 +136,9 @@ Users should specify a prefix when building the OpenSSL Library for this example
 for all users so we will use prefix and keep it nearby. 
 
 ```
-  cd openssl-3.5.8
+  cd openssl-3.5.9
   
-  # Tell OpenSSL to install build products in the same parent as openssl-3.5.8
+  # Tell OpenSSL to install build products in the same parent as openssl-3.5.9
   ./Configure --prefix=`pwd`/../openssl_3_5
   
   # Build it.
@@ -160,7 +160,7 @@ ls -al
     
 drwxr-xr-x.  4 ec2-user ec2-user    46 Oct  2 08:08 .
 drwx------.  4 ec2-user ec2-user   133 Oct  2 07:34 ..
-drwxr-xr-x. 28 ec2-user ec2-user 16384 Oct  2 08:08 openssl-3.5.8
+drwxr-xr-x. 28 ec2-user ec2-user 16384 Oct  2 08:08 openssl-3.5.9
 drwxr-xr-x.  5 ec2-user ec2-user    45 Oct  2 08:08 openssl_3_5
 
 ls -al openssl_3_5
@@ -412,7 +412,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.5.8
+  OpenSSL Version: 3.5.9
 .END
 Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 -------------------------------------------------------------------------------
@@ -446,7 +446,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.5.8
+  OpenSSL Version: 3.5.9
 .END
 Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 -------------------------------------------------------------------------------
@@ -494,7 +494,7 @@ Loader:
 
 Native Status:
   Native Available: true
-  OpenSSL Version: 3.5.8
+  OpenSSL Version: 3.5.9
 .END
 Use: --fine to emit FINE level logs, --services to list provider services grouped by type
 

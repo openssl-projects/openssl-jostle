@@ -25,7 +25,7 @@ import java.util.Arrays;
 
 /**
  * Key derivation functions in the FIPS module, served as `SecretKeyFactory`: PBKDF2, HKDF, the SP 800-108 and
- * SP 800-56C KDFs and the SSH KDF. The 3.5.8 module serves no scrypt or Argon2. Whether it refuses key inputs
+ * SP 800-56C KDFs and the SSH KDF. The 3.5.9 module serves no scrypt or Argon2. Whether it refuses key inputs
  * shorter than 112 bits depends on fipsinstall configuration.
  */
 public class FipsSecretKeyFactoryExamplesTest

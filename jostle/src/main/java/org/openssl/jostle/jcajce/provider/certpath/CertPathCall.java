@@ -302,7 +302,7 @@ final class CertPathCall
      * <p>
      * They are marshalled AFTER the path's intermediates. OpenSSL's issuer
      * search returns the first time-valid candidate in untrusted-stack order
-     * (x509_vfy.c {@code get0_best_issuer_sk}, 3.5.8 :391-421), so a
+     * (x509_vfy.c {@code get0_best_issuer_sk}, 3.5.9 :391-421), so a
      * re-issued copy of a path CA - same subject and key, different bytes -
      * must not sit ahead of the path's own copy.
      * <p>

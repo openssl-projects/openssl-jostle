@@ -953,7 +953,7 @@ public class FIPSDSALimitTest
         DSABridgeCells.keyValuesAreRangeChecked(dsa, specNI);
     }
 
-    /** A size the module does not serve: 3.1.2 refuses it itself, 3.5.8 refuses it typed. A version property. */
+    /** A size the module does not serve: 3.1.2 refuses it itself, 3.5.9 refuses it typed. A version property. */
     @Test
     public void DSAServiceNI_generateParameters_unservedSizeIsRefused()
     {

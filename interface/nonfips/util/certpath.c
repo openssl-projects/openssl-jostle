@@ -636,7 +636,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
     }
     /*
      * set0 by name, but X509_STORE_CTX_set0_crls only assigns and the cleanup
-     * never frees it (x509_vfy.c, 3.1.2 :2197/:2333, 3.5.8 :2384/:2523), so
+     * never frees it (x509_vfy.c, 3.1.2 :2197/:2333, 3.5.9 :2442/:2581), so
      * the stack stays OURS to free.
      */
     X509_STORE_CTX_set0_crls(ctx, crls);
@@ -662,7 +662,7 @@ int32_t certpath_verify(const uint8_t *der, size_t der_len,
          * separate-CRL-key cases, and USE_DELTAS decides 4.15.4 and 4.15.5
          * while leaving the other eight delta rows as measured. Without
          * USE_DELTAS, get_delta_sk returns before pairing any delta with its
-         * base CRL (x509_vfy.c, 3.1.2 :1177, 3.5.8 :1326), so a delta is
+         * base CRL (x509_vfy.c, 3.1.2 :1177, 3.5.9 :1326), so a delta is
          * carried in the store and never consulted.
          */
         if (revocation != 0)

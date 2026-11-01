@@ -52,7 +52,7 @@ public class FIPSMLDSARandStrengthTest
             Assertions.assertNull(fips.getService("KeyPairGenerator", "ML-DSA-65"));
             return;
         }
-        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_8, profile.version());
+        Assertions.assertEquals(FipsModuleProfile.MODULE_3_5_9, profile.version());
         for (MLDSAParameterSpec spec : SPECS)
         {
             for (int strength : new int[]{128, 192, 256})

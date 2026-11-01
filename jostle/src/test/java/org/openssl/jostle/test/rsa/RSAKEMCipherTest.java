@@ -39,14 +39,14 @@ import java.security.Security;
  * OpenSSL's RSASVE returns the encapsulated value zero-padded to the full
  * modulus length, which is exactly BouncyCastle's
  * {@code R = asUnsignedByteArray(modLen, r)} - measured on mainline and both
- * FIPS modules ({@code fips-c-review/probes/rsakem_probe.c}). Given the same
+ * FIPS modules ({@code probes/rsakem_probe.c}). Given the same
  * KDF and wrap parameters the two providers therefore produce the same bytes,
  * and that is what {@link RSAKEMAgreementTest} pins.
  *
  * <p>The KEM operation name is hard-coded to {@code RSASVE} in
  * {@code RSAKEMCipherSpi} because the CMVP-validated 3.1.2 module REQUIRES it -
  * without it, encapsulation fails there and fails mutely, while mainline and
- * 3.5.8 default to it and work. No test here can see that difference (both
+ * 3.5.8 and 3.5.9 default to it and work. No test here can see that difference (both
  * behave identically once the name is set); it is pinned by the probe and by
  * the FIPS subclass running the whole contract against the module.
  *

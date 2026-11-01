@@ -373,7 +373,7 @@ public class PrivateKeyPkcs8ParityTest
      * section 3 says conforming implementations MUST include parameters and
      * SHOULD include publicKey: BC meets the MUST, we meet the SHOULD. Ours is
      * OpenSSL's deliberate PKCS#8 form — {@code EC_PKEY_NO_PARAMETERS} in
-     * {@code encode_key2any.c}, commented as such in 3.1.2 and 3.5.8.
+     * {@code encode_key2any.c}, commented as such in 3.1.2 and 3.5.9.
      */
     @Test
     public void ecNamedSpecStillDivergesOnTheOptionalEcPrivateKeyField() throws Exception

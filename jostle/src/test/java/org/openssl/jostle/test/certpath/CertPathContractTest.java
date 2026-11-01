@@ -203,7 +203,7 @@ public class CertPathContractTest
                 () -> validator().validate(goodPath(), p));
         // Only the separate-BYTES form is refused: OpenSSL applies the
         // constraints carried IN an anchor certificate (x509_vfy.c
-        // check_name_constraints, 3.1.2 :646, 3.5.8 :776).
+        // check_name_constraints, 3.1.2 :646, 3.5.9 :776).
         Assertions.assertTrue(e.getMessage().contains("name-constraint bytes beside its certificate"),
                 e.getMessage());
     }

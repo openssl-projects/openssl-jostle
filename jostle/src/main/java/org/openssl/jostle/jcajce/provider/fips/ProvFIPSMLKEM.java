@@ -36,6 +36,7 @@ import java.util.logging.Logger;
  * <pre>
  *   3.1.2 : keymgmt fetch = 0  -&gt; nothing registered
  *   3.5.8 : keymgmt fetch = 1  -&gt; full keygen / encapsulate / decapsulate, both configs
+ *   3.5.9 : the same, by {@code FIPSMLKEMLimitTest} and {@code FIPSMLKEMRandStrengthTest} on both configs
  * </pre>
  *
  * <p>Because the fetch answers it completely, this is a registration-time gate
