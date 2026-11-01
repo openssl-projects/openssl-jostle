@@ -495,7 +495,10 @@ build a `Signature` from the object's own `getSigAlgName()` /
 `getSigAlgParams()`. On a **null** `sigProvider` they call
 `Signature.getInstance(sigName)` with no provider at all, so JCA order decides,
 and a JSLFIPS certificate verifies in whatever provider sorts first. Override
-both and route the null arm through the binding, never through JCA order.
+both and route the null arm through the binding, not through JCA order.
+The binding yields to search order only when it cannot CREATE the Signature (the algorithm is not served, or a
+name-only binding's provider is gone), and rethrows its own exception when the search fails too: BouncyCastle's
+shape. A JDK code-signing chain with an MD5withRSA root, verified through JSLFIPS at position 1, is what found it.
 
 So the inherited surface is EIGHT re-parses plus TWO unpinned verifies. A paper
 that counts them together says ten and a table that lists only the re-parses
@@ -649,3 +652,5 @@ private-components entry point — never a JDK KeyFactory. Unbound
 their `AlgorithmParameters` by their own service NI's `providerName()`, never
 bare registry order. Production code names no JDK provider anywhere, guarded
 by `NoJdkProviderNamesInProductionTest`.
+One exception: the certificate and CRL verify fallback (`CertKeys:Signature`), taken only after the bound
+provider has refused to create the Signature; both pinning lints sanction exactly that site.

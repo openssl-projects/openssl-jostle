@@ -131,7 +131,16 @@ public class ProviderPinningParityTest
                     // key material. UnpinnedServiceResolutionParityTest owns
                     // the sanction and records the measurement.
                     "DHAlgorithmParameterGenerator:AlgorithmParameters",
-                    "DSAAlgorithmParameterGenerator:AlgorithmParameters")));
+                    "DSAAlgorithmParameterGenerator:AlgorithmParameters",
+                    // The certificate and CRL verify fallback beside the pinned
+                    // signatureFor arm, reached only when the bound provider
+                    // cannot create the Signature (NoSuchAlgorithmException, or
+                    // the name-only binding's ProviderException): there JCA
+                    // search order is the point, as BouncyCastle does. The bound
+                    // arm is held by FIPSX509CertificateFactoryTest's
+                    // stays-in-the-module cells and by
+                    // ProviderInstancePinningParityTest's CertKeys sanctions.
+                    "CertKeys:Signature")));
 
     /**
      * Sites that legitimately hard-code the base provider's NAME, same key

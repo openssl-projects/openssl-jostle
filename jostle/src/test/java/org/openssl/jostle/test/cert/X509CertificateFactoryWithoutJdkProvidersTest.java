@@ -16,14 +16,19 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi;
 import org.openssl.jostle.test.certpath.PkitsCertificates;
 import org.openssl.jostle.util.Arrays;
 
 import java.io.ByteArrayInputStream;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.ProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.SignatureException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -49,6 +54,8 @@ import java.security.cert.X509Certificate;
  */
 public class X509CertificateFactoryWithoutJdkProvidersTest
 {
+    private static final String SUN_RSA_SIGN = "SunRsaSign";
+
     /** The registry as it was, in order, so it can be put back exactly. */
     private Provider[] original;
 
@@ -161,5 +168,60 @@ public class X509CertificateFactoryWithoutJdkProvidersTest
         java.util.Arrays.fill(garbage, (byte) 0xFF);
         Assertions.assertThrows(CertificateException.class,
                 () -> cf.generateCertificate(new ByteArrayInputStream(garbage)));
+    }
+
+    /**
+     * With nothing to fall back to, a Signature the bound provider does not serve fails with the ORIGINAL
+     * exception, naming the algorithm and the provider, not the search's own message.
+     */
+    @Test
+    public void anUnservedSignatureWithNothingToFallBackToThrowsTheOriginalException()
+        throws Exception
+    {
+        byte[] der = VerifyCascadeFixtures.selfSigned(VerifyCascadeFixtures.RIPEMD160_RSA,
+                VerifyCascadeFixtures.rsaKeyPair(), "CN=Unserved");
+        Provider jsl = onlyJostle();
+        X509Certificate c = VerifyCascadeFixtures.parse(CertificateFactory.getInstance("X.509", jsl), der);
+        PublicKey key = c.getPublicKey();
+
+        NoSuchAlgorithmException e = Assertions.assertThrows(NoSuchAlgorithmException.class, () -> c.verify(key));
+        Assertions.assertSame(NoSuchAlgorithmException.class, e.getClass());
+        Assertions.assertTrue(e.getMessage().contains(VerifyCascadeFixtures.RIPEMD160_RSA_OID), e.getMessage());
+        Assertions.assertTrue(e.getMessage().contains(jsl.getName()), e.getMessage());
+    }
+
+    /**
+     * A factory built with the public name-only constructor resolves its provider by name; with that provider
+     * removed, verify falls back to search order, and with nothing installed the original refusal stands.
+     */
+    @Test
+    public void aNameOnlyFactoryWhoseProviderIsGoneVerifiesThroughSearchOrder()
+        throws Exception
+    {
+        KeyPair kp = VerifyCascadeFixtures.rsaKeyPair();
+        byte[] der = VerifyCascadeFixtures.selfSigned(VerifyCascadeFixtures.SHA256_RSA, kp, "CN=Name Only");
+        byte[] otherDer = VerifyCascadeFixtures.selfSigned(VerifyCascadeFixtures.SHA256_RSA,
+                VerifyCascadeFixtures.rsaKeyPair(), "CN=Other");
+        Provider sunRsaSign = Security.getProvider(SUN_RSA_SIGN);
+        Assertions.assertNotNull(sunRsaSign, "the recorder delegates to " + SUN_RSA_SIGN);
+
+        Provider jsl = new JostleProvider();
+        ProviderRegistrySnapshot.append(jsl);
+        X509CertificateFactorySpi spi = new X509CertificateFactorySpi(jsl.getName(), false);
+        X509Certificate c = (X509Certificate) spi.engineGenerateCertificate(new ByteArrayInputStream(der));
+        PublicKey key = c.getPublicKey();
+        PublicKey unrelated =
+                ((X509Certificate) spi.engineGenerateCertificate(new ByteArrayInputStream(otherDer))).getPublicKey();
+
+        Security.removeProvider(jsl.getName());
+        RecordingSignatureProvider recorder = new RecordingSignatureProvider(sunRsaSign, c.getSigAlgName());
+        ProviderRegistrySnapshot.insertFirst(recorder);
+        c.verify(key);
+        Assertions.assertEquals(1, recorder.verifications(), "the verify reached search order");
+        Assertions.assertThrows(SignatureException.class, () -> c.verify(unrelated));
+
+        ProviderRegistrySnapshot.empty();
+        ProviderException e = Assertions.assertThrows(ProviderException.class, () -> c.verify(key));
+        Assertions.assertEquals("no provider named " + jsl.getName() + " to verify through", e.getMessage());
     }
 }

@@ -143,6 +143,47 @@ final class CertKeys
     }
 
     /**
+     * {@link #signatureFor}, yielding to JCA search order only when this
+     * provider cannot create the Signature: the algorithm is not served, or
+     * the named provider is gone. BouncyCastle's shape. When the search fails
+     * too, the original exception is thrown.
+     */
+    static Signature signatureForOrSearch(ProviderBinding binding, String algorithm)
+        throws NoSuchAlgorithmException
+    {
+        try
+        {
+            return signatureFor(binding, algorithm);
+        }
+        catch (NoSuchAlgorithmException original)
+        {
+            return searchOrRethrow(algorithm, original);
+        }
+        catch (ProviderException e)
+        {
+            // Only the missing named provider; any other ProviderException is not a creation failure.
+            if (!(e.getCause() instanceof NoSuchProviderException))
+            {
+                throw e;
+            }
+            return searchOrRethrow(algorithm, e);
+        }
+    }
+
+    private static <E extends Exception> Signature searchOrRethrow(String algorithm, E original)
+        throws E
+    {
+        try
+        {
+            return Signature.getInstance(algorithm);
+        }
+        catch (NoSuchAlgorithmException searchFailed)
+        {
+            throw original;
+        }
+    }
+
+    /**
      * Whether this SubjectPublicKeyInfo is a DSA key whose parameters are
      * absent, and therefore inherited from the issuer.
      *

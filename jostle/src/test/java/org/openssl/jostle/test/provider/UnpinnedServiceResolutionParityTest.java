@@ -92,7 +92,11 @@ public class UnpinnedServiceResolutionParityTest
             // instance, so name resolution is the maximum pinning available.
             // Resolves Jostle-by-name only and throws if no Jostle provider is
             // registered, so no foreign provider can serve through it.
-            "JostleAlgorithmParameters:AlgorithmParameters"
+            "JostleAlgorithmParameters:AlgorithmParameters",
+            // The certificate and CRL verify fallback, taken only after the
+            // bound provider has refused to create the Signature; search order
+            // is the point there, as BouncyCastle does.
+            "CertKeys:Signature"
             // The DHAlgorithmParameterGenerator / DSAAlgorithmParameterGenerator
             // entries that used to sit here are GONE: the generators' unbound
             // arm now resolves AlgorithmParameters by their own service NI's

@@ -623,15 +623,16 @@ class JOX509Certificate
     /**
      * {@inheritDoc}
      *
-     * <p>Resolves the {@link Signature} through this factory's OWN provider
-     * instance, never by name and never through JCA search order — the same
-     * rule that governs the key.
+     * <p>The {@link Signature} comes from this factory's own provider and
+     * yields to JCA search order only when that provider cannot create it (the
+     * algorithm is not served, or the named provider is gone), never on a
+     * verify failure.
      */
     public void verify(PublicKey key)
         throws CertificateException, NoSuchAlgorithmException, InvalidKeyException,
                NoSuchProviderException, SignatureException
     {
-        doVerify(key, CertKeys.signatureFor(binding, getSigAlgName()));
+        doVerify(key, CertKeys.signatureForOrSearch(binding, getSigAlgName()));
     }
 
     /**
@@ -643,13 +644,12 @@ class JOX509Certificate
         throws CertificateException, NoSuchAlgorithmException, InvalidKeyException,
                NoSuchProviderException, SignatureException
     {
-        // A null provider resolves through the provider this certificate BELONGS
-        // TO, never through JCA search order. "The default provider" for an
-        // object this provider built is this provider: reaching for the
-        // installed list would verify a JSLFIPS certificate outside the module,
-        // and nothing behavioural could see it.
+        // A null provider resolves through the provider this certificate belongs
+        // to, yielding to JCA search order only when that provider cannot
+        // create the Signature (the algorithm is not served, or the named
+        // provider is gone), never on a verify failure.
         Signature signature = (sigProvider == null)
-                ? CertKeys.signatureFor(binding, getSigAlgName())
+                ? CertKeys.signatureForOrSearch(binding, getSigAlgName())
                 : Signature.getInstance(getSigAlgName(), sigProvider);
         doVerify(key, signature);
     }
@@ -668,7 +668,7 @@ class JOX509Certificate
         // nothing here resolves a name, and the compiler agrees it cannot be
         // thrown. Its absence from the throws clause is the JCA contract's.
         doVerify(key, (sigProvider == null)
-                ? CertKeys.signatureFor(binding, getSigAlgName())
+                ? CertKeys.signatureForOrSearch(binding, getSigAlgName())
                 : Signature.getInstance(getSigAlgName(), sigProvider));
     }
 

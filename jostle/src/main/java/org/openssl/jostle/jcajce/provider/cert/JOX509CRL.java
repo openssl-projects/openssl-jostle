@@ -454,33 +454,31 @@ class JOX509CRL
         throws CRLException, NoSuchAlgorithmException, InvalidKeyException,
                NoSuchProviderException, SignatureException
     {
-        doVerify(key, CertKeys.signatureFor(binding, getSigAlgName()));
+        doVerify(key, CertKeys.signatureForOrSearch(binding, getSigAlgName()));
     }
 
     public void verify(PublicKey key, String sigProvider)
         throws CRLException, NoSuchAlgorithmException, InvalidKeyException,
                NoSuchProviderException, SignatureException
     {
-        // A null provider resolves through the provider this CRL BELONGS TO,
-        // never through JCA search order. "The default provider" for an object
-        // this provider built is this provider: reaching for the installed
-        // list would verify a JSLFIPS CRL outside the module, and nothing
-        // behavioural could see it.
+        // A null provider resolves through the provider this CRL belongs to,
+        // yielding to JCA search order only when that provider cannot create
+        // the Signature (the algorithm is not served, or the named provider is
+        // gone), never on a verify failure.
         doVerify(key, (sigProvider == null)
-                ? CertKeys.signatureFor(binding, getSigAlgName())
+                ? CertKeys.signatureForOrSearch(binding, getSigAlgName())
                 : Signature.getInstance(getSigAlgName(), sigProvider));
     }
 
     public void verify(PublicKey key, Provider sigProvider)
         throws CRLException, NoSuchAlgorithmException, InvalidKeyException, SignatureException
     {
-        // A null provider resolves through the provider this CRL BELONGS TO,
-        // never through JCA search order. "The default provider" for an object
-        // this provider built is this provider: reaching for the installed
-        // list would verify a JSLFIPS CRL outside the module, and nothing
-        // behavioural could see it.
+        // A null provider resolves through the provider this CRL belongs to,
+        // yielding to JCA search order only when that provider cannot create
+        // the Signature (the algorithm is not served, or the named provider is
+        // gone), never on a verify failure.
         doVerify(key, (sigProvider == null)
-                ? CertKeys.signatureFor(binding, getSigAlgName())
+                ? CertKeys.signatureForOrSearch(binding, getSigAlgName())
                 : Signature.getInstance(getSigAlgName(), sigProvider));
     }
 

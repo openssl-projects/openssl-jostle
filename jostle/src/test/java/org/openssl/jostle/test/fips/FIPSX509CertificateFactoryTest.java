@@ -30,6 +30,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
+import org.openssl.jostle.test.cert.ProviderRegistrySnapshot;
+import org.openssl.jostle.test.cert.RecordingSignatureProvider;
+import org.openssl.jostle.test.cert.VerifyCascadeFixtures;
 import org.openssl.jostle.util.Arrays;
 import org.junit.jupiter.api.Assumptions;
 
@@ -43,6 +46,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Principal;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.ProviderException;
 import java.security.PublicKey;
 import java.security.Security;
@@ -58,6 +62,7 @@ import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -102,6 +107,7 @@ public class FIPSX509CertificateFactoryTest
 {
     private static final String FIPS = JostleFIPSProvider.PROVIDER_NAME;
     private static final String JSL = JostleProvider.PROVIDER_NAME;
+    private static final String SUN_RSA_SIGN = "SunRsaSign";
 
     private static final String SHA256_RSA_OID = "1.2.840.113549.1.1.11";
     private static final String SHA256_ECDSA_OID = "1.2.840.10045.4.3.2";
@@ -939,5 +945,154 @@ public class FIPSX509CertificateFactoryTest
         verifier2.update(tampered);
         Assertions.assertFalse(verifier2.verify(sig),
                 sigAlg + ": tampered TBS unexpectedly verified");
+    }
+
+    // -----------------------------------------------------------------
+    // verify with no named provider yields to search order only when the module cannot create the Signature
+    // -----------------------------------------------------------------
+
+    private static Provider fips()
+    {
+        return Security.getProvider(FIPS);
+    }
+
+    private static Provider sunRsaSign()
+    {
+        Provider sunRsaSign = Security.getProvider(SUN_RSA_SIGN);
+        Assertions.assertNotNull(sunRsaSign, "the recorder delegates to " + SUN_RSA_SIGN);
+        return sunRsaSign;
+    }
+
+    @Test
+    public void verifyFallsBackToSearchOrderForASignatureTheModuleDoesNotServe() throws Exception
+    {
+        // Preconditions: the certificate reports MD5withRSA, and JSLFIPS cannot create that Signature.
+        CertificateFactory cf = CertificateFactory.getInstance("X.509", fips());
+        X509Certificate cert = VerifyCascadeFixtures.parse(cf, VerifyCascadeFixtures.selfSigned(
+                VerifyCascadeFixtures.MD5_RSA, VerifyCascadeFixtures.rsaKeyPair(), "CN=Precondition"));
+        Assertions.assertEquals(VerifyCascadeFixtures.MD5_RSA, cert.getSigAlgName());
+        Assertions.assertThrows(NoSuchAlgorithmException.class,
+                () -> Signature.getInstance(VerifyCascadeFixtures.MD5_RSA, fips()));
+
+        Assertions.assertEquals(1, VerifyCascadeFixtures.certificateVerifications(fips(), sunRsaSign(),
+                VerifyCascadeFixtures.MD5_RSA, (c, k) -> c.verify(k)));
+    }
+
+    @Test
+    public void verifyStaysInTheModuleForASignatureItServes() throws Exception
+    {
+        Assertions.assertEquals(0, VerifyCascadeFixtures.certificateVerifications(fips(), sunRsaSign(),
+                VerifyCascadeFixtures.SHA256_RSA, (c, k) -> c.verify(k)));
+    }
+
+    /**
+     * The reported shape: a JDK component resolves CertificateFactory "X509" by search order with JSLFIPS ahead
+     * of SUN and verifies a chain whose root is self-signed with MD5withRSA.
+     */
+    @Test
+    public void aChainWithAnMd5RootVerifiesThroughTheFactorySearchOrderFinds() throws Exception
+    {
+        KeyPair root = VerifyCascadeFixtures.rsaKeyPair();
+        KeyPair leaf = VerifyCascadeFixtures.rsaKeyPair();
+        byte[] rootDer = VerifyCascadeFixtures.selfSigned(VerifyCascadeFixtures.MD5_RSA, root, "CN=Legacy Root");
+        byte[] leafDer = VerifyCascadeFixtures.certificate(VerifyCascadeFixtures.SHA256_RSA, root, "CN=Legacy Root",
+                leaf.getPublic(), "CN=Signer");
+        Provider fips = fips();
+        Provider sunRsaSign = sunRsaSign();
+
+        try (ProviderRegistrySnapshot ignored = new ProviderRegistrySnapshot())
+        {
+            RecordingSignatureProvider recorder = new RecordingSignatureProvider(sunRsaSign,
+                    VerifyCascadeFixtures.MD5_RSA, VerifyCascadeFixtures.SHA256_RSA);
+            ProviderRegistrySnapshot.insertFirst(recorder);
+            ProviderRegistrySnapshot.insertAt(fips, 2);
+
+            // The recorder serves no CertificateFactory, so search order finds JSLFIPS.
+            CertificateFactory cf = CertificateFactory.getInstance("X509");
+            Assertions.assertSame(fips, cf.getProvider());
+
+            List<Certificate> chain = new ArrayList<>(
+                    cf.generateCertificates(new ByteArrayInputStream(Arrays.concatenate(leafDer, rootDer))));
+            Assertions.assertEquals(2, chain.size());
+            X509Certificate leafCert = (X509Certificate) chain.get(0);
+            X509Certificate rootCert = (X509Certificate) chain.get(1);
+
+            leafCert.verify(rootCert.getPublicKey());
+            Assertions.assertEquals(0, recorder.verifications(), "the SHA256withRSA leaf verifies in the module");
+            rootCert.verify(rootCert.getPublicKey());
+            Assertions.assertEquals(1, recorder.verifications(), "the MD5withRSA root verifies by search order");
+            Assertions.assertThrows(SignatureException.class, () -> rootCert.verify(leafCert.getPublicKey()),
+                    "an unrelated key must not verify the root");
+        }
+    }
+
+    @Test
+    public void crlVerifyFallsBackToSearchOrderForASignatureTheModuleDoesNotServe() throws Exception
+    {
+        Assertions.assertEquals(1, VerifyCascadeFixtures.crlVerifications(fips(), sunRsaSign(),
+                VerifyCascadeFixtures.MD5_RSA, (c, k) -> c.verify(k)));
+    }
+
+    @Test
+    public void crlVerifyStaysInTheModuleForASignatureItServes() throws Exception
+    {
+        Assertions.assertEquals(0, VerifyCascadeFixtures.crlVerifications(fips(), sunRsaSign(),
+                VerifyCascadeFixtures.SHA256_RSA, (c, k) -> c.verify(k)));
+    }
+
+    @Test
+    public void theNullProviderOverloadsFallBackToSearchOrder() throws Exception
+    {
+        String alg = VerifyCascadeFixtures.MD5_RSA;
+        Provider sun = sunRsaSign();
+
+        Assertions.assertEquals(1, VerifyCascadeFixtures.certificateVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, (String) null)));
+        Assertions.assertEquals(1, VerifyCascadeFixtures.certificateVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, (Provider) null)));
+        Assertions.assertEquals(1, VerifyCascadeFixtures.crlVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, (String) null)));
+        Assertions.assertEquals(1, VerifyCascadeFixtures.crlVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, (Provider) null)));
+    }
+
+    @Test
+    public void theNamedProviderOverloadsGoWhereNamed() throws Exception
+    {
+        String alg = VerifyCascadeFixtures.MD5_RSA;
+        Provider sun = sunRsaSign();
+
+        Assertions.assertEquals(0, VerifyCascadeFixtures.certificateVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, SUN_RSA_SIGN)));
+        Assertions.assertEquals(0, VerifyCascadeFixtures.certificateVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, sun)));
+        Assertions.assertEquals(0, VerifyCascadeFixtures.crlVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, SUN_RSA_SIGN)));
+        Assertions.assertEquals(0, VerifyCascadeFixtures.crlVerifications(fips(), sun, alg,
+                (c, k) -> c.verify(k, sun)));
+    }
+
+    /**
+     * With the registry emptied there is nothing to fall back to: a Signature the module does not serve fails
+     * with the ORIGINAL exception, naming the algorithm and the provider, not the search's own message.
+     */
+    @Test
+    public void anUnservedSignatureWithNothingToFallBackToThrowsTheOriginalException() throws Exception
+    {
+        byte[] der = VerifyCascadeFixtures.selfSigned(VerifyCascadeFixtures.MD5_RSA,
+                VerifyCascadeFixtures.rsaKeyPair(), "CN=Unserved");
+        Provider fips = fips();
+        try (ProviderRegistrySnapshot ignored = new ProviderRegistrySnapshot())
+        {
+            ProviderRegistrySnapshot.empty();
+            X509Certificate c = VerifyCascadeFixtures.parse(CertificateFactory.getInstance("X.509", fips), der);
+            PublicKey key = c.getPublicKey();
+
+            NoSuchAlgorithmException e = Assertions.assertThrows(NoSuchAlgorithmException.class,
+                    () -> c.verify(key));
+            Assertions.assertSame(NoSuchAlgorithmException.class, e.getClass());
+            Assertions.assertTrue(e.getMessage().contains(VerifyCascadeFixtures.MD5_RSA), e.getMessage());
+            Assertions.assertTrue(e.getMessage().contains(fips.getName()), e.getMessage());
+        }
     }
 }

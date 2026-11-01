@@ -42,6 +42,7 @@ import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
@@ -722,5 +723,87 @@ public class X509CertificateFactoryTest
         crl.add(new DERBitString(sig.sign()));
         return new DERSequence(crl)
                 .getEncoded(ASN1Encoding.DER);
+    }
+
+    // -----------------------------------------------------------------
+    // verify with no named provider yields to search order only when JSL cannot create the Signature
+    // -----------------------------------------------------------------
+
+    private static Provider jsl()
+    {
+        return Security.getProvider(JostleProvider.PROVIDER_NAME);
+    }
+
+    @Test
+    public void verifyFallsBackToSearchOrderForASignatureJslDoesNotServe() throws Exception
+    {
+        // Preconditions: the certificate reports the OID, and JSL cannot create a Signature for it.
+        CertificateFactory cf = CertificateFactory.getInstance("X.509", jsl());
+        X509Certificate cert = VerifyCascadeFixtures.parse(cf, VerifyCascadeFixtures.selfSigned(
+                VerifyCascadeFixtures.RIPEMD160_RSA, VerifyCascadeFixtures.rsaKeyPair(), "CN=Precondition"));
+        Assertions.assertEquals(VerifyCascadeFixtures.RIPEMD160_RSA_OID, cert.getSigAlgName());
+        Assertions.assertThrows(NoSuchAlgorithmException.class,
+                () -> Signature.getInstance(VerifyCascadeFixtures.RIPEMD160_RSA_OID, jsl()));
+
+        Assertions.assertEquals(1, VerifyCascadeFixtures.certificateVerifications(jsl(), VerifyCascadeFixtures.BC,
+                VerifyCascadeFixtures.RIPEMD160_RSA, (c, k) -> c.verify(k)));
+    }
+
+    @Test
+    public void verifyStaysOnJslForASignatureItServes() throws Exception
+    {
+        Assertions.assertEquals(0, VerifyCascadeFixtures.certificateVerifications(jsl(), VerifyCascadeFixtures.BC,
+                VerifyCascadeFixtures.SHA256_RSA, (c, k) -> c.verify(k)));
+    }
+
+    @Test
+    public void crlVerifyFallsBackToSearchOrderForASignatureJslDoesNotServe() throws Exception
+    {
+        Assertions.assertEquals(1, VerifyCascadeFixtures.crlVerifications(jsl(), VerifyCascadeFixtures.BC,
+                VerifyCascadeFixtures.RIPEMD160_RSA, (c, k) -> c.verify(k)));
+    }
+
+    @Test
+    public void crlVerifyStaysOnJslForASignatureItServes() throws Exception
+    {
+        Assertions.assertEquals(0, VerifyCascadeFixtures.crlVerifications(jsl(), VerifyCascadeFixtures.BC,
+                VerifyCascadeFixtures.SHA256_RSA, (c, k) -> c.verify(k)));
+    }
+
+    @Test
+    public void theNullProviderOverloadsFallBackToSearchOrder() throws Exception
+    {
+        String alg = VerifyCascadeFixtures.RIPEMD160_RSA;
+        Provider bc = VerifyCascadeFixtures.BC;
+
+        Assertions.assertEquals(1, VerifyCascadeFixtures.certificateVerifications(jsl(), bc, alg,
+                (c, k) -> c.verify(k, (String) null)));
+        Assertions.assertEquals(1, VerifyCascadeFixtures.certificateVerifications(jsl(), bc, alg,
+                (c, k) -> c.verify(k, (Provider) null)));
+        Assertions.assertEquals(1, VerifyCascadeFixtures.crlVerifications(jsl(), bc, alg,
+                (c, k) -> c.verify(k, (String) null)));
+        Assertions.assertEquals(1, VerifyCascadeFixtures.crlVerifications(jsl(), bc, alg,
+                (c, k) -> c.verify(k, (Provider) null)));
+    }
+
+    @Test
+    public void theNamedProviderOverloadsGoWhereNamed() throws Exception
+    {
+        String alg = VerifyCascadeFixtures.RIPEMD160_RSA;
+        Provider bc = VerifyCascadeFixtures.BC;
+        try (ProviderRegistrySnapshot ignored = new ProviderRegistrySnapshot())
+        {
+            // The String overload names BC, so BC must be installed under its name.
+            ProviderRegistrySnapshot.append(bc);
+
+            Assertions.assertEquals(0, VerifyCascadeFixtures.certificateVerifications(jsl(), bc, alg,
+                    (c, k) -> c.verify(k, bc.getName())));
+            Assertions.assertEquals(0, VerifyCascadeFixtures.certificateVerifications(jsl(), bc, alg,
+                    (c, k) -> c.verify(k, bc)));
+            Assertions.assertEquals(0, VerifyCascadeFixtures.crlVerifications(jsl(), bc, alg,
+                    (c, k) -> c.verify(k, bc.getName())));
+            Assertions.assertEquals(0, VerifyCascadeFixtures.crlVerifications(jsl(), bc, alg,
+                    (c, k) -> c.verify(k, bc)));
+        }
     }
 }
