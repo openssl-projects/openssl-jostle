@@ -19,4 +19,4 @@ Each probe runs on mainline OpenSSL or on a FIPS module, with the FIPS lib ctx s
     probes/run.sh <openssl_prefix> <bin_dir> <out_dir> [<label> <module_dir> <fipsmodule.cnf>]...
 
 Output is return codes, lengths and OpenSSL reason strings only, so two installs compare with `cmp`. Results are
-recorded under `reviews/`, not here.
+kept outside the repository.

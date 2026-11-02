@@ -1,18 +1,31 @@
-# Release 0.1.0
+# Release 0.2.0
 
-This is the initial release of OpenSSL Jostle, a Java JCA/JCE provider that delegates its
-cryptography to OpenSSL through a native interface.
+This release of OpenSSL Jostle, a Java JCA/JCE provider that delegates its cryptography to
+OpenSSL through a native interface, moves the build to OpenSSL 3.5.9.
 
 - Two providers: `JSL`, backed by the OpenSSL default provider, and `JSLFIPS`, backed by the
-  OpenSSL FIPS provider with the 3.1.2 and 3.5.8 modules supported.
-- Built against OpenSSL 3.5.8.
+  OpenSSL FIPS provider with the 3.1.2 and 3.5.9 modules supported. The 3.5.8 module, supported
+  in 0.1.0, is replaced by 3.5.9.
+- Built against OpenSSL 3.5.9.
 - Runs on Java 8 to Java 25: the JNI bridge on every JDK, the FFM bridge on Java 25. Building
   needs Java 25.
-- Published as `org.openssl.jostle:openssl-jostle:0.1.0` with a classifier per architecture,
+- Published as `org.openssl.jostle:openssl-jostle:0.2.0` with a classifier per architecture,
   `x86_64` or `aarch64`. Each bundle is a self-contained multi-release jar holding that
   architecture's native libraries: Linux (glibc 2.28 or later) and macOS 14 or later in both,
   and Windows in the `x86_64` bundle.
 - Licensed under the Apache License 2.0.
+
+What changed since 0.1.0:
+
+- Native inputs are further length-checked on both bridges, and inputs outside the checked
+  bounds are refused with the standard JCA exception types; secret copies are cleared after use;
+  native handles carry their type.
+- Certificate path validation enforces policy constraints, returns the PKIX policy tree and
+  reports refusals with the JDK's reasons.
+- Certificate and CRL verification falls back to the JCA provider search order when the bound
+  provider does not supply the signature algorithm (issue 63).
+- The multi-release jar holds the base classes at its root only, not under `META-INF/versions/9`.
+- The repository carries the DHX and RSA-KEM OpenSSL probes under `probes/`.
 
 Where to look next:
 
@@ -43,7 +56,7 @@ all ten. The same files are published to Maven Central.
 The certificate is on keys.openpgp.org. With GnuPG:
 
     gpg --keyserver hkps://keys.openpgp.org --recv-keys D2DECB48746D30B1FAA8E019D750061273B8C1DB
-    gpg --verify openssl-jostle-0.1.0-x86_64.jar.asc openssl-jostle-0.1.0-x86_64.jar
+    gpg --verify openssl-jostle-0.2.0-x86_64.jar.asc openssl-jostle-0.2.0-x86_64.jar
 
 A good result reports `Good signature from "OpenSSL Jostle <jostle@openssl-jostle.org>"` and a
 `Primary key fingerprint` matching the one above. gpg also warns that the key is not certified
@@ -54,7 +67,7 @@ With Sequoia:
 
     sq network keyserver search --output jostle.pgp D2DECB48746D30B1FAA8E019D750061273B8C1DB
     sq verify --signer-file jostle.pgp \
-        --signature-file openssl-jostle-0.1.0-x86_64.jar.asc openssl-jostle-0.1.0-x86_64.jar
+        --signature-file openssl-jostle-0.2.0-x86_64.jar.asc openssl-jostle-0.2.0-x86_64.jar
 
 To check the whole download at once, run this in the directory holding the files:
 
@@ -70,3 +83,19 @@ JDK to load Jostle as a JCE provider. OpenJDK does not require provider signing.
 a second key for it. On a stock OpenJDK, `jarsigner -verify` prints `jar verified.` together with
 a PKIX path-building warning. That warning is expected, because Oracle's JCE root is not in
 OpenJDK's `cacerts`.
+
+## Release 0.1.0
+
+This is the initial release of OpenSSL Jostle, a Java JCA/JCE provider that delegates its
+cryptography to OpenSSL through a native interface.
+
+- Two providers: `JSL`, backed by the OpenSSL default provider, and `JSLFIPS`, backed by the
+  OpenSSL FIPS provider with the 3.1.2 and 3.5.8 modules supported.
+- Built against OpenSSL 3.5.8.
+- Runs on Java 8 to Java 25: the JNI bridge on every JDK, the FFM bridge on Java 25. Building
+  needs Java 25.
+- Published as `org.openssl.jostle:openssl-jostle:0.1.0` with a classifier per architecture,
+  `x86_64` or `aarch64`. Each bundle is a self-contained multi-release jar holding that
+  architecture's native libraries: Linux (glibc 2.28 or later) and macOS 14 or later in both,
+  and Windows in the `x86_64` bundle.
+- Licensed under the Apache License 2.0.
