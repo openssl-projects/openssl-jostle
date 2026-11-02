@@ -13,6 +13,7 @@ package org.openssl.jostle.test.provider;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -166,7 +167,7 @@ public class ProviderPinningLoudFailureTest
                 "ML-KEM-768").generateKeyPair();
 
         Probe unbound = new Probe();
-        unbound.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+        unbound.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), CryptoServicesRegistrar.getSecureRandom(256));
 
         Exception e = Assertions.assertThrows(Exception.class,
                 () -> unbound.wrap(new SecretKeySpec(new byte[32], "AES")),
@@ -204,7 +205,7 @@ public class ProviderPinningLoudFailureTest
 
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", digestless).generateKeyPair();
         Cipher c = Cipher.getInstance("ML-KEM", digestless);
-        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), CryptoServicesRegistrar.getSecureRandom(256));
 
         Exception e = Assertions.assertThrows(Exception.class,
                 () -> c.wrap(new SecretKeySpec(new byte[32], "AES")));
@@ -231,7 +232,7 @@ public class ProviderPinningLoudFailureTest
 
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", kwless).generateKeyPair();
         Cipher c = Cipher.getInstance("ML-KEM", kwless);
-        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), CryptoServicesRegistrar.getSecureRandom(256));
 
         Exception e = Assertions.assertThrows(Exception.class,
                 () -> c.wrap(new SecretKeySpec(new byte[32], "AES")));
@@ -253,7 +254,7 @@ public class ProviderPinningLoudFailureTest
         Provider jsl = Security.getProvider(JostleProvider.PROVIDER_NAME);
         KeyPair kp = KeyPairGenerator.getInstance("ML-KEM-768", jsl).generateKeyPair();
         Cipher c = Cipher.getInstance("ML-KEM", jsl);
-        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), new SecureRandom());
+        c.init(Cipher.WRAP_MODE, kp.getPublic(), ktsSpec(), CryptoServicesRegistrar.getSecureRandom(256));
 
         // wrap() THROWS on failure, so asserting non-null on its result asserts
         // nothing: a wrapping that produced the wrong bytes would pass. The
@@ -264,7 +265,7 @@ public class ProviderPinningLoudFailureTest
         byte[] wrapped = c.wrap(new SecretKeySpec(cek, "AES"));
 
         Cipher unwrapper = Cipher.getInstance("ML-KEM", jsl);
-        unwrapper.init(Cipher.UNWRAP_MODE, kp.getPrivate(), ktsSpec(), new SecureRandom());
+        unwrapper.init(Cipher.UNWRAP_MODE, kp.getPrivate(), ktsSpec(), CryptoServicesRegistrar.getSecureRandom(256));
         Key recovered = unwrapper.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
         Assertions.assertArrayEquals(cek, recovered.getEncoded(),
                 "the wrapped CEK did not come back — wrap produced the wrong bytes");

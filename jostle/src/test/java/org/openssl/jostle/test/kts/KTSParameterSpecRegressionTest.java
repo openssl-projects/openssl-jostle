@@ -13,6 +13,7 @@ package org.openssl.jostle.test.kts;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.Arrays;
@@ -42,7 +43,8 @@ import java.security.PublicKey;
 public class KTSParameterSpecRegressionTest
 {
     private static final String JSL = JostleProvider.PROVIDER_NAME;
-    private static final SecureRandom RANDOM = new SecureRandom();
+    // A 256-bit source: the platform default can be a 128-bit DRBG, which ML-KEM-768 and up refuse.
+    private static final SecureRandom RANDOM = CryptoServicesRegistrar.getSecureRandom(256);
 
     private static KeyPair rsaPair;
     private static KeyPair mlKemPair;

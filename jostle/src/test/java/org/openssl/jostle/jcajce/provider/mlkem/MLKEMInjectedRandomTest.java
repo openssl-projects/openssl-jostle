@@ -14,6 +14,7 @@ package org.openssl.jostle.jcajce.provider.mlkem;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.provider.kts.InjectedRandom;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
@@ -68,7 +69,7 @@ public class MLKEMInjectedRandomTest
             SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) plain.generateKey();
 
             KeyGenerator explicit = KeyGenerator.getInstance("ML-KEM", JSL);
-            explicit.init(generate(kp), new SecureRandom());
+            explicit.init(generate(kp), CryptoServicesRegistrar.getSecureRandom(256));
             Assertions.assertFalse(InjectedRandom.lastInitSawInjectedDefault(), name + ": init(spec, random)");
 
             // Control: the default-initialised encapsulation opens.

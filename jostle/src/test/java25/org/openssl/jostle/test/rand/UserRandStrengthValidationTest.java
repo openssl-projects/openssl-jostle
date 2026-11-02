@@ -19,12 +19,16 @@ import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
+import org.openssl.jostle.jcajce.spec.MLXKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.SLHDSAParameterSpec;
 
+import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.DrbgParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
@@ -32,6 +36,8 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Cross-SPI coverage for the strength-validation gate at
@@ -309,6 +315,77 @@ public class UserRandStrengthValidationTest
      * unknown-strength source; SHA1PRNG carries no DrbgParameters and reports 0
      * on every platform.
      */
+    /**
+     * The KTS Cipher's encapsulating init refuses a 128-bit DRBG for ML-KEM-768 with the gate's message, on every
+     * platform rather than only where the JDK default happens to be one; a 256-bit DRBG wraps and the key unwraps.
+     */
+    @Test
+    public void mlkem768_userSuppliedWeakDrbg_ktsWrapInit_rejectsAtInit() throws Exception
+    {
+        SecureRandom weakDrbg = newDrbg(128);
+        assumeDrbgAvailable(weakDrbg);
+        SecureRandom strongDrbg = newDrbg(256);
+        KeyPair kp = generateKeyPair(MLKEMParameterSpec.ml_kem_768);
+        KTSParameterSpec spec = new KTSParameterSpec.Builder("AES-KWP", 256).build();
+
+        Cipher refused = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+        InvalidAlgorithmParameterException ex = Assertions.assertThrows(InvalidAlgorithmParameterException.class,
+                () -> refused.init(Cipher.WRAP_MODE, kp.getPublic(), spec, weakDrbg));
+        Assertions.assertEquals("supplied SecureRandom reports 128-bit strength but ML-KEM-768 requires 192; "
+                + "pass a SecureRandom of at least 192 bits", ex.getMessage());
+
+        byte[] raw = new byte[32];
+        strongDrbg.nextBytes(raw);
+        Cipher wrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+        wrap.init(Cipher.WRAP_MODE, kp.getPublic(), spec, strongDrbg);
+        byte[] wrapped = wrap.wrap(new SecretKeySpec(raw, "AES"));
+        Cipher unwrap = Cipher.getInstance("ML-KEM", JostleProvider.PROVIDER_NAME);
+        unwrap.init(Cipher.UNWRAP_MODE, kp.getPrivate(), spec);
+        Assertions.assertArrayEquals(raw, unwrap.unwrap(wrapped, "AES", Cipher.SECRET_KEY).getEncoded());
+    }
+
+    /**
+     * Every hybrid KEM's encapsulating init refuses a 128-bit DRBG with the gate's message; a 256-bit DRBG
+     * encapsulates and the private key decapsulates the same secret.
+     */
+    @Test
+    public void mlxkem_userSuppliedWeakDrbg_encapsulateInit_rejectsAtInit() throws Exception
+    {
+        SecureRandom weakDrbg = newDrbg(128);
+        assumeDrbgAvailable(weakDrbg);
+        SecureRandom strongDrbg = newDrbg(256);
+        Map<String, Integer> required = new LinkedHashMap<String, Integer>();
+        required.put("X25519MLKEM768", 192);
+        required.put("SecP256r1MLKEM768", 192);
+        required.put("X448MLKEM1024", 256);
+        required.put("SecP384r1MLKEM1024", 256);
+        Assertions.assertEquals(required.size(), MLXKEMParameterSpec.all().size(), "the hybrid set changed");
+
+        for (Map.Entry<String, Integer> e : required.entrySet())
+        {
+            String name = e.getKey();
+            MLXKEMParameterSpec params = MLXKEMParameterSpec.fromName(name);
+            KeyPair kp = KeyPairGenerator.getInstance(name, JostleProvider.PROVIDER_NAME).generateKeyPair();
+            KEMGenerateSpec gen = KEMGenerateSpec.builder().withPublicKey(kp.getPublic()).withAlgorithmName("AES")
+                    .withKeySizeInBits(params.getSharedSecretBytes() * 8).build();
+
+            KeyGenerator refused = KeyGenerator.getInstance(name, JostleProvider.PROVIDER_NAME);
+            InvalidAlgorithmParameterException ex = Assertions.assertThrows(
+                    InvalidAlgorithmParameterException.class, () -> refused.init(gen, weakDrbg), name);
+            Assertions.assertEquals("supplied SecureRandom reports 128-bit strength but " + name + " requires "
+                    + e.getValue() + "; pass a SecureRandom of at least " + e.getValue() + " bits", ex.getMessage());
+
+            KeyGenerator sender = KeyGenerator.getInstance(name, JostleProvider.PROVIDER_NAME);
+            sender.init(gen, strongDrbg);
+            SecretKeyWithEncapsulation sent = (SecretKeyWithEncapsulation) sender.generateKey();
+            KeyGenerator receiver = KeyGenerator.getInstance(name, JostleProvider.PROVIDER_NAME);
+            receiver.init(KEMExtractSpec.builder().withPrivate(kp.getPrivate()).withAlgorithmName("AES")
+                    .withKeySizeInBits(params.getSharedSecretBytes() * 8)
+                    .withEncapsulatedKey(sent.getEncapsulation()).build());
+            Assertions.assertArrayEquals(sent.getEncoded(), receiver.generateKey().getEncoded(), name);
+        }
+    }
+
     private static SecureRandom unknownStrengthRandom() throws NoSuchAlgorithmException
     {
         return SecureRandom.getInstance("SHA1PRNG");

@@ -13,6 +13,7 @@ package org.openssl.jostle.test.provider;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
+import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -96,7 +97,8 @@ import java.util.Arrays;
  */
 public class KtsProviderInstancePinningTest
 {
-    private static final SecureRandom RANDOM = new SecureRandom();
+    // A 256-bit source: the platform default can be a 128-bit DRBG, which ML-KEM-768 and up refuse.
+    private static final SecureRandom RANDOM = CryptoServicesRegistrar.getSecureRandom(256);
 
     /**
      * id-aes256-wrap. The KTS ciphers pick the key-wrap OID from the KEK
