@@ -20,6 +20,9 @@ What changed since 0.1.0:
 - Native inputs are further length-checked on both bridges, and inputs outside the checked
   bounds are refused with the standard JCA exception types; secret copies are cleared after use;
   native handles carry their type.
+- A certificate or CRL above the configured size ceiling is refused with a CertificateException.
+- DH public values are checked against their group at import, including the subgroup of a
+  named group.
 - Certificate path validation enforces policy constraints, returns the PKIX policy tree and
   reports refusals with the JDK's reasons.
 - Certificate and CRL verification falls back to the JCA provider search order when the bound
