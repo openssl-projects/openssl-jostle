@@ -29,6 +29,7 @@ import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMPrivateKeySpec;
 import org.openssl.jostle.test.mlkem.MLKEMTest;
+import org.openssl.jostle.test.util.BarePrivateKeyForms;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
@@ -462,5 +463,20 @@ public class FIPSMLKEMAgreementTest
     public void mlKemIsServedPerModuleVersion() throws Exception
     {
         FIPSMLKEMLimitTest.assertServedPerModuleVersion();
+    }
+
+    /**
+     * A bare PKCS#8 private key, the seed or the expanded key with no CHOICE tag, imports on JSLFIPS and re-encodes in
+     * the structured form of what it carried, including one whose first byte equals a tag.
+     */
+    @Test
+    public void aBarePkcs8PrivateKeyImportsAndEncodesStructured() throws Exception
+    {
+        assumeMlKem();
+        SecureRandom sr = seededRandom("aBarePkcs8PrivateKeyImportsAndEncodesStructured");
+        for (String paramSet : PARAM_SETS)
+        {
+            BarePrivateKeyForms.assertMLKEM(FIPS, paramSet, sr);
+        }
     }
 }

@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLDSAPrivateKeySpec;
+import org.openssl.jostle.test.util.BarePrivateKeyForms;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
@@ -800,6 +801,21 @@ public class FIPSMLDSAAgreementTest
             Assertions.assertFalse(verify(FIPS, alg, kp.getPublic(), msg, flipped, ctx), set);
             Assertions.assertFalse(verify(FIPS, alg, kp.getPublic(), msg, Arrays.copyOfRange(fipsMu, 0, 63), ctx), set);
             Assertions.assertFalse(verify(FIPS, alg, kp.getPublic(), msg, fipsMu, null), set + ": context ignored");
+        }
+    }
+
+    /**
+     * A bare PKCS#8 private key, the seed or the expanded key with no CHOICE tag, imports on JSLFIPS and re-encodes in
+     * the structured form of what it carried, including one whose first byte equals a tag.
+     */
+    @Test
+    public void aBarePkcs8PrivateKeyImportsAndEncodesStructured() throws Exception
+    {
+        assumeMlDsa();
+        SecureRandom sr = seededRandom("aBarePkcs8PrivateKeyImportsAndEncodesStructured");
+        for (String set : PARAM_SETS)
+        {
+            BarePrivateKeyForms.assertMLDSA(FIPS, set, sr);
         }
     }
 }

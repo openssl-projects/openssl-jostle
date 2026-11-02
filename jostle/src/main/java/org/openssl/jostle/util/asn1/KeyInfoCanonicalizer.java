@@ -118,15 +118,8 @@ public final class KeyInfoCanonicalizer
         try
         {
             int[] pos = {0};
-            readSequenceHeader(pki, pos);                   // PrivateKeyInfo
-            skipTlv(pki, pos);                              // version INTEGER
-            skipTlv(pki, pos);                              // privateKeyAlgorithm
-            if (pos[0] >= pki.length || (pki[pos[0]++] & 0xFF) != 0x04)
-            {
-                return -1;
-            }
-            int len = readLength(pki, pos);
-            if (len == 0 || pos[0] >= pki.length)
+            int len = privateKeyContent(pki, pos);
+            if (len <= 0 || pos[0] >= pki.length)
             {
                 return -1;
             }
@@ -136,6 +129,41 @@ public final class KeyInfoCanonicalizer
         {
             return -1;
         }
+    }
+
+    /**
+     * The content length of the privateKey OCTET STRING of a {@code PrivateKeyInfo}, or -1 when the structure
+     * cannot be read.
+     */
+    public static int privateKeyContentLength(byte[] pki)
+    {
+        try
+        {
+            int[] pos = {0};
+            int len = privateKeyContent(pki, pos);
+            if (len < 0 || len > pki.length - pos[0])
+            {
+                return -1;
+            }
+            return len;
+        }
+        catch (RuntimeException e)
+        {
+            return -1;
+        }
+    }
+
+    /** Moves pos to the privateKey content and returns its length, or -1 when the privateKey is not an OCTET STRING. */
+    private static int privateKeyContent(byte[] pki, int[] pos)
+    {
+        readSequenceHeader(pki, pos);                       // PrivateKeyInfo
+        skipTlv(pki, pos);                                  // version INTEGER
+        skipTlv(pki, pos);                                  // privateKeyAlgorithm
+        if (pos[0] >= pki.length || (pki[pos[0]++] & 0xFF) != 0x04)
+        {
+            return -1;
+        }
+        return readLength(pki, pos);
     }
 
     /**

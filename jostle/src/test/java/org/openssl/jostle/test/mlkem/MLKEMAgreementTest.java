@@ -28,6 +28,7 @@ import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLKEMParameterSpec;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
+import org.openssl.jostle.test.util.BarePrivateKeyForms;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
@@ -956,6 +957,51 @@ public class MLKEMAgreementTest
                             .generatePrivate(new PKCS8EncodedKeySpec(seedOnly));
                     Assertions.assertArrayEquals(seedOnly, decoded.getEncoded(), paramSet + " through " + provider);
                 }
+            }
+        }
+    }
+
+    /**
+     * A bare PKCS#8 private key, the seed or the expanded key with no CHOICE tag, imports and re-encodes in the
+     * structured form of what it carried, including one whose first byte equals a tag.
+     */
+    @Test
+    public void aBarePkcs8PrivateKeyImportsAndEncodesStructured() throws Exception
+    {
+        SecureRandom sr = seededRandom("aBarePkcs8PrivateKeyImportsAndEncodesStructured");
+        for (String paramSet : PARAM_SETS)
+        {
+            BarePrivateKeyForms.assertMLKEM(JSL, paramSet, sr);
+        }
+    }
+
+    /**
+     * BouncyCastle reads both bare forms too, and re-encodes them bare where JSL writes the structured form: a
+     * recorded divergence. Its reading is the same key: it decapsulates what JSL encapsulated to the generated key.
+     */
+    @Test
+    public void bouncyCastleKeepsABarePkcs8PrivateKeyBare() throws Exception
+    {
+        for (String paramSet : PARAM_SETS)
+        {
+            KeyPair ourPair = keyPair(JSL, paramSet);
+            MLKEMPrivateKey priv = (MLKEMPrivateKey) ourPair.getPrivate();
+            for (byte[] content : new byte[][]{priv.getSeed(), priv.getPrivateData()})
+            {
+                byte[] bare = BarePrivateKeyForms.bare(priv.getEncoded(), content);
+                PrivateKey bcKey = KeyFactory.getInstance("ML-KEM", BC).generatePrivate(new PKCS8EncodedKeySpec(bare));
+                Assertions.assertArrayEquals(bare, bcKey.getEncoded(),
+                        paramSet + ": BouncyCastle no longer keeps it bare");
+                byte[] ours = KeyFactory.getInstance("ML-KEM", JSL).generatePrivate(new PKCS8EncodedKeySpec(bare))
+                        .getEncoded();
+                Assertions.assertFalse(Arrays.areEqual(bare, ours), paramSet + ": JSL kept the bare form");
+
+                SecretKeyWithEncapsulation sent = encapsulate(ourPair.getPublic());
+                KeyGenerator bcGen = KeyGenerator.getInstance("ML-KEM", BC);
+                bcGen.init(new KEMExtractSpec.Builder(bcKey, sent.getEncapsulation(), "AES", 256)
+                        .withKdfAlgorithm(null).build());
+                Assertions.assertArrayEquals(sent.getEncoded(), bcGen.generateKey().getEncoded(),
+                        paramSet + ": a different key");
             }
         }
     }

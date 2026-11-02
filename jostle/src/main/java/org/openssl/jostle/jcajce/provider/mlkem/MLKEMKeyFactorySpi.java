@@ -14,6 +14,7 @@ import org.openssl.jostle.CryptoServicesRegistrar;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPrivateKey;
 import org.openssl.jostle.jcajce.interfaces.MLKEMPublicKey;
 import org.openssl.jostle.jcajce.interfaces.OSSLKey;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.spec.*;
 import org.openssl.jostle.rand.DefaultRandSource;
@@ -218,13 +219,7 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
                 }
 
                 // The encoding follows the input: a seed-only key re-encodes seed-only.
-                int form = KeyInfoCanonicalizer.privateKeyFirstByte(encoded);
-                if (form != KeyInfoCanonicalizer.FORM_SEED && form != KeyInfoCanonicalizer.FORM_EXPANDED
-                        && form != KeyInfoCanonicalizer.FORM_BOTH)
-                {
-                    throw new InvalidKeySpecException("unrecognised ML-KEM private key form");
-                }
-                return new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, pkeySpec, form == KeyInfoCanonicalizer.FORM_SEED);
+                return new JOMLKEMPrivateKey(mlkemServiceNI, asn1NI, pkeySpec, carriesSeedOnly(pkeySpec, encoded));
             }
             catch (RuntimeException e)
             {
@@ -311,6 +306,23 @@ public class MLKEMKeyFactorySpi extends KeyFactorySpi
         }
 
         throw new InvalidKeySpecException("Invalid KeySpec: " + keySpec);
+    }
+
+    /**
+     * Whether a decoded PrivateKeyInfo carried the seed alone, bare or under its [0] tag: the privateKey content is
+     * the key's seed length, or that length plus the two tag bytes. The seed length is the key's own.
+     */
+    private boolean carriesSeedOnly(PKEYKeySpec pkeySpec, byte[] encoded)
+    {
+        int seedLen = mlkemServiceNI.ni_getSeed(pkeySpec.getReference(), null);
+        if (seedLen == ErrorCode.JO_SEED_UNAVAILABLE.getCode())
+        {
+            return false;
+        }
+        mlkemServiceNI.handleErrors(seedLen);
+        int len = KeyInfoCanonicalizer.privateKeyContentLength(encoded);
+        return seedLen > 0 && (len == seedLen || (len == seedLen + 2
+                && KeyInfoCanonicalizer.privateKeyFirstByte(encoded) == KeyInfoCanonicalizer.FORM_SEED));
     }
 
     @Override

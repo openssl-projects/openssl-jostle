@@ -25,6 +25,7 @@ import org.openssl.jostle.jcajce.spec.ContextParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLDSAParameterSpec;
 import org.openssl.jostle.jcajce.spec.MLDSAPrivateKeySpec;
 import org.openssl.jostle.jcajce.spec.MLDSAPublicKeySpec;
+import org.openssl.jostle.test.util.BarePrivateKeyForms;
 import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
@@ -1076,6 +1077,49 @@ public class MLDSAAgreementTest
                 Assertions.assertArrayEquals(enc, viaJsl, set + ": JSL changed the form");
                 byte[] viaBc = bcKeyFactory(set).generatePrivate(new PKCS8EncodedKeySpec(viaJsl)).getEncoded();
                 Assertions.assertArrayEquals(enc, viaBc, set + ": BouncyCastle changed the form");
+            }
+        }
+    }
+
+    /**
+     * A bare PKCS#8 private key, the seed or the expanded key with no CHOICE tag, imports and re-encodes in the
+     * structured form of what it carried, including one whose first byte equals a tag.
+     */
+    @Test
+    public void aBarePkcs8PrivateKeyImportsAndEncodesStructured() throws Exception
+    {
+        SecureRandom sr = seededRandom("aBarePkcs8PrivateKeyImportsAndEncodesStructured");
+        for (String set : PARAM_SETS)
+        {
+            BarePrivateKeyForms.assertMLDSA(JSL, set, sr);
+        }
+    }
+
+    /**
+     * BouncyCastle reads both bare forms too, and re-encodes them bare where JSL writes the structured form: a
+     * recorded divergence. Its reading is the same key: it signs, and the generated public key verifies.
+     */
+    @Test
+    public void bouncyCastleKeepsABarePkcs8PrivateKeyBare() throws Exception
+    {
+        SecureRandom sr = seededRandom("bouncyCastleKeepsABarePkcs8PrivateKeyBare");
+        for (String set : PARAM_SETS)
+        {
+            KeyPair kp = keyPair(set);
+            MLDSAPrivateKey priv = (MLDSAPrivateKey) kp.getPrivate();
+            for (byte[] content : new byte[][]{priv.getSeed(), priv.getPrivateData()})
+            {
+                byte[] bare = BarePrivateKeyForms.bare(priv.getEncoded(), content);
+                PrivateKey bcKey = bcKeyFactory(set).generatePrivate(new PKCS8EncodedKeySpec(bare));
+                Assertions.assertArrayEquals(bare, bcKey.getEncoded(), set + ": BouncyCastle no longer keeps it bare");
+                byte[] ours = KeyFactory.getInstance(set, JSL).generatePrivate(new PKCS8EncodedKeySpec(bare))
+                        .getEncoded();
+                Assertions.assertFalse(Arrays.areEqual(bare, ours), set + ": JSL kept the bare form");
+
+                byte[] msg = new byte[1 + sr.nextInt(256)];
+                sr.nextBytes(msg);
+                byte[] sig = sign(BC, set, bcKey, msg, null);
+                Assertions.assertTrue(verify(JSL, set, kp.getPublic(), msg, sig, null), set + ": a different key");
             }
         }
     }

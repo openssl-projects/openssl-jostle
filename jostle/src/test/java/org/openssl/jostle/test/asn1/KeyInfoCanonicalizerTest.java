@@ -297,6 +297,28 @@ public class KeyInfoCanonicalizerTest
         return len;
     }
 
+    /**
+     * The privateKey content length reads the short and long length forms exactly, and is -1 where the privateKey is
+     * not an OCTET STRING, where its declared length runs past the input, and on input that is not a PrivateKeyInfo.
+     */
+    @Test
+    public void privateKeyContentLength_readsTheOctetStringLength()
+    {
+        byte[] head = concat(new byte[]{0x02, 0x01, 0x00}, derSequence(OID));
+        for (int len : new int[]{0, 1, 32, 0x7F, 0x80, 300, 2560})
+        {
+            byte[] pki = derSequence(concat(head, concat(concat(new byte[]{0x04}, derLength(len)), new byte[len])));
+            Assertions.assertEquals(len, KeyInfoCanonicalizer.privateKeyContentLength(pki), "length " + len);
+        }
+
+        byte[] bitString = derSequence(concat(head, BIT_STRING));
+        Assertions.assertEquals(-1, KeyInfoCanonicalizer.privateKeyContentLength(bitString), "not an OCTET STRING");
+        byte[] overrun = concat(derSequence(concat(head, new byte[]{0x04, 0x21})), new byte[32]);
+        Assertions.assertEquals(-1, KeyInfoCanonicalizer.privateKeyContentLength(overrun), "length past the input");
+        Assertions.assertEquals(-1, KeyInfoCanonicalizer.privateKeyContentLength(new byte[]{0x04, 0x00}),
+                "no SEQUENCE");
+    }
+
     private static byte[] derSequence(byte[] content)
     {
         return concat(concat(new byte[]{0x30}, derLength(content.length)), content);
