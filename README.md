@@ -45,7 +45,7 @@ consumer must name the classifier for the architecture it runs on, `x86_64` or
 
 ```groovy
 dependencies {
-    implementation 'org.openssl.jostle:openssl-jostle:0.1.0:aarch64'
+    implementation 'org.openssl.jostle:openssl-jostle:0.2.0:aarch64'
 }
 ```
 
@@ -53,7 +53,7 @@ dependencies {
 <dependency>
   <groupId>org.openssl.jostle</groupId>
   <artifactId>openssl-jostle</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <classifier>aarch64</classifier>
 </dependency>
 ```
