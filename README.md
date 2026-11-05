@@ -918,9 +918,9 @@ default is true. Use it when the OpenSSL libraries are already present on the ho
 picked up from there rather than unpacked from the jar, supplying them via
 "org.openssl.jostle.loader.load_name_NN" or "org.openssl.jostle.loader.load_lib_NN".
 
-Note this only suppresses extraction when "org.openssl.jostle.loader.interface" is left at its
-default of "auto". Setting the interface property to any other value ("jni", "ffm" or "none")
-forces extraction to proceed regardless.
+This property only controls OpenSSL: the interface library is still extracted according to
+"org.openssl.jostle.loader.interface". To supply the interface library as well, set that property
+to "none".
 
 #### "org.openssl.jostle.ossl_prov"
 

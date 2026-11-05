@@ -364,7 +364,8 @@ public class Loader
         libRootUsed = libRootInJar;
         parsedExtractions = extractions;
 
-        if (!extractions.isEmpty() && (extractOpenSSL || !"auto".equals(interfaceResolutionStrategy)))
+        // extract_openssl controls only OpenSSL and the interface strategy only the interface library.
+        if (!extractions.isEmpty() && (extractOpenSSL || !"none".equals(interfaceResolutionStrategy)))
         {
             final File installRootDir = resolveInstallRootDir();
             installRootDirUsed = installRootDir;
@@ -379,12 +380,12 @@ public class Loader
 
                 //
                 // Iterate the list of extractions, extracting and loading any library tagged OSSL in the deps
-                // file in order.
+                // file in order, unless extract_openssl is false and the caller supplies OpenSSL instead.
                 //
 
                 for (Extractions extraction : extractions)
                 {
-                    if (extraction.type == Extractions.Type.OSSL)
+                    if (extractOpenSSL && extraction.type == Extractions.Type.OSSL)
                     {
                         extractAndLoad(installRootDir, libRootInJar, extraction);
                     }

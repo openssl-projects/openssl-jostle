@@ -221,37 +221,84 @@ public class LoaderPropertyIntegrationTest
     //
 
     /**
-     * extract_openssl=false suppresses extraction entirely - including the interface library,
-     * since the flag gates the whole extraction block rather than just the OSSL entries.
+     * extract_openssl=false only keeps the bundled OpenSSL in the jar: under the default "auto"
+     * strategy the detected interface library is still extracted, and the OpenSSL the caller
+     * names in load_lib is used.
      */
     @Test
-    public void extractOpenssl_false_underAutoStrategy_extractsNothing() throws Exception
+    public void extractOpenssl_false_underAutoStrategy_extractsOnlyTheInterfaceLibrary() throws Exception
     {
-        Probe probe = runProbe(props(P_EXTRACT_OPENSSL, "false"));
+        File installDir = createInstallDir("autossl");
+        try
+        {
+            File library = extractOnceAndFind(installDir, OPENSSL_LIB);
+
+            //
+            // Same install dir as the seed run, so the interface library sits next to the
+            // supplied OpenSSL and resolves it on every platform.
+            //
+            Probe probe = runProbe(props(
+                    P_INSTALL_DIR, installDir.getAbsolutePath(),
+                    P_EXTRACT_OPENSSL, "false",
+                    String.format(P_LOAD_LIB, 0), library.getAbsolutePath()));
+
+            probe.assertLoadSucceeded();
+            Assertions.assertNotEquals("none", probe.get("interfaceType"));
+            assertOnlyTheSuppliedOpenSsl(probe, library);
+            Assertions.assertTrue(probe.anyLibContains(ANY_INTERFACE_LIB),
+                    "the detected interface library must still be extracted: " + probe.libs());
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
+    }
+
+    /**
+     * The same with an explicit strategy: the named interface library is extracted and only the
+     * OpenSSL the caller names in load_lib is loaded.
+     */
+    @Test
+    public void extractOpenssl_false_withExplicitStrategy_extractsOnlyTheInterfaceLibrary() throws Exception
+    {
+        File installDir = createInstallDir("suppliedossl");
+        try
+        {
+            File library = extractOnceAndFind(installDir, OPENSSL_LIB);
+
+            Probe probe = runProbe(props(
+                    P_INSTALL_DIR, installDir.getAbsolutePath(),
+                    P_EXTRACT_OPENSSL, "false",
+                    P_INTERFACE, "jni",
+                    String.format(P_LOAD_LIB, 0), library.getAbsolutePath()));
+
+            probe.assertLoadSucceeded();
+            Assertions.assertEquals("JNI", probe.get("interfaceType"));
+            assertOnlyTheSuppliedOpenSsl(probe, library);
+            Assertions.assertTrue(probe.anyLibContains(JNI_LIB),
+                    "the JNI interface library must still be extracted: " + probe.libs());
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
+    }
+
+    /**
+     * With extract_openssl=false and the "none" strategy nothing is extracted; the caller
+     * supplies both OpenSSL and the interface library.
+     */
+    @Test
+    public void extractOpenssl_false_withNoneStrategy_extractsNothing() throws Exception
+    {
+        Probe probe = runProbe(props(
+                P_EXTRACT_OPENSSL, "false",
+                P_INTERFACE, "none"));
 
         probe.assertLoadSucceeded();
         Assertions.assertEquals("0", probe.get("libCount"),
                 "nothing may be extracted: " + probe.libs());
         Assertions.assertEquals("none", probe.get("interfaceType"));
-    }
-
-    /**
-     * The caveat documented in README.md: the suppression only applies while the interface
-     * strategy is "auto". Naming any explicit strategy re-enables the extraction block, and
-     * OpenSSL comes out with it despite extract_openssl=false.
-     */
-    @Test
-    public void extractOpenssl_false_withExplicitStrategy_stillExtractsOpenSsl() throws Exception
-    {
-        Probe probe = runProbe(props(
-                P_EXTRACT_OPENSSL, "false",
-                P_INTERFACE, "jni"));
-
-        probe.assertLoadSucceeded();
-        Assertions.assertTrue(probe.anyLibContains(OPENSSL_LIB),
-                "an explicit strategy re-enables extraction: " + probe.libs());
-        Assertions.assertTrue(probe.anyLibContains(JNI_LIB),
-                "an explicit strategy re-enables extraction: " + probe.libs());
     }
 
     /**
@@ -261,7 +308,9 @@ public class LoaderPropertyIntegrationTest
     @Test
     public void extractOpenssl_nonBooleanValue_readsAsFalse() throws Exception
     {
-        Probe probe = runProbe(props(P_EXTRACT_OPENSSL, "yes"));
+        Probe probe = runProbe(props(
+                P_EXTRACT_OPENSSL, "yes",
+                P_INTERFACE, "none"));
 
         probe.assertLoadSucceeded();
         Assertions.assertEquals("0", probe.get("libCount"),
@@ -286,11 +335,12 @@ public class LoaderPropertyIntegrationTest
             File library = extractOnceAndFind(installDir, OPENSSL_LIB);
 
             //
-            // auto + extract_openssl=false skips the extraction block entirely, so the only
-            // library the child loads is the one named here.
+            // "none" + extract_openssl=false extracts nothing, so the only library the child
+            // loads is the one named here.
             //
             Probe probe = runProbe(props(
                     P_EXTRACT_OPENSSL, "false",
+                    P_INTERFACE, "none",
                     String.format(P_LOAD_LIB, 0), library.getAbsolutePath()));
 
             probe.assertLoadSucceeded();
@@ -325,6 +375,7 @@ public class LoaderPropertyIntegrationTest
     {
         Probe probe = runProbe(props(
                 P_EXTRACT_OPENSSL, "false",
+                P_INTERFACE, "none",
                 String.format(P_LOAD_LIB, 1), "/no/such/directory/libnothing.so"));
 
         probe.assertLoadSucceeded();
@@ -357,6 +408,7 @@ public class LoaderPropertyIntegrationTest
     {
         Probe probe = runProbe(props(
                 P_EXTRACT_OPENSSL, "false",
+                P_INTERFACE, "none",
                 String.format(P_LOAD_NAME, 1), "jostle_no_such_library"));
 
         probe.assertLoadSucceeded();
@@ -380,6 +432,7 @@ public class LoaderPropertyIntegrationTest
 
             Probe probe = runProbe(props(
                     P_EXTRACT_OPENSSL, "false",
+                    P_INTERFACE, "none",
                     String.format(P_LOAD_LIB_PADDED, 0), library.getAbsolutePath()));
 
             probe.assertLoadSucceeded();
@@ -423,6 +476,7 @@ public class LoaderPropertyIntegrationTest
 
             Probe probe = runProbe(props(
                     P_EXTRACT_OPENSSL, "false",
+                    P_INTERFACE, "none",
                     String.format(P_LOAD_LIB, 0), library.getAbsolutePath(),
                     String.format(P_LOAD_LIB_PADDED, 0), "/no/such/directory/libnothing.so"));
 
@@ -545,6 +599,17 @@ public class LoaderPropertyIntegrationTest
     private static Map<String, String> props(String... keyThenValue)
     {
         return JvmProbe.props(keyThenValue);
+    }
+
+    private static void assertOnlyTheSuppliedOpenSsl(Probe probe, File library)
+    {
+        Assertions.assertEquals("Path: " + library.getAbsolutePath(), probe.get("lib.0"),
+                "the supplied OpenSSL must be the first load: " + probe.libs());
+        for (String lib : probe.libs().subList(1, probe.libs().size()))
+        {
+            Assertions.assertFalse(lib.contains(OPENSSL_LIB),
+                    "the bundled OpenSSL must not be extracted: " + probe.libs());
+        }
     }
 
     private static Probe runProbe(Map<String, String> properties) throws Exception
