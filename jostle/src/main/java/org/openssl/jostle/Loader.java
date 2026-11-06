@@ -55,7 +55,7 @@ public class Loader
      * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
      * used in README.md; see {@link #LOAD_NATIVE_LIBS_PADDED_FORMAT}.
      * <p>
-     * Remember to also include either the relevant FFM or JNI library
+     * With the interface property set to "none", also supply the FFM or JNI interface library.
      */
     public static final String LOAD_NATIVE_LIBS_FORMAT = "org.openssl.jostle.loader.load_lib_%d";
 
@@ -75,7 +75,7 @@ public class Loader
      * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
      * used in README.md; see {@link #LOAD_LIBS_BY_NAME_PADDED_FORMAT}.
      * <p>
-     * Remember to also include either the relevant FFM or JNI library
+     * With the interface property set to "none", also supply the FFM or JNI interface library.
      */
     public static final String LOAD_LIBS_BY_NAME_FORMAT = "org.openssl.jostle.loader.load_name_%d";
 

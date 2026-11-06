@@ -18,6 +18,7 @@ import org.openssl.jostle.test.JvmProbe;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -221,22 +222,21 @@ public class LoaderPropertyIntegrationTest
     //
 
     /**
-     * extract_openssl=false only keeps the bundled OpenSSL in the jar: under the default "auto"
-     * strategy the detected interface library is still extracted, and the OpenSSL the caller
-     * names in load_lib is used.
+     * extract_openssl=false under the default "auto" strategy: the bundled OpenSSL is not
+     * extracted, the detected interface library is, and the first load is the path the caller
+     * names in load_lib. The supplied copy lives outside the install dir, so the install dir is
+     * not what satisfies the interface library's OpenSSL dependency.
      */
     @Test
     public void extractOpenssl_false_underAutoStrategy_extractsOnlyTheInterfaceLibrary() throws Exception
     {
+        File seedDir = createInstallDir("autossl-seed");
+        File suppliedDir = createInstallDir("autossl-supplied");
         File installDir = createInstallDir("autossl");
         try
         {
-            File library = extractOnceAndFind(installDir, OPENSSL_LIB);
+            File library = copyInto(extractOnceAndFind(seedDir, OPENSSL_LIB), suppliedDir);
 
-            //
-            // Same install dir as the seed run, so the interface library sits next to the
-            // supplied OpenSSL and resolves it on every platform.
-            //
             Probe probe = runProbe(props(
                     P_INSTALL_DIR, installDir.getAbsolutePath(),
                     P_EXTRACT_OPENSSL, "false",
@@ -247,24 +247,30 @@ public class LoaderPropertyIntegrationTest
             assertOnlyTheSuppliedOpenSsl(probe, library);
             Assertions.assertTrue(probe.anyLibContains(ANY_INTERFACE_LIB),
                     "the detected interface library must still be extracted: " + probe.libs());
+            assertNoOpenSslUnder(installDir);
         }
         finally
         {
             deleteBestEffort(installDir);
+            deleteBestEffort(suppliedDir);
+            deleteBestEffort(seedDir);
         }
     }
 
     /**
-     * The same with an explicit strategy: the named interface library is extracted and only the
-     * OpenSSL the caller names in load_lib is loaded.
+     * The same with an explicit strategy: the bundled OpenSSL is not extracted, the named
+     * interface library is, and the first load is the path the caller names in load_lib, which
+     * lives outside the install dir.
      */
     @Test
     public void extractOpenssl_false_withExplicitStrategy_extractsOnlyTheInterfaceLibrary() throws Exception
     {
+        File seedDir = createInstallDir("suppliedossl-seed");
+        File suppliedDir = createInstallDir("suppliedossl-supplied");
         File installDir = createInstallDir("suppliedossl");
         try
         {
-            File library = extractOnceAndFind(installDir, OPENSSL_LIB);
+            File library = copyInto(extractOnceAndFind(seedDir, OPENSSL_LIB), suppliedDir);
 
             Probe probe = runProbe(props(
                     P_INSTALL_DIR, installDir.getAbsolutePath(),
@@ -277,10 +283,13 @@ public class LoaderPropertyIntegrationTest
             assertOnlyTheSuppliedOpenSsl(probe, library);
             Assertions.assertTrue(probe.anyLibContains(JNI_LIB),
                     "the JNI interface library must still be extracted: " + probe.libs());
+            assertNoOpenSslUnder(installDir);
         }
         finally
         {
             deleteBestEffort(installDir);
+            deleteBestEffort(suppliedDir);
+            deleteBestEffort(seedDir);
         }
     }
 
@@ -555,6 +564,26 @@ public class LoaderPropertyIntegrationTest
         Assertions.fail("no '" + nameFragment + "' library extracted under " + installDir
                 + ", found: " + namesOf(filesUnder(installDir)));
         return null;
+    }
+
+    /**
+     * Copies a library into another directory under its own file name, so the copy is the one
+     * a later probe loads.
+     */
+    private static File copyInto(File library, File dir) throws IOException
+    {
+        File copy = new File(dir, library.getName());
+        Files.copy(library.toPath(), copy.toPath());
+        return copy;
+    }
+
+    private static void assertNoOpenSslUnder(File installDir)
+    {
+        for (File file : filesUnder(installDir))
+        {
+            Assertions.assertFalse(file.getName().contains(OPENSSL_LIB),
+                    "no OpenSSL may be extracted into the install dir: " + namesOf(filesUnder(installDir)));
+        }
     }
 
     /**

@@ -922,6 +922,13 @@ This property only controls OpenSSL: the interface library is still extracted ac
 "org.openssl.jostle.loader.interface". To supply the interface library as well, set that property
 to "none".
 
+On Linux and Windows the interface library binds by library name to the OpenSSL already loaded
+through "org.openssl.jostle.loader.load_lib_NN" or "org.openssl.jostle.loader.load_name_NN". On
+macOS the dynamic linker binds by install name, which in the shipped jars is the build path, so a
+host OpenSSL is used only when it is loaded under that name; otherwise set
+"org.openssl.jostle.loader.interface" to "none" and supply a private copy of the interface library
+re-pointed at the host OpenSSL with install_name_tool.
+
 #### "org.openssl.jostle.ossl_prov"
 
 Use this property to set the name of the OpenSSL provider module after loading.
