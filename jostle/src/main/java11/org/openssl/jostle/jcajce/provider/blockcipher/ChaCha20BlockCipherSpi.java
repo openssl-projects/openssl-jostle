@@ -40,6 +40,10 @@ import java.security.Provider;
  */
 public class ChaCha20BlockCipherSpi extends BlockCipherSpi
 {
+    private static final int NONCE_LEN = 12;
+
+    private int initialCounter;
+
     public ChaCha20BlockCipherSpi()
     {
         this((Provider) null);
@@ -62,22 +66,44 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
     protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
             throws InvalidKeyException, InvalidAlgorithmParameterException
     {
-        if (params instanceof ChaCha20ParameterSpec)
+        synchronized (this)
         {
-            ChaCha20ParameterSpec cc = (ChaCha20ParameterSpec) params;
-            // OpenSSL's raw ChaCha20 fixes the initial block counter at 0 (the
-            // native layer builds the 16-byte EVP IV as counter(0) || nonce).
-            // Reject a non-zero counter rather than silently ignoring it.
-            if (cc.getCounter() != 0)
+            if (params instanceof ChaCha20ParameterSpec)
             {
-                throw new InvalidAlgorithmParameterException(
-                        "ChaCha20 counter must be 0; arbitrary initial counters are not supported");
+                ChaCha20ParameterSpec cc = (ChaCha20ParameterSpec) params;
+                // The counter is the unsigned 32-bit block counter; engineGetIV still reports the nonce.
+                initialCounter = cc.getCounter();
+                super.engineInit(opmode, key, new IvParameterSpec(cc.getNonce()), random);
+                return;
             }
-            // Convert to the 12-byte-nonce IvParameterSpec the base/native expect.
-            super.engineInit(opmode, key, new IvParameterSpec(cc.getNonce()), random);
-            return;
+            initialCounter = 0;
+            super.engineInit(opmode, key, params, random);
         }
-        super.engineInit(opmode, key, params, random);
+    }
+
+    @Override
+    protected byte[] nativeIv(byte[] iv) throws InvalidAlgorithmParameterException
+    {
+        // The native layer reads a 16-byte IV as counter || nonce; an IvParameterSpec carries the nonce only.
+        if (iv == null)
+        {
+            return null;
+        }
+        if (iv.length != NONCE_LEN)
+        {
+            throw new InvalidAlgorithmParameterException("invalid iv length");
+        }
+        if (initialCounter == 0)
+        {
+            return iv;
+        }
+        byte[] counterAndNonce = new byte[4 + NONCE_LEN];
+        counterAndNonce[0] = (byte) initialCounter;
+        counterAndNonce[1] = (byte) (initialCounter >>> 8);
+        counterAndNonce[2] = (byte) (initialCounter >>> 16);
+        counterAndNonce[3] = (byte) (initialCounter >>> 24);
+        System.arraycopy(iv, 0, counterAndNonce, 4, NONCE_LEN);
+        return counterAndNonce;
     }
 
     @Override

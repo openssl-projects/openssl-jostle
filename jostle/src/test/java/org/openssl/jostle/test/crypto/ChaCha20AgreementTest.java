@@ -21,6 +21,7 @@ import org.openssl.jostle.test.util.CipherSurfaceDriver;
 import org.openssl.jostle.test.util.KeyGeneratorSurfaceDriver;
 import org.openssl.jostle.test.util.ProviderSurfaceGuard;
 import org.openssl.jostle.util.Arrays;
+import org.openssl.jostle.util.encoders.Hex;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -38,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Agreement between BouncyCastle (CHACHA7539, the RFC 7539 / 8439 12-byte-nonce
  * engine) and Jostle for raw ChaCha20, plus chunking, negative-path, reset and
  * boundary coverage. Raw ChaCha20 has no authentication; its cross-validation
- * anchor is BouncyCastle (there is no counter-0 published keystream vector in
- * RFC 8439, which fixes its examples at counter 1).
+ * anchor is BouncyCastle on every leg. RFC 8439 A.2 Test Vector 1 is at counter 0
+ * and ChaCha20ParameterSpecTest runs it.
  */
 public class ChaCha20AgreementTest
 {
@@ -420,5 +421,47 @@ public class ChaCha20AgreementTest
                 new String[]{"KeyGenerator"},
                 KeyGeneratorSurfaceDriver.forProvider(
                         JostleProvider.PROVIDER_NAME, CipherFamilies.CHACHA20_KEYGEN, "ChaCha20", 64));
+    }
+
+    private static final int MONTE_CARLO_SAMPLES = 300000;
+
+    /**
+     * Monte Carlo over the nonce at counter 0: each sample draws a fresh key, nonce and 1 to 64 byte message, and
+     * JSL must equal BouncyCastle and round-trip through its own decrypt on every sample.
+     */
+    @Test
+    public void monteCarloOverTheNonce_agreesWithBC() throws Exception
+    {
+        SecureRandom sr = seededRandom("monteCarloOverTheNonce_agreesWithBC");
+        Cipher jsl = Cipher.getInstance(JSL_NAME, JSL);
+        Cipher bc = Cipher.getInstance(BC_NAME, BC);
+        for (int i = 0; i < MONTE_CARLO_SAMPLES; i++)
+        {
+            byte[] keyBytes = new byte[32];
+            byte[] nonce = new byte[12];
+            byte[] msg = new byte[1 + sr.nextInt(64)];
+            sr.nextBytes(keyBytes);
+            sr.nextBytes(nonce);
+            sr.nextBytes(msg);
+            SecretKeySpec key = new SecretKeySpec(keyBytes, "ChaCha20");
+            IvParameterSpec iv = new IvParameterSpec(nonce);
+
+            jsl.init(Cipher.ENCRYPT_MODE, key, iv);
+            byte[] jslCt = jsl.doFinal(msg);
+            bc.init(Cipher.ENCRYPT_MODE, key, iv);
+            byte[] bcCt = bc.doFinal(msg);
+            if (!Arrays.areEqual(bcCt, jslCt))
+            {
+                Assertions.fail("sample " + i + " nonce " + Hex.toHexString(nonce) + " length " + msg.length
+                    + ": ciphertext differs from BouncyCastle");
+            }
+
+            jsl.init(Cipher.DECRYPT_MODE, key, iv);
+            if (!Arrays.areEqual(msg, jsl.doFinal(jslCt)))
+            {
+                Assertions.fail("sample " + i + " nonce " + Hex.toHexString(nonce) + " length " + msg.length
+                    + ": decrypt does not round-trip");
+            }
+        }
     }
 }

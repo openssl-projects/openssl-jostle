@@ -36,6 +36,8 @@ typedef struct block_cipher_ctx {
     int32_t op_mode;
     size_t cipher_block_size;
     size_t processed;
+    /* ChaCha20: bytes left before the 32-bit block counter would pass 2^32 for this nonce (RFC 8439 2.4). */
+    uint64_t stream_limit;
     uint32_t streaming;
     ctr_u128_t *counter; /* tracks counter in ctr mode */
     size_t key_len;

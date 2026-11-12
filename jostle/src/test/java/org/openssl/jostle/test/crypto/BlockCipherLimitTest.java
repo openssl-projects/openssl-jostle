@@ -317,15 +317,57 @@ public class BlockCipherLimitTest
         assertInitOk(CHACHA20, STREAM, new byte[32], new byte[12], 0);
         assertInitFails(CHACHA20, STREAM, new byte[33], new byte[12], 0, InvalidKeyException.class, "invalid key length");
 
-        // Nonce: only 12 bytes accepted; null rejected.
+        // IV: a 12-byte nonce, or 16 bytes of LE32(counter) || nonce; null rejected.
         assertInitFails(CHACHA20, STREAM, new byte[32], null, 0, InvalidAlgorithmParameterException.class, "iv is null");
         assertInitFails(CHACHA20, STREAM, new byte[32], new byte[11], 0, InvalidAlgorithmParameterException.class, "invalid iv length");
         assertInitFails(CHACHA20, STREAM, new byte[32], new byte[13], 0, InvalidAlgorithmParameterException.class, "invalid iv length");
+        assertInitFails(CHACHA20, STREAM, new byte[32], new byte[15], 0, InvalidAlgorithmParameterException.class,
+            "invalid iv length");
+        assertInitOk(CHACHA20, STREAM, new byte[32], new byte[16], 0);
+        assertInitFails(CHACHA20, STREAM, new byte[32], new byte[17], 0, InvalidAlgorithmParameterException.class,
+            "invalid iv length");
 
         // Raw ChaCha20 is unauthenticated: any non-zero tag length is rejected
         // (tag 0 is the accepted companion, asserted above).
         assertInitFails(CHACHA20, STREAM, new byte[32], new byte[12], 1, IllegalArgumentException.class, "invalid tag len");
         assertInitFails(CHACHA20, STREAM, new byte[32], new byte[12], 16, IllegalArgumentException.class, "invalid tag len");
+    }
+
+    /**
+     * RFC 8439 per-nonce limit at the NI surface: from counter 2^32 - 1 one block is served and the next byte is
+     * refused typed, before any of it is written; a re-init restores the position.
+     */
+    @Test
+    public void testChaCha20RawRfc8439PerNonceLimit() throws Exception
+    {
+        byte[] iv = new byte[16];
+        iv[0] = iv[1] = iv[2] = iv[3] = (byte) 0xFF;
+        long ref = blockCipherNI.makeInstance(CHACHA20, STREAM, 0);
+        try
+        {
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[32], iv, 0);
+            byte[] out = new byte[65];
+            Assertions.assertEquals(64, blockCipherNI.update(ref, out, 0, new byte[64], 0, 64));
+
+            byte[] tail = new byte[]{(byte) 0xA5};
+            try
+            {
+                blockCipherNI.update(ref, tail, 0, new byte[1], 0, 1);
+                Assertions.fail("expected IllegalStateException");
+            }
+            catch (IllegalStateException e)
+            {
+                Assertions.assertEquals("ChaCha20 block counter would pass 2^32 for this nonce", e.getMessage());
+            }
+            Assertions.assertEquals((byte) 0xA5, tail[0], "nothing written by the refused update");
+
+            blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, new byte[32], iv, 0);
+            Assertions.assertEquals(64, blockCipherNI.update(ref, out, 0, new byte[64], 0, 64));
+        }
+        finally
+        {
+            blockCipherNI.dispose(ref);
+        }
     }
 
     /**

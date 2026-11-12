@@ -11,6 +11,8 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+
+import java.security.InvalidAlgorithmParameterException;
 import java.security.Provider;
 
 /**
@@ -31,6 +33,8 @@ import java.security.Provider;
  */
 public class ChaCha20BlockCipherSpi extends BlockCipherSpi
 {
+    private static final int NONCE_LEN = 12;
+
     public ChaCha20BlockCipherSpi()
     {
         this((Provider) null);
@@ -47,6 +51,17 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
         // the base 3-arg constructor seeds only osslMode, leaving osslCipher for
         // subclasses (AES/ARIA/...) that resolve it from key length at init.
         osslCipher = OSSLCipher.CHACHA20;
+    }
+
+    @Override
+    protected byte[] nativeIv(byte[] iv) throws InvalidAlgorithmParameterException
+    {
+        // The native layer reads a 16-byte IV as counter || nonce; an IvParameterSpec carries the nonce only.
+        if (iv != null && iv.length != NONCE_LEN)
+        {
+            throw new InvalidAlgorithmParameterException("invalid iv length");
+        }
+        return iv;
     }
 
     @Override

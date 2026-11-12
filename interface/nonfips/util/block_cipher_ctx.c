@@ -1311,16 +1311,15 @@ int32_t block_cipher_ctx_init(
         case CHACHA20:
             // Raw ChaCha20 stream cipher (RFC 8439). Block size 1: no padding,
             // no block alignment — the STREAM mode set ctx->streaming above so
-            // the block-accounting paths are skipped. 256-bit key. The caller
-            // supplies a bare 12-byte nonce; the 16-byte EVP IV
-            // (counter || nonce) is assembled just before EVP init below.
+            // the block-accounting paths are skipped. 256-bit key. The IV is a
+            // 12-byte nonce (counter 0) or 16 bytes, LE32(counter) || nonce.
             ctx->cipher_block_size = 1;
             if (key_len != 32) {
                 return JO_INVALID_KEY_LEN;
             }
             switch (ctx->mode_id) {
                 case STREAM:
-                    if (iv_len != 12) {
+                    if (iv_len != 12 && iv_len != 16) {
                         return JO_INVALID_IV_LEN;
                     }
                     // Raw ChaCha20 is unauthenticated — it has no tag. Reject a
@@ -1472,14 +1471,19 @@ int32_t block_cipher_ctx_init(
         counter_init(ctx->counter, iv, iv_len);
         iv_for_openssl = ctx->counter->original_counter;
     } else if (CHACHA20 == ctx->cipher_id) {
-        // OpenSSL's "ChaCha20" IV is 16 bytes: a 32-bit little-endian block
-        // counter followed by the 96-bit nonce (RFC 8439 sec 2.4). The bridge
-        // supplies the bare 12-byte nonce (validated == 12 above) with an
-        // implicit counter of 0 — matching BouncyCastle's CHACHA7539 and
-        // SunJCE's ChaCha20 — so prepend four zero counter bytes. last_iv still
-        // holds the 12-byte nonce, so the reset path rebuilds this correctly.
-        chacha_iv[0] = chacha_iv[1] = chacha_iv[2] = chacha_iv[3] = 0;
-        memcpy(chacha_iv + 4, iv, 12);
+        // OpenSSL's IV is LE32(counter) || 96-bit nonce (RFC 8439 2.4); a 12-byte IV means counter 0.
+        // last_iv keeps the IV as given, so the reset path rebuilds the same counter.
+        uint32_t initial_counter = 0;
+        if (iv_len == 16) {
+            initial_counter = (uint32_t) iv[0] | ((uint32_t) iv[1] << 8) | ((uint32_t) iv[2] << 16)
+                              | ((uint32_t) iv[3] << 24);
+            memcpy(chacha_iv, iv, 16);
+        } else {
+            chacha_iv[0] = chacha_iv[1] = chacha_iv[2] = chacha_iv[3] = 0;
+            memcpy(chacha_iv + 4, iv, 12);
+        }
+        // RFC 8439 limits one nonce to 2^32 blocks; OpenSSL would carry into the nonce instead.
+        ctx->stream_limit = (((uint64_t) 1 << 32) - initial_counter) * 64;
         iv_for_openssl = chacha_iv;
     } else {
         // A zero-length IV is NO IV. block_cipher_ctx_final's reset re-inits
@@ -1894,6 +1898,11 @@ int32_t block_cipher_ctx_update(
 
     if (!ctx->initialized) {
         return JO_NOT_INITIALIZED;
+    }
+
+    // Refused whole, before any byte is processed: RFC 8439's per-nonce limit of 2^32 blocks.
+    if (CHACHA20 == ctx->cipher_id && (uint64_t) in_len > ctx->stream_limit - (uint64_t) ctx->processed) {
+        return JO_CHACHA20_COUNTER_EXHAUSTED;
     }
 
     // Accumulate instead of feeding EVP — see mode_accumulates. Emits

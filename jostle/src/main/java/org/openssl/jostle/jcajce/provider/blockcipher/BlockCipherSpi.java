@@ -681,6 +681,7 @@ class BlockCipherSpi extends CipherSpi
                 throw new InvalidAlgorithmParameterException("unsupported parameter spec: " + params);
             }
 
+            final byte[] nativeIv = nativeIv(iv);
             this.ivBytes = iv;
             this.tagLen = tag;
             this.encryptionReinitRequired = false;
@@ -689,7 +690,7 @@ class BlockCipherSpi extends CipherSpi
             byte[] keyBytes = key.getEncoded();
             try
             {
-                blockCipherNi.init(refWrapper.getReference(), nativeOpMode, keyBytes, iv, tag);
+                blockCipherNi.init(refWrapper.getReference(), nativeOpMode, keyBytes, nativeIv, tag);
 
                 // Init succeeded: feed any AEADParameterSpec-supplied associated data
                 // now — after init, before any plaintext — so it's authenticated.
@@ -719,6 +720,15 @@ class BlockCipherSpi extends CipherSpi
                 Arrays.clear(keyBytes);
             }
         }
+    }
+
+    /**
+     * The IV handed to the native layer for an IV this SPI reports through engineGetIV. The default is
+     * the IV itself.
+     */
+    protected byte[] nativeIv(byte[] iv) throws InvalidAlgorithmParameterException
+    {
+        return iv;
     }
 
     /**

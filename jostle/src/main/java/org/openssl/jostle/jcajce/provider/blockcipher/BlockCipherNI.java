@@ -291,6 +291,9 @@ public interface BlockCipherNI extends DefaultServiceNI
                 throw new IllegalBlockSizeException("invalid key wrap input length");
             case JO_CTR_MODE_OVERFLOW:
                 throw new IllegalStateException("ctr mode overflow");
+            case JO_CHACHA20_COUNTER_EXHAUSTED:
+                // BouncyCastle's ChaCha7539Engine raises IllegalStateException at the same limit.
+                throw new IllegalStateException("ChaCha20 block counter would pass 2^32 for this nonce");
             case JO_CTX_POISONED:
                 throw new IllegalStateException("cipher is poisoned; create a new instance with a fresh iv");
             case JO_INVALID_CIPHER_TEXT:

@@ -746,6 +746,8 @@
 #define JO_KEY_HAS_NO_PRIVATE_HALF -230
 /* A handle passed as an SLH-DSA signer context that is not one. */
 #define JO_SLHDSA_CTX_WRONG_KIND -231
+/* A ChaCha20 update that would take the block counter past 2^32 for one nonce (RFC 8439 2.4). */
+#define JO_CHACHA20_COUNTER_EXHAUSTED -232
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros
