@@ -91,7 +91,7 @@ public final class ECKeyImport
                 // Wrong-algorithm or unparseable key — fall through to the canonical message.
             }
         }
-        throw new InvalidKeyException(failMessage);
+        throw new InvalidKeyException(failMessage + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 
     public static JOECPrivateKey importPrivate(Key key) throws InvalidKeyException
@@ -151,6 +151,6 @@ public final class ECKeyImport
                 // Wrong-algorithm or unparseable key — fall through to the canonical message.
             }
         }
-        throw new InvalidKeyException(failMessage);
+        throw new InvalidKeyException(failMessage + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 }

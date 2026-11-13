@@ -98,7 +98,7 @@ public final class RSAKeyImport
                 // Wrong-algorithm or unparseable key — fall through to the canonical message.
             }
         }
-        throw new InvalidKeyException(failMessage);
+        throw new InvalidKeyException(failMessage + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 
     public static JORSAPrivateKey importPrivate(Key key) throws InvalidKeyException
@@ -155,6 +155,6 @@ public final class RSAKeyImport
                 // Wrong-algorithm or unparseable key — fall through to the canonical message.
             }
         }
-        throw new InvalidKeyException(failMessage);
+        throw new InvalidKeyException(failMessage + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 }

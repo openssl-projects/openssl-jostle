@@ -134,7 +134,9 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         PrivateKey key = params.getPrivateKey();
         if (!(key instanceof MLXKEMPrivateKey))
         {
-            throw new InvalidAlgorithmParameterException("Only MLXKEMPrivateKey is supported");
+            // A hybrid key has no encoding, so a key from another provider cannot be translated.
+            throw new InvalidAlgorithmParameterException("Only MLXKEMPrivateKey is supported, not "
+                    + (key == null ? "null" : key.getClass().getName()));
         }
 
         PKEYKeySpec spec = ((OSSLKey) key).getSpec();
@@ -177,7 +179,9 @@ public class MLXKEMKeyGenerator extends KeyGeneratorSpi
         PublicKey key = params.getPublicKey();
         if (!(key instanceof MLXKEMPublicKey))
         {
-            throw new InvalidAlgorithmParameterException("Only MLXKEMPublicKey is supported");
+            // A hybrid key has no encoding, so a key from another provider cannot be translated.
+            throw new InvalidAlgorithmParameterException("Only MLXKEMPublicKey is supported, not "
+                    + (key == null ? "null" : key.getClass().getName()));
         }
 
         // Provider isolation, public side. Be precise about WHERE the work

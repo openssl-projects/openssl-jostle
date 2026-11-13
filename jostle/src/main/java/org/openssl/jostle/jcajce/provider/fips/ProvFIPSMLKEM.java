@@ -103,12 +103,20 @@ class ProvFIPSMLKEM
 
         final Map<String, String> mlkemCipherAttr = new HashMap<>();
 
-        provider.addAlgorithmImplementation("KeyGenerator", "MLKEM", MLKEMKeyGenerator.class.getName(), mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, provider));
+        provider.addAlgorithmImplementation("KeyGenerator", "MLKEM", MLKEMKeyGenerator.class.getName(),
+                mlkemCipherAttr,
+                (arg) -> new MLKEMKeyGenerator(keyFactory(provider, OSSLKeyType.NONE)));
         provider.addAlias("KeyGenerator", "MLKEM", "ML-KEM");
 
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-512", MLKEMKeyGenerator.class.getName(), mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_512, provider));
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-768", MLKEMKeyGenerator.class.getName(), mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_768, provider));
-        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-1024", MLKEMKeyGenerator.class.getName(), mlkemCipherAttr, (arg) -> new MLKEMKeyGenerator(FIPSNISelector.SpecNI, MLKEMParameterSpec.ml_kem_1024, provider));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-512", MLKEMKeyGenerator.class.getName(),
+                mlkemCipherAttr,
+                (arg) -> new MLKEMKeyGenerator(keyFactory(provider, OSSLKeyType.NONE), MLKEMParameterSpec.ml_kem_512));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-768", MLKEMKeyGenerator.class.getName(),
+                mlkemCipherAttr,
+                (arg) -> new MLKEMKeyGenerator(keyFactory(provider, OSSLKeyType.NONE), MLKEMParameterSpec.ml_kem_768));
+        provider.addAlgorithmImplementation("KeyGenerator", "ML-KEM-1024", MLKEMKeyGenerator.class.getName(),
+                mlkemCipherAttr,
+                (arg) -> new MLKEMKeyGenerator(keyFactory(provider, OSSLKeyType.NONE), MLKEMParameterSpec.ml_kem_1024));
 
         final Map<String, String> MLKEMKfAttr = new HashMap<>();
         provider.addAlgorithmImplementation("KeyFactory", "MLKEM", MLKEMKeyFactorySpi.class.getName(), MLKEMKfAttr, (arg) -> keyFactory(provider, OSSLKeyType.NONE));

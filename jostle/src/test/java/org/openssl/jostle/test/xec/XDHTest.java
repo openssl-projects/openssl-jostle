@@ -25,6 +25,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.KeyFactory;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -507,7 +508,7 @@ public class XDHTest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals("XDH init: expected an XDH private key",
-                    expected.getMessage());
+                    withoutKeyClass(expected.getMessage(), rsaPriv));
         }
     }
 
@@ -529,7 +530,7 @@ public class XDHTest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals("XDH doPhase: expected an XDH public key",
-                    expected.getMessage());
+                    withoutKeyClass(expected.getMessage(), rsaPub));
         }
     }
 
@@ -942,4 +943,13 @@ public class XDHTest
     {
         XdhKeyCells.namedFactoryHoldsItsCurve(JostleProvider.PROVIDER_NAME);
     }
+
+    /** The refusal's message without its trailing key class, which it must carry. */
+    private static String withoutKeyClass(String message, Key key)
+    {
+        String suffix = ": " + key.getClass().getName();
+        Assertions.assertTrue(message.endsWith(suffix), message);
+        return message.substring(0, message.length() - suffix.length());
+    }
+
 }

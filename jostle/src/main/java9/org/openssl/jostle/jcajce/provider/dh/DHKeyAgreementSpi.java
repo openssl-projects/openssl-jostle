@@ -113,7 +113,8 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                 return (JODHPrivateKey) translated;
             }
         }
-        throw new InvalidKeyException("DH init: expected a DHPrivateKey");
+        throw new InvalidKeyException("DH init: expected a DHPrivateKey"
+                + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 
     /** Coerce an arbitrary public key to a JSL DH public key. */
@@ -144,7 +145,8 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
                 return (JODHPublicKey) translated;
             }
         }
-        throw new InvalidKeyException("DH doPhase: expected a DHPublicKey");
+        throw new InvalidKeyException("DH last phase: expected a DHPublicKey"
+                + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 
 

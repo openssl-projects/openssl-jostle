@@ -205,8 +205,8 @@ public class ForeignKeyImportTest
         }
         catch (InvalidKeyException expected)
         {
-            Assertions.assertEquals("expected an RSAPublicKey from the Jostle provider",
-                    expected.getMessage());
+            Assertions.assertEquals("expected an RSAPublicKey from the Jostle provider: "
+                    + bcKp.getPublic().getClass().getName(), expected.getMessage());
         }
     }
 
@@ -225,8 +225,8 @@ public class ForeignKeyImportTest
         }
         catch (InvalidKeyException expected)
         {
-            Assertions.assertEquals("expected an ECPublicKey from the Jostle provider",
-                    expected.getMessage());
+            Assertions.assertEquals("expected an ECPublicKey from the Jostle provider: "
+                    + bcKp.getPublic().getClass().getName(), expected.getMessage());
         }
     }
 }

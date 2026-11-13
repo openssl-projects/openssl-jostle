@@ -700,7 +700,7 @@ public class ECDSATest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals(
-                    "expected an ECPublicKey from the Jostle provider",
+                    "expected an ECPublicKey from the Jostle provider: " + rsa.getPublic().getClass().getName(),
                     expected.getMessage());
         }
     }
@@ -723,7 +723,7 @@ public class ECDSATest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals(
-                    "expected an ECPrivateKey from the Jostle provider",
+                    "expected an ECPrivateKey from the Jostle provider: " + rsa.getPrivate().getClass().getName(),
                     expected.getMessage());
         }
     }

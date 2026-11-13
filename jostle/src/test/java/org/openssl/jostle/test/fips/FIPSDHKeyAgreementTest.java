@@ -114,7 +114,8 @@ public class FIPSDHKeyAgreementTest
         }
         catch (InvalidKeyException expected)
         {
-            Assertions.assertEquals("DH init: expected a DHPrivateKey", expected.getMessage());
+            Assertions.assertEquals("DH init: expected a DHPrivateKey: " + rsa.getPrivate().getClass().getName(),
+                    expected.getMessage());
         }
 
         // doPhase with a foreign (RSA) public key after a valid init.
@@ -128,7 +129,8 @@ public class FIPSDHKeyAgreementTest
         }
         catch (InvalidKeyException expected)
         {
-            Assertions.assertEquals("DH doPhase: expected a DHPublicKey", expected.getMessage());
+            Assertions.assertEquals("DH last phase: expected a DHPublicKey: " + rsa.getPublic().getClass().getName(),
+                    expected.getMessage());
         }
     }
 

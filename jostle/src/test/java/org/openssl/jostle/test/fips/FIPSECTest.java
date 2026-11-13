@@ -28,6 +28,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.InvalidParameterException;
 import java.security.KeyFactory;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -359,7 +360,7 @@ public class FIPSECTest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals(
-                    "expected an ECPublicKey from the Jostle provider",
+                    "expected an ECPublicKey from the Jostle provider: " + rsa.getPublic().getClass().getName(),
                     expected.getMessage());
         }
     }
@@ -379,7 +380,7 @@ public class FIPSECTest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals(
-                    "expected an ECPrivateKey from the Jostle provider",
+                    "expected an ECPrivateKey from the Jostle provider: " + rsa.getPrivate().getClass().getName(),
                     expected.getMessage());
         }
     }
@@ -399,7 +400,7 @@ public class FIPSECTest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals("ECDH init: expected an ECPrivateKey",
-                    expected.getMessage());
+                    withoutKeyClass(expected.getMessage(), rsaPriv));
         }
     }
 
@@ -420,7 +421,7 @@ public class FIPSECTest
         catch (InvalidKeyException expected)
         {
             Assertions.assertEquals("ECDH doPhase: expected an ECPublicKey",
-                    expected.getMessage());
+                    withoutKeyClass(expected.getMessage(), rsaPub));
         }
     }
 
@@ -1466,4 +1467,13 @@ public class FIPSECTest
     {
         ECKeyCells.highSVerifies(FIPS);
     }
+
+    /** The refusal's message without its trailing key class, which it must carry. */
+    private static String withoutKeyClass(String message, Key key)
+    {
+        String suffix = ": " + key.getClass().getName();
+        Assertions.assertTrue(message.endsWith(suffix), message);
+        return message.substring(0, message.length() - suffix.length());
+    }
+
 }

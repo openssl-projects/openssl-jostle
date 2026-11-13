@@ -67,7 +67,7 @@ public final class XDHKeyImport
                 // Wrong-algorithm or unparseable key — fall through to the canonical message.
             }
         }
-        throw new InvalidKeyException(failMessage);
+        throw new InvalidKeyException(failMessage + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 
     public static JOXECPrivateKey importPrivate(Key key, String failMessage) throws InvalidKeyException
@@ -111,6 +111,6 @@ public final class XDHKeyImport
                 // Wrong-algorithm or unparseable key — fall through to the canonical message.
             }
         }
-        throw new InvalidKeyException(failMessage);
+        throw new InvalidKeyException(failMessage + ": " + (key == null ? "null" : key.getClass().getName()));
     }
 }

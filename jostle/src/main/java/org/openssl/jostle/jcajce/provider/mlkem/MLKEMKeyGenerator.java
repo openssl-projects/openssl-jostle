@@ -27,6 +27,8 @@ import javax.crypto.KeyGeneratorSpi;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.InvalidParameterException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -48,6 +50,9 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     private boolean extract;
     private final OSSLKeyType forcedKeyType;
     private AlgorithmParameterSpec parameterSpec;
+
+    // The key init accepted: this provider's own, translated when the spec carried another provider's.
+    private OSSLKey kemKey;
     private RandSource randSource;
     private KemKeyDerivation derivation;
 
@@ -69,7 +74,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
     public MLKEMKeyGenerator(MLKEMParameterSpec spec)
     {
-        this(NISelector.SpecNI, spec);
+        this(new MLKEMKeyFactorySpi(), NISelector.SpecNI, spec, null);
     }
 
     public MLKEMKeyGenerator(SpecNI specNI, MLKEMParameterSpec spec)
@@ -80,9 +85,25 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
     /** The provider instance this SPI belongs to; null when unbound. MT-14. */
     private final Provider providerInstance;
 
+    /** Translates a key from another provider by its encoding; null when none is bound. */
+    private final MLKEMKeyFactorySpi keyFactory;
+
     public MLKEMKeyGenerator(SpecNI specNI, MLKEMParameterSpec spec,
                              Provider providerInstance)
     {
+        this(null, specNI, spec, providerInstance);
+    }
+
+    /** Bound to {@code keyFactory}'s provider and interface library. */
+    public MLKEMKeyGenerator(MLKEMKeyFactorySpi keyFactory, MLKEMParameterSpec spec)
+    {
+        this(keyFactory, keyFactory.ownSpecNI(), spec, keyFactory.ownProviderInstance());
+    }
+
+    private MLKEMKeyGenerator(MLKEMKeyFactorySpi keyFactory, SpecNI specNI, MLKEMParameterSpec spec,
+                              Provider providerInstance)
+    {
+        this.keyFactory = keyFactory;
         this.providerInstance = providerInstance;
         this.specNI = specNI;
         this.forcedKeyType = spec.getKeyType();
@@ -91,7 +112,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
     public MLKEMKeyGenerator()
     {
-        this(NISelector.SpecNI);
+        this(new MLKEMKeyFactorySpi(), NISelector.SpecNI, (Provider) null);
     }
 
     public MLKEMKeyGenerator(SpecNI specNI)
@@ -101,6 +122,18 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
     public MLKEMKeyGenerator(SpecNI specNI, Provider providerInstance)
     {
+        this(null, specNI, providerInstance);
+    }
+
+    /** Bound to {@code keyFactory}'s provider and interface library. */
+    public MLKEMKeyGenerator(MLKEMKeyFactorySpi keyFactory)
+    {
+        this(keyFactory, keyFactory.ownSpecNI(), keyFactory.ownProviderInstance());
+    }
+
+    private MLKEMKeyGenerator(MLKEMKeyFactorySpi keyFactory, SpecNI specNI, Provider providerInstance)
+    {
+        this.keyFactory = keyFactory;
         this.providerInstance = providerInstance;
         this.specNI = specNI;
         this.forcedKeyType = OSSLKeyType.NONE;
@@ -145,7 +178,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
         }
         if (params instanceof KEMExtractSpec)
         {
-            PrivateKey key = ((KEMExtractSpec) params).getPrivateKey();
+            Key key = ownKey(((KEMExtractSpec) params).getPrivateKey());
             if (key instanceof MLKEMPrivateKey)
             {
                 extract = true;
@@ -194,6 +227,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
                 derivation = KemKeyDerivation.plan(kem.getSpec(), extractSpec.getKeySizeInBits(),
                         extractSpec.getKdfAlgorithm(), extractSpec.getOtherInfo(), providerInstance, randSource);
                 parameterSpec = params;
+                kemKey = (OSSLKey) kem;
                 // Decap path doesn't consume entropy, but a caller-supplied
                 // SecureRandom should still be honoured if they call
                 // back through encap on a new init.
@@ -207,7 +241,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
         {
             if (params instanceof KEMGenerateSpec)
             {
-                PublicKey key = ((KEMGenerateSpec) params).getPublicKey();
+                Key key = ownKey(((KEMGenerateSpec) params).getPublicKey());
                 if (key instanceof MLKEMPublicKey)
                 {
                     extract = false;
@@ -245,6 +279,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
 
                     derivation = planned;
                     parameterSpec = params;
+                    kemKey = (OSSLKey) kem;
                     // Resolve / upgrade RandSource for the peer key's variant —
                     // ML-KEM-768/1024 need 192/256-bit strength to pass the
                     // OpenSSL RAND gate (GH issue #34).
@@ -257,6 +292,31 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
             {
                 throw new InvalidAlgorithmParameterException("unsupported parameters " + params.getClass().getName());
             }
+        }
+    }
+
+    /**
+     * A key from another provider is translated by its encoding, as this provider's KeyFactory translates it; a
+     * Jostle key is returned as it is, for the instance checks.
+     */
+    private Key ownKey(Key key) throws InvalidAlgorithmParameterException
+    {
+        if (key == null || key instanceof OSSLKey)
+        {
+            return key;
+        }
+        if (keyFactory == null || key.getEncoded() == null)
+        {
+            throw new InvalidAlgorithmParameterException("unsupported key type: " + key.getClass().getName());
+        }
+        try
+        {
+            return keyFactory.engineTranslateKey(key);
+        }
+        catch (InvalidKeyException e)
+        {
+            throw new InvalidAlgorithmParameterException(
+                    "unsupported key type: " + key.getClass().getName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -295,7 +355,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
         if (extract)
         {
             KEMExtractSpec extractSpec = (KEMExtractSpec) parameterSpec;
-            PKEYKeySpec spec = ((OSSLKey) extractSpec.getPrivateKey()).getSpec();
+            PKEYKeySpec spec = kemKey.getSpec();
             byte[] wrappedKey = extractSpec.getEncapsulation();
             int expected = KemSizes.ciphertextLength(spec, randSource);
             if (wrappedKey.length != expected)
@@ -336,7 +396,7 @@ public class MLKEMKeyGenerator extends KeyGeneratorSpi
         else
         {
             KEMGenerateSpec generateSpec = (KEMGenerateSpec) parameterSpec;
-            PKEYKeySpec spec = ((OSSLKey) generateSpec.getPublicKey()).getSpec();
+            PKEYKeySpec spec = kemKey.getSpec();
             // engineInit resolved randSource for the peer key's
             // strength category — use it directly.
             // Sized to the shared secret the KEM produces; the key is derived from it.

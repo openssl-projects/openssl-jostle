@@ -273,10 +273,12 @@ public class RSAPKCS1AgreementTest
     public void keyDirectionIsRefusedHereAndAcceptedElsewhere() throws Exception
     {
         Cipher ours = Cipher.getInstance(XFORM, JSL);
-        Assertions.assertEquals("encrypt/wrap requires an RSAPublicKey", Assertions.assertThrows(
-                InvalidKeyException.class, () -> ours.init(Cipher.ENCRYPT_MODE, keyPair.getPrivate())).getMessage());
-        Assertions.assertEquals("decrypt/unwrap requires an RSAPrivateKey", Assertions.assertThrows(
-                InvalidKeyException.class, () -> ours.init(Cipher.DECRYPT_MODE, keyPair.getPublic())).getMessage());
+        Assertions.assertEquals("encrypt/wrap requires an RSAPublicKey: " + keyPair.getPrivate().getClass().getName(),
+                Assertions.assertThrows(InvalidKeyException.class,
+                        () -> ours.init(Cipher.ENCRYPT_MODE, keyPair.getPrivate())).getMessage());
+        Assertions.assertEquals("decrypt/unwrap requires an RSAPrivateKey: " + keyPair.getPublic().getClass().getName(),
+                Assertions.assertThrows(InvalidKeyException.class,
+                        () -> ours.init(Cipher.DECRYPT_MODE, keyPair.getPublic())).getMessage());
 
         for (String p : new String[]{SUN_JCE, BC})
         {

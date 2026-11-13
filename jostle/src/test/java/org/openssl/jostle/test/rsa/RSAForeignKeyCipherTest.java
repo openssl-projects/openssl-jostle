@@ -184,7 +184,8 @@ public class RSAForeignKeyCipherTest
         }
         catch (InvalidKeyException e)
         {
-            Assertions.assertEquals("encrypt/wrap requires an RSAPublicKey", e.getMessage());
+            Assertions.assertEquals("encrypt/wrap requires an RSAPublicKey: " + ecPub.getClass().getName(),
+                    e.getMessage());
         }
     }
 
