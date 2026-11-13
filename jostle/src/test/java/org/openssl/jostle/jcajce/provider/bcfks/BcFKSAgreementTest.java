@@ -968,19 +968,17 @@ public class BcFKSAgreementTest
     }
 
     /**
-     * REGRESSION, BOTH directions, probe-then-assert-both. BC 1.86 (the
-     * Gradle cache jar) loads a store written under the default (encoded p
-     * equal to r) and answers its entry; BC 1.86 FAILS a store written with
-     * the configured p (property "false", encoded p != r) with an
-     * IOException, because BC 1.86 always derives with the block size in
-     * the parallelization parameter's place. Pins that the default keeps
-     * interop with the installed base.
+     * REGRESSION, BOTH directions. BC 1.87 loads a store
+     * written under the default (encoded p equal to r) and one written with
+     * the configured p (property "false", encoded p != r), and answers the
+     * entry in each.
      */
     @Test
-    public void bc186ReadsDefaultWrittenScryptStoreAndRefusesConfiguredP_regression() throws Exception
+    public void bcReadsScryptStoresWrittenUnderEitherSetting_regression() throws Exception
     {
         String propertyName = BcFKSKeyStoreSpi.SCRYPT_P_EQ_R_PROPERTY;
         String old = System.getProperty(propertyName);
+        byte[] expected = new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
         try
         {
             System.clearProperty(propertyName);
@@ -989,15 +987,15 @@ public class BcFKSAgreementTest
             KeyStore bcOnDefault = bc();
             bcOnDefault.load(new ByteArrayInputStream(defaultWritten), BcFKSKeyStoreSpiTest.testPassword);
             SecretKey seckey = (SecretKey) bcOnDefault.getKey("seckey", BcFKSKeyStoreSpiTest.testPassword);
-            Assertions.assertArrayEquals(
-                    new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, seckey.getEncoded());
+            Assertions.assertArrayEquals(expected, seckey.getEncoded());
 
             System.setProperty(propertyName, "false");
             byte[] configuredPWritten = writeScryptStore();
 
             KeyStore bcOnConfiguredP = bc();
-            Assertions.assertThrows(IOException.class, () -> bcOnConfiguredP.load(
-                    new ByteArrayInputStream(configuredPWritten), BcFKSKeyStoreSpiTest.testPassword));
+            bcOnConfiguredP.load(new ByteArrayInputStream(configuredPWritten), BcFKSKeyStoreSpiTest.testPassword);
+            SecretKey configuredKey = (SecretKey) bcOnConfiguredP.getKey("seckey", BcFKSKeyStoreSpiTest.testPassword);
+            Assertions.assertArrayEquals(expected, configuredKey.getEncoded());
         }
         finally
         {

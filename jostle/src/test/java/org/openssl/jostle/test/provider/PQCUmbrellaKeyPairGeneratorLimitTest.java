@@ -33,7 +33,7 @@ import java.security.spec.X509EncodedKeySpec;
 
 /**
  * The generic ML-DSA, ML-KEM and SLH-DSA KeyPairGenerators, and their MLDSA, MLKEM and SLHDSA aliases, used
- * without initialize() generate ML-DSA-87, ML-KEM-768 and SLH-DSA-SHA2-128F, BouncyCastle's defaults. The parameter
+ * without initialize() generate ML-DSA-65, ML-KEM-768 and SLH-DSA-SHA2-128F, BouncyCastle's defaults. The parameter
  * set is read back by BouncyCastle from the encodings, so a key that merely reports the right name cannot pass.
  */
 public class PQCUmbrellaKeyPairGeneratorLimitTest
@@ -55,10 +55,10 @@ public class PQCUmbrellaKeyPairGeneratorLimitTest
     }
 
     @Test
-    public void bareMlDsaGeneratorsGenerateMlDsa87() throws Exception
+    public void bareMlDsaGeneratorsGenerateMlDsa65() throws Exception
     {
-        assertBareDefault(JSL, "ML-DSA", "ML-DSA-87");
-        assertBareDefault(JSL, "MLDSA", "ML-DSA-87");
+        assertBareDefault(JSL, "ML-DSA", "ML-DSA-65");
+        assertBareDefault(JSL, "MLDSA", "ML-DSA-65");
     }
 
     @Test

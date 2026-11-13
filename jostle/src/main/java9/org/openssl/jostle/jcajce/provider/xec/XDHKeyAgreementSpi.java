@@ -190,9 +190,8 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
         requireInitialised();
         if (!peerSet)
         {
-            // BC returns null here; we match it,
-            // against the JCE contract. Pinned in ExceptionTypeDivergencePinTest.
-            return null;
+            // The JCA contract.
+            throw new IllegalStateException("XDH: the key agreement is not complete");
         }
         try
         {
@@ -226,10 +225,8 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
         requireInitialised();
         if (!peerSet)
         {
-            // BC raises a raw NullPointerException here, not
-            // ShortBufferException. Pinned in ExceptionTypeDivergencePinTest.
-            throw new NullPointerException(
-                    "XDH generateSecret: doPhase has not been called");
+            // The JCA contract.
+            throw new IllegalStateException("XDH: the key agreement is not complete");
         }
         if (sharedSecret == null)
         {
@@ -307,6 +304,19 @@ public class XDHKeyAgreementSpi extends KeyAgreementSpi
         if (ref == null)
         {
             throw new IllegalStateException("XDH KeyAgreement not initialised");
+        }
+    }
+
+    /**
+     * Refuses with IllegalStateException, as the JCA contract specifies, until init and the last phase have
+     * completed the agreement.
+     */
+    protected void requireAgreementComplete()
+    {
+        requireInitialised();
+        if (!peerSet)
+        {
+            throw new IllegalStateException("XDH: the key agreement is not complete");
         }
     }
 

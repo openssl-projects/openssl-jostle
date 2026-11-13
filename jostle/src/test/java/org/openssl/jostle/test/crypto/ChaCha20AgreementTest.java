@@ -14,6 +14,7 @@ package org.openssl.jostle.test.crypto;
 import org.bouncycastle.crypto.engines.ChaCha7539Engine;
 import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.crypto.params.ParametersWithIV;
+import org.bouncycastle.jcajce.spec.BCChaCha20ParameterSpec;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -648,6 +649,102 @@ public class ChaCha20AgreementTest
             if (!Arrays.areEqual(msg, jsl.doFinal(jslCt)))
             {
                 Assertions.fail(sample + ": decrypt does not round-trip");
+            }
+        }
+    }
+
+    private static Cipher bcCipher(int mode, SecretKey key, byte[] nonce, int counter) throws Exception
+    {
+        Cipher c = Cipher.getInstance(BC_NAME, BC);
+        c.init(mode, key, new BCChaCha20ParameterSpec(nonce, counter));
+        return c;
+    }
+
+    /**
+     * The JCE-level BouncyCastle reference for the counter path: JSL under ChaCha20CounterParameterSpec against
+     * BouncyCastle's CHACHA7539 under BCChaCha20ParameterSpec, one-shot and chunked, both directions. BouncyCastle's
+     * cipher stops one block before the RFC 8439 limit, so each message ends short of it and 2^32 - 1 is not drawn.
+     */
+    @Test
+    public void counterSpec_agreesWithBouncyCastleCipher_acrossTheCounterRange() throws Exception
+    {
+        SecureRandom sr = seededRandom("counterSpec_agreesWithBouncyCastleCipher_acrossTheCounterRange");
+        int[] fixed = {1, 42, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFE};
+        int[][] chunkings = {null, {1}, {63}, {64}, {65}, {7, 64, 13}};
+        for (int trial = 0; trial < 30; trial++)
+        {
+            int counter = trial < fixed.length ? fixed[trial] : sr.nextInt();
+            if (counter == 0xFFFFFFFF)
+            {
+                counter = 0xFFFFFFFE;
+            }
+            byte[] keyBytes = new byte[32];
+            sr.nextBytes(keyBytes);
+            SecretKey key = new SecretKeySpec(keyBytes, "ChaCha20");
+            byte[] nonce = new byte[12];
+            sr.nextBytes(nonce);
+            byte[] msg = new byte[(int) Math.min(1 + sr.nextInt(300), bytesLeft(counter) - 1)];
+            sr.nextBytes(msg);
+            int[] chunks = chunkings[trial % chunkings.length];
+            String label = String.format("counter 0x%08x length %d trial %d", counter, msg.length, trial);
+
+            byte[] bcCt = bcCipher(Cipher.ENCRYPT_MODE, key, nonce, counter).doFinal(msg);
+            Cipher enc = counterCipher(Cipher.ENCRYPT_MODE, key, nonce, counter);
+            byte[] jslCt = processChunked(enc, msg, chunks);
+            Assertions.assertArrayEquals(bcCt, jslCt, label + " encrypt");
+            Cipher dec = counterCipher(Cipher.DECRYPT_MODE, key, nonce, counter);
+            Assertions.assertArrayEquals(msg, processChunked(dec, bcCt, chunks), label + " JSL decrypts BC");
+            Assertions.assertArrayEquals(msg, bcCipher(Cipher.DECRYPT_MODE, key, nonce, counter).doFinal(jslCt),
+                label + " BC decrypts JSL");
+        }
+    }
+
+    /**
+     * Monte Carlo over the nonce and the counter against BouncyCastle's cipher: each sample draws a fresh key, nonce,
+     * counter and 1 to 64 byte message ending short of BouncyCastle's limit; JSL must equal CHACHA7539 under
+     * BCChaCha20ParameterSpec, and each must decrypt the other's ciphertext, on every sample.
+     */
+    @Test
+    public void monteCarloOverTheNonceAndCounter_agreesWithBouncyCastleCipher() throws Exception
+    {
+        SecureRandom sr = seededRandom("monteCarloOverTheNonceAndCounter_agreesWithBouncyCastleCipher");
+        Cipher jsl = Cipher.getInstance(JSL_NAME, JSL);
+        Cipher bc = Cipher.getInstance(BC_NAME, BC);
+        for (int i = 0; i < MONTE_CARLO_SAMPLES; i++)
+        {
+            int counter = sr.nextInt();
+            if (counter == 0xFFFFFFFF)
+            {
+                counter = 0xFFFFFFFE;
+            }
+            byte[] keyBytes = new byte[32];
+            byte[] nonce = new byte[12];
+            byte[] msg = new byte[(int) Math.min(1 + sr.nextInt(64), bytesLeft(counter) - 1)];
+            sr.nextBytes(keyBytes);
+            sr.nextBytes(nonce);
+            sr.nextBytes(msg);
+            SecretKey key = new SecretKeySpec(keyBytes, "ChaCha20");
+            String sample = String.format("sample %d nonce %s counter 0x%08x length %d", i, Hex.toHexString(nonce),
+                counter, msg.length);
+
+            bc.init(Cipher.ENCRYPT_MODE, key, new BCChaCha20ParameterSpec(nonce, counter));
+            byte[] bcCt = bc.doFinal(msg);
+            jsl.init(Cipher.ENCRYPT_MODE, key, new ChaCha20CounterParameterSpec(nonce, counter));
+            byte[] jslCt = jsl.doFinal(msg);
+            if (!Arrays.areEqual(bcCt, jslCt))
+            {
+                Assertions.fail(sample + ": ciphertext differs from BouncyCastle");
+            }
+
+            jsl.init(Cipher.DECRYPT_MODE, key, new ChaCha20CounterParameterSpec(nonce, counter));
+            if (!Arrays.areEqual(msg, jsl.doFinal(bcCt)))
+            {
+                Assertions.fail(sample + ": JSL does not decrypt BouncyCastle's ciphertext");
+            }
+            bc.init(Cipher.DECRYPT_MODE, key, new BCChaCha20ParameterSpec(nonce, counter));
+            if (!Arrays.areEqual(msg, bc.doFinal(jslCt)))
+            {
+                Assertions.fail(sample + ": BouncyCastle does not decrypt JSL's ciphertext");
             }
         }
     }

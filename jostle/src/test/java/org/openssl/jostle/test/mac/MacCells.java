@@ -632,28 +632,25 @@ public final class MacCells
         }
     }
 
-    /** A refused re-init leaves the previous stream running: its tag equals a fresh instance's over both parts. */
-    public static void gmacKeepsThePreviousStreamAfterARefusedReinit(String provider) throws Exception
+    /**
+     * A refused re-init leaves the instance unusable until an init succeeds, as on BouncyCastle; an init with a
+     * new nonce then gives a fresh instance's tag.
+     */
+    public static void gmacARefusedReinitLeavesTheMacUnusable(String provider) throws Exception
     {
         byte[] key = random(16);
         byte[] iv = random(12);
-        byte[] a = random(23);
-        byte[] b = random(41);
-        byte[][] tags = new byte[2][];
-        String[] providers = {provider, "BC"};
-        for (int i = 0; i < 2; i++)
+        byte[] newIv = random(12);
+        byte[] msg = random(41);
+        for (String p : new String[]{provider, "BC"})
         {
-            Mac m = gmac(providers[i], key, iv);
-            m.update(a);
-            reuseRefused(m, key, iv, providers[i]);
-            m.update(b);
-            tags[i] = m.doFinal();
+            Mac m = gmac(p, key, iv);
+            m.update(random(23));
+            reuseRefused(m, key, iv, p);
+            refusedSpent(m, p + " after a refused re-init");
+            m.init(new SecretKeySpec(key, "AES"), new IvParameterSpec(newIv));
+            Assertions.assertArrayEquals(reinitTag(provider, key, newIv, msg), m.doFinal(msg), p + " new nonce");
         }
-        Mac fresh = gmac(provider, key, iv);
-        fresh.update(a);
-        fresh.update(b);
-        Assertions.assertArrayEquals(fresh.doFinal(), tags[0], "against a fresh instance");
-        Assertions.assertArrayEquals(tags[1], tags[0], "against BouncyCastle");
     }
 
     private static byte[] reinitTag(String provider, byte[] key, byte[] iv, byte[] msg) throws Exception
@@ -680,11 +677,15 @@ public final class MacCells
         }
     }
 
-    /** A refused bad-key init drops the previous key and nonce, so the same nonce is then accepted, as on BC. */
-    public static void gmacAcceptsTheSameNonceAfterARefusedBadKeyInit(String provider) throws Exception
+    /**
+     * A refused bad-key init keeps the last accepted key and nonce, so that nonce is still refused as reused, as on
+     * BouncyCastle; a new nonce is then accepted.
+     */
+    public static void gmacRefusesTheLastGoodNonceAfterARefusedBadKeyInit(String provider) throws Exception
     {
         byte[] key = random(16);
         byte[] iv = random(12);
+        byte[] newIv = random(12);
         byte[] msg = random(30);
         for (String p : new String[]{provider, "BC"})
         {
@@ -692,8 +693,9 @@ public final class MacCells
             m.doFinal(random(3));
             Assertions.assertThrows(Exception.class,
                     () -> m.init(new SecretKeySpec(new byte[15], "AES"), new IvParameterSpec(iv)), p + " bad key");
-            m.init(new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
-            Assertions.assertArrayEquals(reinitTag(provider, key, iv, msg), m.doFinal(msg), p);
+            reuseRefused(m, key, iv, p + " after a refused bad-key init");
+            m.init(new SecretKeySpec(key, "AES"), new IvParameterSpec(newIv));
+            Assertions.assertArrayEquals(reinitTag(provider, key, newIv, msg), m.doFinal(msg), p + " new nonce");
         }
     }
 

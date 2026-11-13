@@ -54,7 +54,7 @@ import java.util.Date;
  * {@link BCFKSLoadStoreParameter}-driven write options (KWP, HMAC-SHA3-512,
  * PBKDF2-SHA3-512, scrypt), signature-based integrity (SignatureCheck), and
  * PBKDF_KEY (type 5, a stored {@link PBEKey}) -- each measured against
- * BouncyCastle 1.86 at test time, per {@link BcFKSKeyStoreSpiTest}'s own
+ * BouncyCastle 1.87 at test time, per {@link BcFKSKeyStoreSpiTest}'s own
  * convention. Ours only: BC's own {@code BCFKSLoadStoreParameter} is used
  * here ONLY as an interop witness, never accepted by our SPI.
  */

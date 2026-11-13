@@ -42,7 +42,7 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
 
     // True when the parameter set was fixed at construction (a typed
     // generator such as getInstance("ML-DSA-65")); false for the umbrella
-    // "ML-DSA" generator, which generates ML-DSA-87 until an initialize
+    // "ML-DSA" generator, which generates ML-DSA-65 until an initialize
     // latches another type, and may be re-initialised to a different
     // parameter set (JCA re-init contract).
     private final boolean typeFixed;
@@ -133,9 +133,9 @@ public class MLDSAKeyPairGeneratorImpl extends KeyPairGenerator
         if (!typeFixed)
         {
             // The umbrella "ML-DSA" generator used without initialize()
-            // generates ML-DSA-87, BouncyCastle's default; initialize() may
+            // generates ML-DSA-65, BouncyCastle's default; initialize() may
             // still re-latch it to any parameter set.
-            keyType = OSSLKeyType.ML_DSA_87;
+            keyType = OSSLKeyType.ML_DSA_65;
         }
 
         // Pre-resolve a strength-appropriate default RandSource so

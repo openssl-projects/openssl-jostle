@@ -46,9 +46,10 @@ import java.security.PublicKey;
  * <p><b>"Usually" became load-bearing on 2026-09-13, so read it before adding
  * a cell.</b> The boundary is a default, not a law: where following the
  * contract would break callers written against BouncyCastle, the ruling can go
- * the other way. One case takes us WITH BouncyCastle and AGAINST
- * the JCE contract at KeyAgreement's pre-doPhase surface — see
- * {@link #ecdhGenerateSecretBeforeDoPhase_followsBouncyCastleAgainstTheContract}.
+ * the other way. The one case that went with BouncyCastle against the
+ * contract, KeyAgreement before the last phase, ended when BouncyCastle 1.87 met the
+ * contract; those cells now assert it, with BouncyCastle measured beside ours
+ * ({@link #ecdhGenerateSecretBeforeDoPhase_isIllegalState}).
  *
  * <p>So this file holds divergences in BOTH directions, and every cell must say
  * which side is canonical and which side we took. A cell recording only "we
@@ -158,8 +159,8 @@ public class ExceptionTypeDivergencePinTest
     }
 
     // -----------------------------------------------------------------
-    // KeyAgreement before doPhase. Here the ruling takes us WITH
-    // BouncyCastle and AGAINST the JCE contract.
+    // KeyAgreement before the last phase: the JCE contract's IllegalStateException,
+    // which BouncyCastle 1.87 also raises.
     // -----------------------------------------------------------------
 
     /** One call against a freshly initialised, un-phased KeyAgreement. */
@@ -219,49 +220,30 @@ public class ExceptionTypeDivergencePinTest
                 outcome(provider, agreement, key, ka -> ka.generateSecret(terminalAlgorithm))};
     }
 
-    /** What BOTH providers do, and what the JCE contract says instead. */
-    private static final String[] BC_PRE_DOPHASE = {
-            "returned null",
-            "threw java.lang.NullPointerException",
-            "threw java.lang.NullPointerException",
-            "threw java.lang.NullPointerException"};
+    /** The JCE contract for every shape of the shared-secret call before the last phase. */
+    private static final String[] CONTRACT_PRE_DOPHASE = {
+            "threw java.lang.IllegalStateException",
+            "threw java.lang.IllegalStateException",
+            "threw java.lang.IllegalStateException",
+            "threw java.lang.IllegalStateException"};
 
-    private static void assertFollowsBouncyCastle(String agreement, PrivateKey ours, PrivateKey theirs)
+    private static void assertContract(String agreement, PrivateKey ours, PrivateKey theirs, String terminalAlgorithm)
             throws Exception
     {
-        Assertions.assertArrayEquals(BC_PRE_DOPHASE,
-                sweepBeforeDoPhase(JostleProvider.PROVIDER_NAME, agreement, ours),
-                agreement + ": ours must follow BouncyCastle, contract notwithstanding");
-        Assertions.assertArrayEquals(BC_PRE_DOPHASE,
-                sweepBeforeDoPhase(BouncyCastleProvider.PROVIDER_NAME, agreement, theirs),
-                agreement + ": BouncyCastle's half of the pin. If this fails BC has MOVED,"
-                        + " and following it against the contract may no longer be the ruling");
+        Assertions.assertArrayEquals(CONTRACT_PRE_DOPHASE,
+                sweepBeforeDoPhase(JostleProvider.PROVIDER_NAME, agreement, ours, terminalAlgorithm),
+                agreement + ": ours must refuse every shape with IllegalStateException");
+        Assertions.assertArrayEquals(CONTRACT_PRE_DOPHASE,
+                sweepBeforeDoPhase(BouncyCastleProvider.PROVIDER_NAME, agreement, theirs, terminalAlgorithm),
+                agreement + ": BouncyCastle, measured beside ours");
     }
 
     /**
-     * ECDH generateSecret before doPhase: we follow BouncyCastle, deliberately
-     * against the JCE contract.
-     *
-     * <p>The contract says {@code IllegalStateException} from every overload,
-     * and {@code ShortBufferException} where the buffer is too small. BC does
-     * none of that: {@code generateSecret()} returns null,
-     * and the other three raise a raw {@code NullPointerException} — the
-     * undersized buffer included, because BC dereferences the secret it never
-     * derived before it ever reaches its length check.
-     *
-     * <p><b>This is the file's first cell where the ruling goes WITH BC and
-     * against the contract.</b> No rationale was stated for this ruling, and
-     * none is invented here.
-     *
-     * <p>What can be said is the BOUND, because it was measured: every outcome
-     * at this surface is a refusal either way, so no wrong bytes reach a
-     * caller. That bound is specific to this surface and does not generalise:
-     * it is what makes following the reference tolerable here, and nowhere
-     * else.
-     *
+     * ECDH before the last phase: every shared-secret shape refuses with IllegalStateException, the undersized buffer
+     * included, since the agreement is not complete before its length matters.
      */
     @Test
-    public void ecdhGenerateSecretBeforeDoPhase_followsBouncyCastleAgainstTheContract()
+    public void ecdhGenerateSecretBeforeDoPhase_isIllegalState()
             throws Exception
     {
         KeyPairGenerator ourKpg =
@@ -271,18 +253,15 @@ public class ExceptionTypeDivergencePinTest
                 KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
         bcKpg.initialize(new ECGenParameterSpec("P-256"));
 
-        assertFollowsBouncyCastle("ECDH",
-                ourKpg.generateKeyPair().getPrivate(),
-                bcKpg.generateKeyPair().getPrivate());
+        assertContract("ECDH", ourKpg.generateKeyPair().getPrivate(), bcKpg.generateKeyPair().getPrivate(), "AES");
     }
 
     /**
-     * The XDH half of the ECDH cell above, identical in shape. Both are
-     * pinned because the two SPIs are separate classes: a fix applied to one
-     * and not the other is exactly the drift this file exists to catch.
+     * The XDH half of the ECDH cell above, identical in shape. Both are kept because the two SPIs are separate
+     * classes.
      */
     @Test
-    public void xdhGenerateSecretBeforeDoPhase_followsBouncyCastleAgainstTheContract()
+    public void xdhGenerateSecretBeforeDoPhase_isIllegalState()
             throws Exception
     {
         PrivateKey ours = KeyPairGenerator
@@ -292,7 +271,7 @@ public class ExceptionTypeDivergencePinTest
                 .getInstance("X25519", BouncyCastleProvider.PROVIDER_NAME)
                 .generateKeyPair().getPrivate();
 
-        assertFollowsBouncyCastle("X25519", ours, theirs);
+        assertContract("X25519", ours, theirs, "AES");
     }
 
     /**
@@ -319,20 +298,14 @@ public class ExceptionTypeDivergencePinTest
     }
 
     /**
-     * RFC 8418 HKDF agreement before doPhase. The raw forms are sealed:
-     * {@code generateSecret()} and the two buffer forms raise
-     * {@code UnsupportedOperationException} unconditionally, doPhase state
-     * notwithstanding. BC's raw forms raise {@code NullPointerException}
-     * here instead. The named form is not sealed, and follows BC's
-     * {@code IllegalArgumentException}.
+     * RFC 8418 HKDF agreement before the last phase. The raw forms are sealed once the agreement is complete, but
+     * before it every shape, the named form included, refuses with IllegalStateException first.
      *
-     * <p>The terminal call names a CMS wrap OID, not the bare "AES" the shared
-     * sweep uses: our KDF agreements size their key from the OID and refuse the
-     * bare name, which BouncyCastle accepts. "AES" would therefore measure our
-     * lookup instead of the state.
+     * <p>The terminal call names a CMS wrap OID, not the bare "AES" the shared sweep uses: our KDF agreements size
+     * their key from the OID and refuse the bare name, which BouncyCastle accepts.
      */
     @Test
-    public void hkdfAgreementBeforeDoPhase_rawFormsSealedNamedFormFollowsBouncyCastle()
+    public void hkdfAgreementBeforeDoPhase_isIllegalState()
             throws Exception
     {
         String agreement = "XDHwithSHA256HKDF";
@@ -343,26 +316,7 @@ public class ExceptionTypeDivergencePinTest
         KeyPair theirKp = KeyPairGenerator
                 .getInstance("X25519", BouncyCastleProvider.PROVIDER_NAME).generateKeyPair();
 
-        String[] oursSealed = {
-                "threw java.lang.UnsupportedOperationException",
-                "threw java.lang.UnsupportedOperationException",
-                "threw java.lang.UnsupportedOperationException",
-                "threw java.lang.IllegalArgumentException"};
-        String[] bcKdfPath = {
-                "threw java.lang.NullPointerException",
-                "threw java.lang.NullPointerException",
-                "threw java.lang.NullPointerException",
-                "threw java.lang.IllegalArgumentException"};
-
-        Assertions.assertArrayEquals(oursSealed,
-                sweepBeforeDoPhase(JostleProvider.PROVIDER_NAME, agreement,
-                        ourKp.getPrivate(), aes256Wrap),
-                agreement + ": our raw forms are sealed by policy; only the named form follows BC");
-        Assertions.assertArrayEquals(bcKdfPath,
-                sweepBeforeDoPhase(BouncyCastleProvider.PROVIDER_NAME, agreement,
-                        theirKp.getPrivate(), aes256Wrap),
-                agreement + ": BouncyCastle's half of the pin, unaffected by our sealing policy."
-                        + " If this fails BC has MOVED.");
+        assertContract(agreement, ourKp.getPrivate(), theirKp.getPrivate(), aes256Wrap);
     }
 
     /**

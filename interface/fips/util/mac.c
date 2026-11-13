@@ -318,12 +318,14 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
     }
     jo_assert(key != NULL);
 
-    // Same key and nonce as the held ones: refused, and the ctx left as it was. Constant time over the bytes.
+    // Same key and nonce as the last accepted init: refused, and the ctx unusable until an init succeeds.
+    // Constant time over the bytes.
     if (is_gmac(mctx->mac_name) && mctx->key != NULL && mctx->iv != NULL && iv != NULL
         && key_len == mctx->key_len && iv_len == mctx->iv_len) {
         int key_diff = CRYPTO_memcmp(key, mctx->key, key_len);
         int iv_diff = CRYPTO_memcmp(iv, mctx->iv, iv_len);
         if ((key_diff | iv_diff) == 0) {
+            mctx->initialized = 0;
             return JO_MAC_NONCE_REUSED;
         }
     }
@@ -352,12 +354,10 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
         }
     }
 
-    if (mctx->key != NULL) {
-        OPENSSL_clear_free(mctx->key, mctx->key_len);
-    }
-    if (mctx->iv != NULL) {
-        OPENSSL_free(mctx->iv);
-    }
+    uint8_t *old_key = mctx->key;
+    size_t old_key_len = mctx->key_len;
+    uint8_t *old_iv = mctx->iv;
+    size_t old_iv_len = mctx->iv_len;
     if (mctx->custom != NULL) {
         OPENSSL_free(mctx->custom);
     }
@@ -373,9 +373,21 @@ int32_t mac_init(mac_ctx *mctx, const uint8_t *key, size_t key_len,
     ret = init_mac_ctx(mctx);
     if (ret < 0) {
         mac_drop_held(mctx);
+        // GMAC keeps the key and nonce of the last accepted init, so a refused init cannot clear the reuse check.
+        if (is_gmac(mctx->mac_name) && old_key != NULL && old_iv != NULL) {
+            mctx->key = old_key;
+            mctx->key_len = old_key_len;
+            mctx->iv = old_iv;
+            mctx->iv_len = old_iv_len;
+            return ret;
+        }
+        OPENSSL_clear_free(old_key, old_key_len);
+        OPENSSL_free(old_iv);
         return ret;
     }
 
+    OPENSSL_clear_free(old_key, old_key_len);
+    OPENSSL_free(old_iv);
     return JO_SUCCESS;
 }
 

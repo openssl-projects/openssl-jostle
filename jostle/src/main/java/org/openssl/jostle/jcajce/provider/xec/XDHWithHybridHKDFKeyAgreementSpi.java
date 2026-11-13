@@ -162,6 +162,7 @@ public class XDHWithHybridHKDFKeyAgreementSpi extends XDHKeyAgreementSpi
     @Override
     protected byte[] engineGenerateSecret() throws IllegalStateException
     {
+        requireAgreementComplete();
         throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
     }
 
@@ -173,6 +174,7 @@ public class XDHWithHybridHKDFKeyAgreementSpi extends XDHKeyAgreementSpi
     protected int engineGenerateSecret(byte[] sharedSecret, int offset)
             throws IllegalStateException, ShortBufferException
     {
+        requireAgreementComplete();
         throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
     }
 
@@ -180,6 +182,7 @@ public class XDHWithHybridHKDFKeyAgreementSpi extends XDHKeyAgreementSpi
     protected SecretKey engineGenerateSecret(String algorithm)
             throws IllegalStateException, NoSuchAlgorithmException, InvalidKeyException
     {
+        requireAgreementComplete();
         if (algorithm == null || algorithm.trim().isEmpty())
         {
             throw new NoSuchAlgorithmException(
@@ -195,11 +198,6 @@ public class XDHWithHybridHKDFKeyAgreementSpi extends XDHKeyAgreementSpi
 
         // super: the local raw-form override above is sealed.
         byte[] zz = super.engineGenerateSecret();
-        if (zz == null)
-        {
-            throw new NullPointerException(
-                    "XDH hybrid HKDF generateSecret: doPhase has not been called");
-        }
         byte[] hybrid = concat(t, zz);
         byte[] kek = null;
         try

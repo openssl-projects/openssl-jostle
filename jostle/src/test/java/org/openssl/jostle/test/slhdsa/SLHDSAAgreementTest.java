@@ -62,7 +62,7 @@ import java.util.TreeSet;
 
 /**
  * Cross-implementation agreement for the WHOLE base-provider ({@code JSL})
- * SLH-DSA surface, against BouncyCastle 1.86.
+ * SLH-DSA surface, against BouncyCastle 1.87.
  * <p>
  * Non-FIPS counterpart of {@code FIPSSLHDSAAgreementTest}. Neither substitutes
  * for the other: they drive different native libraries and different lib ctxs,

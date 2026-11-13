@@ -411,6 +411,19 @@ public class DHKeyAgreementSpi extends KeyAgreementSpi
         }
     }
 
+    /**
+     * Refuses with IllegalStateException, as the JCA contract specifies, until init and the last phase have
+     * completed the agreement.
+     */
+    protected void requireAgreementComplete()
+    {
+        requireInitialised();
+        if (!peerSet)
+        {
+            throw new IllegalStateException("DH: the key agreement is not complete");
+        }
+    }
+
 
     protected static class Disposer extends NativeDisposer
     {

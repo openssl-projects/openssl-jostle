@@ -681,6 +681,52 @@ public class KeyAgreementNegativePathSurveyTest
     }
 
     /** Every registered KeyAgreement SPI class reaches a cell. Both directions. */
+    /**
+     * Every agreement in the survey refuses a secret asked for before the last phase with IllegalStateException,
+     * the JCA contract, in every form; BouncyCastle, measured live beside it, does the same wherever it serves
+     * the name.
+     */
+    @Test
+    public void everyAgreementRefusesASecretBeforeDoPhaseWithIllegalStateException() throws Exception
+    {
+        List<String> tail = new ArrayList<String>();
+        List<String> wrong = new ArrayList<String>();
+        int ours = 0;
+        int theirs = 0;
+        for (Cell cell : cells())
+        {
+            Pair keys = keys(cell);
+            boolean bcServes = bc.getService("KeyAgreement", cell.name) != null;
+            for (Form form : Fault.GENERATE_SECRET_BEFORE_DOPHASE.forms())
+            {
+                Observation o = applyFault(jsl, cell, Fault.GENERATE_SECRET_BEFORE_DOPHASE, form, keys, tail);
+                ours++;
+                if (!o.isThrow() || o.thrown().getClass() != IllegalStateException.class)
+                {
+                    wrong.add("JSL " + cell.name + " " + form + ": " + describe(o));
+                }
+                if (bcServes)
+                {
+                    Observation b = applyFault(bc, cell, Fault.GENERATE_SECRET_BEFORE_DOPHASE, form, keys, tail);
+                    theirs++;
+                    if (!b.isThrow() || b.thrown().getClass() != IllegalStateException.class)
+                    {
+                        wrong.add("BC " + cell.name + " " + form + ": " + describe(b));
+                    }
+                }
+            }
+        }
+        Assertions.assertEquals(cells().size() * Fault.GENERATE_SECRET_BEFORE_DOPHASE.forms().size(), ours,
+                "every cell and form must be driven");
+        Assertions.assertTrue(theirs > 0, "BouncyCastle must be measured on at least one cell");
+        Assertions.assertTrue(wrong.isEmpty(), "not IllegalStateException before the last phase: " + wrong);
+    }
+
+    private static String describe(Observation o)
+    {
+        return o.isThrow() ? o.thrown().getClass().getName() + ": " + o.message() : "no exception";
+    }
+
     @Test
     public void everyKeyAgreementSpiClassHasACell()
     {

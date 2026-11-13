@@ -55,11 +55,11 @@ public class FIPSPQCUmbrellaKeyPairGeneratorLimitTest
     }
 
     @Test
-    public void bareMlDsaGeneratorsGenerateMlDsa87() throws Exception
+    public void bareMlDsaGeneratorsGenerateMlDsa65() throws Exception
     {
         assumeRegistered("ML-DSA");
-        PQCUmbrellaKeyPairGeneratorLimitTest.assertBareDefault(FIPS, "ML-DSA", "ML-DSA-87");
-        PQCUmbrellaKeyPairGeneratorLimitTest.assertBareDefault(FIPS, "MLDSA", "ML-DSA-87");
+        PQCUmbrellaKeyPairGeneratorLimitTest.assertBareDefault(FIPS, "ML-DSA", "ML-DSA-65");
+        PQCUmbrellaKeyPairGeneratorLimitTest.assertBareDefault(FIPS, "MLDSA", "ML-DSA-65");
     }
 
     @Test

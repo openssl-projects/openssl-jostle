@@ -465,46 +465,37 @@ public class SecureRandomNegativePathSurveyTest
      * type was always the IAE case - which the null check in the same method had
      * been getting right all along.
      *
-     * <p><b>BouncyCastle's {@code UnsupportedOperationException} is CORRECT and
-     * stays pinned as the measured value.</b> Verified reflectively:
-     * {@code DRBG$Default} extends {@code SecureRandomSpi}
-     * directly and declares none of the params-taking methods, so its UOE IS the
-     * contract's not-overridden case. It is not a shared error - the earlier
-     * reading of this cell said so and was wrong.
-     *
-     * <p><b>{@code ThreeWay} will now label these cells BC_IS_ODD, and that
-     * label is by VOTE only.</b> Two providers agree because two providers
-     * implement the method; the third declines to, which the contract permits.
-     * Attribution by vote is not attribution by correctness, in either
-     * direction - the reason MT-67 needed a contract reading rather than a
-     * tally.
+     * <p>BouncyCastle 1.87's {@code DEFAULT} overrides the params-taking methods (bc-java 9b85b76c11) and
+     * raises {@code IllegalArgumentException} on foreign parameters too, so the three providers agree there.
+     * On prediction resistance it serves the request, where JSL and the JDK refuse it on a DRBG instantiated
+     * without it; that cell is the one divergence left, pinned in all three halves.
      */
     @Test
     public void pinnedDivergences()
     {
 
-        // Finding D, both halves, on a name every provider can answer.
+        // Foreign parameters: all three refuse with the same type.
         refuses(observe(jsl, "DRBG", Fault.RESEED_FOREIGN_PARAMS),
                 IllegalArgumentException.class, "JSL DRBG RESEED_FOREIGN_PARAMS");
         refuses(observeJdk("DRBG", Fault.RESEED_FOREIGN_PARAMS),
                 IllegalArgumentException.class, "JDK DRBG RESEED_FOREIGN_PARAMS");
         refuses(observe(bc, "DEFAULT", Fault.RESEED_FOREIGN_PARAMS),
-                UnsupportedOperationException.class, "BC DEFAULT RESEED_FOREIGN_PARAMS");
+                IllegalArgumentException.class, "BC DEFAULT RESEED_FOREIGN_PARAMS");
 
         refuses(observe(jsl, "DRBG", Fault.NEXT_BYTES_FOREIGN_PARAMS),
                 IllegalArgumentException.class, "JSL DRBG NEXT_BYTES_FOREIGN_PARAMS");
         refuses(observeJdk("DRBG", Fault.NEXT_BYTES_FOREIGN_PARAMS),
                 IllegalArgumentException.class, "JDK DRBG NEXT_BYTES_FOREIGN_PARAMS");
         refuses(observe(bc, "DEFAULT", Fault.NEXT_BYTES_FOREIGN_PARAMS),
-                UnsupportedOperationException.class, "BC DEFAULT NEXT_BYTES_FOREIGN_PARAMS");
+                IllegalArgumentException.class, "BC DEFAULT NEXT_BYTES_FOREIGN_PARAMS");
 
-        // Prediction resistance: we and the JDK agree, BouncyCastle is odd.
+        // Prediction resistance: we and the JDK refuse, BouncyCastle serves it.
         refuses(observe(jsl, "DRBG", Fault.NEXT_BYTES_PREDICTION_RESISTANCE),
                 IllegalArgumentException.class, "JSL DRBG NEXT_BYTES_PREDICTION_RESISTANCE");
         refuses(observeJdk("DRBG", Fault.NEXT_BYTES_PREDICTION_RESISTANCE),
                 IllegalArgumentException.class, "JDK DRBG NEXT_BYTES_PREDICTION_RESISTANCE");
-        refuses(observe(bc, "DEFAULT", Fault.NEXT_BYTES_PREDICTION_RESISTANCE),
-                UnsupportedOperationException.class, "BC DEFAULT NEXT_BYTES_PREDICTION_RESISTANCE");
+        accepts(observe(bc, "DEFAULT", Fault.NEXT_BYTES_PREDICTION_RESISTANCE),
+                "BC DEFAULT NEXT_BYTES_PREDICTION_RESISTANCE");
 
         // The two positive cells, on every live name. A fault survey is blind to
         // an over-refusal of good input, so these must be asserted or the class

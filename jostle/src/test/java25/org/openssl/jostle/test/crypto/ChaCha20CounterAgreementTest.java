@@ -242,6 +242,40 @@ public class ChaCha20CounterAgreementTest
         }
     }
 
+    /**
+     * The JDK spec on JSL against BouncyCastle's cipher given the same JDK spec, one-shot and chunked, both
+     * directions. BouncyCastle stops one block before the RFC 8439 limit, so each message ends short of it.
+     */
+    @Test
+    public void jdkSpec_agreesWithBouncyCastleCipherGivenTheJdkSpec_acrossTheCounterRange() throws Exception
+    {
+        SecureRandom sr = seededRandom("jdkSpec_agreesWithBouncyCastleCipherGivenTheJdkSpec_acrossTheCounterRange");
+        int[] fixed = {1, 42, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFE};
+        int[][] chunkings = {null, {1}, {63}, {64}, {65}, {7, 64, 13}};
+        for (int trial = 0; trial < 30; trial++)
+        {
+            int counter = trial < fixed.length ? fixed[trial] : sr.nextInt();
+            if (counter == 0xFFFFFFFF)
+            {
+                counter = 0xFFFFFFFE;
+            }
+            SecretKey key = randomKey(sr);
+            byte[] nonce = randomNonce(sr);
+            byte[] msg = new byte[(int) Math.min(1 + sr.nextInt(300), bytesLeft(counter) - 1)];
+            sr.nextBytes(msg);
+            int[] chunks = chunkings[trial % chunkings.length];
+            String label = String.format("counter 0x%08x length %d trial %d", counter, msg.length, trial);
+
+            byte[] bcCt = cipher("BC", Cipher.ENCRYPT_MODE, key, nonce, counter).doFinal(msg);
+            byte[] jslCt = process(cipher(JSL, Cipher.ENCRYPT_MODE, key, nonce, counter), msg, chunks);
+            Assertions.assertArrayEquals(bcCt, jslCt, label + " encrypt");
+            Cipher dec = cipher(JSL, Cipher.DECRYPT_MODE, key, nonce, counter);
+            Assertions.assertArrayEquals(msg, process(dec, bcCt, chunks), label + " JSL decrypts BC");
+            Assertions.assertArrayEquals(msg, cipher("BC", Cipher.DECRYPT_MODE, key, nonce, counter).doFinal(jslCt),
+                label + " BC decrypts JSL");
+        }
+    }
+
     private static final int MONTE_CARLO_SAMPLES = 300000;
 
     /**

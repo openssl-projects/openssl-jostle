@@ -55,8 +55,8 @@ public class PkitsThreeWayAgreementTest
      * release 8, so the version is read as the numeric form beside the info
      * string; neither alone is specific enough to name a release.
      */
-    private static final double BCPROV_VERSION = 1.86;
-    private static final String BCPROV_INFO = "BouncyCastle Security Provider v1.86";
+    private static final double BCPROV_VERSION = 1.87;
+    private static final String BCPROV_INFO = "BouncyCastle Security Provider v1.87";
 
     /** A single (case, provider, measured reason) sanction. */
     private static final class Exclusion
@@ -105,12 +105,6 @@ public class PkitsThreeWayAgreementTest
         EXCLUSIONS.add(new Exclusion("4.3.2", BC,
                 "BC accepts a path PKITS, SUN and this provider all refuse; SUN names "
                         + "\"subject/issuer name chaining check failed\", we return error 20"));
-        EXCLUSIONS.add(new Exclusion("4.14.31", BC,
-                "BC returns valid where PKITS, SUN and this provider all report the "
-                        + "certificate revoked (KEY_COMPROMISE)"));
-        EXCLUSIONS.add(new Exclusion("4.14.32", BC,
-                "BC returns valid where PKITS, SUN and this provider all report the "
-                        + "certificate revoked (KEY_COMPROMISE)"));
 
         // The delta-CRL pair. We honour deltas (X509_V_FLAG_USE_DELTAS) and
         // agree with PKITS on both; neither the JDK nor BouncyCastle does, so

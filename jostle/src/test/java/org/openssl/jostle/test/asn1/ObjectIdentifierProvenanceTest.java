@@ -37,7 +37,7 @@ import java.util.stream.Stream;
  *
  * <p>Three independent checks. Each constant's computed value is compared
  * against the dotted literal in its own javadoc, which is the human-written
- * oracle a branch typo cannot reach; then against BouncyCastle 1.86's field of
+ * oracle a branch typo cannot reach; then against BouncyCastle 1.87's field of
  * the same class and field name, which is an oracle we do not own; and finally
  * a source lint requires that no dotted literal survives outside this package.
  *
@@ -48,7 +48,7 @@ import java.util.stream.Stream;
  */
 public class ObjectIdentifierProvenanceTest
 {
-    /** Our interfaces, and where BouncyCastle 1.86 keeps the same-named class. */
+    /** Our interfaces, and where BouncyCastle 1.87 keeps the same-named class. */
     private static final Map<String, String> BC_CLASSES = new LinkedHashMap<String, String>();
 
     static
@@ -192,7 +192,7 @@ public class ObjectIdentifierProvenanceTest
     }
 
     /**
-     * Every constant must equal BouncyCastle 1.86's field of the same class and
+     * Every constant must equal BouncyCastle 1.87's field of the same class and
      * field name. Field names follow BouncyCastle deliberately so this
      * comparison needs no translation table.
      */
@@ -248,7 +248,7 @@ public class ObjectIdentifierProvenanceTest
             }
         }
 
-        Assertions.assertTrue(problems.isEmpty(), "disagreement with BouncyCastle 1.86:\n  "
+        Assertions.assertTrue(problems.isEmpty(), "disagreement with BouncyCastle 1.87:\n  "
                 + String.join("\n  ", problems));
         Assertions.assertTrue(checked >= 200,
                 "only " + checked + " constants compared -- the sweep is not reaching the package");

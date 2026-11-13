@@ -55,7 +55,7 @@ import java.util.TreeSet;
 
 /**
  * Cross-implementation agreement for the WHOLE base-provider ({@code JSL})
- * ML-DSA surface, against BouncyCastle 1.86.
+ * ML-DSA surface, against BouncyCastle 1.87.
  * <p>
  * Non-FIPS counterpart of {@code FIPSMLDSAAgreementTest}. Neither substitutes
  * for the other: they drive different native libraries and different lib ctxs,
@@ -874,7 +874,7 @@ public class MLDSAAgreementTest
 
     /**
      * The generic generators used without initialize() agree with BouncyCastle's generic generator used the same
-     * way: BouncyCastle reads the same parameter set from our encoding as its own default key carries (ML-DSA-87),
+     * way: BouncyCastle reads the same parameter set from our encoding as its own default key carries (ML-DSA-65),
      * and each side verifies the other's signature.
      */
     @Test
@@ -882,7 +882,7 @@ public class MLDSAAgreementTest
     {
         KeyPair bc = KeyPairGenerator.getInstance("ML-DSA", BC).generateKeyPair();
         String bcDefault = ((MLDSAKey) bc.getPublic()).getParameterSpec().getName();
-        Assertions.assertEquals("ML-DSA-87", bcDefault, "BouncyCastle's default moved");
+        Assertions.assertEquals("ML-DSA-65", bcDefault, "BouncyCastle's default moved");
         PublicKey bcPubAtJsl = KeyFactory.getInstance("ML-DSA", JSL)
                 .generatePublic(new X509EncodedKeySpec(bc.getPublic().getEncoded()));
         for (String name : new String[]{"ML-DSA", "MLDSA"})
@@ -1034,7 +1034,7 @@ public class MLDSAAgreementTest
 
             byte[] shortMu = Arrays.copyOfRange(jslMu, 0, 63);
             Assertions.assertFalse(verify(JSL, alg, kp.getPublic(), msg, shortMu, ctx), set);
-            Assertions.assertThrows(DataLengthException.class, () -> verify(BC, alg, bcPub, msg, shortMu, ctx),
+            Assertions.assertThrows(SignatureException.class, () -> verify(BC, alg, bcPub, msg, shortMu, ctx),
                     set + ": BouncyCastle now answers a short mu without its raw DataLengthException");
         }
     }

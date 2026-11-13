@@ -64,9 +64,9 @@ public class GmacNonceReuseContractTest
     }
 
     @Test
-    public void keepsThePreviousStreamAfterARefusedReinit() throws Exception
+    public void aRefusedReinitLeavesTheMacUnusable() throws Exception
     {
-        MacCells.gmacKeepsThePreviousStreamAfterARefusedReinit(JostleProvider.PROVIDER_NAME);
+        MacCells.gmacARefusedReinitLeavesTheMacUnusable(JostleProvider.PROVIDER_NAME);
     }
 
     @Test
@@ -76,9 +76,9 @@ public class GmacNonceReuseContractTest
     }
 
     @Test
-    public void acceptsTheSameNonceAfterARefusedBadKeyInit() throws Exception
+    public void refusesTheLastGoodNonceAfterARefusedBadKeyInit() throws Exception
     {
-        MacCells.gmacAcceptsTheSameNonceAfterARefusedBadKeyInit(JostleProvider.PROVIDER_NAME);
+        MacCells.gmacRefusesTheLastGoodNonceAfterARefusedBadKeyInit(JostleProvider.PROVIDER_NAME);
     }
 
     @Test

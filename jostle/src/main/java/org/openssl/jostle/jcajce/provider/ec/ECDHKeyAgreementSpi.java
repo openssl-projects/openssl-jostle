@@ -226,9 +226,8 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                // BC returns null here; we match it,
-                // against the JCE contract. Pinned in ExceptionTypeDivergencePinTest.
-                return null;
+                // The JCA contract.
+                throw new IllegalStateException("ECDH: the key agreement is not complete");
             }
 
             int upper = ecServiceNI.kexDerive(ref.getReference(), null, 0, randSource);
@@ -259,10 +258,8 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
             requireInitialised();
             if (!peerSet)
             {
-                // BC raises a raw NullPointerException here, not
-                // ShortBufferException. Pinned in ExceptionTypeDivergencePinTest.
-                throw new NullPointerException(
-                        "ECDH generateSecret: doPhase has not been called");
+                // The JCA contract.
+                throw new IllegalStateException("ECDH: the key agreement is not complete");
             }
             if (sharedSecret == null)
             {
@@ -343,6 +340,19 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
         if (ref == null)
         {
             throw new IllegalStateException("ECDH KeyAgreement not initialised");
+        }
+    }
+
+    /**
+     * Refuses with IllegalStateException, as the JCA contract specifies, until init and the last phase have
+     * completed the agreement.
+     */
+    protected void requireAgreementComplete()
+    {
+        requireInitialised();
+        if (!peerSet)
+        {
+            throw new IllegalStateException("ECDH: the key agreement is not complete");
         }
     }
 

@@ -54,9 +54,9 @@ public class FIPSGmacNonceReuseContractTest
     }
 
     @Test
-    public void keepsThePreviousStreamAfterARefusedReinit() throws Exception
+    public void aRefusedReinitLeavesTheMacUnusable() throws Exception
     {
-        MacCells.gmacKeepsThePreviousStreamAfterARefusedReinit(JostleFIPSProvider.PROVIDER_NAME);
+        MacCells.gmacARefusedReinitLeavesTheMacUnusable(JostleFIPSProvider.PROVIDER_NAME);
     }
 
     @Test
@@ -66,9 +66,9 @@ public class FIPSGmacNonceReuseContractTest
     }
 
     @Test
-    public void acceptsTheSameNonceAfterARefusedBadKeyInit() throws Exception
+    public void refusesTheLastGoodNonceAfterARefusedBadKeyInit() throws Exception
     {
-        MacCells.gmacAcceptsTheSameNonceAfterARefusedBadKeyInit(JostleFIPSProvider.PROVIDER_NAME);
+        MacCells.gmacRefusesTheLastGoodNonceAfterARefusedBadKeyInit(JostleFIPSProvider.PROVIDER_NAME);
     }
 
     @Test

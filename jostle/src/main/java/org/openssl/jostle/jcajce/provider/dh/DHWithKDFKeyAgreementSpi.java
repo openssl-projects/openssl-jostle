@@ -109,6 +109,7 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     @Override
     protected byte[] engineGenerateSecret() throws IllegalStateException
     {
+        requireAgreementComplete();
         throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
     }
 
@@ -120,6 +121,7 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     protected int engineGenerateSecret(byte[] sharedSecret, int offset)
             throws IllegalStateException, ShortBufferException
     {
+        requireAgreementComplete();
         throw new UnsupportedOperationException("KDF can only be used when algorithm is known");
     }
 
@@ -127,6 +129,7 @@ public class DHWithKDFKeyAgreementSpi extends DHKeyAgreementSpi
     protected SecretKey engineGenerateSecret(String algorithm)
             throws IllegalStateException, NoSuchAlgorithmException, InvalidKeyException
     {
+        requireAgreementComplete();
         if (algorithm == null || algorithm.trim().isEmpty())
         {
             throw new NoSuchAlgorithmException(

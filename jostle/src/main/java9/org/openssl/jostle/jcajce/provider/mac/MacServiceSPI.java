@@ -283,12 +283,9 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         }
 
         boolean accepted = false;
-        boolean kept = false;
         try
         {
             int rc = macServiceNI.ni_init(ref.getReference(), keyBytes, p.iv, p.custom, p.requestedLen);
-            // A reused GMAC nonce is refused before native changes anything, so this instance keeps its state too.
-            kept = rc == ErrorCode.JO_MAC_NONCE_REUSED.getCode();
             macServiceNI.handleInitErrors(rc);
             accepted = true;
         }
@@ -302,12 +299,9 @@ public class MacServiceSPI extends MacSpi implements Cloneable
         {
             // keyBytes is a fresh copy, so clearing it cannot change the caller's key.
             Arrays.clear(keyBytes);
-            if (!kept)
-            {
-                custom = accepted ? p.custom : null;
-                requestedLen = accepted ? p.requestedLen : 0;
-                initialised = accepted;
-            }
+            custom = accepted ? p.custom : null;
+            requestedLen = accepted ? p.requestedLen : 0;
+            initialised = accepted;
             Reference.reachabilityFence(this);
         }
     }

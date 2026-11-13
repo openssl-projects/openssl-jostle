@@ -197,7 +197,7 @@ final class BcFKSFixtures
             "ZHyOWnHvdq3g==");
 
     /**
-     * A BCFKS store BouncyCastle 1.86 itself writes at test time, using
+     * A BCFKS store BouncyCastle 1.87 itself writes at test time, using
      * scrypt (r1rv86 BCFKSStoreTest.shouldStoreUsingSCRYPT's own config:
      * N=1024, r=8, p=1, salt 20 bytes) as the KDF -- BC as a TEST-time
      * witness only, never in the implementation. One certificate

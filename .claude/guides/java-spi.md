@@ -597,7 +597,7 @@ provider's KeyFactory rather than through the NI.
 DER read AND write of BouncyCastle's `.bcfks` file format
 (`BcFKSFormat` for the wire structures, `Der` for the codec) — no BC type
 anywhere in the implementation; interop with BC is file-level only, measured
-at test time against bcprov 1.86. It takes every NI by constructor (per the
+at test time against bcprov 1.87. It takes every NI by constructor (per the
 rule above); `ProvBCFKS` registers it on `JSL` with base NIs and scrypt
 served, `ProvFIPSBCFKS` registers it on `JSLFIPS` with FIPS NIs and
 `memoryHardKdfNI` passed as `null` — the module has no scrypt.

@@ -146,21 +146,16 @@ public class RSAKEMAgreementTest
 
     /**
      * SHA-384 is refused as an X9.44 KDF digest, and BouncyCastle refuses it
-     * too - the narrowing brought the two into agreement rather than away from
-     * it. Both halves asserted, so a drift on either side is visible.
+     * too. Both halves asserted, so a drift on either side is visible.
      *
-     * <p>The two refuse at different POINTS: we
-     * reject the spec at {@code init}, BC accepts it there and throws
-     * {@code InvalidKeyException} from {@code wrap}. Asserted where each
-     * actually throws, so a move of either boundary fails here.
+     * <p>Both refuse at {@code init} with {@code InvalidAlgorithmParameterException},
+     * the type {@code engineInit} declares; the messages are each provider's own.
      */
     @Test
     public void sha384KdfIsRefusedByBothProviders() throws Exception
     {
-        SecureRandom sr = seededRandom("sha384KdfIsRefusedByBothProviders");
         KeyPair kp = keyPair();
         KtsSpec spec = kdf3Spec(256, null, NISTObjectIdentifiers.id_sha384);
-        SecretKey cek = randomCek(sr);
 
         Cipher ours = Cipher.getInstance(XFORM, providerName());
         InvalidAlgorithmParameterException e = Assertions.assertThrows(
@@ -171,12 +166,11 @@ public class RSAKEMAgreementTest
                 NISTObjectIdentifiers.id_sha384.getId()), e.getMessage());
 
         Cipher theirs = Cipher.getInstance(XFORM, BC);
-        theirs.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(BC));   // BC accepts it here
-        InvalidKeyException bc = Assertions.assertThrows(InvalidKeyException.class,
-                () -> theirs.wrap(cek),
-                "BouncyCastle must still refuse SHA-384, at wrap");
-        Assertions.assertEquals("unrecognized digest OID: "
-                + NISTObjectIdentifiers.id_sha384.getId(), bc.getMessage());
+        InvalidAlgorithmParameterException bc = Assertions.assertThrows(
+                InvalidAlgorithmParameterException.class,
+                () -> theirs.init(Cipher.WRAP_MODE, kp.getPublic(), spec.forProvider(BC)),
+                "BouncyCastle must still refuse SHA-384, at init");
+        Assertions.assertEquals("unsupported KDF: 1.3.133.16.840.9.44.1.2", bc.getMessage());
     }
 
     /** Both OIDs wrap what BouncyCastle reads. */

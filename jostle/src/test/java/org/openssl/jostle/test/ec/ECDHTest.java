@@ -262,48 +262,35 @@ public class ECDHTest
     }
 
     /**
-     * Before doPhase we follow BouncyCastle at this surface, including where
-     * BouncyCastle breaks the JCE contract.
-     *
-     * <p>The contract says {@code IllegalStateException} for every overload,
-     * and {@code ShortBufferException} for an undersized buffer. BC's
-     * {@code generateSecret()} returns null and the other three raise
-     * a raw {@code NullPointerException}, the undersized buffer included. The
-     * divergence is pinned against LIVE BouncyCastle in
-     * {@code test.parity.ExceptionTypeDivergencePinTest}; this cell pins our
-     * half only, so a reader meets the behaviour here among the other
-     * state-machine guards.
+     * Before the last phase every shared-secret overload refuses with IllegalStateException, the JCE contract,
+     * the undersized buffer included; BouncyCastle 1.87 does the same, measured live in
+     * {@code test.parity.ExceptionTypeDivergencePinTest}.
      */
     @Test
-    public void testEcdh_generateSecretBeforeDoPhase_followsBouncyCastle() throws Exception
+    public void testEcdh_secretBeforeTheLastPhase_isIllegalState() throws Exception
     {
         KeyPair kp = generateKeyPair("P-256");
 
         KeyAgreement ka = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
         ka.init(kp.getPrivate());
-        Assertions.assertNull(ka.generateSecret(),
-                "BC returns null here; the JCE contract says IllegalStateException");
+        Assertions.assertThrows(IllegalStateException.class, ka::generateSecret);
 
         KeyAgreement intoBuffer = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
         intoBuffer.init(kp.getPrivate());
-        Assertions.assertThrows(NullPointerException.class,
-                () -> intoBuffer.generateSecret(new byte[256], 0),
-                "BC raises a raw NullPointerException from this overload");
+        Assertions.assertThrows(IllegalStateException.class,
+                () -> intoBuffer.generateSecret(new byte[256], 0));
 
         KeyAgreement undersized = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
         undersized.init(kp.getPrivate());
-        Assertions.assertThrows(NullPointerException.class,
+        Assertions.assertThrows(IllegalStateException.class,
                 () -> undersized.generateSecret(new byte[1], 0),
-                "an undersized buffer must not reach the ShortBufferException path,"
-                        + " because BC never reaches its own length check");
+                "an undersized buffer is refused for the state before its length");
 
         KeyAgreement named = KeyAgreement.getInstance("ECDH", JostleProvider.PROVIDER_NAME);
         named.init(kp.getPrivate());
-        NullPointerException npe = Assertions.assertThrows(NullPointerException.class,
-                () -> named.generateSecret("AES"),
-                "BC raises a raw NullPointerException from this overload too");
-        Assertions.assertEquals("ECDH generateSecret: doPhase has not been called",
-                npe.getMessage(), "the TYPE is the parity; the message is ours");
+        IllegalStateException ise = Assertions.assertThrows(IllegalStateException.class,
+                () -> named.generateSecret("AES"));
+        Assertions.assertEquals("ECDH: the key agreement is not complete", ise.getMessage());
     }
 
     @Test

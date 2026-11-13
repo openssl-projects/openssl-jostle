@@ -448,15 +448,12 @@ public class FIPSECTest
                     expected.getMessage());
         }
 
-        // generateSecret before doPhase. We follow
-        // BouncyCastle here and return null, against the JCE contract, which
-        // says IllegalStateException. The SPI is shared with JSL, so this is
-        // the same behaviour ECDHTest pins; the divergence from the contract
-        // is pinned against live BC in test.parity.ExceptionTypeDivergencePinTest.
+        // The shared secret before the last phase: IllegalStateException, the JCE contract. The SPI is shared
+        // with JSL, so this is the same behaviour ECDHTest pins.
         KeyAgreement ka2 = KeyAgreement.getInstance("ECDH", FIPS);
         ka2.init(alice.getPrivate());
-        Assertions.assertNull(ka2.generateSecret(),
-                "BC returns null here, and JSLFIPS must not diverge from JSL");
+        IllegalStateException early = Assertions.assertThrows(IllegalStateException.class, ka2::generateSecret);
+        Assertions.assertEquals("ECDH: the key agreement is not complete", early.getMessage());
 
         // lastPhase=false.
         KeyAgreement ka3 = KeyAgreement.getInstance("ECDH", FIPS);
