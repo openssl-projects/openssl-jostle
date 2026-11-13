@@ -517,6 +517,7 @@ key and a fresh IV or nonce for every message; the fixed IVs below only keep the
 Imports used in this section:
 
 ```java
+import org.openssl.jostle.jcajce.spec.ChaCha20CounterParameterSpec;
 import org.openssl.jostle.jcajce.spec.IESKEMParameterSpec;
 import org.openssl.jostle.jcajce.spec.KTSParameterSpec;
 import org.openssl.jostle.util.encoders.Hex;
@@ -696,6 +697,27 @@ for (String name : new String[]{"ChaCha20-Poly1305", "ChaCha20"})
     dec.init(Cipher.DECRYPT_MODE, key, nonce);
     Assertions.assertArrayEquals(msg, dec.doFinal(ct), name);
 }
+```
+
+### chaCha20FromAGivenBlock
+
+Plain ChaCha20 started at a given block: `ChaCha20CounterParameterSpec` carries the nonce and the initial
+block counter on every Java version, and from Java 11 the JDK's `ChaCha20ParameterSpec` with the same values
+gives the same key stream. The vector is the start of RFC 8439 section 2.4.2, at counter 1.
+
+```java
+SecretKeySpec key = new SecretKeySpec(Hex.decode(
+        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"), "ChaCha20");
+ChaCha20CounterParameterSpec spec = new ChaCha20CounterParameterSpec(
+        Hex.decode("000000000000004a00000000"), 1);
+byte[] msg = "Ladies and Gentl".getBytes(StandardCharsets.US_ASCII);
+Cipher enc = Cipher.getInstance("ChaCha20", "JSL");
+enc.init(Cipher.ENCRYPT_MODE, key, spec);
+byte[] ct = enc.doFinal(msg);
+Assertions.assertArrayEquals(Hex.decode("6e2e359a2568f98041ba0728dd0d6981"), ct);
+Cipher dec = Cipher.getInstance("ChaCha20", "JSL");
+dec.init(Cipher.DECRYPT_MODE, key, spec);
+Assertions.assertArrayEquals(msg, dec.doFinal(ct));
 ```
 
 ### aesKeyWrap

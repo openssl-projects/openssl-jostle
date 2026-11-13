@@ -11,32 +11,28 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.jcajce.provider.NISelector;
+import org.openssl.jostle.jcajce.spec.ChaCha20CounterParameterSpec;
 
 import javax.crypto.spec.ChaCha20ParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.spec.AlgorithmParameterSpec;
-import java.security.Provider;
 
 /**
- * Java 11+ copy of {@link ChaCha20BlockCipherSpi}. Identical to the baseline
- * (java/) copy except that it additionally accepts
- * {@link javax.crypto.spec.ChaCha20ParameterSpec} (added in Java 11, which the
- * baseline cannot reference at {@code release = 8}). SunJCE's "ChaCha20" Cipher
- * requires that spec, so accepting it — alongside the BouncyCastle-style
- * {@link IvParameterSpec} — gives parity with both providers.
+ * Raw ChaCha20 stream cipher (RFC 8439), no authentication.
  *
- * <p>The multi-release jar loads this copy on JDK 11+ (from
- * {@code META-INF/versions/11}); JDK 8–10 load the baseline copy. The public
- * ABI is identical (same class, same public no-arg constructor) per the
- * multi-release ABI-stability rule.
+ * <p>Streams through the generic {@link BlockCipherSpi} via the synthetic {@code OSSLMode.STREAM} (block size 1).
+ * 256-bit key; the native layer rejects any other key length with {@link InvalidKeyException}.
  *
- * <p>NOTE: keep this class's behaviour in lockstep with the baseline copy in
- * {@code src/main/java} — only the {@code ChaCha20ParameterSpec} acceptance
- * differs.
+ * <p>Accepts a 12-byte nonce via {@link IvParameterSpec} (counter 0, the BouncyCastle "CHACHA7539" convention),
+ * a {@link ChaCha20CounterParameterSpec} carrying the nonce and the initial block counter, or no parameters for
+ * encryption, which draws a random nonce.
+ * <p>This Java 11 copy also accepts the JDK's {@code ChaCha20ParameterSpec}, converted to the same path,
+ * and otherwise matches the baseline copy in {@code src/main/java}.
  */
 public class ChaCha20BlockCipherSpi extends BlockCipherSpi
 {
@@ -70,10 +66,15 @@ public class ChaCha20BlockCipherSpi extends BlockCipherSpi
         {
             if (params instanceof ChaCha20ParameterSpec)
             {
-                ChaCha20ParameterSpec cc = (ChaCha20ParameterSpec) params;
+                ChaCha20ParameterSpec jdkSpec = (ChaCha20ParameterSpec) params;
+                params = new ChaCha20CounterParameterSpec(jdkSpec.getNonce(), jdkSpec.getCounter());
+            }
+            if (params instanceof ChaCha20CounterParameterSpec)
+            {
+                ChaCha20CounterParameterSpec spec = (ChaCha20CounterParameterSpec) params;
                 // The counter is the unsigned 32-bit block counter; engineGetIV still reports the nonce.
-                initialCounter = cc.getCounter();
-                super.engineInit(opmode, key, new IvParameterSpec(cc.getNonce()), random);
+                initialCounter = spec.getCounter();
+                super.engineInit(opmode, key, new IvParameterSpec(spec.getNonce()), random);
                 return;
             }
             initialCounter = 0;

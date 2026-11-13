@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
+import org.openssl.jostle.jcajce.spec.ChaCha20CounterParameterSpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.encoders.Hex;
 
@@ -338,5 +339,38 @@ public class ChaCha20ParameterSpecTest
 
         Cipher jsl = cipher(JSL, Cipher.ENCRYPT_MODE, new SecretKeySpec(keyBytes, "ChaCha20"), nonce, 0xFFFFFFFE);
         assertThrows(IllegalStateException.class, () -> jsl.doFinal(new byte[129]));
+    }
+
+    /**
+     * ChaCha20CounterParameterSpec and the JDK's ChaCha20ParameterSpec give the same ciphertext for the same key,
+     * nonce, counter and message, and each decrypts the other's.
+     */
+    @Test
+    public void counterSpecAndJdkSpec_giveTheSameKeyStream() throws Exception
+    {
+        int[] fixed = {0, 1, 42, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFE, 0xFFFFFFFF};
+        for (int trial = 0; trial < 25; trial++)
+        {
+            int counter = trial < fixed.length ? fixed[trial] : R.nextInt();
+            long left = ((1L << 32) - Integer.toUnsignedLong(counter)) * 64;
+            SecretKey key = randomKey();
+            byte[] nonce = randomNonce(R);
+            byte[] msg = new byte[(int) Math.min(1 + R.nextInt(300), left)];
+            R.nextBytes(msg);
+            String label = String.format("counter 0x%08x length %d", counter, msg.length);
+
+            Cipher viaJdk = Cipher.getInstance("ChaCha20", JSL);
+            viaJdk.init(Cipher.ENCRYPT_MODE, key, new ChaCha20ParameterSpec(nonce, counter));
+            byte[] jdkCt = viaJdk.doFinal(msg);
+            Cipher viaJostle = Cipher.getInstance("ChaCha20", JSL);
+            viaJostle.init(Cipher.ENCRYPT_MODE, key, new ChaCha20CounterParameterSpec(nonce, counter));
+            byte[] jostleCt = viaJostle.doFinal(msg);
+            Assertions.assertArrayEquals(jdkCt, jostleCt, label);
+
+            viaJdk.init(Cipher.DECRYPT_MODE, key, new ChaCha20ParameterSpec(nonce, counter));
+            Assertions.assertArrayEquals(msg, viaJdk.doFinal(jostleCt), label + " JDK spec decrypts");
+            viaJostle.init(Cipher.DECRYPT_MODE, key, new ChaCha20CounterParameterSpec(nonce, counter));
+            Assertions.assertArrayEquals(msg, viaJostle.doFinal(jdkCt), label + " counter spec decrypts");
+        }
     }
 }

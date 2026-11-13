@@ -34,8 +34,8 @@ import java.security.Security;
 /**
  * Agreement for the ChaCha20 initial block counter path: JSL under ChaCha20ParameterSpec against SunJCE and against
  * BouncyCastle's ChaCha7539Engine positioned with seekTo, plus counter 0 against BouncyCastle's CHACHA7539.
- * ChaCha20AgreementTest covers counter 0 through IvParameterSpec on every leg; ChaCha20ParameterSpecTest holds the
- * spec contract, the RFC 8439 vectors and the per-nonce limit.
+ * ChaCha20AgreementTest covers the same path through ChaCha20CounterParameterSpec on every leg;
+ * ChaCha20ParameterSpecTest holds the spec contract, the RFC 8439 vectors and the per-nonce limit.
  *
  * <p>Lives in {@code src/test/java11} so it runs on unitTest11; the {@code src/test/java25} copy runs the same cells on
  * unitTest25JNI and unitTest25FFM.
