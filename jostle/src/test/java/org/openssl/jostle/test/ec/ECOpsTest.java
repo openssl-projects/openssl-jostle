@@ -17,15 +17,24 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSL;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
+import org.openssl.jostle.test.dh.KeyAgreementCalls;
+import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 
+import javax.crypto.KeyAgreement;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.Security;
+import java.security.spec.ECGenParameterSpec;
 
 /**
  * Fault-injection tests for the EC NI layer.
@@ -1142,6 +1151,181 @@ public class ECOpsTest
     }
 
     /**
+     * The EVP_PKEY_CTX_set_ecdh_cofactor_mode failure branch in ec_kex_set_cofactor_mode (offset 3072), after a
+     * clean init. The refusal leaves the ctx not initialised, so it cannot go on in plain mode.
+     */
+    @Test
+    public void ec_kexSetCofactorMode_set_failure()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long kexRef = ec.allocateKex();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        long peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
+            Assertions.assertEquals(0, ec.ni_kexSetCofactorMode(kexRef));
+            OpenSSL.getOpenSSLErrors();
+            // Exercises interface/nonfips/util/ec.c:1617
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            Assertions.assertEquals(errorAt(3072), ec.ni_kexSetCofactorMode(kexRef));
+            Assertions.assertEquals(ErrorCode.JO_NOT_INITIALIZED.getCode(),
+                    ec.ni_kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc));
+            // The offset makes the code one the handler cannot name, so this site is pinned by its raw code only.
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeKex(kexRef);
+            specNI.dispose(keyRef);
+            specNI.dispose(peerRef);
+        }
+    }
+
+    /**
+     * A setter that does not list the parameter (-2) is a capability refusal, not an OpenSSL error; the ctx is
+     * left not initialised. Flag 4 enters the failure arm and flag 6 stands in for the -2 return, so this pins the
+     * consequence, not the value: ECBridgeCells.xecKeyRefusesCofactorModeTyped pins the real -2 from an XEC key.
+     */
+    @Test
+    public void ec_kexSetCofactorMode_unlistedParameter_refusedTyped()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long kexRef = ec.allocateKex();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        long peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
+            Assertions.assertEquals(0, ec.ni_kexSetCofactorMode(kexRef));
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            // Exercises interface/nonfips/util/ec.c:1620
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+            Assertions.assertEquals(ErrorCode.JO_EC_COFACTOR_MODE_NOT_APPLIED.getCode(),
+                    ec.ni_kexSetCofactorMode(kexRef));
+            Assertions.assertEquals(ErrorCode.JO_NOT_INITIALIZED.getCode(),
+                    ec.ni_kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc));
+
+            ops.resetFlags();
+            ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4);
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6);
+            ProviderCapabilityException e = Assertions.assertThrows(ProviderCapabilityException.class,
+                    () -> ec.kexSetCofactorMode(kexRef));
+            Assertions.assertEquals("the loaded provider did not apply cofactor ECDH mode", e.getMessage());
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeKex(kexRef);
+            specNI.dispose(keyRef);
+            specNI.dispose(peerRef);
+        }
+    }
+
+    /**
+     * The read-back guard in ec_kex_set_cofactor_mode: a mode the provider does not report as set is refused as a
+     * capability, and the ctx is left not initialised. Flag only; the code carries no offset.
+     */
+    @Test
+    public void ec_kexSetCofactorMode_readBack_refused()
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        long kexRef = ec.allocateKex();
+        long keyRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        long peerRef = ec.generateKeyPair("P-256", TestUtil.RNDSrc);
+        try
+        {
+            ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
+            Assertions.assertEquals(0, ec.ni_kexSetCofactorMode(kexRef));
+            // Exercises interface/nonfips/util/ec.c:1630
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+            Assertions.assertEquals(ErrorCode.JO_EC_COFACTOR_MODE_NOT_APPLIED.getCode(),
+                    ec.ni_kexSetCofactorMode(kexRef));
+            Assertions.assertEquals(ErrorCode.JO_NOT_INITIALIZED.getCode(),
+                    ec.ni_kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc));
+
+            ops.resetFlags();
+            ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
+            ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5);
+            ProviderCapabilityException e = Assertions.assertThrows(ProviderCapabilityException.class,
+                    () -> ec.kexSetCofactorMode(kexRef));
+            Assertions.assertEquals("the loaded provider did not apply cofactor ECDH mode", e.getMessage());
+        }
+        finally
+        {
+            ops.resetFlags();
+            ec.disposeKex(kexRef);
+            specNI.dispose(keyRef);
+            specNI.dispose(peerRef);
+        }
+    }
+
+    /**
+     * At the JCA surface, a refused cofactor mode fails init, and the instance refuses the phase rather than
+     * agreeing in plain mode. With the flags cleared the same instance agrees with a second instance and differs
+     * from plain ECDH on a cofactor curve. The arms are the two typed refusals: the read-back (flag 5) and the
+     * unlisted parameter (flags 4 and 6); flag 4 alone injects an offset code the handler cannot name.
+     */
+    @Test
+    public void eccdh_refusedModeLeavesTheInstanceUnusableUntilReinit() throws Exception
+    {
+        Assumptions.assumeTrue(ops.opsTestAvailable());
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", JostleProvider.PROVIDER_NAME);
+        kpg.initialize(new ECGenParameterSpec("sect233k1"));
+        KeyPair a = kpg.generateKeyPair();
+        KeyPair b = kpg.generateKeyPair();
+        byte[] expected = secret("ECCDH", a, b);
+        Assertions.assertFalse(Arrays.areEqual(expected, secret("ECDH", a, b)), "cofactor 4: ECCDH must differ");
+
+        KeyAgreement ka = KeyAgreement.getInstance("ECCDH", JostleProvider.PROVIDER_NAME);
+        OperationsTestNI.OpsTestFlag[][] arms = {
+            {OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_5},
+            {OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_4, OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_6}};
+        try
+        {
+            // A clean agreement first, so the native handle exists when the refused init runs.
+            ka.init(a.getPrivate());
+            KeyAgreementCalls.phase(ka, b.getPublic());
+            KeyAgreementCalls.secret(ka);
+            for (OperationsTestNI.OpsTestFlag[] arm : arms)
+            {
+                String label = arm.length == 1 ? arm[0].name() : arm[0].name() + "+" + arm[1].name();
+                for (OperationsTestNI.OpsTestFlag flag : arm)
+                {
+                    // Exercises: no single site, both typed refusal arms through the SPI
+                    ops.setFlag(flag);
+                }
+                InvalidKeyException init = Assertions.assertThrows(InvalidKeyException.class,
+                        () -> ka.init(a.getPrivate()), label);
+                Assertions.assertEquals("the loaded provider did not apply cofactor ECDH mode", init.getMessage(),
+                        label);
+                IllegalStateException phase = Assertions.assertThrows(IllegalStateException.class,
+                        () -> KeyAgreementCalls.phase(ka, b.getPublic()), label);
+                Assertions.assertEquals("not initialized", phase.getMessage(), label);
+                ops.resetFlags();
+
+                ka.init(a.getPrivate());
+                KeyAgreementCalls.phase(ka, b.getPublic());
+                Assertions.assertArrayEquals(expected, KeyAgreementCalls.secret(ka), label);
+            }
+        }
+        finally
+        {
+            ops.resetFlags();
+        }
+    }
+
+    /** One agreement on a fresh instance of the provider under test. */
+    private static byte[] secret(String name, KeyPair a, KeyPair b) throws Exception
+    {
+        KeyAgreement ka = KeyAgreement.getInstance(name, JostleProvider.PROVIDER_NAME);
+        ka.init(a.getPrivate());
+        KeyAgreementCalls.phase(ka, b.getPublic());
+        return KeyAgreementCalls.secret(ka);
+    }
+
+    /**
      * Target: {@code interface/nonfips/util/ec.c:1044} (offset 3080) — fault-injects the
      * {@code EVP_PKEY_derive_set_peer} failure branch inside
      * {@code ec_kex_set_peer} (defined at {@code ec.c:1011}). Reuses flag
@@ -1159,7 +1343,7 @@ public class ECOpsTest
         {
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1632
+            // Exercises interface/nonfips/util/ec.c:1672
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_1);
             int code = ec.ni_kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
             // OPS_OPENSSL_ERROR_1 fires at kex_set_peer offset 3080
@@ -1193,7 +1377,7 @@ public class ECOpsTest
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             ec.kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1708
+            // Exercises interface/nonfips/util/ec.c:1750
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_2);
             int code = ec.ni_kexDerive(kexRef, null, 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3090), code);
@@ -1227,7 +1411,7 @@ public class ECOpsTest
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             ec.kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1730
+            // Exercises interface/nonfips/util/ec.c:1772
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_3);
             int code = ec.ni_kexDerive(kexRef, new byte[64], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(errorAt(3091), code);
@@ -1534,7 +1718,7 @@ public class ECOpsTest
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             ec.kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
             OpenSSL.getOpenSSLErrors();
-            // Exercises interface/nonfips/util/ec.c:1739
+            // Exercises interface/nonfips/util/ec.c:1781
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_2);
             // 64-byte buffer is comfortably larger than the 32-byte P-256
             // secret, so the fetch path runs to its INT32 check.
@@ -1918,7 +2102,7 @@ public class ECOpsTest
         {
             ec.kexInit(kexRef, keyRef, TestUtil.RNDSrc);
             ec.kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
-            // Exercises interface/nonfips/util/ec.c:1714
+            // Exercises interface/nonfips/util/ec.c:1756
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_INT32_OVERFLOW_1);
             Assertions.assertEquals(JO_OUTPUT_TOO_LONG_INT32, ec.ni_kexDerive(kexRef, null, 0, TestUtil.RNDSrc));
         }
@@ -2250,7 +2434,7 @@ public class ECOpsTest
         ec.kexSetPeer(kexRef, peerRef, TestUtil.RNDSrc);
         try
         {
-            // Exercises interface/nonfips/jni/ec_ni_jni.c:821
+            // Exercises interface/nonfips/jni/ec_ni_jni.c:840
             ops.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             int code = ec.ni_kexDerive(kexRef, new byte[32], 0, TestUtil.RNDSrc);
             Assertions.assertEquals(JO_FAILED_ACCESS_OUTPUT, code);

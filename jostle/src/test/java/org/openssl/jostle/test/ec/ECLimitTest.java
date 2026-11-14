@@ -14,12 +14,15 @@ package org.openssl.jostle.test.ec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.TestNISelector;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.Security;
 
@@ -1665,6 +1668,28 @@ public class ECLimitTest
     public void bridge_zeroLengthOutputIsASizeQuery()
     {
         ECBridgeCells.zeroLengthOutputIsASizeQuery(ec);
+    }
+
+    @Test
+    public void bridge_xecKeyRefusesCofactorModeTyped() throws Exception
+    {
+        for (String alg : new String[]{"X25519", "X448"})
+        {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, JostleProvider.PROVIDER_NAME);
+            KeyPair a = kpg.generateKeyPair();
+            KeyPair b = kpg.generateKeyPair();
+            ECBridgeCells.xecKeyRefusesCofactorModeTyped(ec, ((OSSLKey) a.getPrivate()).getSpec().getReference(),
+                    ((OSSLKey) b.getPublic()).getSpec().getReference(), alg);
+            // The keys own the handles the cell used.
+            Assertions.assertNotNull(a.getPrivate().getEncoded(), alg);
+            Assertions.assertNotNull(b.getPublic().getEncoded(), alg);
+        }
+    }
+
+    @Test
+    public void bridge_cofactorModeHandlesAreChecked()
+    {
+        ECBridgeCells.cofactorModeHandlesAreChecked(ec, TestNISelector.getSpecNI());
     }
 
     @Test

@@ -104,11 +104,16 @@ class ProvEC
                 (arg) -> new ECDHKeyAgreementSpi(NISelector.ECServiceNI, keyFactory(provider)));
         provider.addAlias("KeyAgreement", "ECDH", SECObjectIdentifiers.ecdh.getId());
 
+        // Cofactor ECDH (SEC 1 3.3.2), under BouncyCastle's two names for it.
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDH",
+                ECDHKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECDHKeyAgreementSpi(NISelector.ECServiceNI, keyFactory(provider), true));
+        provider.addAlias("KeyAgreement", "ECCDH", "ECDHC");
+
         // CMS EC key agreement with the X9.63 KDF (dhSinglePass-stdDH-sha*kdf-
         // scheme). One registration per digest; the scheme OID aliases onto it
-        // so KeyAgreeRecipientInfo for EC recipients resolves. Cofactor
-        // (dhSinglePass-cofactorDH) and MQV schemes are intentionally absent —
-        // they need native cofactor/MQV agreement Jostle does not yet expose.
+        // so KeyAgreeRecipientInfo for EC recipients resolves. MQV schemes are
+        // absent: they need native MQV agreement Jostle does not expose.
         final String ecKdfSpi = ECWithKDFKeyAgreementSpi.class.getName();
         provider.addAlgorithmImplementation("KeyAgreement", "ECDHWITHSHA1KDF",
                 ecKdfSpi, attr,
@@ -140,22 +145,35 @@ class ProvEC
                         keyFactory(provider), "SHA-512", provider));
         provider.addAlias("KeyAgreement", "ECDHWITHSHA512KDF", SECObjectIdentifiers.dhSinglePass_stdDH_sha512kdf_scheme.getId());
 
+        // The same with cofactor ECDH (dhSinglePass-cofactorDH-sha*kdf-scheme).
+        registerCofactorKdfAgreement(provider, attr, "ECCDHWITHSHA1KDF", "SHA-1",
+                X9ObjectIdentifiers.dhSinglePass_cofactorDH_sha1kdf_scheme.getId());
+        registerCofactorKdfAgreement(provider, attr, "ECCDHWITHSHA224KDF", "SHA-224",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha224kdf_scheme.getId());
+        registerCofactorKdfAgreement(provider, attr, "ECCDHWITHSHA256KDF", "SHA-256",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha256kdf_scheme.getId());
+        registerCofactorKdfAgreement(provider, attr, "ECCDHWITHSHA384KDF", "SHA-384",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha384kdf_scheme.getId());
+        registerCofactorKdfAgreement(provider, attr, "ECCDHWITHSHA512KDF", "SHA-512",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha512kdf_scheme.getId());
+
         // RFC 6637 §7 ECDH-CKDF (the SP 800-56C one-step KDF), for OpenPGP's
-        // ECDH. No OID aliases: PGP resolves this by JCA name, not by an
+        // ECDH, in cofactor mode as BouncyCastle computes these names; equal to
+        // plain ECDH on the prime-order curves. No OID aliases: PGP resolves this by JCA name, not by an
         // ASN.1 scheme OID. SHA-1 deliberately absent — RFC 6637 §13 forbids
         // it with this KDF.
         provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA256CKDF",
                 ECWithCKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), NISelector.KdfNI, "SHA-256"));
+                        keyFactory(provider), NISelector.KdfNI, "SHA-256", true));
         provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA384CKDF",
                 ECWithCKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), NISelector.KdfNI, "SHA-384"));
+                        keyFactory(provider), NISelector.KdfNI, "SHA-384", true));
         provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA512CKDF",
                 ECWithCKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithCKDFKeyAgreementSpi(NISelector.ECServiceNI,
-                        keyFactory(provider), NISelector.KdfNI, "SHA-512"));
+                        keyFactory(provider), NISelector.KdfNI, "SHA-512", true));
 
         // The IEEE 1609.2 (ITS) integrated-encryption KEM, under the name
         // BouncyCastle's JceETSIKeyWrapper and JcaETSIDataDecryptor resolve a
@@ -168,6 +186,19 @@ class ProvEC
                         "SHA-256", "HMACSHA256", provider));
     }
 
+
+    private static void registerCofactorKdfAgreement(JostleProvider provider,
+                                                     Map<String, String> attr,
+                                                     String name,
+                                                     String digestName,
+                                                     String oid)
+    {
+        provider.addAlgorithmImplementation("KeyAgreement", name,
+                ECWithKDFKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECWithKDFKeyAgreementSpi(NISelector.ECServiceNI,
+                        keyFactory(provider), digestName, provider, true));
+        provider.addAlias("KeyAgreement", name, oid);
+    }
 
     private static void registerEcdsaSignature(JostleProvider provider,
                                                Map<String, String> attr,

@@ -402,6 +402,14 @@ int32_t JoEC_kexInit(ec_kex_ctx *ctx, key_spec *my_priv, void *rnd_src) {
     return ec_kex_init(ctx, my_priv, rnd_src);
 }
 
+int32_t JoEC_kexSetCofactorMode(ec_kex_ctx *ctx) {
+    int32_t check_rc = ec_kex_check(ctx);
+    if (UNSUCCESSFUL(check_rc)) {
+        return check_rc;
+    }
+    return ec_kex_set_cofactor_mode(ctx);
+}
+
 int32_t JoEC_kexSetPeer(ec_kex_ctx *ctx, key_spec *peer_pub,
                         void *rnd_src) {
     int32_t check_rc = ec_kex_check(ctx);

@@ -114,6 +114,11 @@ public interface X9ObjectIdentifiers
     ASN1ObjectIdentifier dhSinglePass_stdDH_sha1kdf_scheme = x9_63_scheme.branch("2").intern();
 
     /**
+     * 1.3.133.16.840.63.0.3 -- dhSinglePass-cofactorDH-sha1kdf-scheme, RFC 5753 line 1225
+     */
+    ASN1ObjectIdentifier dhSinglePass_cofactorDH_sha1kdf_scheme = x9_63_scheme.branch("3").intern();
+
+    /**
      * 1.3.133.16.840.9.44 -- x9-44, RFC 9690 line 978
      */
     ASN1ObjectIdentifier x9_44 = new ASN1ObjectIdentifier("1.3.133.16.840.9.44").intern();

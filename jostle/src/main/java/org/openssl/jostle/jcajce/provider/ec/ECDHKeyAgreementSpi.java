@@ -73,9 +73,21 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
 
     public ECDHKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory)
     {
+        this(ecServiceNI, keyFactory, false);
+    }
+
+    /**
+     * With cofactor true the secret is cofactor Diffie-Hellman (SEC 1 3.3.2), from h*d*Q; on a curve whose
+     * cofactor is 1 it equals plain ECDH.
+     */
+    public ECDHKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, boolean cofactor)
+    {
         this.ecServiceNI = ecServiceNI;
         this.keyFactory = keyFactory;
+        this.cofactor = cofactor;
     }
+
+    private final boolean cofactor;
 
     private KexRef ref;
     private RandSource randSource = DefaultRandSource.wrap(CryptoServicesRegistrar.getSecureRandom());
@@ -142,6 +154,11 @@ public class ECDHKeyAgreementSpi extends KeyAgreementSpi
                 ecServiceNI.kexInit(ref.getReference(),
                         privateKey.getSpec().getReference(),
                         randSource);
+                if (cofactor)
+                {
+                    // kexInit replaces the native ctx, so the mode is set after every init.
+                    ecServiceNI.kexSetCofactorMode(ref.getReference());
+                }
             }
             catch (ProviderCapabilityException e)
             {

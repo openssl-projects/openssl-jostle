@@ -752,6 +752,25 @@ JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_n
 
 /*
  * Class:     org_openssl_jostle_jcajce_provider_ec_ECServiceJNI
+ * Method:    ni_kexSetCofactorMode
+ * Signature: (J)I
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_ec_ECServiceJNI_ni_1kexSetCofactorMode
+(JNIEnv *env, jobject jo, jlong kex_ref) {
+    UNUSED(env);
+    UNUSED(jo);
+
+    ec_kex_ctx *ctx = (ec_kex_ctx *) kex_ref;
+    int32_t ret_code = ec_kex_check(ctx);
+    if (UNSUCCESSFUL(ret_code)) {
+        return ret_code;
+    }
+
+    return ec_kex_set_cofactor_mode(ctx);
+}
+
+/*
+ * Class:     org_openssl_jostle_jcajce_provider_ec_ECServiceJNI
  * Method:    ni_kexSetPeer
  * Signature: (JJLorg/openssl/jostle/rand/RandSource;)I
  *

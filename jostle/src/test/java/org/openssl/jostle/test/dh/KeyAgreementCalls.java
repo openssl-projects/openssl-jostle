@@ -12,8 +12,10 @@
 package org.openssl.jostle.test.dh;
 
 import javax.crypto.KeyAgreement;
+import javax.crypto.SecretKey;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * The phase call and the secret call, for the cells that drive them in a chosen order. Every such cell calls
@@ -35,5 +37,12 @@ public final class KeyAgreementCalls
     public static byte[] secret(KeyAgreement ka)
     {
         return ka.generateSecret();
+    }
+
+    /** The named secret call, for an agreement that derives a key for algorithm. */
+    public static SecretKey secret(KeyAgreement ka, String algorithm)
+            throws NoSuchAlgorithmException, InvalidKeyException
+    {
+        return ka.generateSecret(algorithm);
     }
 }

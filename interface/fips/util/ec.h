@@ -357,6 +357,14 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
                     void *rnd_src);
 
 /*
+ * Switch an initialised kex ctx to cofactor ECDH (SEC 1 3.3.2): the secret is
+ * derived from h*d*Q. Call after every ec_kex_init, which replaces the ctx.
+ * Returns JO_EC_COFACTOR_MODE_NOT_APPLIED when the provider does not report the
+ * mode back as set.
+ */
+int32_t ec_kex_set_cofactor_mode(ec_kex_ctx *ctx);
+
+/*
  * Bind the peer public key. Must be called after ec_kex_init and before
  * ec_kex_derive.
  *

@@ -1653,11 +1653,12 @@ Assertions.assertArrayEquals(aliceSecret, b.generateSecret());
 ### namedKeyFromEveryPlainAgreement
 
 Ask for a named key: `generateSecret("AES")` takes the leading bytes of the secret as a 256-bit AES key.
-`XDH` takes keys of either Montgomery curve.
+`XDH` takes keys of either Montgomery curve. `ECCDH` is cofactor ECDH (SEC 1 3.3.2), the same as `ECDH`
+on a curve whose cofactor is 1.
 
 ```java
-String[] agreements = {"X25519", "X448", "XDH", "ECDH", "DH"};
-String[] generators = {"X25519", "X448", "X25519", "EC", "DH"};
+String[] agreements = {"X25519", "X448", "XDH", "ECDH", "ECCDH", "DH"};
+String[] generators = {"X25519", "X448", "X25519", "EC", "EC", "DH"};
 for (int i = 0; i < agreements.length; i++)
 {
     KeyPairGenerator kpg = KeyPairGenerator.getInstance(generators[i], "JSL");
@@ -1678,11 +1679,13 @@ for (int i = 0; i < agreements.length; i++)
 
 The agreements with a KDF built in derive a key-encryption key for AES key wrap, named by the wrap's
 object identifier (here AES-256 wrap), with optional user keying material. These are the X9.63 KDF over
-ECDH, and the RFC 2631 KDF over DH.
+ECDH and over cofactor ECDH (the `ECCDH` names, CMS's dhSinglePass-cofactorDH schemes), and the RFC 2631
+KDF over DH.
 
 ```java
 String[] agreements = {"ECDHwithSHA1KDF", "ECDHwithSHA224KDF", "ECDHwithSHA256KDF", "ECDHwithSHA384KDF",
-        "ECDHwithSHA512KDF", "DHwithRFC2631KDF"};
+        "ECDHwithSHA512KDF", "ECCDHwithSHA1KDF", "ECCDHwithSHA224KDF", "ECCDHwithSHA256KDF",
+        "ECCDHwithSHA384KDF", "ECCDHwithSHA512KDF", "DHwithRFC2631KDF"};
 String aes256Wrap = "2.16.840.1.101.3.4.1.45";
 UserKeyingMaterialSpec ukm = new UserKeyingMaterialSpec("key id 7".getBytes(StandardCharsets.US_ASCII));
 for (String name : agreements)
@@ -3645,17 +3648,17 @@ import java.security.spec.ECGenParameterSpec;
 
 ### ecdhAndDh
 
-ECDH on P-256, and DH on a named group, each giving a 256-bit AES key.
+ECDH and cofactor ECDH (`ECCDH`) on P-256, and DH on a named group, each giving a 256-bit AES key.
 
 ```java
-String[] agreements = {"ECDH", "DH"};
+String[] agreements = {"ECDH", "ECCDH", "DH"};
 KeyPairGenerator ec = KeyPairGenerator.getInstance("EC", "JSLFIPS");
 ec.initialize(new ECGenParameterSpec("secp256r1"));
 KeyPairGenerator dh = KeyPairGenerator.getInstance("DH", "JSLFIPS");
 dh.initialize(2048);
 for (String name : agreements)
 {
-    KeyPairGenerator kpg = name.equals("ECDH") ? ec : dh;
+    KeyPairGenerator kpg = name.equals("DH") ? dh : ec;
     KeyPair alice = kpg.generateKeyPair();
     KeyPair bob = kpg.generateKeyPair();
     KeyAgreement a = KeyAgreement.getInstance(name, "JSLFIPS");
@@ -3689,12 +3692,14 @@ Assertions.assertTrue(e.getMessage().contains("subgroup order q"), e.getMessage(
 
 ### agreementsWithAKdf
 
-The agreements with a built-in KDF: the X9.63 KDF over ECDH and the RFC 2631 KDF over DH, deriving an
-AES-256 key-encryption key named by the wrap's object identifier, with optional user keying material.
+The agreements with a built-in KDF: the X9.63 KDF over ECDH and over cofactor ECDH, and the RFC 2631 KDF
+over DH, deriving an AES-256 key-encryption key named by the wrap's object identifier, with optional user
+keying material.
 
 ```java
 String[] agreements = {"ECDHwithSHA1KDF", "ECDHwithSHA224KDF", "ECDHwithSHA256KDF", "ECDHwithSHA384KDF",
-        "ECDHwithSHA512KDF", "DHwithRFC2631KDF"};
+        "ECDHwithSHA512KDF", "ECCDHwithSHA1KDF", "ECCDHwithSHA224KDF", "ECCDHwithSHA256KDF",
+        "ECCDHwithSHA384KDF", "ECCDHwithSHA512KDF", "DHwithRFC2631KDF"};
 UserKeyingMaterialSpec ukm = new UserKeyingMaterialSpec("key id 7".getBytes(StandardCharsets.US_ASCII));
 for (String name : agreements)
 {

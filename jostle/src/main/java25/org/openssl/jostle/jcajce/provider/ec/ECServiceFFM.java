@@ -56,6 +56,7 @@ public class ECServiceFFM implements ECServiceNI
     private final MethodHandle allocKexH;
     private final MethodHandle disposeKexH;
     private final MethodHandle kexInitH;
+    private final MethodHandle kexSetCofactorModeH;
     private final MethodHandle kexSetPeerH;
     private final MethodHandle kexDeriveH;
 
@@ -245,6 +246,12 @@ public class ECServiceFFM implements ECServiceNI
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
                         ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS));
+
+        // JoEC_kexSetCofactorMode(ec_kex_ctx*) -> int
+        kexSetCofactorModeH = bind(lookup, symPrefix + "JoEC_kexSetCofactorMode",
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS));
 
         // JoEC_kexSetPeer(ec_kex_ctx*, key_spec*, void* rnd_src) -> int
@@ -704,6 +711,20 @@ public class ECServiceFFM implements ECServiceNI
         catch (Throwable t)
         {
             L.log(Level.WARNING, "FFM EC_kexInit", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    @Override
+    public int ni_kexSetCofactorMode(long ref)
+    {
+        try
+        {
+            return (int) kexSetCofactorModeH.invokeExact(MemorySegment.ofAddress(ref));
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM EC_kexSetCofactorMode", t);
             throw new RuntimeException(t.getMessage(), t);
         }
     }

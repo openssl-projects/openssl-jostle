@@ -30,6 +30,9 @@ import java.security.spec.AlgorithmParameterSpec;
  * ECDH key agreement followed by the NIST SP 800-56C one-step ("Concatenation")
  * KDF — RFC 6637 §7's {@code ECCDHwithSHA{256,384,512}CKDF}, which OpenPGP's
  * ECDH (RFC 6637 §8, RFC 9580) uses.
+ * The provider registers these names in cofactor mode, as BouncyCastle
+ * computes them; on the prime-order curves OpenPGP uses the result is the
+ * same as plain ECDH.
  *
  * <p>Builds on {@link ECDHKeyAgreementSpi} for the raw {@code EVP_PKEY_derive}
  * shared secret, then runs the native SP 800-56C one-step KDF (the same
@@ -79,7 +82,14 @@ public class ECWithCKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
     public ECWithCKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory,
             KdfNI kdfNI, String digest)
     {
-        super(ecServiceNI, keyFactory);
+        this(ecServiceNI, keyFactory, kdfNI, digest, false);
+    }
+
+    /** With cofactor true the agreement under the KDF is cofactor Diffie-Hellman. */
+    public ECWithCKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory,
+            KdfNI kdfNI, String digest, boolean cofactor)
+    {
+        super(ecServiceNI, keyFactory, cofactor);
         this.kdfNI = kdfNI;
         this.digestAlgorithm = DigestUtil.getCanonicalDigestName(digest);
     }

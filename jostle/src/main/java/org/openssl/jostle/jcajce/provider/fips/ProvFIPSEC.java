@@ -92,6 +92,11 @@ class ProvFIPSEC
         // id-ecDH (SECG SEC1) — so CMS/PKIX KeyAgreeRecipientInfo can resolve
         // the EC agreement by OID, mirroring the non-FIPS ProvEC surface.
         provider.addAlias("KeyAgreement", "ECDH", SECObjectIdentifiers.ecdh.getId());
+        // Cofactor ECDH (SEC 1 3.3.2), under BouncyCastle's two names for it.
+        provider.addAlgorithmImplementation("KeyAgreement", "ECCDH",
+                ECDHKeyAgreementSpi.class.getName(), attr,
+                (arg) -> new ECDHKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider), true));
+        provider.addAlias("KeyAgreement", "ECCDH", "ECDHC");
         // X9.63 dhSinglePass-stdDH-sha*kdf-scheme OIDs, likewise for CMS. All
         // five PRFs are served: the module performs X963KDF with a SHA-1 PRF
         // under fips=yes (probe-confirmed), so it is exposed. Cert #4985 Table 8
@@ -102,22 +107,34 @@ class ProvFIPSEC
         registerKdfAgreement(provider, attr, "ECDHWITHSHA256KDF", "SHA-256", SECObjectIdentifiers.dhSinglePass_stdDH_sha256kdf_scheme.getId());
         registerKdfAgreement(provider, attr, "ECDHWITHSHA384KDF", "SHA-384", SECObjectIdentifiers.dhSinglePass_stdDH_sha384kdf_scheme.getId());
         registerKdfAgreement(provider, attr, "ECDHWITHSHA512KDF", "SHA-512", SECObjectIdentifiers.dhSinglePass_stdDH_sha512kdf_scheme.getId());
+        // The same with cofactor ECDH (dhSinglePass-cofactorDH-sha*kdf-scheme).
+        registerKdfAgreement(provider, attr, "ECCDHWITHSHA1KDF", "SHA-1",
+                X9ObjectIdentifiers.dhSinglePass_cofactorDH_sha1kdf_scheme.getId(), true);
+        registerKdfAgreement(provider, attr, "ECCDHWITHSHA224KDF", "SHA-224",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha224kdf_scheme.getId(), true);
+        registerKdfAgreement(provider, attr, "ECCDHWITHSHA256KDF", "SHA-256",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha256kdf_scheme.getId(), true);
+        registerKdfAgreement(provider, attr, "ECCDHWITHSHA384KDF", "SHA-384",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha384kdf_scheme.getId(), true);
+        registerKdfAgreement(provider, attr, "ECCDHWITHSHA512KDF", "SHA-512",
+                SECObjectIdentifiers.dhSinglePass_cofactorDH_sha512kdf_scheme.getId(), true);
 
+        // Cofactor mode, as in ProvEC.
         // RFC 6637 §7 ECDH-CKDF, mirroring ProvEC. Ungated, like the X9.63
         // family above: SSKDF digest mode needs nothing the module doesn't
         // already serve. No OID aliases; no SHA-1 (RFC 6637 §13).
         provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA256CKDF",
                 ECWithCKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithCKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
-                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-256"));
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-256", true));
         provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA384CKDF",
                 ECWithCKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithCKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
-                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-384"));
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-384", true));
         provider.addAlgorithmImplementation("KeyAgreement", "ECCDHwithSHA512CKDF",
                 ECWithCKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithCKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI,
-                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-512"));
+                        keyFactory(provider), FIPSNISelector.KdfNI, "SHA-512", true));
 
         // The IEEE 1609.2 (ITS) KEM, mirroring ProvEC. UNGATED, like every EC
         // service beside it: the construction needs EC key management, ECDH
@@ -160,10 +177,20 @@ class ProvFIPSEC
                                              String digestName,
                                              String oid)
     {
+        registerKdfAgreement(provider, attr, name, digestName, oid, false);
+    }
+
+    private static void registerKdfAgreement(JostleFIPSProvider provider,
+                                             Map<String, String> attr,
+                                             String name,
+                                             String digestName,
+                                             String oid,
+                                             boolean cofactor)
+    {
         provider.addAlgorithmImplementation("KeyAgreement", name,
                 ECWithKDFKeyAgreementSpi.class.getName(), attr,
                 (arg) -> new ECWithKDFKeyAgreementSpi(FIPSNISelector.ECServiceNI, keyFactory(provider), digestName,
-                        provider));
+                        provider, cofactor));
         provider.addAlias("KeyAgreement", name, oid);
     }
 }

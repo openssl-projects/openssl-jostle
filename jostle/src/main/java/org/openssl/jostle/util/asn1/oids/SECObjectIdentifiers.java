@@ -56,4 +56,24 @@ public interface SECObjectIdentifiers
      * 1.3.132.1.11.3 -- dhSinglePass-stdDH-sha512kdf-scheme, RFC 5753 line 1222
      */
     ASN1ObjectIdentifier dhSinglePass_stdDH_sha512kdf_scheme = secg_scheme.branch("11.3").intern();
+
+    /**
+     * 1.3.132.1.14.0 -- dhSinglePass-cofactorDH-sha224kdf-scheme, RFC 5753 line 1228
+     */
+    ASN1ObjectIdentifier dhSinglePass_cofactorDH_sha224kdf_scheme = secg_scheme.branch("14.0").intern();
+
+    /**
+     * 1.3.132.1.14.1 -- dhSinglePass-cofactorDH-sha256kdf-scheme, RFC 5753 line 1239
+     */
+    ASN1ObjectIdentifier dhSinglePass_cofactorDH_sha256kdf_scheme = secg_scheme.branch("14.1").intern();
+
+    /**
+     * 1.3.132.1.14.2 -- dhSinglePass-cofactorDH-sha384kdf-scheme, RFC 5753 line 1242
+     */
+    ASN1ObjectIdentifier dhSinglePass_cofactorDH_sha384kdf_scheme = secg_scheme.branch("14.2").intern();
+
+    /**
+     * 1.3.132.1.14.3 -- dhSinglePass-cofactorDH-sha512kdf-scheme, RFC 5753 line 1245
+     */
+    ASN1ObjectIdentifier dhSinglePass_cofactorDH_sha512kdf_scheme = secg_scheme.branch("14.3").intern();
 }

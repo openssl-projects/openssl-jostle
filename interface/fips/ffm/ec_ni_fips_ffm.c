@@ -35,6 +35,7 @@
 #define JoEC_initVerify                JoFIPS_JoEC_initVerify
 #define JoEC_kexDerive                 JoFIPS_JoEC_kexDerive
 #define JoEC_kexInit                   JoFIPS_JoEC_kexInit
+#define JoEC_kexSetCofactorMode        JoFIPS_JoEC_kexSetCofactorMode
 #define JoEC_kexSetPeer                JoFIPS_JoEC_kexSetPeer
 #define JoEC_makePrivateFromComponents JoFIPS_JoEC_makePrivateFromComponents
 #define JoEC_makePublicFromComponents  JoFIPS_JoEC_makePublicFromComponents

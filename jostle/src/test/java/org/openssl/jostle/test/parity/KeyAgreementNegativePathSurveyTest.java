@@ -297,6 +297,9 @@ public class KeyAgreementNegativePathSurveyTest
         c.add(new Cell("DHWITHRFC2631KDF", "DHWithKDFKeyAgreementSpi", "DH", "DH", AES256_WRAP));
         c.add(new Cell("ECDH", "ECDHKeyAgreementSpi", "EC", "EC", AES256_WRAP));
         c.add(new Cell("ECDHWITHSHA256KDF", "ECWithKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP));
+        // Cofactor ECDH shares the plain SPIs, so the names are cells of their own.
+        c.add(new Cell("ECCDH", "ECDHKeyAgreementSpi", "EC", "EC", AES256_WRAP));
+        c.add(new Cell("ECCDHWITHSHA256KDF", "ECWithKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP));
         c.add(new Cell("ECCDHWITHSHA256CKDF", "ECWithCKDFKeyAgreementSpi", "EC", "EC", AES256_WRAP, CKDF_UKM));
         c.add(new Cell("X25519WITHSHA256CKDF", "XDHWithCKDFKeyAgreementSpi", "X25519", "X25519", AES256_WRAP, CKDF_UKM));
         c.add(new Cell("X448WITHSHA256CKDF", "XDHWithCKDFKeyAgreementSpi", "X448", "X448", AES256_WRAP, CKDF_UKM));

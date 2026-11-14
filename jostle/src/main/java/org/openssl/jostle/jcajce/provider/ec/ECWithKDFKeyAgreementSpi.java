@@ -78,7 +78,14 @@ public class ECWithKDFKeyAgreementSpi extends ECDHKeyAgreementSpi
     public ECWithKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, String digest,
             Provider providerInstance)
     {
-        super(ecServiceNI, keyFactory);
+        this(ecServiceNI, keyFactory, digest, providerInstance, false);
+    }
+
+    /** With cofactor true the agreement under the KDF is cofactor Diffie-Hellman. */
+    public ECWithKDFKeyAgreementSpi(ECServiceNI ecServiceNI, ECKeyFactorySpi keyFactory, String digest,
+            Provider providerInstance, boolean cofactor)
+    {
+        super(ecServiceNI, keyFactory, cofactor);
         this.digest = digest;
         this.binding = ProviderBinding.of(providerInstance);
     }

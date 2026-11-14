@@ -145,6 +145,9 @@ public interface ECServiceNI extends DefaultServiceNI
 
     int ni_kexInit(long ref, long keyRef, RandSource rndSource);
 
+    /** Switches an initialised kex ctx to cofactor ECDH; needed again after every kexInit. */
+    int ni_kexSetCofactorMode(long ref);
+
     /**
      * Bind the peer public key to a kex ctx. {@link RandSource} is
      * required because OpenSSL's binary-field curve handling does an
@@ -309,6 +312,11 @@ public interface ECServiceNI extends DefaultServiceNI
     default void kexInit(long ref, long keyRef, RandSource rndSource)
     {
         handleErrors(ni_kexInit(ref, keyRef, rndSource));
+    }
+
+    default void kexSetCofactorMode(long ref)
+    {
+        handleErrors(ni_kexSetCofactorMode(ref));
     }
 
     default void kexSetPeer(long ref, long peerRef, RandSource rndSource)

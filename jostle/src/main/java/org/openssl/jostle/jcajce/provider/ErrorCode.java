@@ -434,6 +434,8 @@ public enum ErrorCode
     JO_SLHDSA_CTX_WRONG_KIND(-231),
     // A ChaCha20 update that would take the block counter past 2^32 for one nonce (RFC 8439 2.4).
     JO_CHACHA20_COUNTER_EXHAUSTED(-232),
+    // A kex ctx asked for cofactor ECDH whose provider does not report the mode as set.
+    JO_EC_COFACTOR_MODE_NOT_APPLIED(-233),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

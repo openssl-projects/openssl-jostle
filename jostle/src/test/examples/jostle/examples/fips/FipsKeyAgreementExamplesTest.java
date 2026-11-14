@@ -36,20 +36,20 @@ public class FipsKeyAgreementExamplesTest
         extends FipsExamples
 {
     /**
-     * ECDH on P-256, and DH on a named group, each giving a 256-bit AES key.
+     * ECDH and cofactor ECDH (`ECCDH`) on P-256, and DH on a named group, each giving a 256-bit AES key.
      */
     @Test
     public void ecdhAndDh()
             throws Exception
     {
-        String[] agreements = {"ECDH", "DH"};
+        String[] agreements = {"ECDH", "ECCDH", "DH"};
         KeyPairGenerator ec = KeyPairGenerator.getInstance("EC", "JSLFIPS");
         ec.initialize(new ECGenParameterSpec("secp256r1"));
         KeyPairGenerator dh = KeyPairGenerator.getInstance("DH", "JSLFIPS");
         dh.initialize(2048);
         for (String name : agreements)
         {
-            KeyPairGenerator kpg = name.equals("ECDH") ? ec : dh;
+            KeyPairGenerator kpg = name.equals("DH") ? dh : ec;
             KeyPair alice = kpg.generateKeyPair();
             KeyPair bob = kpg.generateKeyPair();
             KeyAgreement a = KeyAgreement.getInstance(name, "JSLFIPS");
@@ -84,15 +84,17 @@ public class FipsKeyAgreementExamplesTest
     }
 
     /**
-     * The agreements with a built-in KDF: the X9.63 KDF over ECDH and the RFC 2631 KDF over DH, deriving an
-     * AES-256 key-encryption key named by the wrap's object identifier, with optional user keying material.
+     * The agreements with a built-in KDF: the X9.63 KDF over ECDH and over cofactor ECDH, and the RFC 2631 KDF
+     * over DH, deriving an AES-256 key-encryption key named by the wrap's object identifier, with optional user
+     * keying material.
      */
     @Test
     public void agreementsWithAKdf()
             throws Exception
     {
         String[] agreements = {"ECDHwithSHA1KDF", "ECDHwithSHA224KDF", "ECDHwithSHA256KDF", "ECDHwithSHA384KDF",
-                "ECDHwithSHA512KDF", "DHwithRFC2631KDF"};
+                "ECDHwithSHA512KDF", "ECCDHwithSHA1KDF", "ECCDHwithSHA224KDF", "ECCDHwithSHA256KDF",
+                "ECCDHwithSHA384KDF", "ECCDHwithSHA512KDF", "DHwithRFC2631KDF"};
         UserKeyingMaterialSpec ukm = new UserKeyingMaterialSpec("key id 7".getBytes(StandardCharsets.US_ASCII));
         for (String name : agreements)
         {

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
+import org.openssl.jostle.test.dh.KeyAgreementCalls;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
@@ -104,8 +105,8 @@ public class FIPSEcCofactorEcdhTest
             catch (ProviderCapabilityException ex)
             {
                 Assertions.assertEquals(
-                        "ECDH on a curve with cofactor != 1 requires cofactor ECDH, which the loaded"
-                                + " provider requires and this provider does not perform",
+                        "ECDH on a curve with cofactor != 1 requires cofactor ECDH under the loaded"
+                                + " provider; use the ECCDH KeyAgreement",
                         ex.getMessage(), curve + ": the refusal must name the constraint");
                 continue;
             }
@@ -186,6 +187,80 @@ public class FIPSEcCofactorEcdhTest
         }
     }
 
+    /**
+     * ECCDH on the weak cofactor curves, measured per module: keygen, init, or the derive refuses, and each point
+     * pins one type. A derive refusal must stay generic: the ctx is in cofactor mode, so advising ECCDH would be
+     * circular.
+     */
+    @Test
+    public void weakCofactorCurvesUnderEccdhAreRefusedAtAMeasuredPoint() throws Exception
+    {
+        for (String curve : new String[]{"sect163k1", "sect163r2"})
+        {
+            KeyPair a;
+            KeyPair b;
+            try
+            {
+                a = generate(fips, curve);
+                b = generate(fips, curve);
+            }
+            catch (Exception refusedAtKeygen)
+            {
+                System.out.println("[eccdh-weak] " + curve + " refused at keygen: " + refusedAtKeygen);
+                Assertions.assertTrue(String.valueOf(refusedAtKeygen.getMessage()).contains("curve"),
+                        curve + ": a keygen refusal must say it is about the curve; got: "
+                                + refusedAtKeygen.getMessage());
+                continue;
+            }
+
+            KeyAgreement ka = KeyAgreement.getInstance("ECCDH", fips);
+            try
+            {
+                ka.init(a.getPrivate());
+            }
+            catch (InvalidKeyException atInit)
+            {
+                System.out.println("[eccdh-weak] " + curve + " refused at init: " + atInit);
+                Assertions.assertEquals(InvalidKeyException.class, atInit.getClass(), curve);
+                Assertions.assertTrue(String.valueOf(atInit.getMessage()).contains(shortName(curve)),
+                        curve + ": the refusal must name the curve; got: " + atInit.getMessage());
+                continue;
+            }
+
+            try
+            {
+                KeyAgreementCalls.phase(ka, b.getPublic());
+            }
+            catch (InvalidKeyException atPhase)
+            {
+                System.out.println("[eccdh-weak] " + curve + " refused at the phase: " + atPhase);
+                Assertions.assertEquals(InvalidKeyException.class, atPhase.getClass(), curve);
+                Assertions.assertTrue(String.valueOf(atPhase.getMessage()).contains(shortName(curve)),
+                        curve + ": the refusal must name the curve; got: " + atPhase.getMessage());
+                continue;
+            }
+
+            // Only the derive runs the failure classifier.
+            byte[] secret;
+            try
+            {
+                secret = KeyAgreementCalls.secret(ka);
+            }
+            catch (OpenSSLException atDerive)
+            {
+                System.out.println("[eccdh-weak] " + curve + " refused at the derive: " + atDerive);
+                Assertions.assertEquals(OpenSSLException.class, atDerive.getClass(),
+                        curve + ": a derive refusal in cofactor mode must not be the capability advice");
+                Assertions.assertTrue(String.valueOf(atDerive.getMessage()).contains(shortName(curve)),
+                        curve + ": the refusal must name the curve; got: " + atDerive.getMessage());
+                continue;
+            }
+            System.out.println("[eccdh-weak] " + curve + " derived");
+            Assertions.assertTrue(Arrays.areEqual(secret, derive(bc, "ECCDH", b.getPrivate(), a.getPublic())),
+                    curve + ": a module that derives must agree with BouncyCastle's ECCDH");
+        }
+    }
+
     /** Nothing moved for cofactor-1 curves on the FIPS provider. */
     @Test
     public void healthyCurvesStillDeriveOnFips() throws Exception
@@ -195,6 +270,25 @@ public class FIPSEcCofactorEcdhTest
             KeyPair a = generate(fips, curve);
             KeyPair b = generate(fips, curve);
             Assertions.assertTrue(derive(fips, a.getPrivate(), b.getPublic()).length > 0, curve);
+        }
+    }
+
+    /**
+     * The advice the refusal gives is good: every cofactor curve derives through ECCDH under JSLFIPS and agrees
+     * with BouncyCastle's cofactor ECDH, with keys the module owns.
+     */
+    @Test
+    public void cofactorCurvesDeriveThroughEccdhAndAgreeWithBouncyCastle() throws Exception
+    {
+        for (String curve : COFACTOR_CURVES)
+        {
+            KeyPair a = generate(fips, curve);
+            KeyPair b = generate(fips, curve);
+            byte[] mine = derive(fips, "ECCDH", a.getPrivate(), b.getPublic());
+            byte[] theirs = derive(bc, "ECCDH", b.getPrivate(), a.getPublic());
+            Assertions.assertTrue(Arrays.areEqual(mine, theirs), curve + ": ECCDH must agree with BouncyCastle");
+            byte[] other = derive(fips, "ECCDH", a.getPrivate(), generate(fips, curve).getPublic());
+            Assertions.assertFalse(Arrays.areEqual(mine, other), curve + ": a new peer must change the secret");
         }
     }
 
@@ -249,7 +343,12 @@ public class FIPSEcCofactorEcdhTest
 
     private static byte[] derive(Provider provider, PrivateKey priv, PublicKey pub) throws Exception
     {
-        KeyAgreement ka = KeyAgreement.getInstance("ECDH", provider);
+        return derive(provider, "ECDH", priv, pub);
+    }
+
+    private static byte[] derive(Provider provider, String name, PrivateKey priv, PublicKey pub) throws Exception
+    {
+        KeyAgreement ka = KeyAgreement.getInstance(name, provider);
         ka.init(priv);
         ka.doPhase(pub, true);
         return ka.generateSecret();

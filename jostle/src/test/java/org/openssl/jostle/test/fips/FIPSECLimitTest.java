@@ -15,15 +15,21 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
+import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.ec.ECBridgeCells;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Security;
 
 /**
  * Input-validation limit tests at the FIPS EC service NI surface
@@ -1167,6 +1173,36 @@ public class FIPSECLimitTest
     public void bridge_zeroLengthOutputIsASizeQuery()
     {
         ECBridgeCells.zeroLengthOutputIsASizeQuery(ec);
+    }
+
+    /** Runs where the module serves the XEC curves; where it does not, the absence is asserted. */
+    @Test
+    public void bridge_xecKeyRefusesCofactorModeTyped() throws Exception
+    {
+        Provider fips = Security.getProvider(JostleFIPSProvider.PROVIDER_NAME);
+        for (String alg : new String[]{"X25519", "X448"})
+        {
+            if (fips.getService("KeyPairGenerator", alg) == null)
+            {
+                Assertions.assertNull(fips.getService("KeyAgreement", alg), alg + ": served without a generator");
+                System.out.println("[eccdh-xec] " + alg + " not served by this module");
+                continue;
+            }
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance(alg, fips);
+            KeyPair a = kpg.generateKeyPair();
+            KeyPair b = kpg.generateKeyPair();
+            ECBridgeCells.xecKeyRefusesCofactorModeTyped(ec, ((OSSLKey) a.getPrivate()).getSpec().getReference(),
+                    ((OSSLKey) b.getPublic()).getSpec().getReference(), alg);
+            // The keys own the handles the cell used.
+            Assertions.assertNotNull(a.getPrivate().getEncoded(), alg);
+            Assertions.assertNotNull(b.getPublic().getEncoded(), alg);
+        }
+    }
+
+    @Test
+    public void bridge_cofactorModeHandlesAreChecked()
+    {
+        ECBridgeCells.cofactorModeHandlesAreChecked(ec, specNI);
     }
 
     @Test

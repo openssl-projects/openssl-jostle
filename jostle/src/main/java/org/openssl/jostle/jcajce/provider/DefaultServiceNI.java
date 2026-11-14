@@ -316,8 +316,12 @@ public interface DefaultServiceNI
                 // Diagnosed at the derive, not pre-checked: the 3.1.2 module
                 // performs plain ECDH on these curves and only 3.5+ refuses.
                 throw new ProviderCapabilityException(
-                        "ECDH on a curve with cofactor != 1 requires cofactor ECDH, which the"
-                                + " loaded provider requires and this provider does not perform");
+                        "ECDH on a curve with cofactor != 1 requires cofactor ECDH under the loaded provider;"
+                                + " use the ECCDH KeyAgreement");
+            case JO_EC_COFACTOR_MODE_NOT_APPLIED:
+                // Read back after the set, which ignores a parameter the provider does not know.
+                throw new ProviderCapabilityException(
+                        "the loaded provider did not apply cofactor ECDH mode");
             case JO_DH_Q_REQUIRED:
                 // FIPS providers need q for their SP 800-56A checks, so q-less
                 // PKCS#3 keys/parameters are refused at derive-init AND at keygen

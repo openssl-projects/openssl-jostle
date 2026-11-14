@@ -54,14 +54,15 @@ public class KeyAgreementExamplesTest
 
     /**
      * Ask for a named key: `generateSecret("AES")` takes the leading bytes of the secret as a 256-bit AES key.
-     * `XDH` takes keys of either Montgomery curve.
+     * `XDH` takes keys of either Montgomery curve. `ECCDH` is cofactor ECDH (SEC 1 3.3.2), the same as `ECDH`
+     * on a curve whose cofactor is 1.
      */
     @Test
     public void namedKeyFromEveryPlainAgreement()
             throws Exception
     {
-        String[] agreements = {"X25519", "X448", "XDH", "ECDH", "DH"};
-        String[] generators = {"X25519", "X448", "X25519", "EC", "DH"};
+        String[] agreements = {"X25519", "X448", "XDH", "ECDH", "ECCDH", "DH"};
+        String[] generators = {"X25519", "X448", "X25519", "EC", "EC", "DH"};
         for (int i = 0; i < agreements.length; i++)
         {
             KeyPairGenerator kpg = KeyPairGenerator.getInstance(generators[i], "JSL");
@@ -81,14 +82,16 @@ public class KeyAgreementExamplesTest
     /**
      * The agreements with a KDF built in derive a key-encryption key for AES key wrap, named by the wrap's
      * object identifier (here AES-256 wrap), with optional user keying material. These are the X9.63 KDF over
-     * ECDH, and the RFC 2631 KDF over DH.
+     * ECDH and over cofactor ECDH (the `ECCDH` names, CMS's dhSinglePass-cofactorDH schemes), and the RFC 2631
+     * KDF over DH.
      */
     @Test
     public void agreementsWithAKdf()
             throws Exception
     {
         String[] agreements = {"ECDHwithSHA1KDF", "ECDHwithSHA224KDF", "ECDHwithSHA256KDF", "ECDHwithSHA384KDF",
-                "ECDHwithSHA512KDF", "DHwithRFC2631KDF"};
+                "ECDHwithSHA512KDF", "ECCDHwithSHA1KDF", "ECCDHwithSHA224KDF", "ECCDHwithSHA256KDF",
+                "ECCDHwithSHA384KDF", "ECCDHwithSHA512KDF", "DHwithRFC2631KDF"};
         String aes256Wrap = "2.16.840.1.101.3.4.1.45";
         UserKeyingMaterialSpec ukm = new UserKeyingMaterialSpec("key id 7".getBytes(StandardCharsets.US_ASCII));
         for (String name : agreements)

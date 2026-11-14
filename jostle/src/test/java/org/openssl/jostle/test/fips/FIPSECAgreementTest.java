@@ -22,6 +22,7 @@ import org.openssl.jostle.test.util.CipherFamilies;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.KeyAgreement;
+import java.lang.reflect.Method;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -97,6 +98,9 @@ public class FIPSECAgreementTest
     // compliance determination rather than a capability we withhold.
     private static final String[] ECDH_KDF_NAMES = {
             "ECDHWITHSHA1KDF", "ECDHWITHSHA224KDF", "ECDHWITHSHA256KDF", "ECDHWITHSHA384KDF", "ECDHWITHSHA512KDF",
+            // The same over cofactor ECDH (RFC 5753 dhSinglePass-cofactorDH).
+            "ECCDHWITHSHA1KDF", "ECCDHWITHSHA224KDF", "ECCDHWITHSHA256KDF", "ECCDHWITHSHA384KDF",
+            "ECCDHWITHSHA512KDF",
             // RFC 6637 §7 SP 800-56C one-step KDF (a different construction —
             // see ECWithCKDFKeyAgreementSpi's javadoc). Ungated, like the
             // X9.63 family above. No SHA-1 (RFC 6637 §13).
@@ -348,7 +352,8 @@ public class FIPSECAgreementTest
 
         for (String name : ECDH_KDF_NAMES)
         {
-            boolean isCkdf = name.startsWith("ECCDH");
+            // The suffix, not the prefix: the cofactor X9.63 names start with ECCDH too.
+            boolean isCkdf = name.endsWith("CKDF");
 
             for (int trial = 0; trial < TRIALS; trial++)
             {
@@ -675,6 +680,26 @@ public class FIPSECAgreementTest
             covered.add("Signature." + alg.toUpperCase(Locale.ROOT));
         }
         covered.add("KeyAgreement.ECDH");
+        // Raw cofactor ECDH is driven against BouncyCastle by two cells of its own class, named here so the
+        // sanction cannot outlive them.
+        covered.add("KeyAgreement.ECCDH");
+        String[] eccdhCells = {"primeCurvesAgreeWithBouncyCastleAndWithPlainEcdh",
+            "cofactorCurvesDeriveCofactorEcdhInTheModule"};
+        for (String cell : eccdhCells)
+        {
+            Method m = null;
+            try
+            {
+                m = Class.forName("org.openssl.jostle.test.fips.FIPSECCofactorAgreementTest").getMethod(cell);
+            }
+            catch (ClassNotFoundException | NoSuchMethodException e)
+            {
+                Assertions.fail("KeyAgreement.ECCDH is sanctioned here as covered by "
+                        + "FIPSECCofactorAgreementTest." + cell + ", which no longer exists: " + e);
+            }
+            Assertions.assertNotNull(m.getAnnotation(Test.class),
+                    "FIPSECCofactorAgreementTest." + cell + " is no longer a test");
+        }
         for (String alg : ECDH_KDF_NAMES)
         {
             covered.add("KeyAgreement." + alg.toUpperCase(Locale.ROOT));

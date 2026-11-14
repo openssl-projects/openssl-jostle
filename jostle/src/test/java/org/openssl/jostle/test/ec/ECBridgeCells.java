@@ -13,6 +13,7 @@ package org.openssl.jostle.test.ec;
 
 import org.junit.jupiter.api.Assertions;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.ec.ECServiceNI;
 import org.openssl.jostle.jcajce.spec.SpecNI;
 import org.openssl.jostle.rand.RandSource;
@@ -136,6 +137,68 @@ public final class ECBridgeCells
         Assertions.assertTrue(nameLen > 0);
         Assertions.assertEquals(nameLen, ec.ni_findCurveName(ECServiceNI.FIELD_TYPE_PRIME, in[0], in[1], in[2],
                 in[3], in[4], in[5], in[6], new byte[0]));
+    }
+
+    /**
+     * The cofactor-mode entry point refuses a null, wrong-kind or uninitialised handle with a typed code, and
+     * accepts an initialised one.
+     */
+    public static void cofactorModeHandlesAreChecked(ECServiceNI ec, SpecNI spec)
+    {
+        long keyRef = ec.generateKeyPair(CURVE, RND);
+        long sigRef = ec.allocateSigner();
+        long kexRef = ec.allocateKex();
+        try
+        {
+            Assertions.assertEquals(code(ErrorCode.JO_KEX_CTX_IS_NULL), ec.ni_kexSetCofactorMode(0));
+            IllegalArgumentException e = Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> ec.kexSetCofactorMode(0));
+            Assertions.assertEquals("key-agreement context is null", e.getMessage());
+
+            Assertions.assertEquals(code(ErrorCode.JO_EC_KEX_CTX_WRONG_KIND), ec.ni_kexSetCofactorMode(sigRef));
+            Assertions.assertEquals(code(ErrorCode.JO_EC_KEX_CTX_WRONG_KIND), ec.ni_kexSetCofactorMode(keyRef));
+
+            Assertions.assertEquals(code(ErrorCode.JO_NOT_INITIALIZED), ec.ni_kexSetCofactorMode(kexRef));
+            IllegalStateException s = Assertions.assertThrows(IllegalStateException.class,
+                    () -> ec.kexSetCofactorMode(kexRef));
+            Assertions.assertEquals("not initialized", s.getMessage());
+
+            ec.kexInit(kexRef, keyRef, RND);
+            Assertions.assertEquals(0, ec.ni_kexSetCofactorMode(kexRef));
+        }
+        finally
+        {
+            ec.disposeKex(kexRef);
+            ec.disposeSigner(sigRef);
+            spec.dispose(keyRef);
+        }
+    }
+
+    /**
+     * The real trigger for the setter's -2 arm, with no fault injection: the X25519 and X448 exchanges do not list
+     * the cofactor parameter, so a kex ctx initialised with an XEC key refuses the mode with the typed code and is
+     * left not initialised.
+     */
+    public static void xecKeyRefusesCofactorModeTyped(ECServiceNI ec, long privRef, long peerRef, String label)
+    {
+        long kexRef = ec.allocateKex();
+        try
+        {
+            ec.kexInit(kexRef, privRef, RND);
+            Assertions.assertEquals(code(ErrorCode.JO_EC_COFACTOR_MODE_NOT_APPLIED), ec.ni_kexSetCofactorMode(kexRef),
+                    label);
+            Assertions.assertEquals(code(ErrorCode.JO_NOT_INITIALIZED), ec.ni_kexSetPeer(kexRef, peerRef, RND),
+                    label);
+
+            ec.kexInit(kexRef, privRef, RND);
+            ProviderCapabilityException e = Assertions.assertThrows(ProviderCapabilityException.class,
+                    () -> ec.kexSetCofactorMode(kexRef), label);
+            Assertions.assertEquals("the loaded provider did not apply cofactor ECDH mode", e.getMessage(), label);
+        }
+        finally
+        {
+            ec.disposeKex(kexRef);
+        }
     }
 
     /** A handle of the wrong kind is refused with a typed code before it is used. */

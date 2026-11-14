@@ -79,6 +79,9 @@ class ECServiceFIPSJNI implements ECServiceNI
     public native int ni_kexInit(long ref, long keyRef, RandSource rndSource);
 
     @Override
+    public native int ni_kexSetCofactorMode(long ref);
+
+    @Override
     public native int ni_kexSetPeer(long ref, long peerRef, RandSource rndSource);
 
     @Override

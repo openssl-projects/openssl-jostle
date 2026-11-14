@@ -1596,6 +1596,46 @@ int32_t ec_kex_init(ec_kex_ctx *ctx, const key_spec *my_priv,
 }
 
 
+/* Leaves the ctx not initialised, so a refused mode cannot fall back to plain ECDH. */
+static void ec_kex_reset(ec_kex_ctx *ctx) {
+    EVP_PKEY_CTX_free(ctx->pctx);
+    ctx->pctx = NULL;
+    ctx->peer_set = 0;
+}
+
+
+int32_t ec_kex_set_cofactor_mode(ec_kex_ctx *ctx) {
+    jo_assert(ctx != NULL);
+
+    if (ctx->pctx == NULL) {
+        return JO_NOT_INITIALIZED;
+    }
+
+    ERR_clear_error();
+
+    int set_rc = EVP_PKEY_CTX_set_ecdh_cofactor_mode(ctx->pctx, 1);
+    if (OPS_OPENSSL_ERROR_4 1 != set_rc) {
+        ec_kex_reset(ctx);
+        /* -2: the provider does not list the parameter, which is a capability and not an error. */
+        if (OPS_OPENSSL_ERROR_6 -2 == set_rc) {
+            return JO_EC_COFACTOR_MODE_NOT_APPLIED;
+        }
+        return JO_OPENSSL_ERROR OPS_OFFSET_OPENSSL_ERROR_4(3072);
+    }
+
+    /* Guards a provider that lists the parameter but does not hold it. */
+    ERR_set_mark();
+    int mode = EVP_PKEY_CTX_get_ecdh_cofactor_mode(ctx->pctx);
+    ERR_pop_to_mark();
+    if (OPS_OPENSSL_ERROR_5 1 != mode) {
+        ec_kex_reset(ctx);
+        return JO_EC_COFACTOR_MODE_NOT_APPLIED;
+    }
+
+    return JO_SUCCESS;
+}
+
+
 int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
                         void *rnd_src) {
     jo_assert(ctx != NULL);
@@ -1649,7 +1689,8 @@ int32_t ec_kex_set_peer(ec_kex_ctx *ctx, const key_spec *peer_pub,
  * input: the 3.1.2 FIPS module derives on these curves, 3.5.x refuses them.
  *
  * Asks the KEY whether its curve has a cofactor other than 1, rather than
- * matching an ERR reason string. Any other refusal stays generic.
+ * matching an ERR reason string, and only when the ctx is not already in
+ * cofactor mode. Any other refusal stays generic.
  */
 static int32_t classify_ecdh_derive_failure(EVP_PKEY_CTX *pctx, int32_t generic) {
     jo_assert(pctx != NULL);
@@ -1669,6 +1710,7 @@ static int32_t classify_ecdh_derive_failure(EVP_PKEY_CTX *pctx, int32_t generic)
     EVP_PKEY *key = EVP_PKEY_CTX_get0_pkey(pctx);
     BIGNUM *cofactor = NULL;
     int not_one = key != NULL
+                  && 1 != EVP_PKEY_CTX_get_ecdh_cofactor_mode(pctx)
                   && 1 == EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_COFACTOR, &cofactor)
                   && cofactor != NULL
                   && !BN_is_one(cofactor);
