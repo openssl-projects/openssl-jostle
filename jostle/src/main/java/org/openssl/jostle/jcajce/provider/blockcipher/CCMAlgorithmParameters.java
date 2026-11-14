@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.util.Arrays;
 
 import javax.crypto.spec.GCMParameterSpec;
@@ -62,7 +63,15 @@ public class CCMAlgorithmParameters
     protected void engineInit(AlgorithmParameterSpec paramSpec)
         throws InvalidParameterSpecException
     {
-        if (paramSpec instanceof GCMParameterSpec)
+        if (paramSpec instanceof AEADParameterSpec)
+        {
+            // Before the IvParameterSpec it extends. The spec's own constructor keeps the tag length a whole number
+            // of bytes. The encoding carries the nonce and the tag length only, so associated data is not kept, as
+            // in BouncyCastle.
+            AEADParameterSpec spec = (AEADParameterSpec) paramSpec;
+            setNonceAndIcv(spec.getNonce(), spec.getMacSizeInBits() / 8);
+        }
+        else if (paramSpec instanceof GCMParameterSpec)
         {
             GCMParameterSpec spec = (GCMParameterSpec) paramSpec;
             int tagBits = spec.getTLen();
@@ -80,7 +89,7 @@ public class CCMAlgorithmParameters
         else
         {
             throw new InvalidParameterSpecException(
-                    "CCM parameters require a GCMParameterSpec or IvParameterSpec, got "
+                    "CCM parameters require a GCMParameterSpec, AEADParameterSpec or IvParameterSpec, got "
                             + (paramSpec == null ? "null" : paramSpec.getClass().getName()));
         }
     }
@@ -161,6 +170,10 @@ public class CCMAlgorithmParameters
         if (paramSpec == null)
         {
             throw new InvalidParameterSpecException("null parameter spec class");
+        }
+        if (paramSpec == AEADParameterSpec.class)
+        {
+            return (T) new AEADParameterSpec(Arrays.clone(nonce), icvBytes * 8);
         }
         if (paramSpec.isAssignableFrom(GCMParameterSpec.class))
         {

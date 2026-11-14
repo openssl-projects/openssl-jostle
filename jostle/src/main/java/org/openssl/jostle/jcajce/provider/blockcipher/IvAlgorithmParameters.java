@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.Der;
 
@@ -40,11 +41,36 @@ public class IvAlgorithmParameters
 {
     private byte[] iv;
 
+    // The tag length of an AEAD mode whose parameters carry only a nonce, or 0 for a mode with no tag.
+    private final int fixedTagBits;
+
+    public IvAlgorithmParameters()
+    {
+        this(0);
+    }
+
+    /** For an AEAD mode whose tag length is fixed, so an AEADParameterSpec of that length means the nonce alone. */
+    public IvAlgorithmParameters(int fixedTagBits)
+    {
+        this.fixedTagBits = fixedTagBits;
+    }
+
     @Override
     protected void engineInit(AlgorithmParameterSpec paramSpec)
         throws InvalidParameterSpecException
     {
-        if (!(paramSpec instanceof IvParameterSpec))
+        // An AEADParameterSpec is an IvParameterSpec carrying a tag length these parameters do not hold: taken only
+        // at the mode's fixed tag length, refused rather than dropped otherwise.
+        if (paramSpec instanceof AEADParameterSpec && fixedTagBits != 0)
+        {
+            int tagBits = ((AEADParameterSpec) paramSpec).getMacSizeInBits();
+            if (tagBits != fixedTagBits)
+            {
+                throw new InvalidParameterSpecException(
+                        "tag length is fixed at " + fixedTagBits + " bits (got " + tagBits + ")");
+            }
+        }
+        else if (!(paramSpec instanceof IvParameterSpec) || paramSpec instanceof AEADParameterSpec)
         {
             throw new InvalidParameterSpecException(
                     "IV parameters require an IvParameterSpec, got "
@@ -106,6 +132,10 @@ public class IvAlgorithmParameters
         if (paramSpec == null)
         {
             throw new InvalidParameterSpecException("null parameter spec class");
+        }
+        if (paramSpec == AEADParameterSpec.class && fixedTagBits != 0)
+        {
+            return (T) new AEADParameterSpec(Arrays.clone(iv), fixedTagBits);
         }
         if (paramSpec.isAssignableFrom(IvParameterSpec.class))
         {

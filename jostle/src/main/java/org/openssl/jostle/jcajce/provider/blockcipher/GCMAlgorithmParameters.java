@@ -10,6 +10,7 @@
 
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
+import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.asn1.Der;
 
@@ -60,7 +61,15 @@ public class GCMAlgorithmParameters
     protected void engineInit(AlgorithmParameterSpec paramSpec)
         throws InvalidParameterSpecException
     {
-        if (paramSpec instanceof GCMParameterSpec)
+        if (paramSpec instanceof AEADParameterSpec)
+        {
+            // Before the IvParameterSpec it extends. The spec's own constructor keeps the tag length a whole number
+            // of bytes. The encoding carries the nonce and the tag length only, so associated data is not kept, as
+            // in BouncyCastle.
+            AEADParameterSpec spec = (AEADParameterSpec) paramSpec;
+            setNonceAndIcv(spec.getNonce(), spec.getMacSizeInBits() / 8);
+        }
+        else if (paramSpec instanceof GCMParameterSpec)
         {
             GCMParameterSpec spec = (GCMParameterSpec) paramSpec;
             int tagBits = spec.getTLen();
@@ -79,7 +88,7 @@ public class GCMAlgorithmParameters
             // of the read-back bug that dropped one. CCM differs deliberately:
             // it accepts a nonce-only spec for BouncyCastle parity.
             throw new InvalidParameterSpecException(
-                    "GCM parameters require a GCMParameterSpec, got "
+                    "GCM parameters require a GCMParameterSpec or AEADParameterSpec, got "
                             + (paramSpec == null ? "null" : paramSpec.getClass().getName()));
         }
     }
@@ -157,6 +166,10 @@ public class GCMAlgorithmParameters
         if (paramSpec == null)
         {
             throw new InvalidParameterSpecException("null parameter spec class");
+        }
+        if (paramSpec == AEADParameterSpec.class)
+        {
+            return (T) new AEADParameterSpec(Arrays.clone(nonce), icvBytes * 8);
         }
         if (paramSpec.isAssignableFrom(GCMParameterSpec.class))
         {

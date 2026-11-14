@@ -17,19 +17,26 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.jcajce.SecretKeyWithEncapsulation;
+import org.openssl.jostle.jcajce.interfaces.OSSLKey;
 import org.openssl.jostle.jcajce.provider.fips.JostleFIPSProvider;
 import org.openssl.jostle.jcajce.spec.KEMExtractSpec;
 import org.openssl.jostle.jcajce.spec.KEMGenerateSpec;
+import org.openssl.jostle.jcajce.spec.PKEYKeySpec;
 import org.openssl.jostle.test.dh.KeyAgreementCalls;
 
 import javax.crypto.KeyAgreement;
 import javax.crypto.KeyGenerator;
 import javax.crypto.interfaces.DHPublicKey;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.Provider;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.ECGenParameterSpec;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -160,4 +167,55 @@ public class FIPSForeignKeyTranslationAgreementTest
             Assertions.assertArrayEquals(KeyAgreementCalls.secret(ref), KeyAgreementCalls.secret(fips), agreement);
         }
     }
+
+    /** The field the ML-KEM generator keeps its accepted key in; a translated key is read from it. */
+    private static final String KEPT_KEY_FIELD = "kemKey";
+
+    /** Runs the provider's own FIPS generator init on spec and returns the key it kept. */
+    private static OSSLKey keptKey(Provider provider, AlgorithmParameterSpec spec) throws Exception
+    {
+        Object spi = provider.getService("KeyGenerator", "ML-KEM-768").newInstance(null);
+        Method init = spi.getClass().getDeclaredMethod("engineInit", AlgorithmParameterSpec.class, SecureRandom.class);
+        init.setAccessible(true);
+        init.invoke(spi, spec, null);
+        Field kept;
+        try
+        {
+            kept = spi.getClass().getDeclaredField(KEPT_KEY_FIELD);
+        }
+        catch (NoSuchFieldException e)
+        {
+            throw new AssertionError("the generator no longer keeps its key in " + KEPT_KEY_FIELD, e);
+        }
+        kept.setAccessible(true);
+        OSSLKey key = (OSSLKey) kept.get(spi);
+        Assertions.assertNotNull(key, KEPT_KEY_FIELD + " is not set after init");
+        return key;
+    }
+
+    /**
+     * The library binding of a translated key: a BouncyCastle key handed to the JSLFIPS ML-KEM generator is kept
+     * bound to the FIPS interface library and owned by its "fips" OpenSSL provider, in both halves.
+     */
+    @Test
+    public void translatedMlkemKey_libraryBindingIsTheFipsLibrary() throws Exception
+    {
+        assumeMlKem();
+        KeyPair bc = KeyPairGenerator.getInstance("ML-KEM-768", BC).generateKeyPair();
+        AlgorithmParameterSpec[] specs = {
+            KEMGenerateSpec.builder().withPublicKey(bc.getPublic()).withAlgorithmName("AES").withKeySizeInBits(256)
+                    .build(),
+            new KEMExtractSpec(bc.getPrivate(), "AES", 256, new byte[1088])};
+        for (AlgorithmParameterSpec spec : specs)
+        {
+            OSSLKey key = keptKey(Security.getProvider(FIPS), spec);
+            PKEYKeySpec keySpec = key.getSpec();
+            String label = spec.getClass().getSimpleName();
+            Assertions.assertEquals(true, keySpec.getSpecNI().getClass().getSimpleName().contains("FIPS"),
+                    label + ": " + keySpec.getSpecNI().getClass().getName());
+            Assertions.assertEquals("fips", keySpec.getSpecNI().getKeyProvider(keySpec.getReference()), label);
+            Assertions.assertNotNull(key.getSpec(), label);
+        }
+    }
+
 }

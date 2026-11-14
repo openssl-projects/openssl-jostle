@@ -92,7 +92,7 @@ class ProvChaCha20
         // includes a 32-bit counter that no standard container carries, and
         // SunJCE registers none either. BlockCipherSpi returns null there.
         provider.addAlgorithmImplementation("AlgorithmParameters", "ChaCha20-Poly1305",
-                IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters());
+                IvAlgorithmParameters.class.getName(), generalAttributes, (arg) -> new IvAlgorithmParameters(128));
         // Both lookup spellings, as BouncyCastle registers them. Only the
         // bare OID is passed: addAlias emits the "OID."-prefixed form for any
         // OID-shaped alias, so this no longer needs stating per call site.
