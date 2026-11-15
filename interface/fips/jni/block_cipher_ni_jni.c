@@ -311,6 +311,58 @@ exit:
 }
 
 /*
+ * Class:     org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI
+ * Method:    ni_doFinalWithRand
+ * Signature: (J[BILorg/openssl/jostle/rand/RandSource;)I
+ *
+ * The final for a mode that draws random bytes at its final step. Not a
+ * critical region: the wrap up-calls into Java for its IV. The output goes
+ * through the secret helper because an unwrap writes the recovered key.
+ */
+JNIEXPORT jint JNICALL Java_org_openssl_jostle_jcajce_provider_blockcipher_BlockCipherJNI_ni_1doFinalWithRand
+(JNIEnv *env, jobject cl, jlong ref, jbyteArray _output, jint out_off, jobject rnd_src) {
+    UNUSED(cl);
+    block_cipher_ctx *ctx = (block_cipher_ctx *) ((void *) ref);
+    jint return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+    if (_output == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+
+    java_secret_bytearray_ctx output;
+    init_secret_bytearray_ctx(&output);
+
+    if (out_off < 0) {
+        return_code = JO_OUTPUT_OFFSET_IS_NEGATIVE;
+        goto exit;
+    }
+    if (OPS_FAILED_ACCESS_3 !load_secret_output_ctx(&output, env, _output)) {
+        return_code = JO_FAILED_ACCESS_OUTPUT;
+        goto exit;
+    }
+    if ((size_t) out_off > output.size) {
+        return_code = JO_OUTPUT_OUT_OF_RANGE;
+        goto exit;
+    }
+
+    return_code = block_cipher_ctx_final_rand(ctx, output.bytearray + (size_t) out_off,
+                                              output.size - (size_t) out_off, rnd_src);
+
+exit:
+    if (SUCCESSFUL(return_code)) {
+        release_secret_bytearray_ctx(&output);
+    } else {
+        discard_secret_bytearray_ctx(&output);
+    }
+    return return_code;
+}
+
+/*
  * Class:     org_openssl_jostle_jcajce_provider_BlockCipherJNI
  * Method:    getFinalSize
  * Signature: (JI)I

@@ -260,6 +260,33 @@ exit:
     return return_code;
 }
 
+
+/**
+ * The final for a mode that draws random bytes at its final step; same checks
+ * and codes as the JNI twin. Bound without the critical option: the wrap
+ * up-calls into Java for its IV.
+ */
+int32_t JoBlockCipher_doFinalWithRand(block_cipher_ctx *ctx, uint8_t *output, size_t output_size, int32_t out_off,
+                                      void *rnd_src) {
+    int32_t return_code = block_cipher_ctx_check(ctx);
+    if (UNSUCCESSFUL(return_code)) {
+        return return_code;
+    }
+    if (rnd_src == NULL) {
+        return JO_RAND_NO_RAND_UP_CALL;
+    }
+    if (output == NULL) {
+        return JO_OUTPUT_IS_NULL;
+    }
+    if (out_off < 0) {
+        return JO_OUTPUT_OFFSET_IS_NEGATIVE;
+    }
+    if ((size_t) out_off > output_size) {
+        return JO_OUTPUT_OUT_OF_RANGE;
+    }
+    return block_cipher_ctx_final_rand(ctx, output + (size_t) out_off, output_size - (size_t) out_off, rnd_src);
+}
+
 int32_t JoBlockCipher_getUpdateSize(block_cipher_ctx *ctx, int32_t len) {
     int32_t return_code = block_cipher_ctx_check(ctx);
     if (UNSUCCESSFUL(return_code)) {

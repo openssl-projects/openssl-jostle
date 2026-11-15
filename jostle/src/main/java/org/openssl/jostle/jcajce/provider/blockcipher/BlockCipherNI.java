@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.blockcipher;
 import org.openssl.jostle.jcajce.provider.DefaultServiceNI;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.rand.RandSource;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.BadPaddingException;
@@ -39,6 +40,12 @@ public interface BlockCipherNI extends DefaultServiceNI
     int ni_update(long ref, byte[] output, int outputOffset, byte[] input, int inputOffset, int inputLen);
 
     int ni_doFinal(long ref, byte[] output, int outputOffset);
+
+    /**
+     * The final for a mode that draws random bytes at its final step (RFC 3217's Triple-DES wrap); identical to
+     * {@link #ni_doFinal} for every other mode.
+     */
+    int ni_doFinalWithRand(long ref, byte[] output, int outputOffset, RandSource rndSource);
 
     int ni_updateAAD(long ref, byte[] input, int inputOffset, int inputLen);
 
@@ -153,6 +160,24 @@ public interface BlockCipherNI extends DefaultServiceNI
                     "doFinal cannot report a key or parameter fault except through the post-final reinit, whose inputs already succeeded once", others);
         }
 
+    }
+
+    default int doFinalWithRand(long ref, byte[] output, int outputOffset, RandSource rndSource)
+            throws ShortBufferException, IllegalBlockSizeException, BadPaddingException
+    {
+        try
+        {
+            return (int) handleError(ni_doFinalWithRand(ref, output, outputOffset, rndSource));
+        }
+        catch (ShortBufferException | IllegalBlockSizeException | BadPaddingException gsecEx)
+        {
+            throw gsecEx;
+        }
+        catch (InvalidKeyException | InvalidAlgorithmParameterException others)
+        {
+            throw new IllegalStateException("doFinal cannot report a key or parameter fault except through the"
+                    + " post-final reinit, whose inputs already succeeded once", others);
+        }
     }
 
     default int updateAAD(long ref, byte[] input, int inputOffset, int inputLen)
@@ -296,6 +321,9 @@ public interface BlockCipherNI extends DefaultServiceNI
                 throw new IllegalStateException("ChaCha20 block counter would pass 2^32 for this nonce");
             case JO_CTX_POISONED:
                 throw new IllegalStateException("cipher is poisoned; create a new instance with a fresh iv");
+            case JO_RAND_SOURCE_REQUIRED:
+                throw new IllegalStateException(
+                        "this mode draws random bytes at its final step and needs a random source");
             case JO_INVALID_CIPHER_TEXT:
                 throw new BadPaddingException("invalid cipher text");
             case JO_TAG_INVALID:

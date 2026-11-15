@@ -750,6 +750,8 @@
 #define JO_CHACHA20_COUNTER_EXHAUSTED -232
 /* A kex ctx asked for cofactor ECDH whose provider does not report the mode as set. */
 #define JO_EC_COFACTOR_MODE_NOT_APPLIED -233
+/* A mode that draws random bytes at its final step, finalised without a RandSource. */
+#define JO_RAND_SOURCE_REQUIRED -234
 /*
  * A failure whose code carries an OPS offset was INJECTED by the
  * operations-test harness, not produced by OpenSSL — the OPS_OFFSET_* macros

@@ -102,7 +102,7 @@ public class ServedSurfaceSnapshotTest
             "Cipher.ARIA128", "Cipher.ARIA192", "Cipher.ARIA256", "Cipher.CAMELLIA",
             "Cipher.CAMELLIARFC3211WRAP",
             "Cipher.CAMELLIA128", "Cipher.CAMELLIA192", "Cipher.CAMELLIA256", "Cipher.CHACHA20",
-            "Cipher.CHACHA20-POLY1305", "Cipher.DESEDE", "Cipher.DESEDERFC3211WRAP",
+            "Cipher.CHACHA20-POLY1305", "Cipher.DESEDE", "Cipher.DESEDERFC3211WRAP", "Cipher.DESEDEWRAP",
             "Cipher.ETSIKEMWITHSHA256",
             "Cipher.ML-KEM", "Cipher.RSA",
             "Cipher.RSA-KTS-KEM-KWS", "Cipher.RSA/ECB/PKCS1PADDING", "Cipher.SM4",

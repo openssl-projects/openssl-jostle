@@ -12,6 +12,7 @@ package org.openssl.jostle.jcajce.provider.fips;
 
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.rand.RandSource;
 
 /**
  * JNI implementation of BlockCipherNI backed by the FIPS interface library
@@ -36,6 +37,9 @@ class BlockCipherFIPSJNI implements BlockCipherNI
 
     @Override
     public native int ni_doFinal(long ref, byte[] output, int outputOffset);
+
+    @Override
+    public native int ni_doFinalWithRand(long ref, byte[] output, int outputOffset, RandSource rndSource);
 
     @Override
     public native int ni_updateAAD(long ref, byte[] input, int inputOffset, int inputLen);

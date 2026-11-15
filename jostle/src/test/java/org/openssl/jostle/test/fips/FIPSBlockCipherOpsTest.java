@@ -855,7 +855,7 @@ public class FIPSBlockCipherOpsTest
             }
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
 
-            // Exercises interface/fips/util/block_cipher_ctx.c:270
+            // Exercises interface/fips/util/block_cipher_ctx.c:287
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
             try
@@ -1011,7 +1011,7 @@ public class FIPSBlockCipherOpsTest
             Assertions.assertEquals(0,
                     blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 
-            // Exercises interface/fips/util/block_cipher_ctx.c:295
+            // Exercises interface/fips/util/block_cipher_ctx.c:312
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
 
             try
@@ -1103,6 +1103,26 @@ public class FIPSBlockCipherOpsTest
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             expectFailure(() -> blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16),
                     AccessException.class, "unable to access input array");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    @Test
+    public void jniDoFinalWithRand_outputAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = initedGcm();
+        try
+        {
+            // Exercises interface/fips/jni/block_cipher_ni_jni.c:344
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
+            expectFailure(() -> blockCipherNI.doFinalWithRand(ref, new byte[32], 0, TestUtil.RNDSrc),
+                    AccessException.class, "unable to access output array");
         }
         finally
         {

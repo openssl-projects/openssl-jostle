@@ -138,6 +138,13 @@ int32_t block_cipher_ctx_final(
     size_t out_len);
 
 /*
+ * The final for a mode that draws random bytes at its final step (RFC 3217's
+ * Triple-DES wrap); identical to block_cipher_ctx_final for every other mode.
+ * The plain final refuses such a mode with JO_RAND_SOURCE_REQUIRED.
+ */
+int32_t block_cipher_ctx_final_rand(block_cipher_ctx *ctx, uint8_t *output, size_t out_len, void *rnd_src);
+
+/*
  * The cipher's block size as the bound lib ctx reports it, no context needed. JO_INVALID_CIPHER for an ordinal
  * out of range or a cipher with no fetch name, JO_OPENSSL_ERROR when the fetch fails.
  */

@@ -17,6 +17,8 @@ import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.wrap.UnwrappedKeys;
 import org.openssl.jostle.jcajce.spec.AEADParameterSpec;
+import org.openssl.jostle.rand.DefaultRandSource;
+import org.openssl.jostle.rand.RandSource;
 import org.openssl.jostle.util.Arrays;
 import org.openssl.jostle.util.Strings;
 
@@ -84,6 +86,9 @@ class BlockCipherSpi extends CipherSpi
     // NI backend its provider passes in - NISelector.BlockCipherNI for JSL,
     // FIPSNISelector.BlockCipherNI (the FIPS interface library) for JSLFIPS.
     private final BlockCipherNI blockCipherNi;
+
+    /** Set at init for a mode whose final draws random bytes; null otherwise. */
+    private RandSource randSource;
 
     /**
      * The provider INSTANCE this SPI belongs to, or null when constructed
@@ -572,6 +577,16 @@ class BlockCipherSpi extends CipherSpi
         return JostleAlgorithmParameters.getInstance(algorithm, blockCipherNi.providerName());
     }
 
+    /**
+     * RFC 3217's Triple-DES key wrap draws its IV from RAND inside the native wrap, so its final carries a
+     * RandSource; unwrap goes the same way and draws nothing.
+     */
+    private boolean drawsRandomAtFinal()
+    {
+        return osslMode == OSSLMode.WRAP
+                && (mandatedCipher == OSSLCipher.DES_EDE3 || osslCipher == OSSLCipher.DES_EDE3);
+    }
+
     @Override
     protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException
     {
@@ -609,6 +624,11 @@ class BlockCipherSpi extends CipherSpi
             final int nativeOpMode = (opmode == Cipher.WRAP_MODE) ? Cipher.ENCRYPT_MODE
                 : (opmode == Cipher.UNWRAP_MODE) ? Cipher.DECRYPT_MODE : opmode;
             this.opMode = nativeOpMode;
+            if (drawsRandomAtFinal())
+            {
+                // The caller's SecureRandom from init, else the default; reused while it is unchanged.
+                randSource = DefaultRandSource.replaceWith(randSource, random);
+            }
 
             if (params == null)
             {
@@ -1148,7 +1168,10 @@ class BlockCipherSpi extends CipherSpi
                     written += blockCipherNi.update(refWrapper.getReference(), output, outputOffset, workingInput, inputOffset, inputLen);
                 }
 
-                int code = blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
+                int code = drawsRandomAtFinal()
+                        ? blockCipherNi.doFinalWithRand(refWrapper.getReference(), output, outputOffset + written,
+                                randSource)
+                        : blockCipherNi.doFinal(refWrapper.getReference(), output, outputOffset + written);
 
                 written += code;
 

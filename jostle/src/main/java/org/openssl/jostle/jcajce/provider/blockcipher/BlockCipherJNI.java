@@ -11,6 +11,7 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.rand.RandSource;
 
 /**
  * JNI version of this class
@@ -31,6 +32,9 @@ public class BlockCipherJNI implements BlockCipherNI
 
     @Override
     public native int ni_doFinal(long ref, byte[] output, int outputOffset);
+
+    @Override
+    public native int ni_doFinalWithRand(long ref, byte[] output, int outputOffset, RandSource rndSource);
 
     @Override
     public native int ni_updateAAD(long ref, byte[] input, int inputOffset, int inputLen);

@@ -12,9 +12,12 @@
 package org.openssl.jostle.jcajce.provider.blockcipher;
 
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.rand.EntropyUpcall;
+import org.openssl.jostle.rand.RandSource;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -41,6 +44,8 @@ public class BlockCipherFFM implements BlockCipherNI
     private final MethodHandle updateFuncHandle;
 
     private final MethodHandle finalFuncHandle;
+
+    private final MethodHandle finalWithRandFuncHandle;
 
     private final MethodHandle finalSizeFuncHandle;
 
@@ -141,6 +146,18 @@ public class BlockCipherFFM implements BlockCipherNI
                         ValueLayout.JAVA_LONG, // output_size
                         ValueLayout.JAVA_INT // out_off
                 ), Linker.Option.critical(true));
+
+        // Not critical: the wrap up-calls into Java for its IV, which a critical downcall forbids.
+        MemorySegment finalWithRandFunc = lookup.find(symPrefix + "JoBlockCipher_doFinalWithRand").orElseThrow();
+        finalWithRandFuncHandle = linker.downcallHandle(finalWithRandFunc,
+                FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT, // Return code
+                        ValueLayout.JAVA_LONG, // Reference
+                        ValueLayout.ADDRESS, // output segment
+                        ValueLayout.JAVA_LONG, // output_size
+                        ValueLayout.JAVA_INT, // out_off
+                        ValueLayout.ADDRESS // rnd_src upcall
+                ));
 
         MemorySegment finalSizeFunc = lookup.find(symPrefix + "JoBlockCipher_getFinalSize").orElseThrow();
         finalSizeFuncHandle = linker.downcallHandle(finalSizeFunc,
@@ -328,6 +345,57 @@ public class BlockCipherFFM implements BlockCipherNI
         return code;
     }
 
+
+    @Override
+    public int ni_doFinalWithRand(long ref, byte[] output, int outputOffset, RandSource rndSource)
+    {
+        try (Arena a = Arena.ofConfined())
+        {
+            MemorySegment outSeg = output == null ? MemorySegment.NULL : a.allocate(Math.max(1L, output.length));
+            try
+            {
+                int rc = (int) finalWithRandFuncHandle.invokeExact(ref, outSeg, output == null ? 0L : output.length,
+                        outputOffset, entropyStub(a, rndSource));
+                if (output != null && rc > 0 && outputOffset >= 0 && rc <= output.length - outputOffset)
+                {
+                    MemorySegment.copy(outSeg, ValueLayout.JAVA_BYTE, outputOffset, output, outputOffset, rc);
+                }
+                return rc;
+            }
+            finally
+            {
+                // An unwrap writes the recovered key here; Arena.close() frees but does not cleanse.
+                if (outSeg.address() != 0)
+                {
+                    outSeg.fill((byte) 0);
+                }
+            }
+        }
+        catch (Throwable t)
+        {
+            L.log(Level.WARNING, "FFM BlockCipherNI_finalWithRand", t);
+            throw new RuntimeException(t.getMessage(), t);
+        }
+    }
+
+    private static MemorySegment entropyStub(Arena arena, RandSource src)
+    {
+        if (src == null)
+        {
+            return MemorySegment.NULL;
+        }
+        try
+        {
+            MethodHandle h = MethodHandles.lookup()
+                    .findVirtual(RandSource.class, "getRandomSegment", EntropyUpcall.METHOD_TYPE)
+                    .bindTo(src);
+            return linker.upcallStub(h, EntropyUpcall.DESCRIPTOR, arena);
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("unable to create entropy upcall stub", t);
+        }
+    }
 
     @Override
     public int ni_getFinalSize(long ref, int length)

@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 import org.openssl.jostle.jcajce.provider.fips.FIPSNISelector;
 import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.test.crypto.BlockCipherHandleCells;
+import org.openssl.jostle.test.crypto.FinalWithRandCells;
 
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -1252,5 +1253,17 @@ public class FIPSBlockCipherLimitTest
     public void wrapInitsPassTheSemiblockGuard()
     {
         BlockCipherHandleCells.wrapInitsPassTheSemiblockGuard(ni, false);
+    }
+
+    @Test
+    public void finalWithRand_aModeThatDrawsNothingFinalisesIdentically() throws Exception
+    {
+        FinalWithRandCells.aModeThatDrawsNothingFinalisesIdentically(ni);
+    }
+
+    @Test
+    public void finalWithRand_bridgeChecksAreTyped() throws Exception
+    {
+        FinalWithRandCells.bridgeChecksAreTyped(ni);
     }
 }

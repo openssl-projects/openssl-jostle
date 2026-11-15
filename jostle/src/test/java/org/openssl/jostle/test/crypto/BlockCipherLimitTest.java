@@ -3247,4 +3247,28 @@ public class BlockCipherLimitTest
     {
         BlockCipherHandleCells.wrapInitsPassTheSemiblockGuard(blockCipherNI, true);
     }
+
+    @Test
+    public void finalWithRand_aModeThatDrawsNothingFinalisesIdentically() throws Exception
+    {
+        FinalWithRandCells.aModeThatDrawsNothingFinalisesIdentically(blockCipherNI);
+    }
+
+    @Test
+    public void finalWithRand_bridgeChecksAreTyped() throws Exception
+    {
+        FinalWithRandCells.bridgeChecksAreTyped(blockCipherNI);
+    }
+
+    @Test
+    public void finalWithRand_desedeWrapNeedsTheRandSourceFinal() throws Exception
+    {
+        FinalWithRandCells.desedeWrapNeedsTheRandSourceFinal(blockCipherNI);
+    }
+
+    @Test
+    public void finalWithRand_desedeWrapShortBufferRetryDrawsOnce() throws Exception
+    {
+        FinalWithRandCells.desedeWrapShortBufferRetryDrawsOnce(blockCipherNI);
+    }
 }

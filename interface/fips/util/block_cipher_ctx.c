@@ -112,6 +112,11 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len);
  * integrity block. Only the plaintext padding and the length rule differ, and
  * both differences are WRAP_PAD's alone, named where they matter (final_size
  * and wrap_length_check).
+ *
+ * WRAP on DES_EDE3 is RFC 3217's CMS Triple-DES key wrap, which differs in
+ * three places named where they matter: it draws an 8-byte IV from RAND inside
+ * the wrap (final_needs_rand), it adds 16 bytes rather than 8 (final_size), and
+ * its length rule is its own (wrap_length_check).
  */
 static inline int is_wrap_mode(uint32_t mode_id) {
     return mode_id == WRAP || mode_id == WRAP_PAD || mode_id == WRAP_INV;
@@ -144,6 +149,18 @@ static inline int mode_accumulates(uint32_t mode_id) {
  * OpenSSL stays behind these as the backstop; nothing here replaces it.
  */
 static int32_t wrap_length_check(block_cipher_ctx *ctx, size_t total) {
+    if (ctx->cipher_id == DES_EDE3) {
+        // RFC 3217: the key is wrapped whole in DES blocks, so the input is a
+        // non-zero multiple of 8. A zero-length wrap is refused (BouncyCastle
+        // returns 16 bytes) for the reason given at the call site: OpenSSL
+        // would treat the empty update as a no-op success. Unwrap needs the
+        // IV, at least one block and the ICV, as OpenSSL requires.
+        if (ctx->op_mode == ENCRYPT_MODE) {
+            return (total < 8 || (total % 8) != 0) ? JO_WRAP_INPUT_LENGTH_INVALID : JO_SUCCESS;
+        }
+        return (total < 24 || (total % 8) != 0) ? JO_INVALID_CIPHER_TEXT : JO_SUCCESS;
+    }
+
     if (ctx->op_mode == ENCRYPT_MODE) {
         if (ctx->mode_id == WRAP_PAD) {
             // RFC 5649: any length from one byte up.
@@ -703,6 +720,8 @@ static const char *block_cipher_fetch_name(int32_t cipher_id, int32_t mode_id) {
                     return "DES-EDE3-ECB";
                 case CBC:
                     return "DES-EDE3-CBC";
+                case WRAP:
+                    return "DES3-WRAP";
                 default:
                     return NULL;
             }
@@ -1419,6 +1438,11 @@ int32_t block_cipher_ctx_init(
                     REQUIRE_IV_LEN(BLOCK_SIZE_DES_EDE3)
                     evp_cipher = EVP_CIPHER_fetch(get_global_jostle_fips_ossl_lib_ctx(), block_cipher_fetch_name(ctx->cipher_id, ctx->mode_id), NULL);
                     break;
+                case WRAP:
+                    // RFC 3217 CMS Triple-DES key wrap. Its IV is drawn inside the wrap, so it takes none here.
+                    evp_cipher = EVP_CIPHER_fetch(get_global_jostle_fips_ossl_lib_ctx(),
+                                                  block_cipher_fetch_name(ctx->cipher_id, ctx->mode_id), NULL);
+                    break;
                 default:
                     return JO_INVALID_MODE;
             }
@@ -2076,7 +2100,11 @@ int32_t final_size(block_cipher_ctx *ctx, size_t len) {
             // KW appends one 8-byte integrity block; KWP first pads the
             // plaintext up to a multiple of 8, then appends the block.
             size_t padded = (ctx->mode_id == WRAP_PAD) ? (((total + 7u) / 8u) * 8u) : total;
-            out = padded + 8u;
+            // RFC 3217 adds the IV and the ICV, 8 bytes each. Its input is
+            // bounded at INT32_MAX by accum_append like every accumulating
+            // mode, and a total whose output would pass INT32_MAX is refused
+            // below, so the largest wrap is INT32_MAX - 16 bytes.
+            out = (ctx->cipher_id == DES_EDE3) ? total + 16u : padded + 8u;
         } else {
             // The whole input length, NOT (total - 8).
             //
@@ -2251,10 +2279,17 @@ int32_t internal_final_size(block_cipher_ctx *ctx) {
 }
 
 
-int32_t block_cipher_ctx_final(
+/* RFC 3217's wrap draws its IV from RAND inside the EVP call, which needs the caller's RandSource. */
+static inline int final_needs_rand(const block_cipher_ctx *ctx) {
+    return ctx->cipher_id == DES_EDE3 && ctx->mode_id == WRAP && ctx->op_mode == ENCRYPT_MODE;
+}
+
+
+static int32_t block_cipher_ctx_final_impl(
     block_cipher_ctx *ctx,
     uint8_t *output,
-    size_t out_len) {
+    size_t out_len,
+    int rand_installed) {
     int32_t written = block_cipher_ctx_check(ctx);
     if (UNSUCCESSFUL(written)) {
         return written;
@@ -2278,6 +2313,13 @@ int32_t block_cipher_ctx_final(
 
     if (!ctx->initialized) {
         written = JO_NOT_INITIALIZED;
+        goto failed;
+    }
+
+    // Refused before anything is consumed, so a retry through
+    // block_cipher_ctx_final_rand sees the same accumulated bytes.
+    if (!rand_installed && final_needs_rand(ctx)) {
+        written = JO_RAND_SOURCE_REQUIRED;
         goto failed;
     }
 
@@ -2524,6 +2566,22 @@ reset:
     }
 
 failed:
+    return written;
+}
+
+
+int32_t block_cipher_ctx_final(block_cipher_ctx *ctx, uint8_t *output, size_t out_len) {
+    return block_cipher_ctx_final_impl(ctx, output, out_len, 0);
+}
+
+
+int32_t block_cipher_ctx_final_rand(block_cipher_ctx *ctx, uint8_t *output, size_t out_len, void *rnd_src) {
+    jo_assert(rnd_src != NULL);
+
+    // Installed and cleared around the call on every path, success or not.
+    rand_set_java_srand_call(rnd_src);
+    int32_t written = block_cipher_ctx_final_impl(ctx, output, out_len, 1);
+    rand_clear_java_srand_call();
     return written;
 }
 

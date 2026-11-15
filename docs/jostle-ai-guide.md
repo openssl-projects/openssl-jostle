@@ -739,6 +739,29 @@ Key back = unwrapper.unwrap(wrapped, "AES", Cipher.SECRET_KEY);
 Assertions.assertArrayEquals(cek.getEncoded(), back.getEncoded());
 ```
 
+### tripleDesKeyWrap
+
+The CMS Triple-DES key wrap (RFC 3217), also reached by its object identifier 1.2.840.113549.1.9.16.3.6.
+Each wrap draws a fresh 8-byte IV from the `SecureRandom` given to `init`, so two wraps of one key differ;
+unwrapping the RFC's own wrapped key gives back its key.
+
+```java
+SecretKeySpec kek = new SecretKeySpec(Hex.decode("255e0d1c07b646dfb3134cc843ba8aa71f025b7c0838251f"), "DESede");
+Cipher unwrapper = Cipher.getInstance("DESEDEWRAP", "JSL");
+unwrapper.init(Cipher.UNWRAP_MODE, kek);
+Key cek = unwrapper.unwrap(Hex.decode("690107618ef092b3b48ca1796b234ae9fa33ebb4159604037db5d6a8"
+        + "4eb3aac2768c632775a467d4"), "DESede", Cipher.SECRET_KEY);
+Assertions.assertEquals("2923bf85e06dd6ae529149f1f1bae9eab3a7da3d860d3e98", Hex.toHexString(cek.getEncoded()));
+
+Cipher wrapper = Cipher.getInstance("1.2.840.113549.1.9.16.3.6", "JSL");
+wrapper.init(Cipher.WRAP_MODE, kek);
+byte[] first = wrapper.wrap(cek);
+byte[] second = wrapper.wrap(cek);
+Assertions.assertFalse(Arrays.equals(first, second));
+Assertions.assertArrayEquals(cek.getEncoded(), unwrapper.unwrap(first, "DESede", Cipher.SECRET_KEY)
+        .getEncoded());
+```
+
 ### otherKeyWraps
 
 The other wrap modes: `AESWRAPPAD` (RFC 5649) wraps a key of any length, `AESWRAPINV` is RFC 3394

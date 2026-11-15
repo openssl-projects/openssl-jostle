@@ -18,11 +18,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.jcajce.provider.AccessException;
+import org.openssl.jostle.jcajce.provider.ErrorCode;
 import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
 import org.openssl.jostle.jcajce.provider.ProviderCapabilityException;
 import org.openssl.jostle.jcajce.provider.OverflowException;
 import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
+import org.openssl.jostle.test.TestUtil;
 import org.openssl.jostle.util.ops.OperationsTestNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
@@ -30,6 +32,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import java.security.Security;
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -1202,7 +1205,7 @@ public class BlockCipherOpsTest
             }
             Assertions.assertEquals(0, blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, key, new byte[16], 0));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:270
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:287
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_10);
 
             try
@@ -1409,7 +1412,7 @@ public class BlockCipherOpsTest
             Assertions.assertEquals(0,
                     blockCipherNI.init(ref, Cipher.ENCRYPT_MODE, sequentialKey(16), sequentialIv(16), 0));
 
-            // Exercises interface/nonfips/util/block_cipher_ctx.c:295
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:312
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_11);
 
             try
@@ -1565,6 +1568,70 @@ public class BlockCipherOpsTest
             operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_1);
             expectFailure(() -> blockCipherNI.update(ref, new byte[32], 0, new byte[16], 0, 16),
                     AccessException.class, "unable to access input array");
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(ref);
+        }
+    }
+
+    /**
+     * A Triple-DES wrap whose final fails after the EVP call leaves the ctx usable: the failure is reported, the
+     * accumulated key is discarded, and the next wrap on the same ctx completes and unwraps to its key.
+     */
+    @Test
+    public void desedeWrapFailedFinalRecovers() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        int cipher = OSSLCipher.DES_EDE3.ordinal();
+        int mode = OSSLMode.WRAP.ordinal();
+        byte[] kek = sequentialKey(24);
+        byte[] cek = sequentialIv(24);
+        long wrap = blockCipherNI.makeInstance(cipher, mode, 0);
+        long unwrap = blockCipherNI.makeInstance(cipher, mode, 0);
+        try
+        {
+            blockCipherNI.init(wrap, Cipher.ENCRYPT_MODE, kek, null, 0);
+            blockCipherNI.update(wrap, new byte[40], 0, cek, 0, cek.length);
+            // Exercises interface/nonfips/util/block_cipher_ctx.c:2418
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_OPENSSL_ERROR_8);
+            Assertions.assertEquals(ErrorCode.JO_OPENSSL_ERROR.getCode(),
+                    blockCipherNI.ni_doFinalWithRand(wrap, new byte[40], 0, TestUtil.RNDSrc));
+            blockCipherNI.update(wrap, new byte[40], 0, cek, 0, cek.length);
+            expectFailure(() -> blockCipherNI.doFinalWithRand(wrap, new byte[40], 0, TestUtil.RNDSrc),
+                    OpenSSLException.class, "OpenSSL Error: null");
+            operationsTestNI.resetFlags();
+
+            blockCipherNI.update(wrap, new byte[40], 0, cek, 0, cek.length);
+            byte[] blob = new byte[40];
+            Assertions.assertEquals(40, blockCipherNI.ni_doFinalWithRand(wrap, blob, 0, TestUtil.RNDSrc));
+            blockCipherNI.init(unwrap, Cipher.DECRYPT_MODE, kek, null, 0);
+            blockCipherNI.update(unwrap, new byte[40], 0, blob, 0, blob.length);
+            byte[] recovered = new byte[40];
+            Assertions.assertEquals(24, blockCipherNI.ni_doFinalWithRand(unwrap, recovered, 0, TestUtil.RNDSrc));
+            Assertions.assertArrayEquals(cek, Arrays.copyOf(recovered, 24));
+        }
+        finally
+        {
+            operationsTestNI.resetFlags();
+            blockCipherNI.dispose(wrap);
+            blockCipherNI.dispose(unwrap);
+        }
+    }
+
+    @Test
+    public void jniDoFinalWithRand_outputAccessFailure() throws Exception
+    {
+        Assumptions.assumeTrue(operationsTestNI.opsTestAvailable(), "Ops Test only");
+        Assumptions.assumeFalse(Loader.isFFM(), "JNI access sites");
+        long ref = initedGcm();
+        try
+        {
+            // Exercises interface/nonfips/jni/block_cipher_ni_jni.c:344
+            operationsTestNI.setFlag(OperationsTestNI.OpsTestFlag.OPS_FAILED_ACCESS_3);
+            expectFailure(() -> blockCipherNI.doFinalWithRand(ref, new byte[32], 0, TestUtil.RNDSrc),
+                    AccessException.class, "unable to access output array");
         }
         finally
         {

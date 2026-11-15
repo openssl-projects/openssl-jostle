@@ -741,6 +741,8 @@
 #define JO_CHACHA20_COUNTER_EXHAUSTED -232
 /* A kex ctx asked for cofactor ECDH whose provider does not report the mode as set. */
 #define JO_EC_COFACTOR_MODE_NOT_APPLIED -233
+/* A mode that draws random bytes at its final step, finalised without a RandSource. */
+#define JO_RAND_SOURCE_REQUIRED -234
 /*
  * FIPS lib-ctx initialisation (rand/jostle_fips_ctx.c). Distinct codes so
  * the Java layer can surface actionable configuration errors: a module

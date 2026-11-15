@@ -436,6 +436,8 @@ public enum ErrorCode
     JO_CHACHA20_COUNTER_EXHAUSTED(-232),
     // A kex ctx asked for cofactor ECDH whose provider does not report the mode as set.
     JO_EC_COFACTOR_MODE_NOT_APPLIED(-233),
+    // A mode that draws random bytes at its final step, finalised without a RandSource.
+    JO_RAND_SOURCE_REQUIRED(-234),
 
     JO_FIPS_MODULE_PATH_INVALID(-400),
     JO_FIPS_CONFIG_LOAD_FAILED(-401),

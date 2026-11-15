@@ -49,6 +49,15 @@ class ProvDESede
      */
     private static final String DES_EDE3_CBC_OID = PKCSObjectIdentifiers.des_EDE3_CBC.getId();
 
+    /** The general set plus the key-wrap attribute the cipher surface cross-check reads. */
+    private static final Map<String, String> wrapAttributes = new HashMap<String, String>();
+
+    static
+    {
+        wrapAttributes.putAll(generalAttributes);
+        wrapAttributes.put(JostleProvider.KEY_WRAP_ATTRIBUTE, "true");
+    }
+
     public void configure(final JostleProvider provider)
     {
         // CLAUDE.md "Provider registration: resilient configure()":
@@ -70,6 +79,15 @@ class ProvDESede
                 provider.addAlgorithmImplementation("Cipher", "DESedeRFC3211Wrap", RFC3211WrapCipherSpi.class.getName(),
                         generalAttributes, (arg) -> new RFC3211WrapCipherSpi("DESede", 8, new int[]{24}, provider)));
 
+        // RFC 3217 CMS Triple-DES key wrap, under BouncyCastle's names and the id-alg-CMS3DESwrap OID.
+        safeRegister("Cipher.DESedeWrap", () ->
+        {
+            provider.addAlgorithmImplementation("Cipher", "DESedeWrap", DESedeBlockCipherSpi.class.getName(),
+                    wrapAttributes, (arg) -> new DESedeBlockCipherSpi(OSSLCipher.DES_EDE3, OSSLMode.WRAP, provider));
+            provider.addAlias("Cipher", "DESedeWrap", PKCSObjectIdentifiers.id_alg_CMS3DESwrap);
+            provider.addAlias("Cipher", "DESedeWrap", "DESedeRFC3217Wrap", "TDEAWrap");
+        });
+
         // "TripleDES" is the JCE-standard alias.
         safeRegister("Cipher.TripleDES (alias of DESede)", () ->
                 provider.addAlias("Cipher", "DESede", "TripleDES"));
@@ -89,6 +107,9 @@ class ProvDESede
                         DESedeKeyGenerator.class.getName(), generalAttributes, (arg) -> new DESedeKeyGenerator()));
         safeRegister("KeyGenerator.TripleDES (alias of DESede)", () ->
                 provider.addAlias("KeyGenerator", "DESede", "TripleDES"));
+        // BouncyCastle's name for a key generator for the RFC 3217 wrap: a Triple-DES key.
+        safeRegister("KeyGenerator.DESedeWrap (alias of DESede)", () ->
+                provider.addAlias("KeyGenerator", "DESede", "DESedeWrap"));
         // IV AlgorithmParameters under the bare family name — DESede had NONE
         // before MT-18, so getParameters() threw IllegalStateException.
         provider.addAlgorithmImplementation("AlgorithmParameters", "DESede",

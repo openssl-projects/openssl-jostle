@@ -22,6 +22,7 @@ import org.openssl.jostle.jcajce.provider.blockcipher.BlockCipherNI;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLCipher;
 import org.openssl.jostle.jcajce.provider.blockcipher.OSSLMode;
 import org.openssl.jostle.jcajce.provider.cache.NativeLengthCache;
+import org.openssl.jostle.rand.RandSource;
 
 import javax.crypto.Cipher;
 import javax.crypto.ShortBufferException;
@@ -154,6 +155,12 @@ public class BlockCipherInternalSizingTest
         public int ni_doFinal(long ref, byte[] output, int outputOffset)
         {
             return real.ni_doFinal(ref, output, outputOffset);
+        }
+
+        @Override
+        public int ni_doFinalWithRand(long ref, byte[] output, int outputOffset, RandSource rndSource)
+        {
+            return real.ni_doFinalWithRand(ref, output, outputOffset, rndSource);
         }
 
         @Override
@@ -348,6 +355,12 @@ public class BlockCipherInternalSizingTest
 
         @Override
         public int ni_doFinal(long ref, byte[] output, int outputOffset)
+        {
+            throw notUsed();
+        }
+
+        @Override
+        public int ni_doFinalWithRand(long ref, byte[] output, int outputOffset, RandSource rndSource)
         {
             throw notUsed();
         }

@@ -331,7 +331,8 @@ public class BlockSizeContractTest
     static final Set<String> WRAP_NAMES = new TreeSet<String>(Arrays.asList(
             "2.16.840.1.101.3.4.1.5", "2.16.840.1.101.3.4.1.8", "2.16.840.1.101.3.4.1.25",
             "2.16.840.1.101.3.4.1.28", "2.16.840.1.101.3.4.1.45", "2.16.840.1.101.3.4.1.48",
-            "AESWRAP", "AESWRAPPAD", "AESWRAPINV", "AESRFC3211WRAP", "CAMELLIARFC3211WRAP", "DESEDERFC3211WRAP"));
+            "AESWRAP", "AESWRAPPAD", "AESWRAPINV", "AESRFC3211WRAP", "CAMELLIARFC3211WRAP", "DESEDERFC3211WRAP",
+            "DESEDEWRAP"));
 
     /** Whether a registered name is a key wrap: a WRAP name or one of the NIST wrap OIDs. */
     static boolean isWrap(String name)
