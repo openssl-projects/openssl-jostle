@@ -138,11 +138,16 @@ public class CertPathBuilderTest
 
         PKIXBuilderParameters strict = params(sel, ee, ca);
         strict.setMaxPathLength(0);
+        // The length check is part of an attempt, so the refused path is the failure's cause and the search
+        // goes on to any other path before giving up.
         CertPathBuilderException e = Assertions.assertThrows(CertPathBuilderException.class,
                 () -> builder().build(strict));
-        Assertions.assertTrue(e.getMessage().contains("maxPathLength 0")
-                        && e.getMessage().contains("1 non-self-issued"),
-                "the message must name both numbers, got: " + e.getMessage());
+        Assertions.assertEquals("no path could be built to any matching target", e.getMessage());
+        Throwable cause = e.getCause();
+        Assertions.assertTrue(cause instanceof CertPathBuilderException, String.valueOf(cause));
+        Assertions.assertTrue(cause.getMessage().contains("maxPathLength 0")
+                        && cause.getMessage().contains("1 non-self-issued"),
+                "the cause must name both numbers, got: " + cause.getMessage());
     }
 
     /**

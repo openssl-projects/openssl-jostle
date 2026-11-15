@@ -115,8 +115,12 @@ final class CertPathCall
         }
     }
 
-    /** Gathered only with revocation on: with it off nothing reads them. */
-    static List<X509CRL> crlsFrom(PKIXParameters pkix) throws InvalidAlgorithmParameterException
+    /**
+     * Gathered only with revocation on: with it off nothing reads them. A CertStoreException is the caller's to
+     * turn into its own operation's checked type; a RuntimeException from a store passes through unchanged.
+     */
+    static List<X509CRL> crlsFrom(PKIXParameters pkix)
+            throws InvalidAlgorithmParameterException, CertStoreException
     {
         List<X509CRL> out = new ArrayList<X509CRL>();
         if (!pkix.isRevocationEnabled())
@@ -125,15 +129,7 @@ final class CertPathCall
         }
         for (CertStore store : pkix.getCertStores())
         {
-            Collection<? extends CRL> found;
-            try
-            {
-                found = store.getCRLs(null);
-            }
-            catch (CertStoreException e)
-            {
-                throw new InvalidAlgorithmParameterException("a CertStore could not be read: " + e);
-            }
+            Collection<? extends CRL> found = store.getCRLs(null);
             for (CRL c : found)
             {
                 if (!(c instanceof X509CRL))
@@ -313,11 +309,12 @@ final class CertPathCall
      * them into "no CRL for an issuer in the path". Ordering is what makes
      * this safe; subject is not a usable discriminator.
      * <p>
-     * Gathered only with revocation on, for the same reason as the CRLs.
+     * Gathered only with revocation on, for the same reason as the CRLs, and with the same treatment of a
+     * store that fails.
      */
     static List<X509Certificate> extraCertsFrom(PKIXParameters pkix,
                                                 List<? extends Certificate> path)
-            throws InvalidAlgorithmParameterException
+            throws InvalidAlgorithmParameterException, CertStoreException
     {
         List<X509Certificate> out = new ArrayList<X509Certificate>();
         if (!pkix.isRevocationEnabled())
@@ -326,15 +323,7 @@ final class CertPathCall
         }
         for (CertStore store : pkix.getCertStores())
         {
-            Collection<? extends Certificate> found;
-            try
-            {
-                found = store.getCertificates(null);
-            }
-            catch (CertStoreException e)
-            {
-                throw new InvalidAlgorithmParameterException("a CertStore could not be read: " + e);
-            }
+            Collection<? extends Certificate> found = store.getCertificates(null);
             for (Certificate c : found)
             {
                 if (!(c instanceof X509Certificate))
@@ -427,8 +416,11 @@ final class CertPathCall
         return out;
     }
 
-    /** The built chain, target first, as the caller's CertPath is ordered. */
-    private List<byte[]> builtChain()
+    /**
+     * The built chain, target first, as the caller's CertPath is ordered. After a failed verify it is the
+     * partial chain OpenSSL had built when it stopped.
+     */
+    List<byte[]> builtChain()
     {
         List<byte[]> out = new ArrayList<byte[]>();
         int off = 0;

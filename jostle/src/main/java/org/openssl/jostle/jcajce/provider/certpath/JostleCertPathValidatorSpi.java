@@ -19,11 +19,13 @@ import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertPathValidatorResult;
 import java.security.cert.CertPathValidatorSpi;
 import java.security.cert.CertSelector;
+import java.security.cert.CertStoreException;
 import java.security.cert.Certificate;
 import java.security.cert.PKIXCertPathValidatorResult;
 import java.security.cert.PKIXParameters;
 import java.security.cert.PolicyNode;
 import java.security.cert.TrustAnchor;
+import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import org.openssl.jostle.jcajce.provider.ErrorCode;
@@ -135,8 +137,18 @@ public class JostleCertPathValidatorSpi
                     "the target certificate does not match the target constraints", null, certPath, 0);
         }
 
-        CertPathCall call = CertPathCall.build(pkix, certs, CertPathCall.crlsFrom(pkix),
-                CertPathCall.extraCertsFrom(pkix, certs));
+        List<X509CRL> crls;
+        List<X509Certificate> extras;
+        try
+        {
+            crls = CertPathCall.crlsFrom(pkix);
+            extras = CertPathCall.extraCertsFrom(pkix, certs);
+        }
+        catch (CertStoreException e)
+        {
+            throw new CertPathValidatorException("a CertStore could not be read", e);
+        }
+        CertPathCall call = CertPathCall.build(pkix, certs, crls, extras);
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
                 call.timeSecs, 1, call.revocation, call.policyFlags, call.policies, call.policyCount,
                 call.chainOut, call.outInfo, call.treeOut);
