@@ -13,6 +13,7 @@ package org.openssl.jostle.jcajce.provider.certpath;
 
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.Provider;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathParameters;
 import java.security.cert.CertPathValidatorException;
@@ -28,9 +29,12 @@ import java.security.cert.TrustAnchor;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.List;
+
 import org.openssl.jostle.jcajce.provider.ErrorCode;
+import org.openssl.jostle.jcajce.provider.JostleProvider;
 import org.openssl.jostle.jcajce.provider.NISelector;
 import org.openssl.jostle.jcajce.provider.OpenSSLException;
+import org.openssl.jostle.jcajce.provider.binding.ProviderBinding;
 
 /**
  * PKIX certification path validation over OpenSSL's {@code X509_verify_cert}.
@@ -86,14 +90,33 @@ public class JostleCertPathValidatorSpi
 {
     private final CertPathNI ni;
 
+    /**
+     * Which provider this SPI belongs to: the instance when registered, the name otherwise. Its Signature checks the
+     * edges that order the store's certificates, and its factory decodes them.
+     */
+    private final ProviderBinding binding;
+
     public JostleCertPathValidatorSpi()
     {
-        this(NISelector.CertPathNI);
+        this(NISelector.CertPathNI, null);
+    }
+
+    public JostleCertPathValidatorSpi(Provider providerInstance)
+    {
+        this(NISelector.CertPathNI, providerInstance);
     }
 
     public JostleCertPathValidatorSpi(CertPathNI ni)
     {
+        this(ni, null);
+    }
+
+    public JostleCertPathValidatorSpi(CertPathNI ni, Provider providerInstance)
+    {
         this.ni = ni;
+        this.binding = (providerInstance != null)
+                ? ProviderBinding.of(providerInstance)
+                : ProviderBinding.ofName(JostleProvider.PROVIDER_NAME);
     }
 
     @Override
@@ -142,13 +165,14 @@ public class JostleCertPathValidatorSpi
         try
         {
             crls = CertPathCall.crlsFrom(pkix);
-            extras = CertPathCall.extraCertsFrom(pkix, certs);
+            extras = VerifiedOrder.storeOrder(binding, pkix, certs, CertPathCall.extraCertsFrom(pkix, certs),
+                    crls);
         }
         catch (CertStoreException e)
         {
             throw new CertPathValidatorException("a CertStore could not be read", e);
         }
-        CertPathCall call = CertPathCall.build(pkix, certs, crls, extras);
+        CertPathCall call = CertPathCall.build(pkix, certs, new CrlOrder(binding, pkix, crls).forPath(certs), extras);
         int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
                 call.timeSecs, 1, call.revocation, call.policyFlags, call.policies, call.policyCount,
                 call.chainOut, call.outInfo, call.treeOut);

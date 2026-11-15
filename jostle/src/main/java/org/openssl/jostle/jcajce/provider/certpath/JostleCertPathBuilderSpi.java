@@ -21,11 +21,8 @@ import org.openssl.jostle.util.Arrays;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
-import java.security.NoSuchProviderException;
 import java.security.Provider;
-import java.security.PublicKey;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathBuilderException;
 import java.security.cert.CertPathBuilderResult;
@@ -57,7 +54,6 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Set;
 
 /**
@@ -118,21 +114,7 @@ public class JostleCertPathBuilderSpi
      */
     private CertificateFactory x509Factory() throws CertificateException
     {
-        if (binding.instance() != null)
-        {
-            return CertificateFactory.getInstance("X.509", binding.instance());
-        }
-        try
-        {
-            return CertificateFactory.getInstance("X.509", binding.name());
-        }
-        catch (NoSuchProviderException e)
-        {
-            CertificateException ce =
-                    new CertificateException("Jostle provider is not registered");
-            ce.initCause(e);
-            throw ce;
-        }
+        return VerifiedOrder.factoryFor(binding);
     }
 
     @Override
@@ -184,7 +166,16 @@ public class JostleCertPathBuilderSpi
                     "no certificate in the supplied CertStores matches the target constraints");
         }
 
-        Search search = new Search(pkix, pool, crls);
+        CrlOrder crlOrder;
+        try
+        {
+            crlOrder = new CrlOrder(binding, pkix, crls);
+        }
+        catch (CertPathValidatorException e)
+        {
+            throw new CertPathBuilderException(e.getMessage(), e);
+        }
+        Search search = new Search(pkix, pool, crls, crlOrder);
         for (Candidate target : search.orderTargets(targets))
         {
             CertPathBuilderResult result = search.from(target);
@@ -242,15 +233,6 @@ public class JostleCertPathBuilderSpi
      * once, as before the search existed; a build makes at most its targets plus this many OpenSSL calls.
      */
     static final int MAX_RETRIES = CertPathCall.MAX_CERTS;
-
-    /**
-     * Most signature checks the ordering makes in one build. Once spent, further checks answer unverified: the
-     * rest of the pool is ordered after, never dropped, and OpenSSL still validates every path it builds. Beyond
-     * about one check per pool certificate, only keys that can issue and have a route spend it, and only a CA
-     * certified under a trust anchor can add those; an outsider or a subscriber costs each forged certificate one
-     * check per genuine issuing key of the name it claims, so cannot reach it.
-     */
-    static final int MAX_VERIFICATIONS = 8 * CertPathCall.MAX_CERTS;
 
     /**
      * A pool certificate: the caller's object, which the selector reads, and this provider's decode of the same
@@ -327,21 +309,6 @@ public class JostleCertPathBuilderSpi
         return out;
     }
 
-    /** Unsigned lexicographic order of two encodings, the shorter first on a common prefix. */
-    private static int compareDer(byte[] a, byte[] b)
-    {
-        int n = Math.min(a.length, b.length);
-        for (int i = 0; i < n; i++)
-        {
-            int d = (a[i] & 0xff) - (b[i] & 0xff);
-            if (d != 0)
-            {
-                return d;
-            }
-        }
-        return a.length - b.length;
-    }
-
     /** One OpenSSL call and the Java checks after it: a result, or a failure with the chain it reached. */
     private static final class Attempt
     {
@@ -351,6 +318,36 @@ public class JostleCertPathBuilderSpi
         boolean reachedAnchor;
         /** OpenSSL's reported error depth, an index into the chain; -1 when the failure is not OpenSSL's. */
         int errorDepth = -1;
+        /** OpenSSL's X509_V_ERR code; 0 when the failure is not OpenSSL's. */
+        int error;
+    }
+
+    /**
+     * The X509_V_ERR codes (x509_vfy.h, 3.5.9) after which the reached chain is re-verified as a path: the
+     * revocation status could not be determined or a CRL could not be used. UNABLE_TO_GET_CRL 3,
+     * UNABLE_TO_DECRYPT_CRL_SIGNATURE 5, UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY 6 (also raised for a CRL's signer, where
+     * another certificate of the name could serve; where it comes from the chain it costs one retry),
+     * CRL_SIGNATURE_FAILURE 8, CRL_NOT_YET_VALID 11, CRL_HAS_EXPIRED 12,
+     * ERROR_IN_CRL_LAST_UPDATE_FIELD 15, ERROR_IN_CRL_NEXT_UPDATE_FIELD 16, UNABLE_TO_GET_CRL_ISSUER 33,
+     * KEYUSAGE_NO_CRL_SIGN 35, UNHANDLED_CRITICAL_CRL_EXTENSION 36, DIFFERENT_CRL_SCOPE 44,
+     * CRL_PATH_VALIDATION_ERROR 54. CERT_REVOKED is not one: an order can make OpenSSL miss a CRL or its signer,
+     * never invent a revocation.
+     */
+    /** X509_V_ERR_CERT_REVOKED (x509_vfy.h, 3.5.9). */
+    private static final int CERT_REVOKED = 23;
+
+    private static final int[] REVOCATION_CLASS = {3, 5, 6, 8, 11, 12, 15, 16, 33, 35, 36, 44, 54};
+
+    private static boolean revocationClass(int error)
+    {
+        for (int e : REVOCATION_CLASS)
+        {
+            if (e == error)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -370,68 +367,50 @@ public class JostleCertPathBuilderSpi
      * P within its bounds. Every branch adds one certificate to the excluded set and no set is tried twice,
      * so loops in the certificate graph cannot loop the search.
      *
-     * <p>The order: a certificate has a ROUTE of 1 when a trust anchor named as its issuer verifies its signature, and
-     * of k + 1 when a certificate with a route of k that {@link #canIssue can issue} does (basic constraints cA true,
-     * keyCertSign where key usage is present, and within the largest path length a verified route allows); routes are
-     * found once per build, downward from the anchors, through this provider's own Signature on this provider's own
-     * decode. Certificates with a route come first; among those, the ones that can issue; then the shorter route; then
-     * later notAfter; then the encoding, as a total order. A certificate without a route is ordered last, never
-     * dropped, so certificates that claim an issuer they cannot prove, or that could never issue, are tried after the
-     * real path. Having a route comes before the issue test because the untrusted stack is also where OpenSSL looks for
-     * a CRL's issuer, in order: a separate CRL-signing certificate (which cannot issue certificates) issued under an
-     * anchor must stay ahead of an unrouted copy of its CA, or the revocation answer changes. Strict checking is always
-     * on, so OpenSSL refuses an issuer that cannot issue, and every certificate above the target on a valid path can
-     * issue and has a route: the order loses no valid path. The path length is the largest any verified route allows,
-     * and the order is a preference, never a filter. A route needs this provider's own Signature to verify each edge,
-     * so a path through a signature algorithm it does not serve has no route and is ordered after, never dropped.
-     *
-     * <p>Cost: each certificate is expanded at most once (its path length is settled the first time it is taken,
-     * largest first), so a build makes at most the anchors plus the pool expansions, each a walk over the pool.
-     * Only certificates that can issue are expanded; each issuer's key is imported once per build, and answers
-     * are kept by issuer key, so the verifications number at most the distinct keys of such certificates,
-     * anchors included, times the pool, and never more than {@link #MAX_VERIFICATIONS}. A pool can add such keys
-     * only by holding a CA certificate issued under a trust anchor; a subscriber's end-entity key extends nothing.
+     * <p>The order, its routes, its cost and its verification budget are {@link VerifiedOrder}'s, shared with
+     * the validator: certificates with a verified route from an anchor first, the ones that can issue among them,
+     * the shorter route, later notAfter, then the encoding; nothing is dropped.
      *
      * <p>Targets are tried shortest verified route first (the route of a verifying issuer, plus one), then by
      * encoding. Each target's first attempt is always made; retries are bounded per build by the pool limit.
      * After a failure the certificate at OpenSSL's reported error depth is demoted first, then the others,
      * deepest first.
+     * <p>The CRLs go to OpenSSL in {@link CrlOrder}'s order without a path. One mechanism adds a call: a chain
+     * is re-verified as a path, with the validator's order of the rest of the pool and of the CRLs, when an
+     * attempt succeeds and the CRLs hold a tie group, or fails with a revocation-class error after reaching a
+     * trust anchor (see {@link #needsConfirmation}). It is at most one call per distinct chain, counted as a
+     * retry; its success is the result, and a successful attempt whose re-verification fails is a failed attempt.
+     * So what the builder returns validates under the validator's order.
+     *
      * When the search fails the cause is the most specific failure seen over every target tried, not
-     * necessarily the last target's: the first whose chain reached a trust anchor, else the first.
+     * necessarily the last target's (see {@link #cause}).
      */
     private final class Search
     {
-        private static final int NONE = Integer.MAX_VALUE;
-
         private final PKIXBuilderParameters pkix;
         private final List<Candidate> pool;
         private final List<X509CRL> crls;
+        private final CrlOrder crlOrder;
+        /** The CRLs in the builder's order, the same for every attempt. */
+        private final List<X509CRL> builderCrls;
+        /** Each chain re-verified as a path, by its encodings, with its outcome: never verified twice. */
+        private final Map<List<ByteBuffer>, Attempt> confirmations = new HashMap<List<ByteBuffer>, Attempt>();
         private final List<byte[]> anchors = new ArrayList<byte[]>();
         private final List<X509Certificate> anchorCerts = new ArrayList<X509Certificate>();
         private final List<Attempt> failures = new ArrayList<Attempt>();
-        /** Path length left below each certificate a route reached, along that route; anchors included. */
-        private final Map<X509Certificate, Integer> remaining = new IdentityHashMap<X509Certificate, Integer>();
-        private final int[] route;
-        /**
-         * Each issuer's public key and its encoding, built once per build; a key this provider cannot build is
-         * kept as a null encoding. A repeat check is then a lookup, with no key import before the memo.
-         */
-        private final Map<X509Certificate, PublicKey> keys = new IdentityHashMap<X509Certificate, PublicKey>();
-        private final Map<X509Certificate, ByteBuffer> keyIds = new IdentityHashMap<X509Certificate, ByteBuffer>();
-        /** Verification answers for this build, by issuer key encoding, then by certificate. */
-        private final Map<ByteBuffer, Map<X509Certificate, Boolean>> verified =
-                new HashMap<ByteBuffer, Map<X509Certificate, Boolean>>();
+        /** The verified order of the pool, shared with the validator. */
+        private final VerifiedOrder ranking;
         private int retriesTotal;
-        /** Signature checks made so far in this build; see {@link #MAX_VERIFICATIONS}. */
-        private int verifications;
         String stoppedBy;
 
-        Search(PKIXBuilderParameters pkix, List<Candidate> pool, List<X509CRL> crls)
+        Search(PKIXBuilderParameters pkix, List<Candidate> pool, List<X509CRL> crls, CrlOrder crlOrder)
                 throws CertPathBuilderException
         {
             this.pkix = pkix;
             this.pool = pool;
             this.crls = crls;
+            this.crlOrder = crlOrder;
+            this.builderCrls = crlOrder.withoutPath();
             try
             {
                 CertificateFactory cf = x509Factory();
@@ -446,155 +425,15 @@ public class JostleCertPathBuilderSpi
             {
                 throw new CertPathBuilderException("a trust anchor could not be decoded", e);
             }
-            this.route = routes();
-        }
-
-        /** Every pool certificate's route to an anchor, NONE where there is none, found downward from the anchors. */
-        private int[] routes()
-        {
-            Map<X509Certificate, Integer> indexOf = new IdentityHashMap<X509Certificate, Integer>();
+            List<X509Certificate> ours = new ArrayList<X509Certificate>(pool.size());
+            List<byte[]> ders = new ArrayList<byte[]>(pool.size());
             for (Candidate c : pool)
             {
-                indexOf.put(c.cert, c.index);
+                ours.add(c.cert);
+                ders.add(c.der);
             }
-            // Pass one: the largest path length each certificate may use. The value only shrinks along a route,
-            // so issuers are taken largest first and a certificate's value is final the first time it is taken:
-            // each is expanded at most once, so the expansions number at most the anchors plus the pool, each a
-            // walk over the pool. The verified edges found are kept for pass two.
-            Map<X509Certificate, List<X509Certificate>> issued =
-                    new IdentityHashMap<X509Certificate, List<X509Certificate>>();
-            Set<X509Certificate> settled = Collections.newSetFromMap(new IdentityHashMap<X509Certificate, Boolean>());
-            PriorityQueue<Object[]> queue = new PriorityQueue<Object[]>(11, new Comparator<Object[]>()
-            {
-                public int compare(Object[] x, Object[] y)
-                {
-                    return Integer.compare((Integer) y[1], (Integer) x[1]);
-                }
-            });
-            for (X509Certificate a : anchorCerts)
-            {
-                remaining.put(a, pathLenOf(a));
-                queue.add(new Object[]{a, pathLenOf(a)});
-            }
-            while (!queue.isEmpty())
-            {
-                Object[] head = queue.poll();
-                X509Certificate issuer = (X509Certificate) head[0];
-                int value = (Integer) head[1];
-                if (settled.contains(issuer) || remaining.get(issuer) != value)
-                {
-                    continue;
-                }
-                settled.add(issuer);
-                if (value < 0)
-                {
-                    continue;
-                }
-                List<X509Certificate> children = new ArrayList<X509Certificate>();
-                issued.put(issuer, children);
-                for (Candidate c : pool)
-                {
-                    if (c.cert == issuer
-                            || !c.cert.getIssuerX500Principal().equals(issuer.getSubjectX500Principal())
-                            || !verifies(c.cert, issuer))
-                    {
-                        continue;
-                    }
-                    children.add(c.cert);
-                    if (!mayIssue(c.cert) || settled.contains(c.cert))
-                    {
-                        continue;
-                    }
-                    // A CA that is not self-issued uses one.
-                    boolean selfIssued = c.cert.getSubjectX500Principal().equals(c.cert.getIssuerX500Principal());
-                    int left = Math.min(value - (selfIssued ? 0 : 1), pathLenOf(c.cert));
-                    Integer before = remaining.get(c.cert);
-                    if (before == null || left > before)
-                    {
-                        remaining.put(c.cert, left);
-                        queue.add(new Object[]{c.cert, left});
-                    }
-                }
-            }
-            // Pass two: the route, the shortest number of verified steps from an anchor, breadth first over the
-            // edges of certificates that can issue.
-            int[] out = new int[pool.size()];
-            Arrays.fill(out, NONE);
-            Map<X509Certificate, Integer> depth = new IdentityHashMap<X509Certificate, Integer>();
-            Deque<X509Certificate> frontier = new ArrayDeque<X509Certificate>(anchorCerts);
-            for (X509Certificate a : anchorCerts)
-            {
-                depth.put(a, 0);
-            }
-            while (!frontier.isEmpty())
-            {
-                X509Certificate issuer = frontier.poll();
-                List<X509Certificate> children = issued.get(issuer);
-                if (children == null)
-                {
-                    continue;
-                }
-                for (X509Certificate child : children)
-                {
-                    int i = indexOf.get(child);
-                    if (out[i] != NONE)
-                    {
-                        continue;
-                    }
-                    out[i] = depth.get(issuer) + 1;
-                    if (canIssue(child))
-                    {
-                        depth.put(child, out[i]);
-                        frontier.add(child);
-                    }
-                }
-            }
-            return out;
-        }
-
-        /** A CA's pathLenConstraint, or the pool limit when it has none (more than any path here can use). */
-        private int pathLenOf(X509Certificate cert)
-        {
-            int p = cert.getBasicConstraints();
-            return (p < 0 || p == Integer.MAX_VALUE) ? CertPathCall.MAX_CERTS : p;
-        }
-
-        /**
-         * Whether the certificate can act as an issuer: {@link #mayIssue} and, where a route reached it, within the
-         * largest path length any verified route allows. Ordering only: among certificates with a route it is the
-         * second key, before the route's length.
-         */
-        private boolean canIssue(X509Certificate cert)
-        {
-            if (!mayIssue(cert))
-            {
-                return false;
-            }
-            Integer left = remaining.get(cert);
-            return left == null || left >= 0;
-        }
-
-        /** The shortest route of a verifying issuer of the certificate, plus one; NONE when it has none. */
-        private int routeOf(X509Certificate cert)
-        {
-            int best = NONE;
-            for (X509Certificate a : anchorCerts)
-            {
-                if (a.getSubjectX500Principal().equals(cert.getIssuerX500Principal()) && verifies(cert, a))
-                {
-                    return 1;
-                }
-            }
-            for (Candidate c : pool)
-            {
-                if (route[c.index] != NONE && route[c.index] + 1 < best && c.cert != cert && canIssue(c.cert)
-                        && c.cert.getSubjectX500Principal().equals(cert.getIssuerX500Principal())
-                        && verifies(cert, c.cert))
-                {
-                    best = route[c.index] + 1;
-                }
-            }
-            return best;
+            this.ranking = new VerifiedOrder(binding, anchorCerts, ours, ders,
+                    Collections.<X509Certificate>emptyList(), crls);
         }
 
         /** The targets, shortest verified route first, then by encoding. */
@@ -603,7 +442,7 @@ public class JostleCertPathBuilderSpi
             final Map<Candidate, Integer> r = new IdentityHashMap<Candidate, Integer>();
             for (Candidate t : targets)
             {
-                r.put(t, routeOf(t.cert));
+                r.put(t, ranking.routeOf(t.cert));
             }
             List<Candidate> out = new ArrayList<Candidate>(targets);
             Collections.sort(out, new Comparator<Candidate>()
@@ -611,15 +450,53 @@ public class JostleCertPathBuilderSpi
                 public int compare(Candidate x, Candidate y)
                 {
                     int d = Integer.compare(r.get(x), r.get(y));
-                    return d != 0 ? d : compareDer(x.der, y.der);
+                    return d != 0 ? d : VerifiedOrder.compareDer(x.der, y.der);
                 }
             });
             return out;
         }
 
-        /** The most specific failure seen: the first whose chain reached a trust anchor, else the first. */
+        /**
+         * The failure reported as the build's cause, among those whose chain reached a trust anchor: a CERT_REVOKED
+         * first (the lowest depth among them), since it is the one failure resting on a verified CRL about a real
+         * certificate; else the one OpenSSL reported at the lowest depth (everything above it verified); the first
+         * among equals. Then the first that reached an anchor; else the first. It is a diagnostic, not a verdict: it
+         * names one failure the search met, not necessarily the one on the path the caller meant. A wrong candidate
+         * failing at the target (depth 0) can still outrank the intended path's failure higher up when that failure
+         * is not a revocation, such as an expired intermediate.
+         */
         Exception cause()
         {
+            Attempt best = null;
+            for (Attempt a : failures)
+            {
+                if (!a.reachedAnchor || a.errorDepth < 0)
+                {
+                    continue;
+                }
+                if (best == null)
+                {
+                    best = a;
+                    continue;
+                }
+                boolean revoked = a.error == CERT_REVOKED;
+                boolean bestRevoked = best.error == CERT_REVOKED;
+                if (revoked != bestRevoked)
+                {
+                    if (revoked)
+                    {
+                        best = a;
+                    }
+                }
+                else if (a.errorDepth < best.errorDepth)
+                {
+                    best = a;
+                }
+            }
+            if (best != null)
+            {
+                return best.failure;
+            }
             for (Attempt a : failures)
             {
                 if (a.reachedAnchor)
@@ -654,9 +531,37 @@ public class JostleCertPathBuilderSpi
                 first = false;
                 BitSet excluded = pending.pop();
                 Attempt attempt = attempt(target, demote(order, excluded));
-                if (attempt.result != null)
+                boolean confirming = needsConfirmation(attempt);
+                if (attempt.result != null && !confirming)
                 {
                     return attempt.result;
+                }
+                if (confirming)
+                {
+                    Attempt asPath = confirm(attempt);
+                    if (asPath == null)
+                    {
+                        if (attempt.result != null)
+                        {
+                            // An unconfirmed path is never returned.
+                            return null;
+                        }
+                    }
+                    else if (asPath.result != null)
+                    {
+                        return asPath.result;
+                    }
+                    else if (attempt.result != null)
+                    {
+                        attempt.result = null;
+                        attempt.failure = asPath.failure;
+                        attempt.error = asPath.error;
+                        attempt.errorDepth = asPath.errorDepth;
+                    }
+                    else
+                    {
+                        failures.add(asPath);
+                    }
                 }
                 failures.add(attempt);
                 List<Candidate> chain = inPool(attempt.chain);
@@ -677,6 +582,112 @@ public class JostleCertPathBuilderSpi
                 }
             }
             return null;
+        }
+
+        /**
+         * Whether the attempt's chain is re-verified as a path, with the validator's order of the store and the
+         * CRLs: when the attempt succeeded and the CRLs hold a tie group (see {@link CrlOrder#hasTieGroup}), so
+         * that what is returned validates under the validator's order; and when it failed with a revocation-class
+         * error after reaching a trust anchor (see {@link #REVOCATION_CLASS}), since only then is the path known
+         * that decides which certificates are copies of it and which CRL lists it. Otherwise no extra call.
+         */
+        private boolean needsConfirmation(Attempt a)
+        {
+            if (a.result != null)
+            {
+                return crlOrder.hasTieGroup();
+            }
+            return a.reachedAnchor && revocationClass(a.error);
+        }
+
+        /**
+         * The attempt's chain verified as a path: ONE more OpenSSL call, the validator's for exactly that path,
+         * counted as a retry; at most once per distinct chain. Null when the retry bound is spent.
+         */
+        private Attempt confirm(Attempt attempt)
+                throws CertPathBuilderException, InvalidAlgorithmParameterException
+        {
+            List<ByteBuffer> key = new ArrayList<ByteBuffer>(attempt.chain.size());
+            for (byte[] der : attempt.chain)
+            {
+                key.add(ByteBuffer.wrap(der));
+            }
+            if (confirmations.containsKey(key))
+            {
+                return confirmations.get(key);
+            }
+            if (retriesTotal == MAX_RETRIES)
+            {
+                stoppedBy = MAX_RETRIES + " retries for one build";
+                return null;
+            }
+            retriesTotal++;
+            Attempt out = asPath(attempt.chain);
+            confirmations.put(key, out);
+            return out;
+        }
+
+        /*
+         * The rest of the pool is the store part. A caller validating the returned path would also hand its store
+         * copies of the path's certificates, which the validator orders last; they are left out here. Equivalent:
+         * a certificate with the subject and key of a path certificate is never consulted ahead of the path's own,
+         * as an issuer or as a CRL's issuer, so the two calls decide alike.
+         */
+        private Attempt asPath(List<byte[]> chain)
+                throws CertPathBuilderException, InvalidAlgorithmParameterException
+        {
+            List<X509Certificate> path = new ArrayList<X509Certificate>();
+            Set<Candidate> members = Collections.newSetFromMap(new IdentityHashMap<Candidate, Boolean>());
+            for (int i = 0; i < chain.size() - 1; i++)
+            {
+                Candidate c = candidateFor(chain.get(i));
+                if (c == null)
+                {
+                    Attempt out = new Attempt();
+                    out.chain = chain;
+                    out.failure = new CertPathBuilderException("the built chain holds a certificate not supplied");
+                    return out;
+                }
+                members.add(c);
+                path.add(c.cert);
+            }
+            List<X509Certificate> rest = new ArrayList<X509Certificate>();
+            for (Candidate c : pool)
+            {
+                if (!members.contains(c))
+                {
+                    rest.add(c.cert);
+                }
+            }
+            CertPathCall call;
+            try
+            {
+                List<X509Certificate> extras = VerifiedOrder.storeOrder(binding, pkix, path, rest, crls);
+                call = CertPathCall.build(pkix, path, crlOrder.forPath(path), extras);
+            }
+            catch (CertPathValidatorException e)
+            {
+                throw new CertPathBuilderException(e.getMessage(), e);
+            }
+            Attempt out = run(call);
+            if (out.failure != null)
+            {
+                return out;
+            }
+            if (out.chain.size() != chain.size())
+            {
+                out.failure = new CertPathBuilderException("the path re-verified to a different chain");
+                return out;
+            }
+            for (int i = 0; i < chain.size(); i++)
+            {
+                if (!Arrays.areEqual(chain.get(i), out.chain.get(i)))
+                {
+                    out.failure = new CertPathBuilderException("the path re-verified to a different chain");
+                    return out;
+                }
+            }
+            return complete(call, out);
         }
 
         private void branch(Candidate c, Candidate target, BitSet excluded, List<Candidate> chain,
@@ -757,125 +768,24 @@ public class JostleCertPathBuilderSpi
             return out;
         }
 
-        /** The pool without the target, in the authenticated order described on this class. */
+        /** The pool without the target, in the verified order (see {@link VerifiedOrder}). */
         private List<Candidate> order(Candidate target)
         {
-            List<Candidate> rest = new ArrayList<Candidate>();
+            List<Integer> rest = new ArrayList<Integer>();
             for (Candidate c : pool)
             {
                 if (c != target)
                 {
-                    rest.add(c);
+                    rest.add(c.index);
                 }
             }
-            Collections.sort(rest, new Comparator<Candidate>()
+            Collections.sort(rest, ranking.comparator());
+            List<Candidate> out = new ArrayList<Candidate>(rest.size());
+            for (int i : rest)
             {
-                public int compare(Candidate x, Candidate y)
-                {
-                    int d = Boolean.compare(route[y.index] != NONE, route[x.index] != NONE);
-                    if (d != 0)
-                    {
-                        return d;
-                    }
-                    d = Boolean.compare(canIssue(y.cert), canIssue(x.cert));
-                    if (d != 0)
-                    {
-                        return d;
-                    }
-                    d = Integer.compare(route[x.index], route[y.index]);
-                    if (d != 0)
-                    {
-                        return d;
-                    }
-                    d = y.cert.getNotAfter().compareTo(x.cert.getNotAfter());
-                    if (d != 0)
-                    {
-                        return d;
-                    }
-                    return compareDer(x.der, y.der);
-                }
-            });
-            return rest;
-        }
-
-        /**
-         * Whether the certificate's signature verifies under the issuer's key, through this provider's own
-         * Signature. Anything that goes wrong while trying (a key this provider cannot build, a signature
-         * algorithm it does not serve, a failed check, a refusal from the native layer) leaves the candidate
-         * unverified; it never ends the build. Each answer is kept per build by the issuer's KEY and the
-         * certificate, so many certificates of one key cost one verification per candidate.
-         */
-        private boolean verifies(X509Certificate cert, X509Certificate issuer)
-        {
-            PublicKey key;
-            ByteBuffer keyId;
-            if (keyIds.containsKey(issuer))
-            {
-                keyId = keyIds.get(issuer);
-                if (keyId == null)
-                {
-                    return false;
-                }
-                key = keys.get(issuer);
+                out.add(pool.get(i));
             }
-            else
-            {
-                try
-                {
-                    key = issuer.getPublicKey();
-                    keyId = ByteBuffer.wrap(key.getEncoded());
-                }
-                catch (RuntimeException e)
-                {
-                    keyIds.put(issuer, null);
-                    return false;
-                }
-                keyIds.put(issuer, keyId);
-                keys.put(issuer, key);
-            }
-            Map<X509Certificate, Boolean> answers = verified.get(keyId);
-            if (answers == null)
-            {
-                answers = new IdentityHashMap<X509Certificate, Boolean>();
-                verified.put(keyId, answers);
-            }
-            Boolean known = answers.get(cert);
-            if (known == null)
-            {
-                if (verifications == MAX_VERIFICATIONS)
-                {
-                    // Spent: unverified from here on, and not remembered, since it was never checked.
-                    return false;
-                }
-                verifications++;
-                known = check(cert, key);
-                answers.put(cert, known);
-            }
-            return known;
-        }
-
-        private boolean check(X509Certificate cert, PublicKey key)
-        {
-            try
-            {
-                if (binding.instance() != null)
-                {
-                    cert.verify(key, binding.instance());
-                }
-                else
-                {
-                    cert.verify(key, binding.name());
-                }
-                return true;
-            }
-            catch (GeneralSecurityException e)
-            {
-                return false;
-            }
-            catch (RuntimeException e)
-            {
-                return false;
-            }
+            return out;
         }
 
         /**
@@ -891,16 +801,30 @@ public class JostleCertPathBuilderSpi
             {
                 certs.add(c.cert);
             }
-            Attempt out = new Attempt();
             CertPathCall call;
             try
             {
-                call = CertPathCall.forBuild(pkix, certs, target.cert, crls);
+                call = CertPathCall.forBuild(pkix, certs, target.cert, builderCrls);
             }
             catch (CertPathValidatorException e)
             {
                 throw new CertPathBuilderException(e.getMessage(), e);
             }
+            Attempt out = run(call);
+            if (out.failure != null)
+            {
+                return out;
+            }
+            return complete(call, out);
+        }
+
+        /**
+         * One OpenSSL call: the chain it reached and, on a verify failure, the failure. A call that could not run
+         * ends the build.
+         */
+        private Attempt run(CertPathCall call) throws CertPathBuilderException
+        {
+            Attempt out = new Attempt();
             int rc = ni.ni_verify(call.der, call.sizes, call.count, call.crlCount, call.anchorCount,
                     call.timeSecs, 1, call.revocation, call.policyFlags, call.policies, call.policyCount,
                     call.chainOut, call.outInfo, call.treeOut);
@@ -929,9 +853,16 @@ public class JostleCertPathBuilderSpi
             if (error != 0)
             {
                 out.failure = CertPathErrors.toValidatorException(ni, error, call.outInfo[1], null);
+                out.error = error;
                 out.errorDepth = call.outInfo[1];
-                return out;
             }
+            return out;
+        }
+
+        /** The Java checks after a call that verified: a result, or a failed attempt. */
+        private Attempt complete(CertPathCall call, Attempt out)
+                throws CertPathBuilderException, InvalidAlgorithmParameterException
+        {
             try
             {
                 CertificateFactory cf = x509Factory();
@@ -974,21 +905,6 @@ public class JostleCertPathBuilderSpi
             {
                 throw new CertPathBuilderException("the policy tree could not be decoded", e);
             }
-        }
-
-        /**
-         * Whether the certificate may issue certificates: basic constraints with cA true, and keyCertSign where
-         * key usage is present. The structural half of {@link #canIssue}, which extends routes and orders the
-         * candidates.
-         */
-        private boolean mayIssue(X509Certificate cert)
-        {
-            if (cert.getBasicConstraints() < 0)
-            {
-                return false;
-            }
-            boolean[] usage = cert.getKeyUsage();
-            return usage == null || (usage.length > 5 && usage[5]);
         }
 
         private boolean isAnchor(byte[] der)

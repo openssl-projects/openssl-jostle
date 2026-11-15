@@ -36,19 +36,11 @@ import java.io.ByteArrayInputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.math.BigInteger;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.Signature;
-import java.security.SignatureException;
-import java.security.SignatureSpi;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathBuilder;
 import java.security.cert.CertPathBuilderException;
@@ -60,14 +52,12 @@ import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
-import java.security.spec.AlgorithmParameterSpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The PKIX builder over pools built to defeat it: decoys from a subordinate CA a trusted anchor really issued,
@@ -636,112 +626,6 @@ public class HostilePoolAgreementTest
         Assertions.assertEquals(RETRIES + 2, two.untrusted.size(), "the second target's first call is made");
     }
 
-    /** A Signature that counts initVerify and forwards to JSL's. */
-    public static final class CountingSignature
-        extends SignatureSpi
-    {
-        static final AtomicInteger VERIFICATIONS = new AtomicInteger();
-        private final Signature inner;
-
-        public CountingSignature(String algorithm) throws Exception
-        {
-            inner = Signature.getInstance(algorithm, JSL);
-        }
-
-        @Override
-        protected void engineInitVerify(PublicKey publicKey) throws InvalidKeyException
-        {
-            VERIFICATIONS.incrementAndGet();
-            inner.initVerify(publicKey);
-        }
-
-        @Override
-        protected void engineInitSign(PrivateKey privateKey) throws InvalidKeyException
-        {
-            throw new InvalidKeyException("verification only");
-        }
-
-        @Override
-        protected void engineUpdate(byte b) throws SignatureException
-        {
-            inner.update(b);
-        }
-
-        @Override
-        protected void engineUpdate(byte[] b, int off, int len) throws SignatureException
-        {
-            inner.update(b, off, len);
-        }
-
-        @Override
-        protected byte[] engineSign() throws SignatureException
-        {
-            throw new SignatureException("verification only");
-        }
-
-        @Override
-        protected boolean engineVerify(byte[] sig) throws SignatureException
-        {
-            return inner.verify(sig);
-        }
-
-        @Override
-        protected void engineSetParameter(AlgorithmParameterSpec params)
-            throws InvalidAlgorithmParameterException
-        {
-            inner.setParameter(params);
-        }
-
-        @Override
-        @Deprecated
-        protected void engineSetParameter(String param, Object value)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        @Deprecated
-        protected Object engineGetParameter(String param)
-        {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    /** A provider serving JSL's X.509 factory and a counting ECDSA verifier, for the builder's own verifications. */
-    private static final class CountingProvider
-        extends Provider
-    {
-        CountingProvider()
-        {
-            super("CountingJSL", 1.0, "JSL's X.509 factory and a counting ECDSA verifier");
-            final Provider jsl = Security.getProvider(JSL);
-            putService(new Service(this, "CertificateFactory", "X.509", "unused", null, null)
-            {
-                @Override
-                public Object newInstance(Object parameter) throws NoSuchAlgorithmException
-                {
-                    return jsl.getService("CertificateFactory", "X.509").newInstance(parameter);
-                }
-            });
-            putService(new Service(this, "Signature", "SHA256withECDSA", "unused",
-                    Arrays.asList("SHA256WITHECDSA", "1.2.840.10045.4.3.2"), null)
-            {
-                @Override
-                public Object newInstance(Object parameter) throws NoSuchAlgorithmException
-                {
-                    try
-                    {
-                        return new CountingSignature("SHA256withECDSA");
-                    }
-                    catch (Exception e)
-                    {
-                        throw new NoSuchAlgorithmException(e);
-                    }
-                }
-            });
-        }
-    }
-
     /**
      * The ordering's verifications grow linearly with mutually signed end entities: n end-entity certificates
      * sharing one name, each signed by the previous one's key, the first by Root A. An end-entity key extends
@@ -772,10 +656,10 @@ public class HostilePoolAgreementTest
                     Collections.singleton(new TrustAnchor(w.rootA, null)), sel);
             p.setRevocationEnabled(false);
             p.addCertStore(OrderedCertStores.ordered(new ArrayList<Object>(pool)));
-            CountingSignature.VERIFICATIONS.set(0);
+            CountingJslProvider.VERIFICATIONS.set(0);
             long t0 = System.nanoTime();
-            new JostleCertPathBuilderSpi(NISelector.CertPathNI, new CountingProvider()).engineBuild(p);
-            counts[k] = CountingSignature.VERIFICATIONS.get();
+            new JostleCertPathBuilderSpi(NISelector.CertPathNI, new CountingJslProvider()).engineBuild(p);
+            counts[k] = CountingJslProvider.VERIFICATIONS.get();
             System.out.printf("[hostile] %d mutually signed end entities: %d verifications, %.0f ms%n", sizes[k],
                     counts[k], (System.nanoTime() - t0) / 1e6);
             // The counter moved, so the builder's verifications did go through it.
@@ -825,12 +709,12 @@ public class HostilePoolAgreementTest
                 sel);
         p.setRevocationEnabled(false);
         p.addCertStore(OrderedCertStores.ordered(new ArrayList<Object>(pool)));
-        CountingSignature.VERIFICATIONS.set(0);
+        CountingJslProvider.VERIFICATIONS.set(0);
         long t0 = System.nanoTime();
-        CertPath path = new JostleCertPathBuilderSpi(NISelector.CertPathNI, new CountingProvider()).engineBuild(p)
+        CertPath path = new JostleCertPathBuilderSpi(NISelector.CertPathNI, new CountingJslProvider()).engineBuild(p)
                 .getCertPath();
         long ms = (System.nanoTime() - t0) / 1000000L;
-        int count = CountingSignature.VERIFICATIONS.get();
+        int count = CountingJslProvider.VERIFICATIONS.get();
         System.out.printf("[hostile] ladder k=%d chain m=%d, %d certificates: %d verifications, %d ms%n", k, m,
                 pool.size(), count, ms);
         Assertions.assertEquals(3, path.getCertificates().size());
@@ -851,8 +735,8 @@ public class HostilePoolAgreementTest
                 sel);
         p.setRevocationEnabled(false);
         p.addCertStore(OrderedCertStores.ordered(new ArrayList<Object>(pool)));
-        CountingSignature.VERIFICATIONS.set(0);
-        return new JostleCertPathBuilderSpi(NISelector.CertPathNI, new CountingProvider()).engineBuild(p)
+        CountingJslProvider.VERIFICATIONS.set(0);
+        return new JostleCertPathBuilderSpi(NISelector.CertPathNI, new CountingJslProvider()).engineBuild(p)
                 .getCertPath();
     }
 
@@ -882,8 +766,8 @@ public class HostilePoolAgreementTest
         long t0 = System.nanoTime();
         CertPath path = countedBuild(w.rootA, pool, w.leaf);
         System.out.printf("[hostile] 128 routed issuing keys, 120 claimants, %d certificates: %d checks, %d ms%n",
-                pool.size(), CountingSignature.VERIFICATIONS.get(), (System.nanoTime() - t0) / 1000000L);
-        Assertions.assertEquals(VERIFICATION_BUDGET, CountingSignature.VERIFICATIONS.get());
+                pool.size(), CountingJslProvider.VERIFICATIONS.get(), (System.nanoTime() - t0) / 1000000L);
+        Assertions.assertEquals(VERIFICATION_BUDGET, CountingJslProvider.VERIFICATIONS.get());
         Assertions.assertArrayEquals(w.xByY.getEncoded(), path.getCertificates().get(1).getEncoded());
     }
 
@@ -906,8 +790,8 @@ public class HostilePoolAgreementTest
         }
         CertPath path = countedBuild(w.rootA, pool, w.leaf);
         System.out.printf("[hostile] outsider's stuffed pool, %d certificates: %d checks%n", pool.size(),
-                CountingSignature.VERIFICATIONS.get());
-        Assertions.assertEquals(forged + 3, CountingSignature.VERIFICATIONS.get());
+                CountingJslProvider.VERIFICATIONS.get());
+        Assertions.assertEquals(forged + 3, CountingJslProvider.VERIFICATIONS.get());
         Assertions.assertTrue(forged + 3 < VERIFICATION_BUDGET / 4);
         Assertions.assertArrayEquals(w.xByY.getEncoded(), path.getCertificates().get(1).getEncoded());
     }

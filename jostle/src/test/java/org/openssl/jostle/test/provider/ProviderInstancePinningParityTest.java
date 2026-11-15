@@ -217,10 +217,10 @@ public class ProviderInstancePinningParityTest
                 "unbound arm only, java and java9; the KeyStore is registered by JSL alone");
         addFallback(m, "KSServiceSPI:CertificateFactory:binding.name()", 2, "KSServiceSPI:CertificateFactory",
                 "unbound arm only, java and java9; the KeyStore is registered by JSL alone");
-        addFallback(m, "JostleCertPathBuilderSpi:CertificateFactory:binding.name()", 1,
-                "JostleCertPathBuilderSpi:CertificateFactory",
-                "unbound arm only, and CertPathBuilder is registered by JSL alone, so this names"
-                        + " the SPI's own provider rather than crossing to another");
+        addFallback(m, "VerifiedOrder:CertificateFactory:binding.name()", 1,
+                "VerifiedOrder:CertificateFactory",
+                "unbound arm only, shared by the PKIX builder and validator, both registered by JSL alone,"
+                        + " so this names the SPI's own provider rather than crossing to another");
         addFallback(m, "ETSIKEMCipherSpi:Mac:binding.name()", 1, "ETSIKEMCipherSpi:Mac",
                 "unbound arm only; the bound arm beside it pins the instance, and the ITS KEM's"
                         + " HMAC must run in the same library as the agreement it keys");
