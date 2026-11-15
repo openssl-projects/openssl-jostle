@@ -14,6 +14,7 @@ package org.openssl.jostle.test.util;
 import org.junit.jupiter.api.Assertions;
 
 import java.security.Provider;
+import java.security.cert.CollectionCertStoreParameters;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -91,7 +92,8 @@ public final class ServiceClassNameAudit
             Object instance;
             try
             {
-                instance = s.newInstance(null);
+                // A CertStore is always constructed with its parameters, which its contract requires.
+                instance = s.newInstance("CertStore".equals(s.getType()) ? new CollectionCertStoreParameters() : null);
             }
             catch (Throwable t)
             {

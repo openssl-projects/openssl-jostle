@@ -60,7 +60,7 @@ public final class ExamplesGuide
             "MessageDigest", "Mac", "SecretKeyFactory", "SecureRandom",
             "Cipher", "KeyGenerator", "AlgorithmParameters", "AlgorithmParameterGenerator",
             "KeyPairGenerator", "KeyFactory", "Signature", "KeyAgreement",
-            "KeyStore", "CertificateFactory", "CertPathBuilder", "CertPathValidator",
+            "KeyStore", "CertificateFactory", "CertStore", "CertPathBuilder", "CertPathValidator",
     };
 
     private ExamplesGuide()

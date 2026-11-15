@@ -15,6 +15,7 @@ import org.openssl.jostle.jcajce.provider.cert.X509CertificateFactorySpi;
 import org.openssl.jostle.jcajce.provider.cert.X509NI;
 import org.openssl.jostle.jcajce.provider.certpath.JostleCertPathBuilderSpi;
 import org.openssl.jostle.jcajce.provider.certpath.JostleCertPathValidatorSpi;
+import org.openssl.jostle.jcajce.provider.certpath.JostleCollectionCertStoreSpi;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,5 +40,11 @@ class ProvX509
         provider.addAlgorithmImplementation("CertPathBuilder", "PKIX",
                 JostleCertPathBuilderSpi.class.getName(), attr,
                 (arg) -> new JostleCertPathBuilderSpi(provider));
+
+        // The JCA Collection store, so a path built or validated here can take its certificates and CRLs from
+        // this provider too. JSL only, as the CertPath services.
+        provider.addAlgorithmImplementation("CertStore", "Collection",
+                JostleCollectionCertStoreSpi.class.getName(), attr,
+                JostleCollectionCertStoreSpi::create);
     }
 }

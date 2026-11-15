@@ -2074,6 +2074,50 @@ Assertions.assertNotNull(cert.getSubjectX500Principal());
 Assertions.assertThrows(ProviderException.class, cert::getPublicKey);
 ```
 
+## CertStore
+
+The Collection certificate store: certificates and CRLs held in a collection, selected by the standard
+selectors, for a path builder or validator to search. The collection is not copied, so later changes to it are
+seen.
+
+Imports used in this section:
+
+```java
+import java.security.cert.CertStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CollectionCertStoreParameters;
+import java.security.cert.X509CRLSelector;
+import java.security.cert.X509CertSelector;
+import java.util.ArrayList;
+import java.util.List;
+```
+
+### selectCertificatesAndCrls
+
+Select a certificate by subject and a CRL by issuer; a null selector returns every object of its kind.
+
+```java
+CertificateFactory cf = CertificateFactory.getInstance("X.509", "JSL");
+List<Object> pool = new ArrayList<Object>();
+pool.add(cf.generateCertificate(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACert.crt")));
+pool.add(cf.generateCertificate(
+        getClass().getResourceAsStream("/jostle/examples/pkits/ValidCertificatePathTest1EE.crt")));
+pool.add(cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/GoodCACRL.crl")));
+CertStore store = CertStore.getInstance("Collection", new CollectionCertStoreParameters(pool), "JSL");
+
+X509CertSelector bySubject = new X509CertSelector();
+bySubject.setSubject("CN=Good CA, O=Test Certificates 2011, C=US");
+Assertions.assertEquals(1, store.getCertificates(bySubject).size());
+Assertions.assertEquals(2, store.getCertificates(null).size());
+
+X509CRLSelector byIssuer = new X509CRLSelector();
+byIssuer.addIssuerName("CN=Good CA, O=Test Certificates 2011, C=US");
+Assertions.assertEquals(1, store.getCRLs(byIssuer).size());
+
+pool.add(cf.generateCRL(getClass().getResourceAsStream("/jostle/examples/pkits/TrustAnchorRootCRL.crl")));
+Assertions.assertEquals(2, store.getCRLs(null).size());
+```
+
 ## CertPathBuilder
 
 PKIX path building: from a target certificate and a pool of candidate certificates and CRLs, find a path to

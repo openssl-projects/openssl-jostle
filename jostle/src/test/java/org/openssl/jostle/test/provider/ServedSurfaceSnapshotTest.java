@@ -82,7 +82,7 @@ public class ServedSurfaceSnapshotTest
             // RFC 4055 RSASSA-PSS-params. Pure ASN.1, no operation.
             "AlgorithmParameters.RSASSA-PSS",
             "AlgorithmParameters.SM4",
-            "CertPathBuilder.PKIX", "CertPathValidator.PKIX", "CertificateFactory.X.509",
+            "CertPathBuilder.PKIX", "CertPathValidator.PKIX", "CertStore.COLLECTION", "CertificateFactory.X.509",
             "Cipher.1.2.392.200011.61.1.1.1.2", "Cipher.1.2.392.200011.61.1.1.1.3",
             "Cipher.1.2.392.200011.61.1.1.1.4", "Cipher.1.2.410.200046.1.1.12",
             "Cipher.1.2.410.200046.1.1.2", "Cipher.1.2.410.200046.1.1.7",

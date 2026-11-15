@@ -88,8 +88,12 @@ DATE and REASON CODE are not surfaced: the JDK's exception carries a
 covering the CRL issuer's own certificate — fails here where the JDK passes,
 because OpenSSL refuses the recursive CRL-path resolution it needs.
 
-Neither applies to JSLFIPS, which registers no `CertPathValidator` or
-`CertPathBuilder` at all.
+Neither applies to JSLFIPS, which registers no `CertPathValidator`,
+`CertPathBuilder` or `CertStore` at all.
+
+## CertStore
+
+1. `COLLECTION`
 
 ## CertificateFactory
 
