@@ -338,6 +338,12 @@ class BlockCipherSpi extends CipherSpi
         }
         else
         {
+            if (osslMode == OSSLMode.WRAP || osslMode == OSSLMode.WRAP_PAD || osslMode == OSSLMode.WRAP_INV)
+            {
+                // A key wrap defines its own integrity block and length rules; a padding name would not be
+                // applied, and the JDK's AES/KW/PKCS5Padding is a different algorithm. JCE sets the mode first.
+                throw new NoSuchPaddingException("key wrap mode " + osslMode + " takes no padding");
+            }
             if (padding.equals("PKCS7PADDING") || padding.equals("PKCS5PADDING"))
             {
                 if (osslMode == OSSLMode.CTS)

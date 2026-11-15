@@ -24,6 +24,7 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -480,27 +481,24 @@ public class DESedeWrapAgreementTest
     }
 
     /**
-     * The wrap is also reached as DESede/WRAP on the plain DESede service, as AES/WRAP is on the plain AES service
-     * (measured on the tree before this mode); the padding name is not applied. BouncyCastle serves neither.
-     * This pins present behaviour, shared with the AES wrap modes, and does not make these names supported surface.
+     * The wrap is also reached as DESede/WRAP/NoPadding on the plain DESede service, as AES/WRAP is on the plain AES
+     * service, and is the same wrap; a padding name on the wrap mode is refused. BouncyCastle serves neither.
      */
     @Test
     public void theWrapModeOnThePlainDesedeServiceIsTheSameWrap() throws Exception
     {
         byte[] kek = random(24);
         byte[] cek = random(24);
-        for (String t : new String[]{"DESede/WRAP/NoPadding", "DESede/WRAP/PKCS5Padding"})
-        {
-            Cipher c = Cipher.getInstance(t, JSL);
-            c.init(Cipher.ENCRYPT_MODE, key(kek));
-            byte[] wrapped = c.doFinal(cek);
-            Assertions.assertEquals(cek.length + 16, wrapped.length, t);
-            Assertions.assertArrayEquals(cek, unwrap(BC, "DESedeWrap", kek, wrapped), t);
-            assertThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance(t, BC), "BC " + t);
-        }
-        Cipher aes = Cipher.getInstance("AES/WRAP/NoPadding", JSL);
-        aes.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(random(16), "AES"));
-        Assertions.assertEquals(32, aes.doFinal(random(24)).length, "the AES precedent");
+        Cipher c = Cipher.getInstance("DESede/WRAP/NoPadding", JSL);
+        c.init(Cipher.ENCRYPT_MODE, key(kek));
+        byte[] wrapped = c.doFinal(cek);
+        Assertions.assertEquals(cek.length + 16, wrapped.length);
+        Assertions.assertArrayEquals(cek, unwrap(BC, "DESedeWrap", kek, wrapped));
+        assertThrows(NoSuchAlgorithmException.class, () -> Cipher.getInstance("DESede/WRAP/NoPadding", BC));
+
+        NoSuchPaddingException e = assertThrows(NoSuchPaddingException.class,
+                () -> Cipher.getInstance("DESede/WRAP/PKCS5Padding", JSL));
+        Assertions.assertEquals("key wrap mode WRAP takes no padding", e.getMessage());
     }
 
     /** One instance stays correct across operations and after a refused unwrap. */
