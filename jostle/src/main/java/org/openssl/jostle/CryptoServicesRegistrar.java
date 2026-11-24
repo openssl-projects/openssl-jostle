@@ -51,8 +51,17 @@ public class CryptoServicesRegistrar
     public static void assertNativeAvailable()
     {
 
+        if (!Loader.isLoadSuccessful() && Loader.getMessage() != null)
+        {
+            throw new IllegalStateException("no access to native library: " + Loader.getMessage());
+        }
         if (!isNativeAvailable())
         {
+            if ("none".equals(Loader.getInterfaceResolutionStrategy()))
+            {
+                throw new IllegalStateException("no access to native library: interface strategy 'none' binds the "
+                        + "JNI interface, supply the JNI interface library by load_lib or load_name");
+            }
             throw new IllegalStateException("no access to native library");
         }
     }

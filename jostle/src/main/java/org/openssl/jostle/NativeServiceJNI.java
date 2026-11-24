@@ -10,11 +10,24 @@
 
 package org.openssl.jostle;
 
+import java.util.logging.Logger;
+
 public class NativeServiceJNI implements NativeServiceNI
 {
+    private static final Logger L = Logger.getLogger("NativeInfo");
+
     public boolean isNativeAvailable()
     {
-        return nativeAvailable();
+        try
+        {
+            return nativeAvailable();
+        }
+        catch (UnsatisfiedLinkError e)
+        {
+            // No JNI interface library is loaded, for example when only the FFM one was supplied.
+            L.warning("jni access to isNativeAvailable: " + e.getMessage());
+        }
+        return false;
     }
 
     public String getOpenSSLVersion()

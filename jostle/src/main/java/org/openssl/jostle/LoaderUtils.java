@@ -184,6 +184,32 @@ class LoaderUtils
         }
     }
 
+    /**
+     * Probed with the call the extraction reads with, so the check and the extraction cannot disagree.
+     */
+    static boolean isOnClasspath(final String pathInJar)
+    {
+        return AccessController.doPrivileged(new PrivilegedAction<Boolean>()
+        {
+            public Boolean run()
+            {
+                InputStream in = Loader.class.getResourceAsStream(pathInJar);
+                if (in == null)
+                {
+                    return false;
+                }
+                try
+                {
+                    in.close();
+                }
+                catch (IOException ignored)
+                {
+                }
+                return true;
+            }
+        });
+    }
+
     static File extractFromClasspath(File tmpDir, String pathInJar, String name, String[] sources)
             throws Exception
     {

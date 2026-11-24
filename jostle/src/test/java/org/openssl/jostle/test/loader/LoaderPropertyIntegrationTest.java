@@ -12,12 +12,17 @@
 package org.openssl.jostle.test.loader;
 
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.openssl.jostle.Loader;
 import org.openssl.jostle.test.JvmProbe;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -215,6 +220,9 @@ public class LoaderPropertyIntegrationTest
         Assertions.assertEquals("false", probe.get("loadSuccessful"),
                 "an unsupported strategy must not load: " + probe.get("message"));
         Assertions.assertEquals("Unsupported interface resolution 'sideways'", probe.get("message"));
+        // The strategy is resolved before anything is extracted, so OpenSSL is not loaded either.
+        Assertions.assertEquals("0", probe.get("libCount"), "nothing may be loaded: " + probe.libs());
+        Assertions.assertEquals("none", probe.get("interfaceType"));
     }
 
     //
@@ -539,6 +547,340 @@ public class LoaderPropertyIntegrationTest
     }
 
     //
+    // ---------------------------------------------------------------- absent libraries
+    //
+
+    /**
+     * A jar built for another architecture carries this platform's deps file but not its libraries. The load
+     * fails with one plain WARNING line naming the os, arch and absent path, and extracts nothing.
+     */
+    @Test
+    public void absentLibraries_namesThePlatformAndPathAndExtractsNothing() throws Exception
+    {
+        Platform p = libraryLessPlatform();
+        File installDir = createInstallDir("absent");
+        try
+        {
+            // English log levels, so the WARNING count cannot change with the host locale.
+            Probe probe = runProbe(props(
+                    "os.name", p.os,
+                    "os.arch", p.arch,
+                    "user.language", "en",
+                    P_INSTALL_DIR, installDir.getAbsolutePath()));
+
+            Assertions.assertEquals("false", probe.get("loadSuccessful"));
+            Assertions.assertEquals(absentMessage(p, p.root + "/" + p.ossl), probe.get("message"));
+            Assertions.assertEquals("0", probe.get("libCount"), "nothing may be loaded: " + probe.libs());
+            Assertions.assertEquals("none", probe.get("interfaceType"));
+            Assertions.assertEquals(Collections.emptyList(), namesOf(filesUnder(installDir)),
+                    "no install directory and no lock file may be created");
+            Assertions.assertArrayEquals(new String[0], installDir.list(),
+                    "no versioned directory may be created");
+            assertOneWarningWithoutStackTrace(probe.raw(), probe.get("message"));
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
+    }
+
+    /**
+     * An unsupported strategy is refused before anything is extracted: no versioned directory, no lock file.
+     */
+    @Test
+    public void interface_unsupportedValue_leavesTheInstallDirEmpty() throws Exception
+    {
+        File installDir = createInstallDir("sideways");
+        try
+        {
+            Probe probe = runProbe(props(
+                    P_INSTALL_DIR, installDir.getAbsolutePath(),
+                    P_INTERFACE, "sideways"));
+
+            Assertions.assertEquals("false", probe.get("loadSuccessful"));
+            Assertions.assertEquals("Unsupported interface resolution 'sideways'", probe.get("message"));
+            Assertions.assertEquals("0", probe.get("libCount"), "nothing may be loaded: " + probe.libs());
+            Assertions.assertArrayEquals(new String[0], installDir.list(),
+                    "no versioned directory and no lock file may be created");
+        }
+        finally
+        {
+            deleteBestEffort(installDir);
+        }
+    }
+
+    /**
+     * With OpenSSL supplied by the caller the interface library is the one checked, and it is named.
+     */
+    @Test
+    public void absentLibraries_withExtractOpensslFalse_namesTheInterfaceLibrary() throws Exception
+    {
+        Platform p = libraryLessPlatform();
+        Probe probe = runProbe(props(
+                "os.name", p.os,
+                "os.arch", p.arch,
+                P_EXTRACT_OPENSSL, "false",
+                P_INTERFACE, "jni"));
+
+        Assertions.assertEquals("false", probe.get("loadSuccessful"));
+        Assertions.assertEquals(absentMessage(p, p.root + "/" + p.jni), probe.get("message"));
+        Assertions.assertEquals("0", probe.get("libCount"), "nothing may be loaded: " + probe.libs());
+    }
+
+    /**
+     * extract_openssl=false with the "none" strategy extracts nothing, so nothing is checked: unchanged.
+     */
+    @Test
+    public void absentLibraries_withNothingToExtract_loadsAsBefore() throws Exception
+    {
+        Platform p = libraryLessPlatform();
+        Probe probe = runProbe(props(
+                "os.name", p.os,
+                "os.arch", p.arch,
+                P_EXTRACT_OPENSSL, "false",
+                P_INTERFACE, "none"));
+
+        probe.assertLoadSucceeded();
+        Assertions.assertEquals("Loader Finished Successfully", probe.get("message"));
+        Assertions.assertEquals("0", probe.get("libCount"), "nothing may be extracted: " + probe.libs());
+        Assertions.assertEquals("none", probe.get("interfaceType"));
+    }
+
+    /**
+     * The caller of the provider is told the loader's reason, after the leading text callers match on.
+     */
+    @Test
+    public void absentLibraries_providerConstructionCarriesTheLoaderMessage() throws Exception
+    {
+        Platform p = libraryLessPlatform();
+        JvmProbe.Result r = JvmProbe.run(ProviderConstructionProbeMain.class, props(
+                "os.name", p.os,
+                "os.arch", p.arch));
+
+        Assertions.assertEquals("false", r.get("constructed"));
+        Assertions.assertEquals(IllegalStateException.class.getName(), r.get("exceptionType"));
+        Assertions.assertEquals("no access to native library: " + absentMessage(p, p.root + "/" + p.ossl),
+                r.get("exceptionMessage"));
+        Assertions.assertEquals(absentMessage(p, p.root + "/" + p.ossl), r.get("loaderMessage"));
+    }
+
+    /**
+     * A platform no resolution line matches keeps its message, which now reaches the caller too.
+     */
+    @Test
+    public void unmatchedPlatform_providerConstructionCarriesTheLoaderMessage() throws Exception
+    {
+        String os = System.getProperty("os.name");
+        JvmProbe.Result r = JvmProbe.run(ProviderConstructionProbeMain.class, props(
+                "os.name", os,
+                "os.arch", "sparc"));
+
+        Assertions.assertEquals("false", r.get("constructed"));
+        Assertions.assertEquals(IllegalStateException.class.getName(), r.get("exceptionType"));
+        Assertions.assertEquals(
+                "no access to native library: no native support for os: '" + os + "' and arch: 'sparc'",
+                r.get("exceptionMessage"));
+    }
+
+    /**
+     * Strategy "none" binds the JNI interface. With no interface library supplied the caller is told which one
+     * to supply, and no UnsatisfiedLinkError escapes.
+     */
+    @Test
+    public void interface_none_withoutAnInterfaceLibrary_namesTheJniLibrary() throws Exception
+    {
+        JvmProbe.Result r = JvmProbe.run(ProviderConstructionProbeMain.class, props(
+                P_EXTRACT_OPENSSL, "false",
+                P_INTERFACE, "none"));
+
+        Assertions.assertEquals("false", r.get("constructed"));
+        Assertions.assertEquals(IllegalStateException.class.getName(), r.get("exceptionType"));
+        Assertions.assertEquals(NONE_BINDS_JNI, r.get("exceptionMessage"));
+    }
+
+    /**
+     * Supplying the FFM interface library under "none" does not help, because "none" binds JNI: same message.
+     */
+    @Test
+    public void interface_none_withOnlyTheFfmLibrary_namesTheJniLibrary() throws Exception
+    {
+        Assumptions.assumeTrue(javaMajor() >= 22, "the FFM interface library is loadable on Java 22 and later");
+        File seedDir = createInstallDir("none-ffm-seed");
+        try
+        {
+            Probe seed = runProbe(props(
+                    P_INSTALL_DIR, seedDir.getAbsolutePath(),
+                    P_INTERFACE, "ffm"));
+            seed.assertLoadSucceeded();
+            File openssl = findUnder(seedDir, OPENSSL_LIB);
+            File ffm = findUnder(seedDir, FFM_LIB);
+
+            JvmProbe.Result r = JvmProbe.run(ProviderConstructionProbeMain.class, props(
+                    P_EXTRACT_OPENSSL, "false",
+                    P_INTERFACE, "none",
+                    String.format(P_LOAD_LIB, 0), openssl.getAbsolutePath(),
+                    String.format(P_LOAD_LIB, 1), ffm.getAbsolutePath()));
+
+            Assertions.assertEquals("false", r.get("constructed"));
+            Assertions.assertEquals(IllegalStateException.class.getName(), r.get("exceptionType"));
+            Assertions.assertEquals(NONE_BINDS_JNI, r.get("exceptionMessage"));
+        }
+        finally
+        {
+            deleteBestEffort(seedDir);
+        }
+    }
+
+    private static final String NONE_BINDS_JNI = "no access to native library: interface strategy 'none' binds the "
+            + "JNI interface, supply the JNI interface library by load_lib or load_name";
+
+    private static int javaMajor()
+    {
+        String v = System.getProperty("java.specification.version");
+        return v.startsWith("1.") ? Integer.parseInt(v.substring(2)) : Integer.parseInt(v);
+    }
+
+    private static File findUnder(File dir, String nameFragment)
+    {
+        for (File candidate : filesUnder(dir))
+        {
+            if (candidate.getName().contains(nameFragment))
+            {
+                return candidate;
+            }
+        }
+        Assertions.fail("no '" + nameFragment + "' library under " + dir + ", found: " + namesOf(filesUnder(dir)));
+        return null;
+    }
+
+    private static String absentMessage(Platform p, String absentPath)
+    {
+        return String.format("no native libraries for os: '%s' and arch: '%s' in this jar ('%s' is absent), "
+                + "use the openssl-jostle jar published for this architecture", p.os, p.arch, absentPath);
+    }
+
+    private static void assertOneWarningWithoutStackTrace(List<String> raw, String message)
+    {
+        int warnings = 0;
+        for (String line : raw)
+        {
+            if (line.startsWith("WARNING: "))
+            {
+                warnings++;
+                Assertions.assertEquals("WARNING: " + message, line);
+            }
+            Assertions.assertFalse(line.trim().startsWith("at ") || line.contains("Exception"),
+                    "no stack trace expected: " + String.join("\n", raw));
+        }
+        Assertions.assertEquals(1, warnings, "expected one WARNING line: " + raw);
+    }
+
+    /**
+     * A platform the resolutions file names whose deps file this jar carries and whose OpenSSL library it does
+     * not. Each build holds the libraries of its own platform only, so one always exists.
+     * <p>
+     * The host's own OS family comes first, under the host's own os.name: a Java 8 JVM picks its file system
+     * from os.name at start-up and does not start under another OS's name.
+     */
+    private static Platform libraryLessPlatform() throws IOException
+    {
+        String[][] all = {
+                {"Linux", "amd64", "/native/linux/x86_64"},
+                {"Linux", "aarch64", "/native/linux/aarch64"},
+                {"Mac OS X", "aarch64", "/native/osx/arm64"},
+                {"Mac OS X", "x86_64", "/native/osx/x86_64"},
+                {"Windows 11", "amd64", "/native/windows/x86_64"}};
+        String hostOs = System.getProperty("os.name");
+        List<String[]> candidates = new ArrayList<>();
+        for (String[] c : all)
+        {
+            if (hostOs.startsWith(c[0].split(" ")[0]))
+            {
+                candidates.add(new String[]{hostOs, c[1], c[2]});
+            }
+        }
+        for (String[] c : all)
+        {
+            if (!hostOs.startsWith(c[0].split(" ")[0]))
+            {
+                candidates.add(c);
+            }
+        }
+        for (String[] c : candidates)
+        {
+            List<String> deps = readResourceLines(c[2] + "/deps.txt");
+            if (deps == null)
+            {
+                continue;
+            }
+            String ossl = depsEntry(deps, "OSSL:");
+            String jni = depsEntry(deps, "JNI:");
+            if (ossl != null && jni != null && Loader.class.getResource(c[2] + "/" + ossl) == null
+                    && Loader.class.getResource(c[2] + "/" + jni) == null)
+            {
+                return new Platform(c[0], c[1], c[2], ossl, jni);
+            }
+        }
+        Assertions.fail("no platform with a deps file and without its libraries on this classpath");
+        return null;
+    }
+
+    private static String depsEntry(List<String> deps, String prefix)
+    {
+        for (String line : deps)
+        {
+            if (line.startsWith(prefix))
+            {
+                return line.substring(prefix.length()).trim();
+            }
+        }
+        return null;
+    }
+
+    private static List<String> readResourceLines(String path) throws IOException
+    {
+        InputStream in = Loader.class.getResourceAsStream(path);
+        if (in == null)
+        {
+            return null;
+        }
+        List<String> out = new ArrayList<>();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        try
+        {
+            String line = reader.readLine();
+            while (line != null)
+            {
+                out.add(line);
+                line = reader.readLine();
+            }
+        }
+        finally
+        {
+            reader.close();
+        }
+        return out;
+    }
+
+    private static final class Platform
+    {
+        final String os;
+        final String arch;
+        final String root;
+        final String ossl;
+        final String jni;
+
+        Platform(String os, String arch, String root, String ossl, String jni)
+        {
+            this.os = os;
+            this.arch = arch;
+            this.root = root;
+            this.ossl = ossl;
+            this.jni = jni;
+        }
+    }
+
+    //
     // ---------------------------------------------------------------- helpers
     //
 
@@ -700,6 +1042,11 @@ public class LoaderPropertyIntegrationTest
         String get(String key)
         {
             return result.get(key);
+        }
+
+        List<String> raw()
+        {
+            return result.raw();
         }
 
         List<String> libs()

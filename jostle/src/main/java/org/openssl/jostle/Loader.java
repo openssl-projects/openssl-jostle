@@ -55,7 +55,7 @@ public class Loader
      * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
      * used in README.md; see {@link #LOAD_NATIVE_LIBS_PADDED_FORMAT}.
      * <p>
-     * With the interface property set to "none", also supply the FFM or JNI interface library.
+     * With the interface property set to "none", also supply the JNI interface library.
      */
     public static final String LOAD_NATIVE_LIBS_FORMAT = "org.openssl.jostle.loader.load_lib_%d";
 
@@ -75,7 +75,7 @@ public class Loader
      * Indices below ten are also accepted zero padded ("_00", "_01"), the spelling
      * used in README.md; see {@link #LOAD_LIBS_BY_NAME_PADDED_FORMAT}.
      * <p>
-     * With the interface property set to "none", also supply the FFM or JNI interface library.
+     * With the interface property set to "none", also supply the JNI interface library.
      */
     public static final String LOAD_LIBS_BY_NAME_FORMAT = "org.openssl.jostle.loader.load_name_%d";
 
@@ -136,8 +136,8 @@ public class Loader
             }
             catch (Throwable t)
             {
-                L.log(Level.WARNING, t.getMessage(), t);
-                message = t.getMessage();
+                message = describe(t);
+                L.log(Level.WARNING, message, t);
                 loadSuccessful = false;
 
 
@@ -148,6 +148,14 @@ public class Loader
             }
 
         }
+    }
+
+    /**
+     * The failure's message, or its class and message when it has none, so a stored message is never null.
+     */
+    private static String describe(Throwable t)
+    {
+        return t.getMessage() != null ? t.getMessage() : t.toString();
     }
 
     /**
@@ -367,6 +375,19 @@ public class Loader
         // extract_openssl controls only OpenSSL and the interface strategy only the interface library.
         if (!extractions.isEmpty() && (extractOpenSSL || !"none".equals(interfaceResolutionStrategy)))
         {
+            Extractions.Type resolvedType = resolveInterfaceType();
+
+            // A jar built for another architecture carries this platform's deps file but not its libraries.
+            String absent = firstAbsent(libRootInJar, extractions, resolvedType);
+            if (absent != null)
+            {
+                message = String.format("no native libraries for os: '%s' and arch: '%s' in this jar ('%s' is absent), "
+                        + "use the openssl-jostle jar published for this architecture", os, arch, absent);
+                L.warning(message);
+                loadSuccessful = false;
+                return;
+            }
+
             final File installRootDir = resolveInstallRootDir();
             installRootDirUsed = installRootDir;
 
@@ -391,53 +412,7 @@ public class Loader
                     }
                 }
 
-                //
-                // Handle interface type resolution.
-                //
-
-                if ("jni".equals(interfaceResolutionStrategy))
-                {
-                    interfaceType = Extractions.Type.JNI;
-                    L.fine("Interface resolution strategy is JNI");
-                }
-                else
-                {
-                    if ("ffm".equals(interfaceResolutionStrategy))
-                    {
-                        interfaceType = Extractions.Type.FFM;
-                        L.fine("Interface resolution strategy is FFM");
-                    }
-                    else
-                    {
-                        if ("auto".equals(interfaceResolutionStrategy))
-                        {
-                            L.fine("Interface resolution strategy is auto");
-                            try
-                            {
-                                //
-                                // This will only be available for Java 22 and above runtimes.
-                                //
-                                Class.forName("org.openssl.jostle.FFM");
-                                interfaceType = Extractions.Type.FFM;
-                                L.fine("FFM is detected");
-                            }
-                            catch (Throwable t)
-                            {
-                                interfaceType = Extractions.Type.JNI;
-                                L.fine("JNI is detected");
-                            }
-                        }
-                        else
-                        {
-                            if (!"none".equals(interfaceResolutionStrategy))
-                            {
-                                L.fine("Unknown resolution strategy detected: " + interfaceResolutionStrategy);
-                                throw new IOException(String.format("Unsupported interface resolution '%s'", interfaceResolutionStrategy));
-                            }
-                        }
-                    }
-                }
-
+                interfaceType = resolvedType;
                 if (interfaceType != null)
                 {
                     for (Extractions extraction : extractions)
@@ -476,6 +451,67 @@ public class Loader
 
         loadSuccessful = true;
         message = "Loader Finished Successfully";
+    }
+
+    /**
+     * The interface library this run extracts, from the strategy: null for "none".
+     */
+    private static Extractions.Type resolveInterfaceType()
+            throws IOException
+    {
+        if ("jni".equals(interfaceResolutionStrategy))
+        {
+            L.fine("Interface resolution strategy is JNI");
+            return Extractions.Type.JNI;
+        }
+        if ("ffm".equals(interfaceResolutionStrategy))
+        {
+            L.fine("Interface resolution strategy is FFM");
+            return Extractions.Type.FFM;
+        }
+        if ("auto".equals(interfaceResolutionStrategy))
+        {
+            L.fine("Interface resolution strategy is auto");
+            try
+            {
+                //
+                // This will only be available for Java 22 and above runtimes.
+                //
+                Class.forName("org.openssl.jostle.FFM");
+                L.fine("FFM is detected");
+                return Extractions.Type.FFM;
+            }
+            catch (Throwable t)
+            {
+                L.fine("JNI is detected");
+                return Extractions.Type.JNI;
+            }
+        }
+        if (!"none".equals(interfaceResolutionStrategy))
+        {
+            L.fine("Unknown resolution strategy detected: " + interfaceResolutionStrategy);
+            throw new IOException(String.format("Unsupported interface resolution '%s'", interfaceResolutionStrategy));
+        }
+        return null;
+    }
+
+    /**
+     * The path of the first library this run would extract that is not on the classpath, or null.
+     */
+    private static String firstAbsent(String libRootInJar, List<Extractions> extractions,
+                                      Extractions.Type resolvedType)
+    {
+        for (Extractions extraction : extractions)
+        {
+            boolean wanted = (extractOpenSSL && extraction.type == Extractions.Type.OSSL)
+                    || (resolvedType != null && extraction.type == resolvedType);
+            String pathInJar = libRootInJar + "/" + extraction.name;
+            if (wanted && !LoaderUtils.isOnClasspath(pathInJar))
+            {
+                return pathInJar;
+            }
+        }
+        return null;
     }
 
     private static File resolveInstallRootDir()
@@ -563,8 +599,8 @@ public class Loader
             }
             catch (Throwable t)
             {
-                L.log(Level.WARNING, t.getMessage(), t);
-                fipsMessage = t.getMessage();
+                fipsMessage = describe(t);
+                L.log(Level.WARNING, fipsMessage, t);
                 fipsLoadSuccessful = false;
             }
         }

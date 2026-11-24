@@ -570,27 +570,18 @@ Extracted: /native/linux/x86_64/libinterface_jni.so
 
 #### Unsuccessful loading example
 
+A jar for one architecture carries the libraries of that architecture only. Here the native libraries
+are absent for the platform the JVM reports, as they are for the `aarch64` jar on Windows x64:
+
 ```
-java -cp jostle/build/libs/openssl-jostle-0.4.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
-
-java -cp openssl-jostle-0.4.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
-Oct 02, 2025 10:02:41 PM org.openssl.jostle.Loader load
-WARNING: extraction file '/native/osx/arm64/libcrypto.3.dylib' not found
-java.io.IOException: extraction file '/native/osx/arm64/libcrypto.3.dylib' not found
-	at org.openssl.jostle.Loader.extractAndLoad(Loader.java:389)
-	at org.openssl.jostle.Loader.loadImpl(Loader.java:308)
-	at org.openssl.jostle.Loader.load(Loader.java:104)
-	at org.openssl.jostle.CryptoServicesRegistrar.<clinit>(CryptoServicesRegistrar.java:21)
-	at org.openssl.jostle.jcajce.provider.JostleProvider.<init>(JostleProvider.java:54)
-	at org.openssl.jostle.jcajce.provider.JostleProvider.<init>(JostleProvider.java:42)
-	at org.openssl.jostle.util.DumpInfo.main(DumpInfo.java:41)
-
-Exception in thread "main" java.lang.IllegalStateException: no access to native library
-	at org.openssl.jostle.CryptoServicesRegistrar.assertNativeAvailable(CryptoServicesRegistrar.java:34)
-	at org.openssl.jostle.jcajce.provider.JostleProvider.<init>(JostleProvider.java:54)
-	at org.openssl.jostle.jcajce.provider.JostleProvider.<init>(JostleProvider.java:42)
-	at org.openssl.jostle.util.DumpInfo.main(DumpInfo.java:41)
-
+java -Dos.name="Windows 11" -Dos.arch=amd64 -cp openssl-jostle-0.4.0-SNAPSHOT.jar org.openssl.jostle.util.DumpInfo
+Nov 24, 2026 11:25:58 AM org.openssl.jostle.Loader loadImpl
+WARNING: no native libraries for os: 'Windows 11' and arch: 'amd64' in this jar ('/native/windows/x86_64/libcrypto-3-x64.dll' is absent), use the openssl-jostle jar published for this architecture
+Exception in thread "main" java.lang.IllegalStateException: no access to native library: no native libraries for os: 'Windows 11' and arch: 'amd64' in this jar ('/native/windows/x86_64/libcrypto-3-x64.dll' is absent), use the openssl-jostle jar published for this architecture
+	at org.openssl.jostle.CryptoServicesRegistrar.assertNativeAvailable(CryptoServicesRegistrar.java:56)
+	at org.openssl.jostle.jcajce.provider.JostleProvider.<init>(JostleProvider.java:107)
+	at org.openssl.jostle.jcajce.provider.JostleProvider.<init>(JostleProvider.java:76)
+	at org.openssl.jostle.util.DumpInfo.main(DumpInfo.java:65)
 ```
 
 ## Testing on multiple JVMs specifically
@@ -910,6 +901,8 @@ be defined by either:
 
 1. org.openssl.jostle.loader.load_name_NN, or
 2. org.openssl.jostle.loader.load_lib_NN
+
+With "none" the provider binds the JNI interface, so the JNI interface library is the one to supply.
 
 #### Property: "org.openssl.jostle.loader.extract_openssl"
 
